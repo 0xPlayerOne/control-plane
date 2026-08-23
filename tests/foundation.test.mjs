@@ -138,6 +138,7 @@ test('provides one ancestry-aware local acceptance command and a parallel CI gat
   const milestone = JSON.parse(await readRepositoryFile('docs/m1-foundation.json'))
 
   assert.match(manifest.scripts['test:acceptance'], /run-foundation-acceptance/)
+  assert.match(manifest.scripts['test:unit'], /build.*turbo run test.*bun test tests/)
   assert.match(testing, /bun run test:acceptance/)
   assert.match(runner, /merge-base/)
   assert.match(runner, /--frozen-lockfile/)
