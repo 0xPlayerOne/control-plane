@@ -1,6 +1,6 @@
 # Continuous integration
 
-Code Foundry v0.37.1 is the CI control plane for this repository. Its generated
+Code Foundry v0.37.2 is the CI control plane for this repository. Its generated
 callers are pinned under `.github/workflows/` and target `main` directly; there
 is no staging branch.
 

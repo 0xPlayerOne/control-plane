@@ -25,7 +25,7 @@ concurrency:
 jobs:
   mode:
     name: Mode
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
@@ -37,7 +37,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 0xPlayerOne/code-foundry
-          ref: v0.37.1
+          ref: v0.37.2
           path: .github/.code-foundry
           sparse-checkout: |
             src/lib
@@ -64,15 +64,15 @@ jobs:
       contents: read
       packages: read
       security-events: write
-    uses: 0xPlayerOne/code-foundry/.github/workflows/validation.yml@v0.37.1
+    uses: 0xPlayerOne/code-foundry/.github/workflows/validation.yml@v0.37.2
     with:
       mode: ${{ needs.mode.outputs.mode }}
       runtime-repository: 0xPlayerOne/code-foundry
-      runtime-ref: v0.37.1
-      ci-runner: ubuntu-slim
-      test-runner: ubuntu-slim
-      unit-runner: ubuntu-slim
-      security-runner: ubuntu-slim
+      runtime-ref: v0.37.2
+      ci-runner: ubuntu-latest
+      test-runner: ubuntu-latest
+      unit-runner: ubuntu-latest
+      security-runner: ubuntu-latest
       codeql-runner: ubuntu-latest
       rust-shards: '["all"]'
       rust-threads: '1'

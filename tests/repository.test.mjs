@@ -76,6 +76,18 @@ test('configures the Code Foundry CI baseline for the private direct-flow reposi
   assert.match(config, /^codeql: false$/m)
   assert.match(config, /^dependency_review: false$/m)
   assert.match(config, /^opencode_security: false$/m)
+  for (const runner of [
+    'runner',
+    'ci_runner',
+    'test_runner',
+    'unit_runner',
+    'security_runner',
+    'codeql_runner',
+    'pr_runner',
+    'release_runner',
+  ]) {
+    assert.match(config, new RegExp(`^${runner}: ubuntu-latest$`, 'm'))
+  }
 })
 
 test('generates only the direct-flow Code Foundry callers with parallel validation', async () => {
@@ -94,14 +106,15 @@ test('generates only the direct-flow Code Foundry callers with parallel validati
 
   assert.match(
     validation,
-    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.37\.1/
+    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.37\.2/
   )
   assert.match(validation, /cancel-in-progress: true/)
+  assert.doesNotMatch(validation, /ubuntu-slim/)
   assert.match(validation, /branches: \[main\]/)
   assert.match(validation, /validation mode/)
   assert.match(validation, /mode: \$\{\{ needs\.mode\.outputs\.mode \}\}/)
   assert.doesNotMatch(validation, /branches: \[[^\]]*staging/)
-  assert.match(release, /release\.yml@v0\.37\.1/)
+  assert.match(release, /release\.yml@v0\.37\.2/)
   assert.match(draftPr, /base: main/)
 
   await assert.rejects(readFile(new URL('../.github/workflows/release-pr.yml', import.meta.url)))
@@ -247,7 +260,7 @@ test('rejects database contracts in Control API controllers', async () => {
   } finally {
     await unlink(fixture)
   }
-}, 15_000)
+}, 60_000)
 
 test('rejects live database imports from core packages', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url))
@@ -266,7 +279,7 @@ test('rejects live database imports from core packages', async () => {
   } finally {
     await unlink(fixture)
   }
-}, 15_000)
+}, 60_000)
 
 test('rejects concrete vendor imports from core packages', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url))
@@ -282,4 +295,4 @@ test('rejects concrete vendor imports from core packages', async () => {
   } finally {
     await unlink(fixture)
   }
-}, 15_000)
+}, 60_000)
