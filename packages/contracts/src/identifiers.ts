@@ -19,6 +19,7 @@ export const IdentifierSchemas = {
   agentId: opaqueIdentifier('agt', 'Agent ID'),
   profileId: opaqueIdentifier('prf', 'profile ID'),
   profileVersionId: opaqueIdentifier('pfv', 'profile-version ID'),
+  skillId: opaqueIdentifier('skl', 'Skill ID'),
   skillVersionId: opaqueIdentifier('skv', 'skill-version ID'),
   executionId: opaqueIdentifier('exe', 'execution ID'),
   attemptId: opaqueIdentifier('att', 'attempt ID'),
@@ -40,6 +41,7 @@ export type TaskId = z.output<(typeof IdentifierSchemas)['taskId']>
 export type AgentId = z.output<(typeof IdentifierSchemas)['agentId']>
 export type ProfileId = z.output<(typeof IdentifierSchemas)['profileId']>
 export type ProfileVersionId = z.output<(typeof IdentifierSchemas)['profileVersionId']>
+export type SkillId = z.output<(typeof IdentifierSchemas)['skillId']>
 export type SkillVersionId = z.output<(typeof IdentifierSchemas)['skillVersionId']>
 export type ExecutionId = z.output<(typeof IdentifierSchemas)['executionId']>
 export type AttemptId = z.output<(typeof IdentifierSchemas)['attemptId']>
