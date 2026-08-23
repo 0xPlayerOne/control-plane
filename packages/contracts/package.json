@@ -1,7 +1,7 @@
 {
   "name": "@control-plane/contracts",
   "version": "0.0.0",
-  "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "browser": false,
   "engines": {
@@ -17,6 +17,10 @@
       "node": "./dist/index.js",
       "default": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

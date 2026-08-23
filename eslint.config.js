@@ -6,6 +6,7 @@ const coreFiles = [
   'packages/config/**/*.ts',
   'packages/domain/**/*.ts',
   'packages/contracts/**/*.ts',
+  'packages/control-sdk/**/*.ts',
   'packages/events/**/*.ts',
   'packages/execution-plan/**/*.ts',
   'packages/runtime-sdk/**/*.ts',
@@ -78,6 +79,38 @@ export default tseslint.config(
     files: ['apps/control-api/src/**/*.module.ts'],
     rules: {
       '@typescript-eslint/no-extraneous-class': 'off',
+    },
+  },
+  {
+    files: ['packages/control-sdk/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            ...prohibitedAdapters,
+            '@control-plane/bootstrap',
+            '@control-plane/bootstrap/*',
+            '@control-plane/config',
+            '@control-plane/config/*',
+            '@control-plane/context',
+            '@control-plane/context/*',
+            '@control-plane/domain',
+            '@control-plane/domain/*',
+            '@control-plane/execution-plan',
+            '@control-plane/execution-plan/*',
+            '@control-plane/policy',
+            '@control-plane/policy/*',
+            '@control-plane/runtime-sdk',
+            '@control-plane/runtime-sdk/*',
+            '@control-plane/telemetry',
+            '@control-plane/telemetry/*',
+          ].map((group) => ({
+            group: [group],
+            message: 'The public SDK may depend only on the public contract boundary.',
+          })),
+        },
+      ],
     },
   },
   {

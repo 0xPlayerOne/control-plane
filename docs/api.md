@@ -80,3 +80,7 @@ bun run openapi:check
 
 The check requires health, readiness, and the representative `/v1/system/echo` contract. Add domain
 contracts only when their owning milestone defines and versions them.
+
+The Agent HQ-facing typed client is published separately as `@control-plane/sdk`. Its generated
+OpenAPI boundary and deterministic pre-execution stub are documented in [`sdk.md`](sdk.md). The SDK
+does not import this application or any server implementation package.

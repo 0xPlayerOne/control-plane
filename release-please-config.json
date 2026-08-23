@@ -76,6 +76,10 @@
       "release-type": "node",
       "package-name": "@control-plane/contracts"
     },
+    "packages/control-sdk": {
+      "release-type": "node",
+      "package-name": "@control-plane/sdk"
+    },
     "packages/database": {
       "release-type": "node",
       "package-name": "@control-plane/database"

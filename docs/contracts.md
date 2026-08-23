@@ -1,6 +1,6 @@
 # Agent HQ ↔ Control Plane contracts
 
-`@control-plane/contracts` is the runtime-independent service boundary between Agent HQ and the
+`@control-plane/contracts` 1.x is the publishable, runtime-independent service boundary between Agent HQ and the
 Control Plane. Agent HQ supplies authorized product intent and workspace identity; the Control Plane
 applies execution policy and owns runtime semantics. The package depends only on Zod and can build
 without Control Plane domain, database, application, workflow, or adapter packages.

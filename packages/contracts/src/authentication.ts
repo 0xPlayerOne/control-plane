@@ -7,7 +7,7 @@ const ServicePrincipalIdSchema = z
   .min(5)
   .max(64)
   .regex(/^svc_[a-z][a-z0-9-]*$/)
-const ServiceScopeSchema = z
+export const ServiceScopeSchema = z
   .string()
   .min(3)
   .max(96)
