@@ -4,11 +4,11 @@ updated_at: '2026-08-23'
 owner: Control Plane runtime architecture
 status: planned_partially_verified
 canonical_for:
-- runtime and harness compatibility
-- adapter and driver path
-- entitlement semantics
-- verification state
-- known limitations
+  - runtime and harness compatibility
+  - adapter and driver path
+  - entitlement semantics
+  - verification state
+  - known limitations
 support_states:
   verified: Tested end to end against a specific adapter, driver, harness, protocol, and location combination.
   preview: Implemented and selectively available but not cleared by every production release gate.
@@ -21,225 +21,243 @@ support_states:
   unsupported: Known not to satisfy the required capability or product policy.
   deprecated: Previously supported but no longer approved for new use.
 rules:
-- Filter hard runtime eligibility before applying preference ranking.
-- ACP support is capability-negotiated and does not imply a uniform feature set.
-- Missing a required capability makes a runtime ineligible rather than silently degraded.
-- Native session ownership remains with the originating harness.
-- Provider and harness subscription entitlements are not assumed equivalent.
-- Certification is tied to the exact adapter, driver, harness or runtime, protocol, RuntimeNode location, and policy versions
-  tested.
+  - Filter hard runtime eligibility before applying preference ranking.
+  - ACP support is capability-negotiated and does not imply a uniform feature set.
+  - Missing a required capability makes a runtime ineligible rather than silently degraded.
+  - Native session ownership remains with the originating harness.
+  - Provider and harness subscription entitlements are not assumed equivalent.
+  - Certification is tied to the exact adapter, driver, harness or runtime, protocol, RuntimeNode location, and policy versions
+    tested.
 runtimes:
-- id: managed-pi
-  display_name: Managed Pi
-  kind: managed_harness
-  support_state: partially_verified
-  integration_path: Managed local Pi through Runtime Gateway and ManagedPiDriver; hosted managed Pi is a separate RuntimeConnection
-    and location.
-  adapter: ManagedPiAdapter
-  driver: ManagedPiDriver
-  runtime_node_locations:
-  - local_device
-  runtime_gateway:
-    required: true
-    purpose: Control Plane commands and normalized RuntimeDriver results.
-  authentication: Agent HQ-managed or user-authorized provider credentials or subscription authentication configured through
-    Pi on the selected RuntimeNode.
-  sessions:
-    list: Control Plane-owned managed execution and session model; external native-session semantics do not apply.
-    resume: Managed by Agent HQ and Pi execution state according to implementation.
-    history_replay: Agent HQ controls managed context; not dependent on ACP.
-  tools: Pi tools, skills, and extensions are exposed through canonical ToolDefinitions and the policy-controlled Tool Gateway;
-    MCP and native integrations are adapters or executors rather than ambient authority.
-  filesystem_shell: Available only through an active workspace-scoped LocalProjectGrant and allowlisted RuntimeDriver and
-    Tauri operations.
-  model_selection: Controlled for managed routes by ExecutionPlan policy, deterministic eligibility and routing, provider
-    health, budget, data policy, and entitlement.
-  entitlement_behavior: May use Agent HQ-funded API inference, user-provided API credentials, or selected provider subscription
-    flows; semantics vary by provider.
-  side_effect_semantics: Propagate downstream idempotency keys or reconcile authoritative status where supported. Ambiguous
-    non-idempotent effects enter reconciliation_required and are not retried automatically.
-  known_limitations: Must not be assumed to reproduce native harness-specific subscription or session behavior. Claude Pro
-    or Max authentication through Pi does not currently consume native Claude plan limits in the same way as Claude Code.
-  tested_versions:
-    adapter: null
-    driver: null
-    runtime: null
-    protocol: null
-  last_verified: '2026-08-19'
-  verification_notes: Provider and authentication capability assumptions verified; adapter implementation not yet tested.
-- id: claude-code
-  display_name: Claude Code
-  kind: external_harness
-  support_state: planned
-  integration_path: ACPAdapter when a supported ACP bridge or agent exposes required capabilities; a specialized integration
-    may be required otherwise.
-  adapter: ACPAdapter_or_specialized
-  driver: ACPDriver
-  runtime_node_locations:
-  - local_device
-  runtime_gateway:
-    required: true
-    purpose: Agent HQ-controlled local execution and supported session operations.
-  authentication: Native Claude Code authentication remains owned by Claude Code.
-  sessions:
-    list: Capability-dependent and must be negotiated and verified.
-    resume: Capability-dependent; ACP resume reconnects without implying history replay.
-    history_replay: Not implied by ACP resume; requires a separately exposed capability or adapter support.
-  tools: Native Claude Code tools remain harness-owned; only advertised and authorized capabilities are surfaced.
-  filesystem_shell: Native project access may exist, but Agent HQ requires negotiated capabilities and an active LocalProjectGrant
-    for Control Plane-authorized access.
-  model_selection: Subject to Claude Code capabilities and user entitlement.
-  entitlement_behavior: Preferred path when preserving native Claude Pro or Max plan usage is required.
-  side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
-  known_limitations: Exact ACP integration and support matrix remain to be validated during the desktop RuntimeNode feasibility
-    spike.
-  tested_versions:
-    adapter: null
-    driver: null
-    runtime: null
-    protocol: null
-  last_verified: '2026-08-19'
-  verification_notes: Native entitlement distinction verified; Agent HQ ACP integration not validated end to end.
-- id: codex
-  display_name: Codex
-  kind: external_harness
-  support_state: planned
-  integration_path: ACPAdapter where supported; a specialized adapter only when required capabilities are unavailable through
-    ACP.
-  adapter: ACPAdapter_or_specialized
-  driver: ACPDriver
-  runtime_node_locations:
-  - local_device
-  runtime_gateway:
-    required: true
-    purpose: Agent HQ-controlled local execution and supported session operations.
-  authentication: Native Codex or ChatGPT authentication remains owned by the runtime.
-  sessions:
-    list: TBD by negotiated ACP capability and concrete integration.
-    resume: TBD by negotiated ACP capability and concrete integration.
-    history_replay: Not assumed; must be separately supported.
-  tools: Runtime-native tools are surfaced only through supported and authorized capabilities.
-  filesystem_shell: Capability-dependent and subject to LocalProjectGrant plus RuntimeDriver and Tauri permissions.
-  model_selection: Runtime and entitlement dependent.
-  entitlement_behavior: Preserve native runtime entitlement behavior; do not assume equivalence with Pi subscription flows.
-  side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
-  known_limitations: End-to-end ACP support and session semantics require implementation validation.
-  tested_versions:
-    adapter: null
-    driver: null
-    runtime: null
-    protocol: null
-  last_verified: '2026-08-19'
-  verification_notes: Architecture assumption only; concrete adapter support pending.
-- id: opencode
-  display_name: OpenCode
-  kind: external_harness
-  support_state: planned
-  integration_path: ACPAdapter for the harness. Managed inference through Pi is a separate provider path.
-  adapter: ACPAdapter
-  driver: ACPDriver
-  runtime_node_locations:
-  - local_device
-  runtime_gateway:
-    required: true
-    purpose: Agent HQ-controlled local execution and supported session operations.
-  authentication: Native OpenCode authentication and configuration remain with OpenCode; managed Pi provider keys remain separate.
-  sessions:
-    list: TBD by ACP capability and integration.
-    resume: TBD by ACP capability and integration.
-    history_replay: Not assumed.
-  tools: Harness-native capabilities are negotiated through the adapter.
-  filesystem_shell: Capability-dependent and subject to LocalProjectGrant when project access is requested.
-  model_selection: Depends on native OpenCode configuration; managed Pi provider routing is controlled separately by the Control
-    Plane.
-  entitlement_behavior: Native harness or provider subscriptions remain separate from Agent HQ-managed inference.
-  side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
-  known_limitations: Do not conflate OpenCode the harness with OpenCode Go the provider offering.
-  tested_versions:
-    adapter: null
-    driver: null
-    runtime: null
-    protocol: null
-  last_verified: '2026-08-19'
-  verification_notes: Provider and harness distinction verified; ACP path pending implementation validation.
-- id: user-managed-pi
-  display_name: User-Managed Pi
-  kind: external_harness
-  support_state: planned
-  integration_path: ACPAdapter if the user Pi environment is exposed through a supported ACP integration; otherwise a future
-    specialized local integration.
-  adapter: ACPAdapter_or_specialized
-  driver: ACPDriver
-  runtime_node_locations:
-  - local_device
-  runtime_gateway:
-    required: true
-    purpose: Agent HQ-controlled local execution and supported session operations.
-  authentication: User-owned Pi and provider configuration remains native and is not rewritten by Agent HQ.
-  sessions:
-    list: Capability-dependent.
-    resume: Capability-dependent.
-    history_replay: Not assumed.
-  tools: Native Pi tools, skills, extensions, and project configuration remain user-owned; temporary task or context augmentation
-    is applied only where supported.
-  filesystem_shell: Capability-dependent, locally authorized, and represented through LocalProjectGrant for Agent HQ-controlled
-    access.
-  model_selection: Depends on user Pi configuration and exposed capabilities.
-  entitlement_behavior: User-owned provider, API, or subscription configuration; separate from Agent HQ-funded usage.
-  side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
-  known_limitations: Agent HQ must not silently install or persist skills or configuration changes into the user Pi environment.
-  tested_versions:
-    adapter: null
-    driver: null
-    runtime: null
-    protocol: null
-  last_verified: '2026-08-19'
-  verification_notes: Architecture policy only; ACP path pending validation.
+  - id: managed-pi
+    display_name: Managed Pi
+    kind: managed_harness
+    support_state: partially_verified
+    integration_path:
+      Managed local Pi through Runtime Gateway and ManagedPiDriver; hosted managed Pi is a separate RuntimeConnection
+      and location.
+    adapter: ManagedPiAdapter
+    driver: ManagedPiDriver
+    runtime_node_locations:
+      - local_device
+    runtime_gateway:
+      required: true
+      purpose: Control Plane commands and normalized RuntimeDriver results.
+    authentication:
+      Agent HQ-managed or user-authorized provider credentials or subscription authentication configured through
+      Pi on the selected RuntimeNode.
+    sessions:
+      list: Control Plane-owned managed execution and session model; external native-session semantics do not apply.
+      resume: Managed by Agent HQ and Pi execution state according to implementation.
+      history_replay: Agent HQ controls managed context; not dependent on ACP.
+    tools:
+      Pi tools, skills, and extensions are exposed through canonical ToolDefinitions and the policy-controlled Tool Gateway;
+      MCP and native integrations are adapters or executors rather than ambient authority.
+    filesystem_shell:
+      Available only through an active workspace-scoped LocalProjectGrant and allowlisted RuntimeDriver and
+      Tauri operations.
+    model_selection:
+      Controlled for managed routes by ExecutionPlan policy, deterministic eligibility and routing, provider
+      health, budget, data policy, and entitlement.
+    entitlement_behavior:
+      May use Agent HQ-funded API inference, user-provided API credentials, or selected provider subscription
+      flows; semantics vary by provider.
+    side_effect_semantics:
+      Propagate downstream idempotency keys or reconcile authoritative status where supported. Ambiguous
+      non-idempotent effects enter reconciliation_required and are not retried automatically.
+    known_limitations:
+      Must not be assumed to reproduce native harness-specific subscription or session behavior. Claude Pro
+      or Max authentication through Pi does not currently consume native Claude plan limits in the same way as Claude Code.
+    tested_versions:
+      adapter: null
+      driver: null
+      runtime: null
+      protocol: null
+    last_verified: '2026-08-19'
+    verification_notes: Provider and authentication capability assumptions verified; adapter implementation not yet tested.
+  - id: claude-code
+    display_name: Claude Code
+    kind: external_harness
+    support_state: planned
+    integration_path:
+      ACPAdapter when a supported ACP bridge or agent exposes required capabilities; a specialized integration
+      may be required otherwise.
+    adapter: ACPAdapter_or_specialized
+    driver: ACPDriver
+    runtime_node_locations:
+      - local_device
+    runtime_gateway:
+      required: true
+      purpose: Agent HQ-controlled local execution and supported session operations.
+    authentication: Native Claude Code authentication remains owned by Claude Code.
+    sessions:
+      list: Capability-dependent and must be negotiated and verified.
+      resume: Capability-dependent; ACP resume reconnects without implying history replay.
+      history_replay: Not implied by ACP resume; requires a separately exposed capability or adapter support.
+    tools: Native Claude Code tools remain harness-owned; only advertised and authorized capabilities are surfaced.
+    filesystem_shell:
+      Native project access may exist, but Agent HQ requires negotiated capabilities and an active LocalProjectGrant
+      for Control Plane-authorized access.
+    model_selection: Subject to Claude Code capabilities and user entitlement.
+    entitlement_behavior: Preferred path when preserving native Claude Pro or Max plan usage is required.
+    side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
+    known_limitations:
+      Exact ACP integration and support matrix remain to be validated during the desktop RuntimeNode feasibility
+      spike.
+    tested_versions:
+      adapter: null
+      driver: null
+      runtime: null
+      protocol: null
+    last_verified: '2026-08-19'
+    verification_notes: Native entitlement distinction verified; Agent HQ ACP integration not validated end to end.
+  - id: codex
+    display_name: Codex
+    kind: external_harness
+    support_state: planned
+    integration_path:
+      ACPAdapter where supported; a specialized adapter only when required capabilities are unavailable through
+      ACP.
+    adapter: ACPAdapter_or_specialized
+    driver: ACPDriver
+    runtime_node_locations:
+      - local_device
+    runtime_gateway:
+      required: true
+      purpose: Agent HQ-controlled local execution and supported session operations.
+    authentication: Native Codex or ChatGPT authentication remains owned by the runtime.
+    sessions:
+      list: TBD by negotiated ACP capability and concrete integration.
+      resume: TBD by negotiated ACP capability and concrete integration.
+      history_replay: Not assumed; must be separately supported.
+    tools: Runtime-native tools are surfaced only through supported and authorized capabilities.
+    filesystem_shell: Capability-dependent and subject to LocalProjectGrant plus RuntimeDriver and Tauri permissions.
+    model_selection: Runtime and entitlement dependent.
+    entitlement_behavior: Preserve native runtime entitlement behavior; do not assume equivalence with Pi subscription flows.
+    side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
+    known_limitations: End-to-end ACP support and session semantics require implementation validation.
+    tested_versions:
+      adapter: null
+      driver: null
+      runtime: null
+      protocol: null
+    last_verified: '2026-08-19'
+    verification_notes: Architecture assumption only; concrete adapter support pending.
+  - id: opencode
+    display_name: OpenCode
+    kind: external_harness
+    support_state: planned
+    integration_path: ACPAdapter for the harness. Managed inference through Pi is a separate provider path.
+    adapter: ACPAdapter
+    driver: ACPDriver
+    runtime_node_locations:
+      - local_device
+    runtime_gateway:
+      required: true
+      purpose: Agent HQ-controlled local execution and supported session operations.
+    authentication: Native OpenCode authentication and configuration remain with OpenCode; managed Pi provider keys remain separate.
+    sessions:
+      list: TBD by ACP capability and integration.
+      resume: TBD by ACP capability and integration.
+      history_replay: Not assumed.
+    tools: Harness-native capabilities are negotiated through the adapter.
+    filesystem_shell: Capability-dependent and subject to LocalProjectGrant when project access is requested.
+    model_selection:
+      Depends on native OpenCode configuration; managed Pi provider routing is controlled separately by the Control
+      Plane.
+    entitlement_behavior: Native harness or provider subscriptions remain separate from Agent HQ-managed inference.
+    side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
+    known_limitations: Do not conflate OpenCode the harness with OpenCode Go the provider offering.
+    tested_versions:
+      adapter: null
+      driver: null
+      runtime: null
+      protocol: null
+    last_verified: '2026-08-19'
+    verification_notes: Provider and harness distinction verified; ACP path pending implementation validation.
+  - id: user-managed-pi
+    display_name: User-Managed Pi
+    kind: external_harness
+    support_state: planned
+    integration_path:
+      ACPAdapter if the user Pi environment is exposed through a supported ACP integration; otherwise a future
+      specialized local integration.
+    adapter: ACPAdapter_or_specialized
+    driver: ACPDriver
+    runtime_node_locations:
+      - local_device
+    runtime_gateway:
+      required: true
+      purpose: Agent HQ-controlled local execution and supported session operations.
+    authentication: User-owned Pi and provider configuration remains native and is not rewritten by Agent HQ.
+    sessions:
+      list: Capability-dependent.
+      resume: Capability-dependent.
+      history_replay: Not assumed.
+    tools:
+      Native Pi tools, skills, extensions, and project configuration remain user-owned; temporary task or context augmentation
+      is applied only where supported.
+    filesystem_shell:
+      Capability-dependent, locally authorized, and represented through LocalProjectGrant for Agent HQ-controlled
+      access.
+    model_selection: Depends on user Pi configuration and exposed capabilities.
+    entitlement_behavior: User-owned provider, API, or subscription configuration; separate from Agent HQ-funded usage.
+    side_effect_semantics: Must be declared by the concrete adapter and driver path before certification.
+    known_limitations: Agent HQ must not silently install or persist skills or configuration changes into the user Pi environment.
+    tested_versions:
+      adapter: null
+      driver: null
+      runtime: null
+      protocol: null
+    last_verified: '2026-08-19'
+    verification_notes: Architecture policy only; ACP path pending validation.
 provider_paths:
-- id: provider-only-managed-inference
-  display_name: Provider-only managed inference
-  kind: provider_path
-  consumed_through: ManagedPiAdapter
-  examples:
-  - DeepSeek
-  - OpenCode Go
-  - OpenRouter
-  tracked_dimensions:
-  - model capability
-  - pricing
-  - entitlement
-  - privacy
-  - rate limits
-  - availability
-  note: This is not a separate harness RuntimeConnection and is not tracked through ACP session compatibility.
+  - id: provider-only-managed-inference
+    display_name: Provider-only managed inference
+    kind: provider_path
+    consumed_through: ManagedPiAdapter
+    examples:
+      - DeepSeek
+      - OpenCode Go
+      - OpenRouter
+    tracked_dimensions:
+      - model capability
+      - pricing
+      - entitlement
+      - privacy
+      - rate limits
+      - availability
+    note: This is not a separate harness RuntimeConnection and is not tracked through ACP session compatibility.
 production_readiness_checks:
-- Clean install or connect path succeeds.
-- Authentication behavior is documented.
-- RuntimeAdapter capability negotiation is tested.
-- RuntimeDriver and Runtime Gateway versions are tested for node-hosted execution.
-- Required tools, environment access, and LocalProjectGrant enforcement are tested.
-- Session list, resume, and history behavior are explicitly classified.
-- Cancellation, reconnect, duplicate delivery, and disconnect recovery are tested.
-- Downstream side-effect semantics are classified and ambiguous non-idempotent outcomes enter reconciliation_required.
-- Permission enforcement is validated.
-- Errors normalize into the Control Plane taxonomy.
-- Usage, cost, and entitlement attribution is validated where observable.
-- Native configuration is not silently mutated.
-- Exact adapter, driver, gateway, runtime or harness, protocol, location, and policy versions are recorded.
-- RuntimeAdapter conformance, M6 compatibility certification, representative regression coverage, and configured M9 release
-  gates pass.
+  - Clean install or connect path succeeds.
+  - Authentication behavior is documented.
+  - RuntimeAdapter capability negotiation is tested.
+  - RuntimeDriver and Runtime Gateway versions are tested for node-hosted execution.
+  - Required tools, environment access, and LocalProjectGrant enforcement are tested.
+  - Session list, resume, and history behavior are explicitly classified.
+  - Cancellation, reconnect, duplicate delivery, and disconnect recovery are tested.
+  - Downstream side-effect semantics are classified and ambiguous non-idempotent outcomes enter reconciliation_required.
+  - Permission enforcement is validated.
+  - Errors normalize into the Control Plane taxonomy.
+  - Usage, cost, and entitlement attribution is validated where observable.
+  - Native configuration is not silently mutated.
+  - Exact adapter, driver, gateway, runtime or harness, protocol, location, and policy versions are recorded.
+  - RuntimeAdapter conformance, M6 compatibility certification, representative regression coverage, and configured M9 release
+    gates pass.
 open_items:
-- Exact ACP support matrix for Claude Code, Codex, OpenCode, and user-managed Pi.
-- Concrete Runtime Gateway deployment, autoscaling, secure-storage adapters, and operational thresholds.
-- Generated schema and package representation for RuntimeAdapter and RuntimeDriver contracts.
-- Automated adapter, driver, and protocol compatibility and failure-injection suites.
-- Version pinning and upgrade policy.
-- Provider entitlement verification strategy.
-- Support and deprecation policy for runtime versions.
-runtime_location_semantics: Compatibility is evaluated with RuntimeNode location. The same harness is not interchangeable
+  - Exact ACP support matrix for Claude Code, Codex, OpenCode, and user-managed Pi.
+  - Concrete Runtime Gateway deployment, autoscaling, secure-storage adapters, and operational thresholds.
+  - Generated schema and package representation for RuntimeAdapter and RuntimeDriver contracts.
+  - Automated adapter, driver, and protocol compatibility and failure-injection suites.
+  - Version pinning and upgrade policy.
+  - Provider entitlement verification strategy.
+  - Support and deprecation policy for runtime versions.
+runtime_location_semantics:
+  Compatibility is evaluated with RuntimeNode location. The same harness is not interchangeable
   across local_device, future agent_hq_cloud, or remote_host locations merely because its name matches.
 milestone_ownership:
   M4: RuntimeConnection inventory, capability freshness, eligibility, routing, and ExternalSession read models.
   M6: Managed Pi and ACP implementation, conformance evidence, and machine-readable compatibility certification.
-  M9: Evaluation and release gates that may block promotion on compatibility, reliability, security, quality, latency, or
+  M9:
+    Evaluation and release gates that may block promotion on compatibility, reliability, security, quality, latency, or
     cost regressions.
