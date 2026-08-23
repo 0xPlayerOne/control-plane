@@ -68,6 +68,7 @@ export async function bootstrapService<Service extends ServiceName>(
   }
 }
 
+export { jsonLogger } from './logger.js'
 export type { StructuredLogEntry, StructuredLogger } from './logger.js'
 export type { ProcessAdapter, ProcessEvent, ProcessListener } from './process.js'
 export type {

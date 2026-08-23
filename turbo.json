@@ -6,6 +6,11 @@
       "outputs": ["dist/**"]
     },
     "lint": {},
-    "test": {}
+    "openapi:check": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    }
   }
 }

@@ -107,6 +107,25 @@ test('configures strict TypeScript and dependency-boundary checks', async () => 
   }
 })
 
+test('rejects database contracts in Control API controllers', async () => {
+  const cwd = fileURLToPath(new URL('../', import.meta.url))
+  const fixture = new URL(
+    '../apps/control-api/src/system/database-contract.boundary-test.controller.ts',
+    import.meta.url
+  )
+  await writeFile(fixture, 'import "@control-plane/database";\n')
+
+  try {
+    const eslint = new ESLint({ cwd })
+    const [result] = await eslint.lintFiles([fileURLToPath(fixture)])
+
+    assert.equal(result.errorCount, 1)
+    assert.equal(result.messages[0]?.ruleId, 'no-restricted-imports')
+  } finally {
+    await unlink(fixture)
+  }
+})
+
 test('rejects live database imports from core packages', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url))
   const fixture = new URL(
