@@ -76,10 +76,10 @@ The repository runtime detects supported tools and skips checks that do not appl
 
 ```sh
 npx code-foundry doctor
-npm run format:check   # or the package manager's equivalent
-npm run lint
-npm run type-check
-npm test
+bun run format:check
+bun run lint
+bun run type-check
+bun test
 Security and dependency audits run through the GitHub Security workflow.
 ```
 
@@ -153,7 +153,7 @@ Keep pull requests focused and reviewable. Include screenshots or recordings for
 
 | Event | Expected automation |
 |------------------------------------------------------------------------------------------------------------------------------------------------|
-| Pull request targeting `main` | Audit validation: CI, full tests, Security, and CodeQL, ending in `Validation / Gate` |
+| Pull request targeting `main` | Audit validation: CI, full tests, and native Security, ending in `Validation / Gate`; private-plan CodeQL is disabled |
 | Exact Release Please pull request targeting `main` | Release-policy validation only, ending in `Validation / Gate` |
 | Scheduled or manual validation | Full audit tier |
 | Push to a working branch | Draft PR workflow |
