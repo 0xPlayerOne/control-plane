@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  ArtifactReferenceSchema,
   ContractVersionSchema,
+  ErrorClassSchema,
+  EventEnvelopeSchema,
   IdentifierSchemas,
+  PublicContractFixtures,
+  ReadRequestEnvelopeSchema,
+  ResponseEnvelopeSchema,
+  RuntimeReadModelEnvelopeSchema,
+  StateChangingCommandEnvelopeSchema,
+  UsageEnvelopeSchema,
   assessContractCompatibility,
   negotiateContractVersion,
 } from './index.ts'
@@ -91,5 +100,86 @@ describe('contract version compatibility', () => {
   test('rejects invalid version numbers', () => {
     expect(ContractVersionSchema.safeParse({ major: 0, minor: 1 }).success).toBe(false)
     expect(ContractVersionSchema.safeParse({ major: 1, minor: -1 }).success).toBe(false)
+  })
+})
+
+describe('versioned public envelopes', () => {
+  test('requires retry and correlation metadata on every state-changing command', () => {
+    expect(StateChangingCommandEnvelopeSchema.parse(PublicContractFixtures.command)).toEqual(
+      PublicContractFixtures.command
+    )
+
+    for (const requiredField of [
+      'contractVersion',
+      'requestId',
+      'commandId',
+      'idempotencyKey',
+      'workspaceId',
+      'payloadHash',
+      'correlation',
+      'operation',
+      'issuedAt',
+      'payload',
+    ]) {
+      const incomplete = Object.fromEntries(
+        Object.entries(PublicContractFixtures.command).filter(([field]) => field !== requiredField)
+      )
+      expect(StateChangingCommandEnvelopeSchema.safeParse(incomplete).success).toBe(false)
+    }
+  })
+
+  test('validates request, response, event, usage, Artifact, and runtime read-model fixtures', () => {
+    expect(ReadRequestEnvelopeSchema.parse(PublicContractFixtures.request)).toBeDefined()
+    expect(ResponseEnvelopeSchema.parse(PublicContractFixtures.response)).toBeDefined()
+    expect(EventEnvelopeSchema.parse(PublicContractFixtures.event)).toBeDefined()
+    expect(UsageEnvelopeSchema.parse(PublicContractFixtures.usage)).toBeDefined()
+    expect(ArtifactReferenceSchema.parse(PublicContractFixtures.artifact)).toBeDefined()
+    expect(RuntimeReadModelEnvelopeSchema.parse(PublicContractFixtures.runtime)).toBeDefined()
+  })
+
+  test('distinguishes every normalized failure class', () => {
+    expect(ErrorClassSchema.options).toEqual([
+      'validation',
+      'authentication',
+      'authorization',
+      'conflict',
+      'stale_reference',
+      'capability_mismatch',
+      'runtime_unavailable',
+      'internal',
+    ])
+
+    for (const errorClass of ErrorClassSchema.options) {
+      expect(
+        ResponseEnvelopeSchema.safeParse({
+          ...PublicContractFixtures.errorResponse,
+          error: { ...PublicContractFixtures.errorResponse.error, class: errorClass },
+        }).success
+      ).toBe(true)
+    }
+  })
+
+  test('accepts additive envelope fields without requiring vendor or harness details', () => {
+    expect(
+      StateChangingCommandEnvelopeSchema.safeParse({
+        ...PublicContractFixtures.command,
+        additiveFutureField: 'ignored-by-v1-consumers',
+      }).success
+    ).toBe(true)
+
+    const serializedFixtures = JSON.stringify(PublicContractFixtures).toLowerCase()
+    for (const prohibitedTerm of [
+      'temporal',
+      'langgraph',
+      'litellm',
+      'claude',
+      'codex',
+      'pi_',
+      'mcp_',
+      'providercredential',
+      'databaseid',
+    ]) {
+      expect(serializedFixtures).not.toContain(prohibitedTerm)
+    }
   })
 })
