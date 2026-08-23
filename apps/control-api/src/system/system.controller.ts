@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req } from '@nestjs/common'
+import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common'
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { FastifyRequest } from 'fastify'
 import { RequireServiceAuthentication } from '../auth/service-authentication.js'
@@ -18,9 +18,11 @@ export class SystemController {
     return { data: this.systemService.echo(query.message), meta: responseMetadata(request) }
   }
 
-  @Get('authenticated')
-  @RequireServiceAuthentication()
-  authenticated() {
-    return { data: { authenticated: true } }
+  @Post('authenticated')
+  @RequireServiceAuthentication('system:authenticate')
+  authenticated(@Body() _envelope: unknown, @Req() request: FastifyRequest) {
+    return {
+      data: { authenticated: true, principalId: request.servicePrincipal?.principalId },
+    }
   }
 }

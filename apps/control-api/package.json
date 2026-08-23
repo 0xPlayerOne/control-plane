@@ -18,6 +18,7 @@
   "dependencies": {
     "@control-plane/bootstrap": "workspace:*",
     "@control-plane/config": "workspace:*",
+    "@control-plane/contracts": "workspace:*",
     "@control-plane/telemetry": "workspace:*",
     "@fastify/helmet": "13.1.0",
     "@nestjs/common": "11.2.1",
