@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { IdentifierSchemas } from '@control-plane/contracts'
+import { ExecutionConstraintSetSchema } from './execution-constraints.js'
 
 const TimestampSchema = z.iso.datetime()
 const DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
@@ -36,11 +37,6 @@ export const ExactSkillVersionReferenceSchema = z.object({
   contentDigest: DigestSchema,
 })
 
-const VersionedPolicyReferenceSchema = z.object({
-  policyId: z.string().min(1).max(128),
-  version: z.number().int().positive(),
-})
-
 const ToolRequirementSchema = z.object({
   toolId: ToolIdSchema,
   versionRange: z.string().min(1).max(64),
@@ -52,17 +48,7 @@ export const AgentProfileDefinitionSchema = z.object({
   personaInstructions: z.string().max(32_768).optional(),
   skills: z.array(ExactSkillVersionReferenceSchema).max(128),
   capabilityRequirements: z.array(CapabilitySchema).max(128).refine(unique),
-  modelPolicyRef: VersionedPolicyReferenceSchema,
-  toolRequirements: z.array(ToolRequirementSchema).max(128),
-  contextPolicyRef: VersionedPolicyReferenceSchema,
-  runtimeConstraints: z.object({
-    allowedRuntimeClasses: z.array(z.string().min(1).max(128)).min(1).max(32).refine(unique),
-    localProjectRequired: z.boolean(),
-  }),
-  interactionPolicy: z.object({
-    allowedModes: z.array(z.enum(['autonomous', 'interactive', 'approval_required'])).min(1),
-    approvalRequiredForSideEffects: z.boolean(),
-  }),
+  executionConstraints: ExecutionConstraintSetSchema,
   outputContractRefs: z.array(z.string().min(1).max(256)).max(32).refine(unique),
 })
 

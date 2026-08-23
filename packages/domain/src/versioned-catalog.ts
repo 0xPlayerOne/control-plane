@@ -399,8 +399,10 @@ export class VersionedCatalog {
       if (!environment.capabilities.includes(capability))
         reasons.push(`MISSING_CAPABILITY:${capability}`)
     }
-    for (const tool of profile.definition.toolRequirements) {
-      if (!environment.tools.includes(tool.toolId)) reasons.push(`MISSING_TOOL:${tool.toolId}`)
+    for (const grant of profile.definition.executionConstraints.tools.grants) {
+      if (!environment.tools.includes(grant.tool.toolId)) {
+        reasons.push(`MISSING_TOOL:${grant.tool.toolId}`)
+      }
     }
     for (const reference of profile.definition.skills) {
       const resolution = await this.resolveSkill(reference)

@@ -13,11 +13,12 @@ references scope lookup and authorization without copying Agent HQ membership or
 the Control Plane.
 
 AgentProfile definitions contain role/persona instructions, exact SkillVersion references and digests,
-capability requirements, versioned model/context policy references, tool requirements, provider-neutral
-runtime constraints, interaction policy, and output-contract references. Skill manifests contain a
-semantic version, content digest, capabilities/tools, profile and public-contract compatibility, and
-optional evaluation references. Concrete harness, provider credential, process, and local-path details
-do not belong in either model.
+capability requirements, one immutable provider-neutral `ExecutionConstraintSet`, and output-contract
+references. The constraint set covers context, tools, logical models, runtimes, policy snapshots,
+interaction, budgets, and execution limits; see [`execution-constraints.md`](execution-constraints.md).
+Skill manifests contain a semantic version, content digest, capabilities/tools, profile and public-contract
+compatibility, and optional evaluation references. Concrete harness, provider credential, process, and
+local-path details do not belong in either model.
 
 ## Publication and immutability
 

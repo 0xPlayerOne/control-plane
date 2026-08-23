@@ -32,6 +32,8 @@ Immutable AgentProfile and Skill ownership, publication, lifecycle, pinning, and
 documented in [`docs/profiles-and-skills.md`](docs/profiles-and-skills.md).
 Runtime definitions, normalized capabilities, RuntimeNode references, connections, and compatibility
 states are documented in [`docs/runtime-capabilities.md`](docs/runtime-capabilities.md).
+Provider-neutral tool, model, policy, interaction, and execution-limit contracts are documented in
+[`docs/execution-constraints.md`](docs/execution-constraints.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in
