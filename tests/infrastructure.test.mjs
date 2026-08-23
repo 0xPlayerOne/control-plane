@@ -68,6 +68,11 @@ test('separates Terraform state and service configuration by environment', async
 
   assert.match(manifest.scripts['infra:fmt:check'], /terraform/)
   assert.match(manifest.scripts['infra:validate'], /validate-terraform/)
+  assert.match(manifest.scripts.format, /--ignore-path infrastructure\/terraform\/\.gitignore/)
+  assert.match(
+    manifest.scripts['format:check'],
+    /--ignore-path infrastructure\/terraform\/\.gitignore/
+  )
   assert.match(gitignore, /^\*\.tfvars$/m)
   assert.match(gitignore, /^!\*\.tfvars\.example$/m)
 })
@@ -96,7 +101,10 @@ test('models AWS dependencies without leaking secrets or Kubernetes into service
     platform,
     /name\s*=\s*"\$\{var\.project_name\}\/\$\{var\.environment\}\/\$\{each\.value\}"/
   )
-  assert.match(platform, /logs\.\$\{var\.aws_region\}\.\$\{data\.aws_partition\.current\.dns_suffix\}/)
+  assert.match(
+    platform,
+    /logs\.\$\{var\.aws_region\}\.\$\{data\.aws_partition\.current\.dns_suffix\}/
+  )
   assert.match(platform, /kms:EncryptionContext:aws:logs:arn/)
   assert.match(service, /readonlyRootFilesystem/)
   assert.match(service, /secrets\s*=/)
