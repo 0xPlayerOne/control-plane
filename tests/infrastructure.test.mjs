@@ -96,6 +96,8 @@ test('models AWS dependencies without leaking secrets or Kubernetes into service
     platform,
     /name\s*=\s*"\$\{var\.project_name\}\/\$\{var\.environment\}\/\$\{each\.value\}"/
   )
+  assert.match(platform, /logs\.\$\{var\.aws_region\}\.\$\{data\.aws_partition\.current\.dns_suffix\}/)
+  assert.match(platform, /kms:EncryptionContext:aws:logs:arn/)
   assert.match(service, /readonlyRootFilesystem/)
   assert.match(service, /secrets\s*=/)
   assert.match(service, /aws_ecs_task_definition/)

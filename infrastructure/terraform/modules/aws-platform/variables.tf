@@ -14,6 +14,11 @@ variable "environment" {
   }
 }
 
+variable "aws_region" {
+  description = "AWS region used to scope regional service principals."
+  type        = string
+}
+
 variable "vpc_cidr" {
   description = "CIDR for the environment VPC."
   type        = string

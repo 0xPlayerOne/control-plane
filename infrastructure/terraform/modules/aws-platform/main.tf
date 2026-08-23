@@ -2,6 +2,46 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
+
+data "aws_iam_policy_document" "platform_kms" {
+  statement {
+    sid       = "EnableAccountAdministration"
+    actions   = ["kms:*"]
+    resources = ["*"]
+
+    principals {
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+      type        = "AWS"
+    }
+  }
+
+  statement {
+    sid = "AllowEncryptedCloudWatchLogs"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:ReEncrypt*",
+    ]
+    resources = ["*"]
+
+    principals {
+      identifiers = ["logs.${var.aws_region}.${data.aws_partition.current.dns_suffix}"]
+      type        = "Service"
+    }
+
+    condition {
+      test     = "ArnEquals"
+      values   = ["arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/${var.project_name}/${var.environment}/services"]
+      variable = "kms:EncryptionContext:aws:logs:arn"
+    }
+  }
+}
+
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
   availability_zones = slice(
@@ -148,6 +188,7 @@ resource "aws_kms_key" "platform" {
   description             = "${local.name_prefix} application data"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.platform_kms.json
 }
 
 resource "aws_kms_alias" "platform" {

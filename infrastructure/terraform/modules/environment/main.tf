@@ -53,6 +53,7 @@ locals {
 module "platform" {
   source = "../aws-platform"
 
+  aws_region                   = var.aws_region
   environment                  = var.environment
   vpc_cidr                     = var.vpc_cidr
   public_subnet_cidrs          = var.public_subnet_cidrs
