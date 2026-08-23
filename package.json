@@ -26,6 +26,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:boundaries": "turbo boundaries",
+    "containers:build": "docker buildx bake -f infrastructure/containers/docker-bake.hcl",
+    "containers:print": "docker buildx bake -f infrastructure/containers/docker-bake.hcl --print",
     "db:check": "bun --cwd=packages/database run db:check",
     "db:up": "docker compose up -d postgres",
     "db:stop": "docker compose stop postgres"
