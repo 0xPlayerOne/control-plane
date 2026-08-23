@@ -28,6 +28,8 @@ recovery conventions are documented in [`docs/database.md`](docs/database.md). C
 dependency, validation, and error conventions are documented in [`docs/api.md`](docs/api.md).
 The versioned Agent HQ service boundary, service authentication, canonical identifiers, envelopes,
 and compatibility policy are documented in [`docs/contracts.md`](docs/contracts.md).
+Immutable AgentProfile and Skill ownership, publication, lifecycle, pinning, and compatibility are
+documented in [`docs/profiles-and-skills.md`](docs/profiles-and-skills.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in

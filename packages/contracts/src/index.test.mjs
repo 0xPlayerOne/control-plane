@@ -32,6 +32,7 @@ describe('canonical identifiers', () => {
       agentId: 'agt_01JABCDEF0123456789ABCDEFG',
       profileId: 'prf_01JABCDEF0123456789ABCDEFG',
       profileVersionId: 'pfv_01JABCDEF0123456789ABCDEFG',
+      skillId: 'skl_01JABCDEF0123456789ABCDEFG',
       skillVersionId: 'skv_01JABCDEF0123456789ABCDEFG',
       executionId: 'exe_01JABCDEF0123456789ABCDEFG',
       attemptId: 'att_01JABCDEF0123456789ABCDEFG',

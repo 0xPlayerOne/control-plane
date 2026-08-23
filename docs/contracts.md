@@ -21,6 +21,7 @@ from their contents.
 | Agent                 | `agt_` |
 | AgentProfile          | `prf_` |
 | AgentProfileVersion   | `pfv_` |
+| Skill                 | `skl_` |
 | SkillVersion          | `skv_` |
 | Execution             | `exe_` |
 | Attempt               | `att_` |
