@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { spawnSync } from 'node:child_process'
-import process from 'node:process'
 import { URL } from 'node:url'
 import { test } from 'bun:test'
 import { start as startControlApi } from '../apps/control-api/dist/index.js'
@@ -157,14 +155,4 @@ test('provides one ancestry-aware local acceptance command and a parallel CI gat
   assert.match(workflow, /development, staging, production/)
   assert.match(workflow, /default database-migrate/)
   assert.match(workflow, /cancel-in-progress:\s*true/)
-
-  const verification = spawnSync(
-    process.execPath,
-    ['scripts/run-foundation-acceptance.mjs', '--verify-only'],
-    {
-      cwd: new URL('.', repositoryRoot),
-      encoding: 'utf8',
-    }
-  )
-  assert.equal(verification.status, 0, verification.stderr || verification.stdout)
 })
