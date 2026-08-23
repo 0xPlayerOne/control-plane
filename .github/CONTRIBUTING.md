@@ -153,7 +153,7 @@ Keep pull requests focused and reviewable. Include screenshots or recordings for
 
 | Event | Expected automation |
 |------------------------------------------------------------------------------------------------------------------------------------------------|
-| Pull request targeting `main` | Audit validation: CI, full tests, and native Security, ending in `Validation / Gate`; private-plan CodeQL is disabled |
+| Pull request targeting `main` | Audit validation: CI, full tests, native Security, Dependency Review, and CodeQL, ending in `Validation / Gate` |
 | Exact Release Please pull request targeting `main` | Release-policy validation only, ending in `Validation / Gate` |
 | Scheduled or manual validation | Full audit tier |
 | Push to a working branch | Draft PR workflow |

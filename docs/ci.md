@@ -28,17 +28,17 @@ Feature branches must squash into `main`. Release Please version pull requests
 must rebase into `main`; Code Foundry fails closed for any other configured
 release merge strategy.
 
-## Private-repository exclusions
+## Public-repository security gates
 
-CodeQL and GitHub Dependency Review are explicitly disabled because this
-private repository does not have the GitHub plan feature required to run them.
-OpenCode security is also disabled. These optional jobs must not be configured
-as required checks. Code Foundry's native dependency audit remains enabled and
-is part of the audit gate.
+CodeQL and GitHub Dependency Review use Code Foundry's `auto` policy and are
+enabled for this public repository. TypeScript and GitHub Actions analysis run
+in parallel with Code Foundry's native dependency audit as part of the audit
+gate. OpenCode security remains disabled because it is an optional external
+integration and is not part of the repository's credential-free baseline.
 
-GitHub branch protection is unavailable on the current private-repository plan.
-Until that changes, maintainers must treat a successful `Validation / Gate` as
-required and merge only through a pull request.
+Maintainers must treat a successful `Validation / Gate` as required and merge
+only through a pull request. Repository rules should require that stable gate
+without enumerating its internal parallel jobs.
 
 ## Future gates
 
