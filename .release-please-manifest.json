@@ -1,0 +1,19 @@
+{
+  ".": "0.0.0",
+  "apps/control-api": "0.0.0",
+  "apps/runtime-gateway": "0.0.0",
+  "apps/runtime-worker": "0.0.0",
+  "apps/tool-gateway": "0.0.0",
+  "apps/workflow-worker": "0.0.0",
+  "packages/context": "0.0.0",
+  "packages/contracts": "0.0.0",
+  "packages/database": "0.0.0",
+  "packages/domain": "0.0.0",
+  "packages/events": "0.0.0",
+  "packages/execution-plan": "0.0.0",
+  "packages/policy": "0.0.0",
+  "packages/runtime-sdk": "0.0.0",
+  "packages/telemetry": "0.0.0",
+  "packages/testing": "0.0.0",
+  "packages/tool-sdk": "0.0.0"
+}

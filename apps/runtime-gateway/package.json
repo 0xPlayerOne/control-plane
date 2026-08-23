@@ -1,0 +1,16 @@
+{
+  "name": "@control-plane/runtime-gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "browser": false,
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "bun test --pass-with-no-tests"
+  }
+}

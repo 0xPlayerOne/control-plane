@@ -1,0 +1,116 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bump-minor-pre-major": true,
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "perf",
+      "section": "Performance"
+    },
+    {
+      "type": "revert",
+      "section": "Reverts"
+    },
+    {
+      "type": "deps",
+      "section": "Dependencies"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation"
+    },
+    {
+      "type": "test",
+      "section": "Tests"
+    },
+    {
+      "type": "ci",
+      "section": "CI"
+    },
+    {
+      "type": "refactor",
+      "section": "Maintenance"
+    },
+    {
+      "type": "chore",
+      "section": "Maintenance"
+    }
+  ],
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "@control-plane/workspace"
+    },
+    "apps/control-api": {
+      "release-type": "node",
+      "package-name": "@control-plane/control-api"
+    },
+    "apps/runtime-gateway": {
+      "release-type": "node",
+      "package-name": "@control-plane/runtime-gateway"
+    },
+    "apps/runtime-worker": {
+      "release-type": "node",
+      "package-name": "@control-plane/runtime-worker"
+    },
+    "apps/tool-gateway": {
+      "release-type": "node",
+      "package-name": "@control-plane/tool-gateway"
+    },
+    "apps/workflow-worker": {
+      "release-type": "node",
+      "package-name": "@control-plane/workflow-worker"
+    },
+    "packages/context": {
+      "release-type": "node",
+      "package-name": "@control-plane/context"
+    },
+    "packages/contracts": {
+      "release-type": "node",
+      "package-name": "@control-plane/contracts"
+    },
+    "packages/database": {
+      "release-type": "node",
+      "package-name": "@control-plane/database"
+    },
+    "packages/domain": {
+      "release-type": "node",
+      "package-name": "@control-plane/domain"
+    },
+    "packages/events": {
+      "release-type": "node",
+      "package-name": "@control-plane/events"
+    },
+    "packages/execution-plan": {
+      "release-type": "node",
+      "package-name": "@control-plane/execution-plan"
+    },
+    "packages/policy": {
+      "release-type": "node",
+      "package-name": "@control-plane/policy"
+    },
+    "packages/runtime-sdk": {
+      "release-type": "node",
+      "package-name": "@control-plane/runtime-sdk"
+    },
+    "packages/telemetry": {
+      "release-type": "node",
+      "package-name": "@control-plane/telemetry"
+    },
+    "packages/testing": {
+      "release-type": "node",
+      "package-name": "@control-plane/testing"
+    },
+    "packages/tool-sdk": {
+      "release-type": "node",
+      "package-name": "@control-plane/tool-sdk"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@control-plane/workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "node": ">=24 <25",
+    "bun": ">=1.3.14 <2"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint && eslint eslint.config.js tests && bun run check:boundaries",
+    "test": "turbo run test && bun test tests",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:boundaries": "turbo boundaries"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.0.1",
+    "prettier": "3.9.6",
+    "turbo": "2.10.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0"
+  }
+}
