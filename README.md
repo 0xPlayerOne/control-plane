@@ -30,6 +30,8 @@ The versioned Agent HQ service boundary, service authentication, canonical ident
 and compatibility policy are documented in [`docs/contracts.md`](docs/contracts.md).
 Immutable AgentProfile and Skill ownership, publication, lifecycle, pinning, and compatibility are
 documented in [`docs/profiles-and-skills.md`](docs/profiles-and-skills.md).
+Runtime definitions, normalized capabilities, RuntimeNode references, connections, and compatibility
+states are documented in [`docs/runtime-capabilities.md`](docs/runtime-capabilities.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in

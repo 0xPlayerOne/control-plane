@@ -25,6 +25,7 @@ export const IdentifierSchemas = {
   attemptId: opaqueIdentifier('att', 'attempt ID'),
   workflowId: opaqueIdentifier('wfl', 'workflow ID'),
   interactionId: opaqueIdentifier('int', 'interaction ID'),
+  runtimeDefinitionId: opaqueIdentifier('rtd', 'runtime-definition ID'),
   runtimeNodeRefId: opaqueIdentifier('rnr', 'runtime-node reference ID'),
   runtimeConnectionId: opaqueIdentifier('rtc', 'runtime-connection ID'),
   externalSessionId: opaqueIdentifier('ses', 'external-session ID'),
@@ -47,6 +48,7 @@ export type ExecutionId = z.output<(typeof IdentifierSchemas)['executionId']>
 export type AttemptId = z.output<(typeof IdentifierSchemas)['attemptId']>
 export type WorkflowId = z.output<(typeof IdentifierSchemas)['workflowId']>
 export type InteractionId = z.output<(typeof IdentifierSchemas)['interactionId']>
+export type RuntimeDefinitionId = z.output<(typeof IdentifierSchemas)['runtimeDefinitionId']>
 export type RuntimeNodeRefId = z.output<(typeof IdentifierSchemas)['runtimeNodeRefId']>
 export type RuntimeConnectionId = z.output<(typeof IdentifierSchemas)['runtimeConnectionId']>
 export type ExternalSessionId = z.output<(typeof IdentifierSchemas)['externalSessionId']>
