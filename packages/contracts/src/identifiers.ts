@@ -33,6 +33,7 @@ export const IdentifierSchemas = {
   stateMutationId: opaqueIdentifier('stm', 'state-mutation ID'),
   statePromotionProposalId: opaqueIdentifier('spp', 'state-promotion-proposal ID'),
   contextPackageId: opaqueIdentifier('ctx', 'ContextPackage ID'),
+  executionPlanId: opaqueIdentifier('pln', 'ExecutionPlan ID'),
   artifactId: opaqueIdentifier('art', 'Artifact reference ID'),
   eventId: opaqueIdentifier('evt', 'event ID'),
   traceId: opaqueIdentifier('trc', 'trace ID'),
@@ -62,6 +63,7 @@ export type StatePromotionProposalId = z.output<
   (typeof IdentifierSchemas)['statePromotionProposalId']
 >
 export type ContextPackageId = z.output<(typeof IdentifierSchemas)['contextPackageId']>
+export type ExecutionPlanId = z.output<(typeof IdentifierSchemas)['executionPlanId']>
 export type ArtifactId = z.output<(typeof IdentifierSchemas)['artifactId']>
 export type EventId = z.output<(typeof IdentifierSchemas)['eventId']>
 export type TraceId = z.output<(typeof IdentifierSchemas)['traceId']>

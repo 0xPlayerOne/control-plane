@@ -35,6 +35,7 @@ from their contents.
 | State mutation        | `stm_` |
 | Promotion proposal    | `spp_` |
 | ContextPackage        | `ctx_` |
+| ExecutionPlan         | `pln_` |
 | Artifact reference    | `art_` |
 | Event                 | `evt_` |
 | Trace                 | `trc_` |
