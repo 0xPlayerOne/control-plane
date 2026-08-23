@@ -14,6 +14,7 @@ bun run build            # TypeScript build via Turborepo
 bun run test             # Per-package tests (turbo) + repository acceptance tests
 bun run openapi:check    # OpenAPI contract validation (control-api only)
 bun run db:check         # Drizzle migration-schema validation
+bun run test:acceptance  # Complete M1 foundation, Terraform, and container acceptance
 ```
 
 `bun test` (bare) is scoped to `tests/` via `bunfig.toml`; per-package tests run through `turbo run test` in `bun run test`.

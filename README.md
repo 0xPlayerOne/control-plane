@@ -28,6 +28,8 @@ recovery conventions are documented in [`docs/database.md`](docs/database.md). C
 dependency, validation, and error conventions are documented in [`docs/api.md`](docs/api.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
+System boundaries, technology decisions, and service ownership are documented in
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Workspace commands
 
@@ -36,6 +38,7 @@ Container, Terraform, environment, migration, rollout, and rollback conventions 
 | `bun run build`            | Build every app and package through Turborepo                              |
 | `bun run lint`             | Lint source, lint repository configuration, and enforce package boundaries |
 | `bun test`                 | Run every package's Bun tests and the repository acceptance tests          |
+| `bun run test:acceptance`  | Validate the complete M1 foundation and infrastructure baseline            |
 | `bun run check:boundaries` | Reject undeclared dependencies and cross-package source imports            |
 | `bun run format`           | Format the repository with Prettier                                        |
 | `bun run format:check`     | Check formatting without modifying files                                   |

@@ -1,0 +1,102 @@
+name: Foundation Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-acceptance-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout full dependency history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup pinned Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version-file: .node-version
+      - name: Setup pinned Bun
+        run: npm install --global bun@1.3.14
+      - name: Verify toolchain
+        run: |
+          test "$(node --version)" = "v$(cat .node-version)"
+          test "$(bun --version)" = "$(cat .bun-version)"
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Run core foundation acceptance
+        run: bun scripts/run-foundation-acceptance.mjs --skip-install --skip-terraform --skip-containers
+
+  terraform:
+    name: Terraform (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        environment: [development, staging, production]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check formatting
+        run: >-
+          docker run --rm --volume "$PWD:/workspace"
+          --workdir /workspace/infrastructure/terraform
+          hashicorp/terraform:1.13.5 fmt -check -recursive -diff
+      - name: Initialize without remote state
+        run: >-
+          docker run --rm --volume "$PWD:/workspace"
+          --workdir /workspace/infrastructure/terraform/environments/${{ matrix.environment }}
+          hashicorp/terraform:1.13.5 init -backend=false -input=false -no-color
+      - name: Validate
+        run: >-
+          docker run --rm --volume "$PWD:/workspace"
+          --workdir /workspace/infrastructure/terraform/environments/${{ matrix.environment }}
+          hashicorp/terraform:1.13.5 validate -no-color
+
+  containers:
+    name: Containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build all service and migration images
+        run: >-
+          docker buildx bake -f infrastructure/containers/docker-bake.hcl
+          default database-migrate --set '*.platform=linux/amd64'
+
+  # Stable required check: Foundation Acceptance / Gate
+  gate:
+    name: Gate
+    if: always()
+    needs: [core, terraform, containers]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CONTAINERS_RESULT: ${{ needs.containers.result }}
+      CORE_RESULT: ${{ needs.core.result }}
+      TERRAFORM_RESULT: ${{ needs.terraform.result }}
+    steps:
+      - name: Require every foundation lane
+        run: |
+          test "$CORE_RESULT" = success
+          test "$TERRAFORM_RESULT" = success
+          test "$CONTAINERS_RESULT" = success
