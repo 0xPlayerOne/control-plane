@@ -46,6 +46,7 @@ describe('canonical identifiers', () => {
       stateMutationId: 'stm_01JABCDEF0123456789ABCDEFG',
       statePromotionProposalId: 'spp_01JABCDEF0123456789ABCDEFG',
       contextPackageId: 'ctx_01JABCDEF0123456789ABCDEFG',
+      executionPlanId: 'pln_01JABCDEF0123456789ABCDEFG',
       artifactId: 'art_01JABCDEF0123456789ABCDEFG',
       eventId: 'evt_01JABCDEF0123456789ABCDEFG',
       traceId: 'trc_01JABCDEF0123456789ABCDEFG',
