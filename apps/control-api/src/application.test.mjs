@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { withTestApplication } from '@control-plane/testing'
 import { createControlApiApplication, createOpenApiDocument } from './application.ts'
 import { start } from './index.ts'
 
@@ -51,17 +52,17 @@ afterEach(async () => {
 
 describe('Control API', () => {
   test('exposes health, readiness, and security headers', async () => {
-    const application = await createApplication()
+    await withTestApplication(createApplication, async (application) => {
+      const health = await application.inject({ method: 'GET', url: '/health' })
+      const ready = await application.inject({ method: 'GET', url: '/ready' })
 
-    const health = await application.inject({ method: 'GET', url: '/health' })
-    const ready = await application.inject({ method: 'GET', url: '/ready' })
-
-    expect(health.statusCode).toBe(200)
-    expect(health.json()).toEqual({ status: 'ok', metadata })
-    expect(ready.json()).toEqual({ status: 'ready', metadata })
-    expect(health.headers['x-content-type-options']).toBe('nosniff')
-    expect(health.headers['x-request-id']).toBeString()
-    expect(health.headers['x-correlation-id']).toBeString()
+      expect(health.statusCode).toBe(200)
+      expect(health.json()).toEqual({ status: 'ok', metadata })
+      expect(ready.json()).toEqual({ status: 'ready', metadata })
+      expect(health.headers['x-content-type-options']).toBe('nosniff')
+      expect(health.headers['x-request-id']).toBeString()
+      expect(health.headers['x-correlation-id']).toBeString()
+    })
   })
 
   test('serves a versioned endpoint and propagates request context through responses and logs', async () => {

@@ -16,11 +16,21 @@
       "types": "./dist/index.d.ts",
       "node": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres.d.ts",
+      "node": "./dist/postgres.js",
+      "default": "./dist/postgres.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun test src/index.test.mjs",
+    "test:integration": "bun test src/postgres.integration.test.mjs"
+  },
+  "dependencies": {
+    "@control-plane/config": "workspace:*",
+    "@control-plane/database": "workspace:*"
   }
 }
