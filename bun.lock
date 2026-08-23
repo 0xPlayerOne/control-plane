@@ -90,9 +90,16 @@
     },
     "packages/contracts": {
       "name": "@control-plane/contracts",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "zod": "4.4.3",
+      },
+    },
+    "packages/control-sdk": {
+      "name": "@control-plane/sdk",
+      "version": "1.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:^",
       },
     },
     "packages/database": {
@@ -197,6 +204,8 @@
     "@control-plane/runtime-sdk": ["@control-plane/runtime-sdk@workspace:packages/runtime-sdk"],
 
     "@control-plane/runtime-worker": ["@control-plane/runtime-worker@workspace:apps/runtime-worker"],
+
+    "@control-plane/sdk": ["@control-plane/sdk@workspace:packages/control-sdk"],
 
     "@control-plane/telemetry": ["@control-plane/telemetry@workspace:packages/telemetry"],
 
