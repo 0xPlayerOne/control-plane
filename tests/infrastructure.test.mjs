@@ -45,6 +45,7 @@ test('defines reproducible non-root container builds for every deployable servic
 
 test('separates Terraform state and service configuration by environment', async () => {
   const manifest = JSON.parse(await readRepositoryFile('package.json'))
+  const gitignore = await readRepositoryFile('.gitignore')
 
   for (const environment of ['development', 'staging', 'production']) {
     const root = `infrastructure/terraform/environments/${environment}`
@@ -52,17 +53,23 @@ test('separates Terraform state and service configuration by environment', async
     const main = await readRepositoryFile(`${root}/main.tf`)
     const variables = await readRepositoryFile(`${root}/variables.tf`)
     const example = await readRepositoryFile(`${root}/terraform.tfvars.example`)
+    const outputs = await readRepositoryFile(`${root}/outputs.tf`)
 
     assert.match(backend, new RegExp(`control-plane/${environment}/terraform\\.tfstate`))
     assert.match(backend, /use_lockfile\s*=\s*true/)
     assert.match(main, /module "environment"/)
     assert.match(main, new RegExp(`environment\\s*=\\s*"${environment}"`))
     assert.match(variables, /variable "image_references"/)
+    assert.match(outputs, /database_migration_task_definition_arn/)
+    assert.match(outputs, /private_subnet_ids/)
+    assert.match(outputs, /service_security_group_id/)
     for (const service of services) assert.match(example, new RegExp(`${service}\\s*=`))
   }
 
   assert.match(manifest.scripts['infra:fmt:check'], /terraform/)
   assert.match(manifest.scripts['infra:validate'], /validate-terraform/)
+  assert.match(gitignore, /^\*\.tfvars$/m)
+  assert.match(gitignore, /^!\*\.tfvars\.example$/m)
 })
 
 test('models AWS dependencies without leaking secrets or Kubernetes into service images', async () => {
@@ -93,4 +100,33 @@ test('models AWS dependencies without leaking secrets or Kubernetes into service
   assert.match(environment, /DATABASE_MIGRATION_URL/)
   assert.doesNotMatch(terraformSources, /kubernetes/i)
   assert.doesNotMatch(terraformSources, /(?:temporal|litellm|e2b).*resource/is)
+})
+
+test('documents deployment authority, operations, and deliberate deferrals', async () => {
+  const documentation = await readRepositoryFile('docs/infrastructure.md')
+  const readme = await readRepositoryFile('README.md')
+
+  for (const topic of [
+    'authoritative',
+    'replaceable',
+    'deferred',
+    'migration',
+    'rollout',
+    'rollback',
+    'secret rotation',
+    'health',
+    'development',
+    'staging',
+    'production',
+    'Temporal',
+    'LiteLLM',
+    'E2B',
+  ]) {
+    assert.match(documentation, new RegExp(topic, 'i'))
+  }
+  assert.match(documentation, /database-migrate/)
+  assert.match(documentation, /digest/i)
+  assert.match(documentation, /populate.*outside Terraform/is)
+  assert.match(documentation, /no Kubernetes/i)
+  assert.match(readme, /docs\/infrastructure\.md/)
 })

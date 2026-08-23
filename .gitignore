@@ -82,6 +82,8 @@ mise.local.lock
 *.tfstate.*
 .terraform.tfstate.lock.info
 *.tfbackend
+*.tfvars
+!*.tfvars.example
 crash.log
 crash.*.log
 
