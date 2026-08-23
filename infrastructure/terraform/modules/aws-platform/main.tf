@@ -257,7 +257,7 @@ resource "aws_cloudwatch_log_group" "services" {
 resource "aws_ecr_repository" "services" {
   for_each = var.services
 
-  name                 = "${var.project_name}/${each.value}"
+  name                 = "${var.project_name}/${var.environment}/${each.value}"
   image_tag_mutability = "IMMUTABLE"
 
   encryption_configuration {

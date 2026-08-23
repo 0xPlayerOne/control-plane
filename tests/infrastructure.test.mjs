@@ -92,6 +92,10 @@ test('models AWS dependencies without leaking secrets or Kubernetes into service
     assert.match(platform, new RegExp(`resource "${resource}"`))
   }
   assert.doesNotMatch(platform, /aws_secretsmanager_secret_version/)
+  assert.match(
+    platform,
+    /name\s*=\s*"\$\{var\.project_name\}\/\$\{var\.environment\}\/\$\{each\.value\}"/
+  )
   assert.match(service, /readonlyRootFilesystem/)
   assert.match(service, /secrets\s*=/)
   assert.match(service, /aws_ecs_task_definition/)
