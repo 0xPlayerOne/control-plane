@@ -27,6 +27,7 @@ from their contents.
 | Attempt               | `att_` |
 | Workflow              | `wfl_` |
 | Interaction           | `int_` |
+| RuntimeDefinition     | `rtd_` |
 | RuntimeNode reference | `rnr_` |
 | RuntimeConnection     | `rtc_` |
 | External session      | `ses_` |
