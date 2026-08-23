@@ -123,7 +123,7 @@ describe('Control Plane SDK public client', () => {
 
     expect(manifest).toMatchObject({
       name: '@control-plane/sdk',
-      version: '1.0.0',
+      version: '0.0.0',
       license: 'Apache-2.0',
       dependencies: { '@control-plane/contracts': 'workspace:^' },
       publishConfig: { access: 'public', provenance: true },

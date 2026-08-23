@@ -116,7 +116,12 @@
                             "principalId": { "pattern": "^svc_[a-z][a-z0-9-]*$", "type": "string" },
                             "projectIds": { "items": {}, "maxItems": 256, "type": "array" },
                             "scopes": {
-                              "items": { "maxLength": 96, "minLength": 1, "type": "string" },
+                              "items": {
+                                "maxLength": 96,
+                                "minLength": 3,
+                                "pattern": "^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$",
+                                "type": "string"
+                              },
                               "maxItems": 64,
                               "type": "array"
                             },
@@ -269,7 +274,6 @@
                   },
                   "operation": { "const": "context-package.resolve", "type": "string" },
                   "parameters": {
-                    "additionalProperties": false,
                     "properties": {
                       "contextPackageId": {
                         "pattern": "^ctx_[0-9A-HJKMNP-TV-Z]{26}$",
@@ -514,11 +518,9 @@
                   },
                   "operation": { "const": "execution.validate", "type": "string" },
                   "payload": {
-                    "additionalProperties": false,
                     "properties": {
                       "agentId": { "pattern": "^agt_[0-9A-HJKMNP-TV-Z]{26}$", "type": "string" },
                       "contextPackage": {
-                        "additionalProperties": false,
                         "properties": {
                           "compilerVersion": { "maxLength": 64, "minLength": 1, "type": "string" },
                           "contentDigest": { "pattern": "^sha256:[a-f0-9]{64}$", "type": "string" },
@@ -542,7 +544,6 @@
                       },
                       "outputContractRef": { "maxLength": 512, "minLength": 1, "type": "string" },
                       "policySnapshot": {
-                        "additionalProperties": false,
                         "properties": {
                           "contentDigest": { "pattern": "^sha256:[a-f0-9]{64}$", "type": "string" },
                           "policySnapshotId": {
@@ -564,7 +565,6 @@
                         "type": "string"
                       },
                       "projectState": {
-                        "additionalProperties": false,
                         "properties": {
                           "projectId": {
                             "pattern": "^prj_[0-9A-HJKMNP-TV-Z]{26}$",
@@ -821,7 +821,6 @@
                   },
                   "operation": { "const": "profile.resolve", "type": "string" },
                   "parameters": {
-                    "additionalProperties": false,
                     "properties": {
                       "profileId": { "pattern": "^prf_[0-9A-HJKMNP-TV-Z]{26}$", "type": "string" },
                       "profileVersionId": {
@@ -1066,7 +1065,6 @@
                   },
                   "operation": { "const": "project-state.resolve", "type": "string" },
                   "parameters": {
-                    "additionalProperties": false,
                     "properties": {
                       "revision": { "maximum": 9007199254740991, "minimum": 0, "type": "integer" }
                     },
@@ -1282,7 +1280,6 @@
                   },
                   "operation": { "const": "runtime.list", "type": "string" },
                   "parameters": {
-                    "additionalProperties": false,
                     "properties": {
                       "requiredCapabilities": {
                         "items": {

@@ -7,7 +7,8 @@ The Agent HQ-facing boundary is distributed as two Apache-2.0 npm packages:
 - `@control-plane/sdk` depends on the contracts package and contains the typed HTTP client, operation
   registry, generated OpenAPI document, and `@control-plane/sdk/testing` stub harness.
 
-Both packages are server-only and currently versioned `1.0.0`. Neither package exports Control Plane
+Both packages are server-only. Their unreleased manifests remain `0.0.0`; Release Please tracks both
+packages and owns the coordinated first `1.0.0` bump. Neither package exports Control Plane
 database models, Drizzle schemas, application modules, Temporal workflows, policy evaluators,
 ExecutionPlan compilers, runtime adapters, provider credentials, or secret-management code. ESLint
 and package-surface tests enforce that dependency direction.
@@ -83,8 +84,13 @@ The operation registry is the source for both client methods and
 
 ```sh
 bun run --cwd packages/control-sdk openapi:generate
+bun run --cwd packages/control-sdk openapi:initialize-baseline # only for a new contract major
 bun run openapi:check
 ```
+
+`openapi:generate` never rewrites a compatibility baseline. The first commit for a new contract
+major uses the explicit `openapi:initialize-baseline` command; it fails if that major already exists
+on the target branch.
 
 The repository-wide check regenerates the document in memory, detects artifact drift, and compares it
 with the immutable v1 compatibility baseline. Removing operations or fields, adding required request
@@ -94,9 +100,10 @@ fields remain compatible within the current major.
 
 ## Publishing and deprecation policy
 
-Publish `@control-plane/contracts` before `@control-plane/sdk`; the packed SDK converts its workspace
-dependency to `@control-plane/contracts@^1.0.0`. Registry scope ownership and provenance-enabled CI
-must be configured before the first external publish. Local validation does not publish packages.
+Publish `@control-plane/contracts` before `@control-plane/sdk`; after the first release, the packed SDK
+converts its workspace dependency to `@control-plane/contracts@^1.0.0`. Registry scope ownership and
+provenance-enabled CI must be configured before setting Code Foundry's `npm_publish` toggle to true.
+Local validation and the current CI configuration do not publish packages.
 
 Contract and SDK majors match the public API major. Additive schema changes increment the contract
 minor and both package minors. Implementation-only client or harness fixes may increment only the SDK

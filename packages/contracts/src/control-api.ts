@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ServiceCallerAssertionSchema } from './authentication.js'
+import { ServiceCallerAssertionSchema, ServiceScopeSchema } from './authentication.js'
 import { CorrelationMetadataSchema } from './envelopes.js'
 import { IdentifierSchemas } from './identifiers.js'
 import { ContractVersionSchema } from './versioning.js'
@@ -42,43 +42,35 @@ const ResponseContextSchema = z.object({
 const successResponse = <Data extends z.ZodType>(data: Data) =>
   ResponseContextSchema.extend({ data })
 
-export const ProjectStateReferenceSchema = z
-  .object({
-    workspaceId: IdentifierSchemas.workspaceId,
-    projectId: IdentifierSchemas.projectId,
-    revision: z.number().int().nonnegative(),
-  })
-  .strict()
+export const ProjectStateReferenceSchema = z.object({
+  workspaceId: IdentifierSchemas.workspaceId,
+  projectId: IdentifierSchemas.projectId,
+  revision: z.number().int().nonnegative(),
+})
 
 export type ProjectStateReference = z.output<typeof ProjectStateReferenceSchema>
 
-export const ContextPackagePublicReferenceSchema = z
-  .object({
-    contextPackageId: IdentifierSchemas.contextPackageId,
-    contentDigest: DigestSchema,
-    schemaVersion: z.number().int().positive(),
-    compilerVersion: z.string().min(1).max(64),
-  })
-  .strict()
+export const ContextPackagePublicReferenceSchema = z.object({
+  contextPackageId: IdentifierSchemas.contextPackageId,
+  contentDigest: DigestSchema,
+  schemaVersion: z.number().int().positive(),
+  compilerVersion: z.string().min(1).max(64),
+})
 
 export type ContextPackagePublicReference = z.output<typeof ContextPackagePublicReferenceSchema>
 
-export const PolicySnapshotPublicReferenceSchema = z
-  .object({
-    policySnapshotId: z.string().min(1).max(256),
-    revision: z.number().int().positive(),
-    contentDigest: DigestSchema,
-  })
-  .strict()
+export const PolicySnapshotPublicReferenceSchema = z.object({
+  policySnapshotId: z.string().min(1).max(256),
+  revision: z.number().int().positive(),
+  contentDigest: DigestSchema,
+})
 
 export type PolicySnapshotPublicReference = z.output<typeof PolicySnapshotPublicReferenceSchema>
 
-export const ExecutionPlanPublicReferenceSchema = z
-  .object({
-    executionPlanId: IdentifierSchemas.executionPlanId,
-    contentDigest: DigestSchema,
-  })
-  .strict()
+export const ExecutionPlanPublicReferenceSchema = z.object({
+  executionPlanId: IdentifierSchemas.executionPlanId,
+  contentDigest: DigestSchema,
+})
 
 export type ExecutionPlanPublicReference = z.output<typeof ExecutionPlanPublicReferenceSchema>
 
@@ -93,7 +85,7 @@ export const ServiceAuthenticationResponseSchema = successResponse(
     principal: z.object({
       kind: z.literal('agent_hq_service'),
       principalId: z.string().regex(/^svc_[a-z][a-z0-9-]*$/),
-      scopes: z.array(z.string().min(1).max(96)).max(64),
+      scopes: z.array(ServiceScopeSchema).max(64),
       workspaceIds: z.array(IdentifierSchemas.workspaceId).max(256),
       projectIds: z.array(IdentifierSchemas.projectId).max(256),
     }),
@@ -103,27 +95,23 @@ export const ServiceAuthenticationResponseSchema = successResponse(
 export const ProfileResolutionRequestSchema = RequestContextSchema.extend({
   operation: z.literal('profile.resolve'),
   requestedAt: TimestampSchema,
-  parameters: z
-    .object({
-      profileId: IdentifierSchemas.profileId,
-      profileVersionId: IdentifierSchemas.profileVersionId.optional(),
-    })
-    .strict(),
+  parameters: z.object({
+    profileId: IdentifierSchemas.profileId,
+    profileVersionId: IdentifierSchemas.profileVersionId.optional(),
+  }),
 })
 
 export const ProfileResolutionResponseSchema = successResponse(
   z.object({
-    profile: z
-      .object({
-        profileId: IdentifierSchemas.profileId,
-        profileVersionId: IdentifierSchemas.profileVersionId,
-        version: z.number().int().positive(),
-        revision: z.number().int().positive(),
-        schemaVersion: z.number().int().positive(),
-        contentDigest: DigestSchema,
-        lifecycle: z.literal('published'),
-      })
-      .strict(),
+    profile: z.object({
+      profileId: IdentifierSchemas.profileId,
+      profileVersionId: IdentifierSchemas.profileVersionId,
+      version: z.number().int().positive(),
+      revision: z.number().int().positive(),
+      schemaVersion: z.number().int().positive(),
+      contentDigest: DigestSchema,
+      lifecycle: z.literal('published'),
+    }),
     skillVersionIds: z.array(IdentifierSchemas.skillVersionId).max(128),
   })
 )
@@ -131,7 +119,7 @@ export const ProfileResolutionResponseSchema = successResponse(
 export const ProjectStateResolutionRequestSchema = RequestContextSchema.extend({
   operation: z.literal('project-state.resolve'),
   requestedAt: TimestampSchema,
-  parameters: z.object({ revision: z.number().int().nonnegative().optional() }).strict(),
+  parameters: z.object({ revision: z.number().int().nonnegative().optional() }),
 })
 
 export const ProjectStateResolutionResponseSchema = successResponse(
@@ -141,38 +129,34 @@ export const ProjectStateResolutionResponseSchema = successResponse(
 export const ContextPackageResolutionRequestSchema = RequestContextSchema.extend({
   operation: z.literal('context-package.resolve'),
   requestedAt: TimestampSchema,
-  parameters: z.object({ contextPackageId: IdentifierSchemas.contextPackageId }).strict(),
+  parameters: z.object({ contextPackageId: IdentifierSchemas.contextPackageId }),
 })
 
 export const ContextPackageResolutionResponseSchema = successResponse(
   z.object({ contextPackage: ContextPackagePublicReferenceSchema })
 )
 
-export const RuntimeReadModelSchema = z
-  .object({
-    runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId,
-    runtimeConnectionId: IdentifierSchemas.runtimeConnectionId.optional(),
-    runtimeDefinitionId: IdentifierSchemas.runtimeDefinitionId,
-    family: z.string().min(1).max(64),
-    location: z.enum(['local_device', 'remote_host', 'managed_sandbox']),
-    status: z.enum(['available', 'degraded', 'unavailable', 'revoked']),
-    observedAt: TimestampSchema,
-    capabilities: z.array(CapabilityNameSchema).max(128),
-    limitations: z.array(z.string().min(1).max(512)).max(64),
-  })
-  .strict()
+export const RuntimeReadModelSchema = z.object({
+  runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId,
+  runtimeConnectionId: IdentifierSchemas.runtimeConnectionId.optional(),
+  runtimeDefinitionId: IdentifierSchemas.runtimeDefinitionId,
+  family: z.string().min(1).max(64),
+  location: z.enum(['local_device', 'remote_host', 'managed_sandbox']),
+  status: z.enum(['available', 'degraded', 'unavailable', 'revoked']),
+  observedAt: TimestampSchema,
+  capabilities: z.array(CapabilityNameSchema).max(128),
+  limitations: z.array(z.string().min(1).max(512)).max(64),
+})
 
 export type RuntimeReadModel = z.output<typeof RuntimeReadModelSchema>
 
 export const RuntimeListRequestSchema = RequestContextSchema.extend({
   operation: z.literal('runtime.list'),
   requestedAt: TimestampSchema,
-  parameters: z
-    .object({
-      status: z.enum(['available', 'degraded', 'unavailable', 'revoked']).optional(),
-      requiredCapabilities: z.array(CapabilityNameSchema).max(128),
-    })
-    .strict(),
+  parameters: z.object({
+    status: z.enum(['available', 'degraded', 'unavailable', 'revoked']).optional(),
+    requiredCapabilities: z.array(CapabilityNameSchema).max(128),
+  }),
 })
 
 export const RuntimeListResponseSchema = successResponse(
@@ -182,19 +166,17 @@ export const RuntimeListResponseSchema = successResponse(
 export const ExecutionRequestValidationRequestSchema = CommandContextSchema.extend({
   operation: z.literal('execution.validate'),
   issuedAt: TimestampSchema,
-  payload: z
-    .object({
-      taskId: IdentifierSchemas.taskId,
-      agentId: IdentifierSchemas.agentId,
-      profileVersionId: IdentifierSchemas.profileVersionId,
-      skillVersionIds: z.array(IdentifierSchemas.skillVersionId).max(128),
-      projectState: ProjectStateReferenceSchema,
-      contextPackage: ContextPackagePublicReferenceSchema,
-      policySnapshot: PolicySnapshotPublicReferenceSchema,
-      runtimeRequirements: z.array(CapabilityNameSchema).max(128),
-      outputContractRef: z.string().min(1).max(512),
-    })
-    .strict(),
+  payload: z.object({
+    taskId: IdentifierSchemas.taskId,
+    agentId: IdentifierSchemas.agentId,
+    profileVersionId: IdentifierSchemas.profileVersionId,
+    skillVersionIds: z.array(IdentifierSchemas.skillVersionId).max(128),
+    projectState: ProjectStateReferenceSchema,
+    contextPackage: ContextPackagePublicReferenceSchema,
+    policySnapshot: PolicySnapshotPublicReferenceSchema,
+    runtimeRequirements: z.array(CapabilityNameSchema).max(128),
+    outputContractRef: z.string().min(1).max(512),
+  }),
 })
 
 export const ExecutionRequestValidationResponseSchema = successResponse(

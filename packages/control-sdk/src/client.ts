@@ -128,6 +128,7 @@ export class ControlPlaneClient {
 
   async #request<RequestInput, RequestOutput, ResponseOutput>(
     operation: {
+      readonly method: 'POST'
       readonly path: string
       readonly requestSchema: Schema<RequestInput, RequestOutput>
       readonly responseSchema: Schema<unknown, ResponseOutput>
@@ -140,7 +141,7 @@ export class ControlPlaneClient {
     }
     const credential = await resolveCredential(this.#credential)
     const response = await this.#fetch(new URL(operation.path.slice(1), this.#baseUrl), {
-      method: 'POST',
+      method: operation.method,
       headers: {
         accept: 'application/json',
         authorization: `Bearer ${credential}`,

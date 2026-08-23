@@ -25,9 +25,10 @@ const fixtureByPath = new Map<string, unknown>([
     ControlApiFixtures.executionValidation.response,
   ],
 ])
-const operationByPath = new Map(
-  Object.values(ControlApiOperations).map((operation) => [operation.path, operation])
-)
+const operationByPath: ReadonlyMap<
+  string,
+  (typeof ControlApiOperations)[keyof typeof ControlApiOperations]
+> = new Map(Object.values(ControlApiOperations).map((operation) => [operation.path, operation]))
 
 export interface ControlPlaneStubRequest {
   readonly method: string
@@ -84,7 +85,7 @@ async function handleRequest(
 ): Promise<void> {
   const path = new URL(request.url ?? '/', 'http://stub.invalid').pathname
   const operation = operationByPath.get(path)
-  if (request.method !== 'POST' || operation === undefined) {
+  if (operation === undefined || request.method !== operation.method) {
     writeJson(response, 404, errorFixture(undefined, 'NOT_FOUND', 'validation', 'Route not found'))
     return
   }

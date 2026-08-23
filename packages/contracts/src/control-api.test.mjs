@@ -16,11 +16,11 @@ import {
 } from './index.ts'
 
 describe('Agent HQ Control API contracts', () => {
-  test('publishes the independently installable contract package at the API major', async () => {
+  test('prepares the independently installable contract package for release automation', async () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
     expect(manifest.name).toBe('@control-plane/contracts')
-    expect(manifest.version).toBe('1.0.0')
+    expect(manifest.version).toBe('0.0.0')
     expect(manifest.license).toBe('Apache-2.0')
     expect(manifest.private).toBeUndefined()
     expect(manifest.publishConfig).toEqual({ access: 'public', provenance: true })
@@ -50,17 +50,17 @@ describe('Agent HQ Control API contracts', () => {
     ).toEqual(ControlApiFixtures.contextPackageReference)
 
     expect(
-      ProjectStateReferenceSchema.safeParse({
+      ProjectStateReferenceSchema.parse({
         ...ControlApiFixtures.projectStateReference,
         items: [{ key: 'secret', value: 'server-only' }],
-      }).success
-    ).toBe(false)
+      })
+    ).toEqual(ControlApiFixtures.projectStateReference)
     expect(
-      ContextPackagePublicReferenceSchema.safeParse({
+      ContextPackagePublicReferenceSchema.parse({
         ...ControlApiFixtures.contextPackageReference,
         rawContext: 'server-only',
-      }).success
-    ).toBe(false)
+      })
+    ).toEqual(ControlApiFixtures.contextPackageReference)
   })
 
   test('models runtime discovery without native handles or credentials', () => {
@@ -104,13 +104,40 @@ describe('Agent HQ Control API contracts', () => {
       }).success
     ).toBe(false)
     expect(
-      ExecutionRequestValidationResponseSchema.safeParse({
+      ExecutionRequestValidationResponseSchema.parse({
         ...ControlApiFixtures.executionValidation.response,
         data: {
           ...ControlApiFixtures.executionValidation.response.data,
           executionPlan: {
             ...ControlApiFixtures.executionValidation.response.data.executionPlan,
             mutable: true,
+          },
+        },
+      })
+    ).toEqual(ControlApiFixtures.executionValidation.response)
+  })
+
+  test('accepts additive fields without exposing them and rejects ambient scopes', () => {
+    const response = ProfileResolutionResponseSchema.parse({
+      ...ControlApiFixtures.profileResolution.response,
+      data: {
+        ...ControlApiFixtures.profileResolution.response.data,
+        profile: {
+          ...ControlApiFixtures.profileResolution.response.data.profile,
+          optionalFutureField: 'future-compatible',
+        },
+      },
+    })
+    expect(response).toEqual(ControlApiFixtures.profileResolution.response)
+
+    expect(
+      ServiceAuthenticationResponseSchema.safeParse({
+        ...ControlApiFixtures.authentication.response,
+        data: {
+          ...ControlApiFixtures.authentication.response.data,
+          principal: {
+            ...ControlApiFixtures.authentication.response.data.principal,
+            scopes: ['*'],
           },
         },
       }).success

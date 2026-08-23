@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { ErrorResponseEnvelopeSchema, PublicContractManifest } from '@control-plane/contracts'
@@ -14,7 +15,7 @@ export function createControlApiOpenApiDocument() {
   const paths = {}
   for (const operation of Object.values(ControlApiOperations)) {
     paths[operation.path] = {
-      post: {
+      [operation.method.toLowerCase()]: {
         operationId: operation.operation,
         security: [{ serviceBearer: [] }],
         requestBody: {
@@ -110,6 +111,7 @@ function compareSchema(previous, next, context) {
       `${label} ${context.operationLabel} changed constant at ${displayPath(context.path)}`
     )
   }
+  compareConstraints(previous, next, context)
 
   const previousRequired = new Set(previous.required ?? [])
   const nextRequired = new Set(next.required ?? [])
@@ -142,6 +144,45 @@ function compareSchema(previous, next, context) {
   }
   if (previous.items !== undefined) {
     compareSchema(previous.items, next.items, { ...context, path: `${context.path}[]` })
+  }
+}
+
+const lowerBounds = ['minimum', 'exclusiveMinimum', 'minLength', 'minItems', 'minProperties']
+const upperBounds = ['maximum', 'exclusiveMaximum', 'maxLength', 'maxItems', 'maxProperties']
+
+function compareConstraints(previous, next, context) {
+  const label = context.direction === 'request' ? 'Request' : 'Response'
+  const changed = (constraint) =>
+    context.changes.push(
+      `${label} ${context.operationLabel} changed compatibility constraint ${constraint} at ${displayPath(context.path)}`
+    )
+  for (const constraint of lowerBounds) {
+    const before = previous[constraint]
+    const after = next[constraint]
+    if (context.direction === 'request') {
+      if (after !== undefined && (before === undefined || after > before)) changed(constraint)
+    } else if (before !== undefined && (after === undefined || after < before)) {
+      changed(constraint)
+    }
+  }
+  for (const constraint of upperBounds) {
+    const before = previous[constraint]
+    const after = next[constraint]
+    if (context.direction === 'request') {
+      if (after !== undefined && (before === undefined || after < before)) changed(constraint)
+    } else if (before !== undefined && (after === undefined || after > before)) {
+      changed(constraint)
+    }
+  }
+  for (const constraint of ['pattern', 'format', 'multipleOf']) {
+    if (previous[constraint] !== next[constraint]) changed(constraint)
+  }
+  if (
+    context.direction === 'request' &&
+    previous.additionalProperties !== false &&
+    next.additionalProperties === false
+  ) {
+    changed('additionalProperties')
   }
 }
 
@@ -178,27 +219,68 @@ async function run() {
     ...prettierConfig,
     parser: 'json',
   })
-  if (process.argv.includes('--write')) {
-    await writeFile(artifactUrl, serialized)
-    try {
-      await readFile(baselineUrl, 'utf8')
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error
-      await writeFile(baselineUrl, serialized)
+  if (process.argv.includes('--initialize-baseline')) {
+    if (readBaselineFromBase() !== undefined) {
+      throw new Error(`Compatibility baseline v${major} already exists on the target branch`)
     }
+    await writeFile(artifactUrl, serialized)
+    await writeFile(baselineUrl, serialized)
     return
   }
-  if (!process.argv.includes('--check')) throw new Error('Use --write or --check')
+  if (process.argv.includes('--write')) {
+    await writeFile(artifactUrl, serialized)
+    return
+  }
+  if (!process.argv.includes('--check')) {
+    throw new Error('Use --write, --initialize-baseline, or --check')
+  }
 
   const committed = await readFile(artifactUrl, 'utf8')
   if (committed !== serialized) {
     throw new Error(`OpenAPI artifact drifted; run bun run openapi:generate`)
   }
   const baseline = JSON.parse(await readFile(baselineUrl, 'utf8'))
+  assertBaselineImmutable()
   const changes = findBreakingContractChanges(baseline, generated)
   if (changes.length > 0) {
     throw new Error(
       `Breaking v${major} contract changes require a new major boundary:\n${changes.join('\n')}`
+    )
+  }
+}
+
+function assertBaselineImmutable() {
+  const previous = readBaselineFromBase()
+  if (previous === undefined) return
+  const current = readBaselineFromRef('HEAD')
+  if (current === undefined) {
+    throw new Error(`Compatibility baseline v${major} cannot be removed`)
+  }
+  assertBaselineUnchanged(previous, current, major)
+}
+
+function readBaselineFromBase() {
+  const baseBranch = process.env.GITHUB_BASE_REF || 'main'
+  return readBaselineFromRef(`origin/${baseBranch}`)
+}
+
+function readBaselineFromRef(ref) {
+  const baselinePath = `packages/control-sdk/compatibility/control-plane.v${major}.baseline.json`
+  try {
+    return execFileSync('git', ['show', `${ref}:${baselinePath}`], {
+      cwd: fileURLToPath(new URL('../../', packageRoot)),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+  } catch {
+    return undefined
+  }
+}
+
+export function assertBaselineUnchanged(previous, current, contractMajor) {
+  if (previous !== current) {
+    throw new Error(
+      `Compatibility baseline v${contractMajor} is immutable; create a new major boundary`
     )
   }
 }

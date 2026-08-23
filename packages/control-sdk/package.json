@@ -1,6 +1,6 @@
 {
   "name": "@control-plane/sdk",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "license": "Apache-2.0",
   "type": "module",
   "browser": false,
@@ -33,6 +33,7 @@
     "lint": "eslint src",
     "openapi:check": "bun scripts/openapi.mjs --check",
     "openapi:generate": "bun scripts/openapi.mjs --write",
+    "openapi:initialize-baseline": "bun scripts/openapi.mjs --initialize-baseline",
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {

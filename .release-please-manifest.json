@@ -7,6 +7,7 @@
   "apps/workflow-worker": "0.0.0",
   "packages/context": "0.0.0",
   "packages/contracts": "0.0.0",
+  "packages/control-sdk": "0.0.0",
   "packages/database": "0.0.0",
   "packages/domain": "0.0.0",
   "packages/events": "0.0.0",

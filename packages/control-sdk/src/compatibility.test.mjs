@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
 import {
+  assertBaselineUnchanged,
   createControlApiOpenApiDocument,
   findBreakingContractChanges,
 } from '../scripts/openapi.mjs'
@@ -55,6 +56,30 @@ describe('Control API generated contract', () => {
     statusEnum.push('unknown')
     expect(findBreakingContractChanges(baseline, expandedEnum)).toContain(
       'Response POST /v1/runtimes/list changed closed enum at data.runtimes[].status'
+    )
+
+    const narrowedRequest = globalThis.structuredClone(baseline)
+    narrowedRequest.paths['/v1/runtimes/list'].post.requestBody.content[
+      'application/json'
+    ].schema.properties.parameters.properties.requiredCapabilities.maxItems = 1
+    expect(findBreakingContractChanges(baseline, narrowedRequest)).toContain(
+      'Request POST /v1/runtimes/list changed compatibility constraint maxItems at parameters.requiredCapabilities'
+    )
+
+    const expandedResponse = globalThis.structuredClone(baseline)
+    expandedResponse.paths['/v1/runtimes/list'].post.responses['200'].content[
+      'application/json'
+    ].schema.properties.data.properties.runtimes.items.properties.limitations.items.maxLength =
+      1_024
+    expect(findBreakingContractChanges(baseline, expandedResponse)).toContain(
+      'Response POST /v1/runtimes/list changed compatibility constraint maxLength at data.runtimes[].limitations[]'
+    )
+  })
+
+  test('requires a new major boundary instead of replacing an existing baseline', () => {
+    expect(() => assertBaselineUnchanged('{"major":1}', '{"major":1}', 1)).not.toThrow()
+    expect(() => assertBaselineUnchanged('{"major":1}', '{"major":1,"changed":true}', 1)).toThrow(
+      'Compatibility baseline v1 is immutable'
     )
   })
 })

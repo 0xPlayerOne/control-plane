@@ -56,6 +56,6 @@ export const ControlApiOperations = Object.freeze({
     requestSchema: ExecutionRequestValidationRequestSchema,
     responseSchema: ExecutionRequestValidationResponseSchema,
   },
-})
+} as const)
 
 export type ControlApiOperationName = keyof typeof ControlApiOperations

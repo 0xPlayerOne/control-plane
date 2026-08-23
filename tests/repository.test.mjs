@@ -184,7 +184,7 @@ test('scaffolds every package with an explicit private or publishable server-onl
     )
     if (publicPackages.has(packageName)) {
       assert.equal(manifest.private, undefined)
-      assert.equal(manifest.version, '1.0.0')
+      assert.equal(manifest.version, '0.0.0')
       assert.equal(manifest.license, 'Apache-2.0')
       assert.deepEqual(manifest.publishConfig, { access: 'public', provenance: true })
     } else {
@@ -209,6 +209,16 @@ test('scaffolds every package with an explicit private or publishable server-onl
     assert.equal(typeof manifest.scripts.lint, 'string')
     assert.equal(typeof manifest.scripts.test, 'string')
   }
+})
+
+test('tracks both public packages for coordinated release automation', async () => {
+  const config = await readJson('release-please-config.json')
+  const manifest = await readJson('.release-please-manifest.json')
+
+  assert.equal(config.packages['packages/contracts']['package-name'], '@control-plane/contracts')
+  assert.equal(config.packages['packages/control-sdk']['package-name'], '@control-plane/sdk')
+  assert.equal(manifest['packages/contracts'], '0.0.0')
+  assert.equal(manifest['packages/control-sdk'], '0.0.0')
 })
 
 test('configures strict TypeScript and dependency-boundary checks', async () => {
