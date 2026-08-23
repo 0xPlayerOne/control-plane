@@ -26,8 +26,8 @@ Service environment and startup conventions are documented in
 [`docs/configuration.md`](docs/configuration.md). PostgreSQL schema, migration, credential, and
 recovery conventions are documented in [`docs/database.md`](docs/database.md). Control API transport,
 dependency, validation, and error conventions are documented in [`docs/api.md`](docs/api.md).
-The versioned Agent HQ service boundary, canonical identifiers, envelopes, and compatibility policy are
-documented in [`docs/contracts.md`](docs/contracts.md).
+The versioned Agent HQ service boundary, service authentication, canonical identifiers, envelopes,
+and compatibility policy are documented in [`docs/contracts.md`](docs/contracts.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in

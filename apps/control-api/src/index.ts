@@ -8,6 +8,7 @@ import {
 import type { RawEnvironment } from '@control-plane/config'
 import type { NestFastifyApplication } from '@nestjs/platform-fastify'
 import { createControlApiApplication } from './application.js'
+import type { ServiceAuthenticator } from './auth/service-authentication.js'
 
 export const serviceName = 'control-api'
 
@@ -17,6 +18,7 @@ export interface ControlApiStartOptions {
   readonly listen?: boolean
   readonly logger?: StructuredLogger
   readonly processAdapter?: ProcessAdapter
+  readonly serviceAuthenticator?: ServiceAuthenticator
 }
 
 export interface StartedControlApi {
@@ -34,7 +36,15 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
     ...(options.environment === undefined ? {} : { environment: options.environment }),
     ...(options.processAdapter === undefined ? {} : { processAdapter: options.processAdapter }),
     start: async ({ config, health, markReady, metadata, readiness, registerResource }) => {
-      application = await createControlApiApplication({ health, logger, metadata, readiness })
+      application = await createControlApiApplication({
+        health,
+        logger,
+        metadata,
+        readiness,
+        ...(options.serviceAuthenticator === undefined
+          ? {}
+          : { serviceAuthenticator: options.serviceAuthenticator }),
+      })
       registerResource('control-api-http', () => application?.close())
       if (options.listen !== false) {
         await application.listen({ host: '0.0.0.0', port: config.values.port })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ServiceCallerAssertionSchema } from './authentication.js'
 import { IdentifierSchemas } from './identifiers.js'
 import { ContractVersionSchema } from './versioning.js'
 
@@ -24,6 +25,7 @@ export const CorrelationMetadataSchema = z.object({
 export type CorrelationMetadata = z.infer<typeof CorrelationMetadataSchema>
 
 const RequestIdentitySchema = z.object({
+  caller: ServiceCallerAssertionSchema.optional(),
   contractVersion: ContractVersionSchema,
   requestId: IdentifierSchemas.requestId,
   workspaceId: IdentifierSchemas.workspaceId,

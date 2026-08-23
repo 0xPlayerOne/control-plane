@@ -61,9 +61,13 @@ duration, and context IDs; they exclude bodies, authorization headers, cookies, 
 
 ## Service authentication boundary
 
-`ServiceAuthenticator` and `RequireServiceAuthentication` are explicit extension points for M2 service
-authentication. The default implementation fails closed with `SERVICE_AUTH_NOT_CONFIGURED`; it never
-implicitly trusts a caller or bearer token.
+`PolicyServiceAuthenticator` verifies Agent HQ service claims through a replaceable credential
+verifier, enforces configured issuer/audience/lifetime/revocation policy, and checks route scopes plus
+the workspace/project asserted by the versioned request envelope. `RequireServiceAuthentication`
+declares the required operation scopes on a route. The default implementation still fails closed with
+`SERVICE_AUTH_NOT_CONFIGURED`; it never implicitly trusts a caller or bearer token. Credential classes,
+lifecycle policy, normalized failures, and audit constraints are defined in
+[`contracts.md`](contracts.md#service-authentication).
 
 ## OpenAPI
 

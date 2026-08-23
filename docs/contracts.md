@@ -42,7 +42,8 @@ identifiers.
 All public envelopes carry `{ major, minor }` `contractVersion` metadata and purpose-built public
 data rather than persistence rows.
 
-- Read requests carry request, workspace/project, operation, timestamp, and trace/correlation data.
+- Read requests carry request, workspace/project, operation, timestamp, trace/correlation data, and
+  an additive calling-service assertion used by authenticated routes.
 - State-changing commands additionally require a command ID, idempotency key, and canonical payload
   hash. The hash is lowercase SHA-256 over RFC 8785 canonical JSON bytes. Reusing an idempotency key
   with a different hash is a conflict; retrying the same key and hash is safe.
@@ -56,6 +57,61 @@ data rather than persistence rows.
 
 Browser/user credentials, Agent HQ service credentials, RuntimeNode device credentials, and
 provider/harness credentials are distinct trust boundaries. None belongs in these generic payloads.
+
+## Service authentication
+
+Agent HQ calls protected Control Plane routes with a bearer credential verified by a configured
+`ServiceCredentialVerifier`. The verifier is a replaceable infrastructure adapter: it must verify the
+credential signature against currently trusted Agent HQ keys before returning claims. The policy
+authenticator then independently enforces these claims:
+
+| Claim             | Requirement                                                                      |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `credentialKind`  | Exactly `service`; browser sessions, RuntimeNode devices, and provider keys fail |
+| `issuer`          | Exact configured Agent HQ issuer URL                                             |
+| `audience`        | Exact configured Control Plane audience                                          |
+| `principalId`     | Stable `svc_`-prefixed service identity                                          |
+| `credentialId`    | Unique revocation handle                                                         |
+| `keyId`           | Trusted signing-key selector used by the verifier                                |
+| `issuedAt`        | Not in the future beyond configured clock skew                                   |
+| `expiresAt`       | After issuance and not expired beyond configured clock skew                      |
+| scopes            | Explicit operation scopes; wildcard/ambient grants are invalid                   |
+| workspace/project | Canonical IDs allowed for this service credential                                |
+
+Protected routes declare their required operation scopes. The authenticator also parses the request
+as a current versioned read or command envelope, requires the asserted calling-service ID to match the
+verified principal, and requires its workspace and optional project to appear in the verified grants.
+The caller assertion remains optional at the generic v1 parsing layer for additive compatibility but
+is mandatory at every authenticated route. Authentication establishes caller identity only: domain
+and execution policy must still authorize the requested action.
+
+Internal workers use `internal_service` principals created with explicit scopes. They do not inherit
+Agent HQ user permissions and are not accepted as external bearer claims. Deployments remain
+fail-closed with `SERVICE_AUTH_NOT_CONFIGURED` until an authentication adapter is supplied.
+
+### Credential lifecycle and audit policy
+
+- Agent HQ publishes overlapping old and new verification keys during rotation. New credentials use
+  the new `keyId`; the old key is removed only after its final credential expiry plus clock skew.
+- Credentials are short-lived. The default clock-skew allowance is 30 seconds and may be narrowed by
+  deployment policy. A credential whose issuance is too far in the future or whose expiry is outside
+  the allowance fails closed.
+- Emergency revocation is keyed by `credentialId` and checked on every authenticated request. Key
+  compromise revokes the key in the verifier as well as every still-live credential it signed.
+- Service bearer credentials are reusable until expiry or revocation; request replay protection is
+  provided by command IDs, idempotency keys, and payload hashes. Reusing an idempotency key with a
+  different payload remains a conflict rather than a second command.
+- Authentication logs contain stable result codes, request IDs, and the principal ID only after claims
+  parse. Raw bearer values, signatures, authorization headers, credential payloads, and verifier
+  exceptions are never logged or returned.
+
+Normalized boundary codes include `SERVICE_CREDENTIAL_REQUIRED`,
+`SERVICE_CREDENTIAL_MALFORMED`, `SERVICE_CREDENTIAL_CLASS_REJECTED`,
+`SERVICE_CREDENTIAL_INVALID_ISSUER`, `SERVICE_CREDENTIAL_INVALID_AUDIENCE`,
+`SERVICE_CREDENTIAL_NOT_YET_VALID`, `SERVICE_CREDENTIAL_EXPIRED`,
+`SERVICE_CREDENTIAL_REVOKED`, `SERVICE_CREDENTIAL_SCOPE_MISMATCH`, and
+`SERVICE_REQUEST_ENVELOPE_INVALID`. Authentication failures return 401, scope failures return 403,
+invalid envelopes return 400, and an unconfigured deployment returns 503.
 
 ## Error classification
 

@@ -5,9 +5,11 @@ const workspaceId = 'wsp_01JABCDEF0123456789ABCDEFG'
 const projectId = 'prj_01JABCDEF0123456789ABCDEFG'
 const traceId = 'trc_01JABCDEF0123456789ABCDEFG'
 const correlation = { traceId }
+const caller = { servicePrincipalId: 'svc_agent-hq' }
 
 export const PublicContractFixtures = Object.freeze({
   command: {
+    caller,
     contractVersion,
     requestId,
     commandId,
@@ -21,6 +23,7 @@ export const PublicContractFixtures = Object.freeze({
     payload: { objective: 'Validate the public contract' },
   },
   request: {
+    caller,
     contractVersion,
     requestId,
     workspaceId,
