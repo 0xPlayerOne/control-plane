@@ -4,8 +4,8 @@ license: apache-2.0
 prune_standard: true
 profile: monorepo
 languages: typescript
-codeql: false
-dependency_review: false
+codeql: auto
+dependency_review: auto
 package_manager: bun
 codeql_rust_shards: '["all"]'
 codeql_rust_threads: 1

@@ -66,15 +66,15 @@ test('defines root quality and build commands', async () => {
   assert.match(manifest.scripts['db:check'], /packages\/database/)
 })
 
-test('configures the Code Foundry CI baseline for the private direct-flow repository', async () => {
+test('configures the Code Foundry CI baseline for the public direct-flow repository', async () => {
   const config = await readFile(new URL('../.github/code-foundry.yml', import.meta.url), 'utf8')
 
   assert.match(config, /^features: all$/m)
   assert.match(config, /^license: apache-2\.0$/m)
   assert.match(config, /^git_workflow: direct$/m)
   assert.match(config, /^release_merge_strategy: rebase$/m)
-  assert.match(config, /^codeql: false$/m)
-  assert.match(config, /^dependency_review: false$/m)
+  assert.match(config, /^codeql: auto$/m)
+  assert.match(config, /^dependency_review: auto$/m)
   assert.match(config, /^opencode_security: false$/m)
   for (const runner of [
     'runner',
@@ -123,13 +123,13 @@ test('generates only the direct-flow Code Foundry callers with parallel validati
   )
 })
 
-test('documents required, private-repository, and future CI gates', async () => {
+test('documents required, public-repository, and future CI gates', async () => {
   const documentation = await readFile(new URL('../docs/ci.md', import.meta.url), 'utf8')
 
   assert.match(documentation, /Validation \/ Gate/)
   assert.match(documentation, /required/i)
-  assert.match(documentation, /CodeQL.*disabled/is)
-  assert.match(documentation, /Dependency Review.*disabled/is)
+  assert.match(documentation, /CodeQL.*enabled/is)
+  assert.match(documentation, /Dependency Review.*enabled/is)
   assert.match(documentation, /parallel/i)
   assert.match(documentation, /OpenAPI/i)
   assert.match(documentation, /migration/i)
