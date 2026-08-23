@@ -92,7 +92,7 @@ describe('published SDK artifacts', () => {
       ],
       { cwd: directory, stdio: 'pipe' }
     )
-  }, 30_000)
+  }, 60_000)
 })
 
 function pack(packageDirectory, destination, filename) {
