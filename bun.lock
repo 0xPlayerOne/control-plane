@@ -20,6 +20,7 @@
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
         "@control-plane/config": "workspace:*",
+        "@control-plane/contracts": "workspace:*",
         "@control-plane/telemetry": "workspace:*",
         "@fastify/helmet": "13.1.0",
         "@nestjs/common": "11.2.1",
@@ -81,6 +82,11 @@
     "packages/context": {
       "name": "@control-plane/context",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "@control-plane/domain": "workspace:*",
+        "zod": "4.4.3",
+      },
     },
     "packages/contracts": {
       "name": "@control-plane/contracts",
@@ -104,6 +110,10 @@
     "packages/domain": {
       "name": "@control-plane/domain",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "zod": "4.4.3",
+      },
     },
     "packages/events": {
       "name": "@control-plane/events",
@@ -120,6 +130,10 @@
     "packages/runtime-sdk": {
       "name": "@control-plane/runtime-sdk",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "zod": "4.4.3",
+      },
     },
     "packages/telemetry": {
       "name": "@control-plane/telemetry",

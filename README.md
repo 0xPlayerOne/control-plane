@@ -36,6 +36,8 @@ Provider-neutral tool, model, policy, interaction, and execution-limit contracts
 [`docs/execution-constraints.md`](docs/execution-constraints.md).
 Revisioned canonical project context, provenance, CAS conflicts, history, and reviewed execution-output
 promotion are documented in [`docs/project-state.md`](docs/project-state.md).
+Reproducible bounded ContextPackage compilation, classified reference failures, and child-scope
+narrowing are documented in [`docs/context-packages.md`](docs/context-packages.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in

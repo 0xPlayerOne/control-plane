@@ -34,6 +34,7 @@ from their contents.
 | ProjectState item     | `psi_` |
 | State mutation        | `stm_` |
 | Promotion proposal    | `spp_` |
+| ContextPackage        | `ctx_` |
 | Artifact reference    | `art_` |
 | Event                 | `evt_` |
 | Trace                 | `trc_` |

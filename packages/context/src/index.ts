@@ -1,1 +1,530 @@
+import { createHash } from 'node:crypto'
+import { IdentifierSchemas } from '@control-plane/contracts'
+import { ProjectStateSchema, type ProjectStateItem } from '@control-plane/domain'
+import { z } from 'zod'
+
+const TimestampSchema = z.iso.datetime()
+const DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+const SensitivitySchema = z.enum(['public', 'internal', 'confidential', 'restricted'])
+const unique = <Value>(values: Value[]) => new Set(values).size === values.length
+
+const ContextStateItemSchema = z.object({
+  itemId: IdentifierSchemas.projectStateItemId,
+  itemRevision: z.number().int().positive(),
+  key: z.string().min(1).max(256),
+  value: z.json(),
+  sensitivity: SensitivitySchema,
+  freshness: z.object({ observedAt: TimestampSchema, expiresAt: TimestampSchema.optional() }),
+  provenance: z.object({
+    sourceKind: z.enum(['principal', 'execution', 'artifact', 'system']),
+    sourcePrincipalRef: z.string().min(1).max(256).optional(),
+    sourceExecutionId: IdentifierSchemas.executionId.optional(),
+    artifactRefs: z.array(IdentifierSchemas.artifactId),
+    capturedAt: TimestampSchema,
+  }),
+  usage: z.object({
+    bytes: z.number().int().nonnegative(),
+    tokens: z.number().int().nonnegative(),
+  }),
+})
+
+const ContextArtifactRefSchema = z.object({
+  artifactId: IdentifierSchemas.artifactId,
+  contentDigest: DigestSchema,
+  mediaType: z.string().min(1).max(256),
+  sizeBytes: z.number().int().nonnegative(),
+  sensitivity: SensitivitySchema,
+})
+
+export const ContextPackageReferenceSchema = z.object({
+  contextPackageId: IdentifierSchemas.contextPackageId,
+  contentDigest: DigestSchema,
+})
+
+export const ContextPackageSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    contextPackageId: IdentifierSchemas.contextPackageId,
+    contentDigest: DigestSchema,
+    compiler: z.object({
+      name: z.literal('control-plane-context'),
+      version: z.string().min(1).max(64),
+    }),
+    compiledAt: TimestampSchema,
+    objective: z.string().min(1).max(16_384),
+    projectState: z.object({
+      workspaceId: IdentifierSchemas.workspaceId,
+      projectId: IdentifierSchemas.projectId,
+      revision: z.number().int().nonnegative(),
+    }),
+    stateItems: z.array(ContextStateItemSchema).max(10_000),
+    artifactRefs: z.array(ContextArtifactRefSchema).max(10_000),
+    constraints: z.object({
+      allowedSensitivities: z.array(SensitivitySchema).min(1).refine(unique),
+      allowedStateItemIds: z.array(IdentifierSchemas.projectStateItemId).refine(unique),
+      allowedArtifactIds: z.array(IdentifierSchemas.artifactId).refine(unique),
+    }),
+    permissions: z.array(z.string().min(1).max(256)).refine(unique),
+    successCriteria: z.array(z.string().min(1).max(4_096)).min(1).max(128),
+    returnContract: z.object({ contractRef: z.string().min(1).max(512) }),
+    budgets: z.object({
+      maximumBytes: z.number().int().positive(),
+      maximumTokens: z.number().int().positive(),
+    }),
+    usage: z.object({
+      bytes: z.number().int().nonnegative(),
+      tokens: z.number().int().nonnegative(),
+    }),
+    truncation: z.object({
+      truncated: z.boolean(),
+      excluded: z.array(
+        z.object({
+          ref: z.string().min(1).max(512),
+          reason: z.enum(['BUDGET_LIMIT', 'STALE_OPTIONAL']),
+        })
+      ),
+    }),
+    parentContextPackage: ContextPackageReferenceSchema.optional(),
+  })
+  .refine(
+    (package_) =>
+      package_.usage.bytes <= package_.budgets.maximumBytes &&
+      package_.usage.tokens <= package_.budgets.maximumTokens,
+    {
+      message: 'ContextPackage usage exceeds its declared budgets',
+    }
+  )
+
+export type ContextPackage = z.output<typeof ContextPackageSchema>
+export type ContextPackageReference = z.output<typeof ContextPackageReferenceSchema>
+
+const CandidateSchema = z.object({
+  itemId: IdentifierSchemas.projectStateItemId,
+  itemRevision: z.number().int().positive(),
+  required: z.boolean(),
+  priority: z.number().int(),
+  authorized: z.boolean(),
+})
+const ArtifactCandidateSchema = ContextArtifactRefSchema.extend({
+  state: z.enum(['available', 'missing', 'revoked']),
+  authorized: z.boolean(),
+})
+const CompilationInputSchema = z.object({
+  objective: z.string().min(1).max(16_384),
+  projectState: ProjectStateSchema,
+  expectedProjectStateRevision: z.number().int().nonnegative(),
+  candidates: z.array(CandidateSchema).max(10_000),
+  artifacts: z.array(ArtifactCandidateSchema).max(10_000),
+  constraints: ContextPackageSchema.shape.constraints,
+  permissions: ContextPackageSchema.shape.permissions,
+  successCriteria: ContextPackageSchema.shape.successCriteria,
+  returnContract: ContextPackageSchema.shape.returnContract,
+  budgets: ContextPackageSchema.shape.budgets,
+  compiledAt: TimestampSchema,
+})
+
+export type ContextCompilationErrorCode =
+  | 'STALE_PROJECT_STATE'
+  | 'MISSING_STATE_ITEM'
+  | 'STATE_ITEM_VERSION_MISMATCH'
+  | 'UNAUTHORIZED_CONTEXT'
+  | 'STALE_REQUIRED_CONTEXT'
+  | 'MISSING_ARTIFACT'
+  | 'REVOKED_ARTIFACT'
+  | 'CONTRADICTORY_CONTEXT_REFERENCE'
+  | 'REQUIRED_CONTEXT_EXCEEDS_BUDGET'
+  | 'CHILD_SCOPE_EXPANSION'
+  | 'CHILD_BUDGET_EXPANSION'
+
+export class ContextCompilationError extends Error {
+  constructor(
+    readonly code: ContextCompilationErrorCode,
+    readonly reference?: string
+  ) {
+    super(reference ? `${code}:${reference}` : code)
+    this.name = 'ContextCompilationError'
+  }
+}
+
+export class ContextPackageCompiler {
+  constructor(readonly version: string) {
+    if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+      throw new Error('INVALID_CONTEXT_COMPILER_VERSION')
+    }
+  }
+
+  compile(input: unknown): ContextPackage {
+    const parsed = CompilationInputSchema.parse(input)
+    if (parsed.projectState.revision !== parsed.expectedProjectStateRevision) {
+      fail('STALE_PROJECT_STATE', `revision:${parsed.expectedProjectStateRevision}`)
+    }
+    assertUniqueCandidates(parsed.candidates)
+    assertUniqueArtifacts(parsed.artifacts)
+    const stateById = new Map(parsed.projectState.items.map((item) => [item.itemId, item]))
+    const artifactsById = new Map(
+      parsed.artifacts.map((artifact) => [artifact.artifactId, artifact])
+    )
+    const selected: ContextPackage['stateItems'] = []
+    const selectedArtifacts = new Map<string, ContextPackage['artifactRefs'][number]>()
+    const excluded: ContextPackage['truncation']['excluded'] = []
+    let bytes = 0
+    let tokens = 0
+    const candidates = [...parsed.candidates].sort(
+      (left, right) =>
+        Number(right.required) - Number(left.required) ||
+        right.priority - left.priority ||
+        left.itemId.localeCompare(right.itemId)
+    )
+    for (const candidate of candidates) {
+      const item = stateById.get(candidate.itemId)
+      if (!item) fail('MISSING_STATE_ITEM', candidate.itemId)
+      if (item.itemRevision !== candidate.itemRevision)
+        fail('STATE_ITEM_VERSION_MISMATCH', candidate.itemId)
+      assertAuthorizedItem(candidate, item, parsed.constraints)
+      if (item.freshness.expiresAt && !isAfter(item.freshness.expiresAt, parsed.compiledAt)) {
+        if (candidate.required) fail('STALE_REQUIRED_CONTEXT', candidate.itemId)
+        excluded.push({ ref: `state-item:${candidate.itemId}`, reason: 'STALE_OPTIONAL' })
+        continue
+      }
+      const itemUsage = estimateItem(item)
+      const itemArtifacts = item.provenance.artifactRefs.map((id) =>
+        resolveArtifact(id, artifactsById, parsed.constraints)
+      )
+      const newArtifacts = itemArtifacts.filter(
+        (artifact) => !selectedArtifacts.has(artifact.artifactId)
+      )
+      const addedBytes =
+        itemUsage.bytes + newArtifacts.reduce((sum, value) => sum + value.sizeBytes, 0)
+      const addedTokens =
+        itemUsage.tokens + newArtifacts.reduce((sum, value) => sum + tokensFor(value.sizeBytes), 0)
+      if (
+        bytes + addedBytes > parsed.budgets.maximumBytes ||
+        tokens + addedTokens > parsed.budgets.maximumTokens
+      ) {
+        if (candidate.required) fail('REQUIRED_CONTEXT_EXCEEDS_BUDGET', candidate.itemId)
+        excluded.push({ ref: `state-item:${candidate.itemId}`, reason: 'BUDGET_LIMIT' })
+        continue
+      }
+      selected.push(toContextItem(item, itemUsage))
+      for (const artifact of newArtifacts) selectedArtifacts.set(artifact.artifactId, artifact)
+      bytes += addedBytes
+      tokens += addedTokens
+    }
+    return finalizePackage({
+      schemaVersion: 1,
+      compiler: { name: 'control-plane-context', version: this.version },
+      compiledAt: parsed.compiledAt,
+      objective: parsed.objective,
+      projectState: {
+        workspaceId: parsed.projectState.workspaceId,
+        projectId: parsed.projectState.projectId,
+        revision: parsed.projectState.revision,
+      },
+      stateItems: selected.sort((left, right) => left.itemId.localeCompare(right.itemId)),
+      artifactRefs: [...selectedArtifacts.values()].sort((left, right) =>
+        left.artifactId.localeCompare(right.artifactId)
+      ),
+      constraints: normalizeConstraints(parsed.constraints),
+      permissions: [...parsed.permissions].sort(),
+      successCriteria: parsed.successCriteria,
+      returnContract: parsed.returnContract,
+      budgets: parsed.budgets,
+      usage: { bytes, tokens },
+      truncation: { truncated: excluded.length > 0, excluded },
+    })
+  }
+}
+
+export function deriveContextPackage(parentInput: unknown, input: unknown): ContextPackage {
+  const parent = ContextPackageSchema.parse(parentInput)
+  const parsed = z
+    .object({
+      objective: z.string().min(1).max(16_384),
+      allowedStateItemIds: z.array(IdentifierSchemas.projectStateItemId).refine(unique),
+      allowedArtifactIds: z.array(IdentifierSchemas.artifactId).refine(unique),
+      budgets: ContextPackageSchema.shape.budgets,
+      successCriteria: ContextPackageSchema.shape.successCriteria,
+      returnContract: ContextPackageSchema.shape.returnContract,
+      compiledAt: TimestampSchema,
+    })
+    .parse(input)
+  assertSubset(parsed.allowedStateItemIds, parent.constraints.allowedStateItemIds)
+  assertSubset(parsed.allowedArtifactIds, parent.constraints.allowedArtifactIds)
+  assertSubset(
+    parsed.allowedStateItemIds,
+    parent.stateItems.map((item) => item.itemId)
+  )
+  assertSubset(
+    parsed.allowedArtifactIds,
+    parent.artifactRefs.map((artifact) => artifact.artifactId)
+  )
+  if (
+    parsed.budgets.maximumBytes > parent.budgets.maximumBytes ||
+    parsed.budgets.maximumTokens > parent.budgets.maximumTokens
+  )
+    fail('CHILD_BUDGET_EXPANSION')
+  const stateItems = parent.stateItems.filter((item) =>
+    parsed.allowedStateItemIds.includes(item.itemId)
+  )
+  const artifactRefs = parent.artifactRefs.filter((artifact) =>
+    parsed.allowedArtifactIds.includes(artifact.artifactId)
+  )
+  const selectedArtifactIds = new Set(artifactRefs.map((artifact) => artifact.artifactId))
+  for (const item of stateItems) {
+    if (item.provenance.artifactRefs.some((id) => !selectedArtifactIds.has(id)))
+      fail('CHILD_SCOPE_EXPANSION', item.itemId)
+  }
+  const usage = calculateUsage(stateItems, artifactRefs)
+  if (usage.bytes > parsed.budgets.maximumBytes || usage.tokens > parsed.budgets.maximumTokens)
+    fail('REQUIRED_CONTEXT_EXCEEDS_BUDGET')
+  return finalizePackage({
+    ...parent,
+    contextPackageId: undefined,
+    contentDigest: undefined,
+    compiledAt: parsed.compiledAt,
+    objective: parsed.objective,
+    stateItems,
+    artifactRefs,
+    constraints: {
+      allowedSensitivities: parent.constraints.allowedSensitivities,
+      allowedStateItemIds: [...parsed.allowedStateItemIds].sort(),
+      allowedArtifactIds: [...parsed.allowedArtifactIds].sort(),
+    },
+    successCriteria: parsed.successCriteria,
+    returnContract: parsed.returnContract,
+    budgets: parsed.budgets,
+    usage,
+    truncation: { truncated: false, excluded: [] },
+    parentContextPackage: {
+      contextPackageId: parent.contextPackageId,
+      contentDigest: parent.contentDigest,
+    },
+  })
+}
+
+export interface ContextPackageRepository {
+  put(package_: ContextPackage): Promise<ContextPackageReference>
+  get(reference: ContextPackageReference): Promise<ContextPackage | undefined>
+}
+
+export class InMemoryContextPackageRepository implements ContextPackageRepository {
+  readonly #packages = new Map<string, ContextPackage>()
+  async put(input: ContextPackage): Promise<ContextPackageReference> {
+    const package_ = ContextPackageSchema.parse(input)
+    assertPackageIntegrity(package_)
+    const existing = this.#packages.get(package_.contextPackageId)
+    if (existing && existing.contentDigest !== package_.contentDigest)
+      throw new Error('CONTEXT_PACKAGE_ID_CONFLICT')
+    this.#packages.set(package_.contextPackageId, structuredClone(package_))
+    return { contextPackageId: package_.contextPackageId, contentDigest: package_.contentDigest }
+  }
+  async get(input: ContextPackageReference): Promise<ContextPackage | undefined> {
+    const reference = ContextPackageReferenceSchema.parse(input)
+    const package_ = this.#packages.get(reference.contextPackageId)
+    if (!package_ || package_.contentDigest !== reference.contentDigest) return undefined
+    return structuredClone(package_)
+  }
+}
+
+function assertUniqueCandidates(candidates: z.output<typeof CandidateSchema>[]): void {
+  const seen = new Set<string>()
+  for (const candidate of candidates) {
+    if (seen.has(candidate.itemId)) fail('CONTRADICTORY_CONTEXT_REFERENCE', candidate.itemId)
+    seen.add(candidate.itemId)
+  }
+}
+
+function assertUniqueArtifacts(artifacts: z.output<typeof ArtifactCandidateSchema>[]): void {
+  const seen = new Set<string>()
+  for (const artifact of artifacts) {
+    if (seen.has(artifact.artifactId)) {
+      fail('CONTRADICTORY_CONTEXT_REFERENCE', artifact.artifactId)
+    }
+    seen.add(artifact.artifactId)
+  }
+}
+
+function assertAuthorizedItem(
+  candidate: z.output<typeof CandidateSchema>,
+  item: ProjectStateItem,
+  constraints: ContextPackage['constraints']
+): void {
+  if (
+    !candidate.authorized ||
+    !constraints.allowedStateItemIds.includes(item.itemId) ||
+    !constraints.allowedSensitivities.includes(item.sensitivity)
+  )
+    fail('UNAUTHORIZED_CONTEXT', item.itemId)
+}
+
+function resolveArtifact(
+  artifactId: string,
+  artifacts: Map<string, z.output<typeof ArtifactCandidateSchema>>,
+  constraints: ContextPackage['constraints']
+): ContextPackage['artifactRefs'][number] {
+  const artifact = artifacts.get(artifactId)
+  if (!artifact || artifact.state === 'missing') fail('MISSING_ARTIFACT', artifactId)
+  if (artifact.state === 'revoked') fail('REVOKED_ARTIFACT', artifactId)
+  if (
+    !artifact.authorized ||
+    !constraints.allowedArtifactIds.includes(artifact.artifactId) ||
+    !constraints.allowedSensitivities.includes(artifact.sensitivity)
+  )
+    fail('UNAUTHORIZED_CONTEXT', artifactId)
+  return {
+    artifactId: artifact.artifactId,
+    contentDigest: artifact.contentDigest,
+    mediaType: artifact.mediaType,
+    sizeBytes: artifact.sizeBytes,
+    sensitivity: artifact.sensitivity,
+  }
+}
+
+function toContextItem(
+  item: ProjectStateItem,
+  usage: { bytes: number; tokens: number }
+): ContextPackage['stateItems'][number] {
+  return {
+    itemId: item.itemId,
+    itemRevision: item.itemRevision,
+    key: item.key,
+    value: item.value,
+    sensitivity: item.sensitivity,
+    freshness: item.freshness,
+    provenance: item.provenance,
+    usage,
+  }
+}
+
+function estimateItem(item: ProjectStateItem): { bytes: number; tokens: number } {
+  const bytes = Buffer.byteLength(canonical({ key: item.key, value: item.value }), 'utf8') + 48
+  return { bytes, tokens: tokensFor(bytes) }
+}
+function tokensFor(bytes: number): number {
+  return Math.ceil(bytes / 4)
+}
+function calculateUsage(
+  items: ContextPackage['stateItems'],
+  artifacts: ContextPackage['artifactRefs']
+) {
+  const bytes =
+    items.reduce((sum, item) => sum + item.usage.bytes, 0) +
+    artifacts.reduce((sum, artifact) => sum + artifact.sizeBytes, 0)
+  const tokens =
+    items.reduce((sum, item) => sum + item.usage.tokens, 0) +
+    artifacts.reduce((sum, artifact) => sum + tokensFor(artifact.sizeBytes), 0)
+  return { bytes, tokens }
+}
+function normalizeConstraints(
+  constraints: ContextPackage['constraints']
+): ContextPackage['constraints'] {
+  return {
+    allowedSensitivities: [...constraints.allowedSensitivities].sort(),
+    allowedStateItemIds: [...constraints.allowedStateItemIds].sort(),
+    allowedArtifactIds: [...constraints.allowedArtifactIds].sort(),
+  }
+}
+function assertSubset<Value extends string>(
+  child: readonly Value[],
+  parent: readonly Value[]
+): void {
+  const expanded = child.find((value) => !parent.includes(value))
+  if (expanded) fail('CHILD_SCOPE_EXPANSION', expanded)
+}
+function finalizePackage(input: Record<string, unknown>): ContextPackage {
+  const normalized = normalize(input) as Record<string, unknown>
+  const contentDigest = sha256(normalized)
+  return ContextPackageSchema.parse({
+    ...normalized,
+    contextPackageId: hashIdentifier('ctx', contentDigest),
+    contentDigest,
+  })
+}
+function assertPackageIntegrity(package_: ContextPackage): void {
+  const content = Object.fromEntries(
+    Object.entries(package_).filter(
+      ([key]) => key !== 'contextPackageId' && key !== 'contentDigest'
+    )
+  )
+  const expectedDigest = sha256(normalize(content))
+  if (
+    package_.contentDigest !== expectedDigest ||
+    package_.contextPackageId !== hashIdentifier('ctx', expectedDigest)
+  ) {
+    throw new Error('CONTEXT_PACKAGE_INTEGRITY_ERROR')
+  }
+}
+function hashIdentifier(prefix: string, digest: string): string {
+  const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+  const bytes = Buffer.from(digest.slice(7, 39), 'hex')
+  let bits = 0,
+    value = 0,
+    output = ''
+  for (const byte of bytes) {
+    value = (value << 8) | byte
+    bits += 8
+    while (bits >= 5) {
+      output += alphabet[(value >>> (bits - 5)) & 31]
+      bits -= 5
+    }
+  }
+  if (bits > 0) output += alphabet[(value << (5 - bits)) & 31]
+  return `${prefix}_${output.slice(0, 26)}`
+}
+function sha256(value: unknown): string {
+  return `sha256:${createHash('sha256').update(canonical(value)).digest('hex')}`
+}
+function canonical(value: unknown): string {
+  return JSON.stringify(normalize(value))
+}
+function normalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalize)
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, normalize(entry)])
+    )
+  return value
+}
+function isAfter(left: string, right: string): boolean {
+  return Date.parse(left) > Date.parse(right)
+}
+function fail(code: ContextCompilationErrorCode, reference?: string): never {
+  throw new ContextCompilationError(code, reference)
+}
+
+function serializationFixture(objective: string): ContextPackage {
+  return finalizePackage({
+    schemaVersion: 1,
+    compiler: { name: 'control-plane-context', version: '1.0.0' },
+    compiledAt: '2026-08-23T12:00:00.000Z',
+    objective,
+    projectState: {
+      workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+      projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+      revision: 1,
+    },
+    stateItems: [],
+    artifactRefs: [],
+    constraints: {
+      allowedSensitivities: ['public'],
+      allowedStateItemIds: [],
+      allowedArtifactIds: [],
+    },
+    permissions: [],
+    successCriteria: ['Return normalized output'],
+    returnContract: { contractRef: 'contract://adapter-result/v1' },
+    budgets: { maximumBytes: 1_024, maximumTokens: 256 },
+    usage: { bytes: 0, tokens: 0 },
+    truncation: { truncated: false, excluded: [] },
+  })
+}
+export const contextPackageSerializationFixtures = {
+  futurePi: serializationFixture('Adapter fixture one'),
+  futureAcp: serializationFixture('Adapter fixture two'),
+  futureLangGraph: serializationFixture('Adapter fixture three'),
+} as const
+
 export const packageName = 'context'
