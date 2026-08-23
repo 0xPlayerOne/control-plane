@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "Locked skill set for control-plane. Skills live in .agents/skills/ and are committed for team sharing.",
+  "globalSkillsKept": [
+    "cortana",
+    "agent-md-refactor",
+    "agent-skill-stack",
+    "gh-cli",
+    "conventional-commit",
+    "grill-me",
+    "i-have-adhd",
+    "context-engineering",
+    "vision",
+    "systematic-debugging"
+  ],
+  "skills": [
+    "code-review",
+    "code-simplification",
+    "incremental-implementation",
+    "security-and-hardening",
+    "test-driven-development",
+    "turborepo",
+    "typescript-advanced-types",
+    "verification-before-completion"
+  ]
+}
