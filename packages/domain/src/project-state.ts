@@ -19,10 +19,13 @@ export const StateItemProvenanceSchema = z
     capturedAt: TimestampSchema,
   })
   .superRefine((value, context) => {
-    if (value.sourceKind === 'execution' && !value.sourceExecutionId) {
+    if (
+      value.sourceKind === 'execution' &&
+      (!value.sourceExecutionId || !value.sourcePrincipalRef)
+    ) {
       context.addIssue({
         code: 'custom',
-        message: 'Execution provenance requires sourceExecutionId',
+        message: 'Execution provenance requires sourceExecutionId and sourcePrincipalRef',
       })
     }
     if (value.sourceKind === 'principal' && !value.sourcePrincipalRef) {
@@ -44,14 +47,14 @@ export const StateItemFreshnessSchema = z
     observedAt: TimestampSchema,
     expiresAt: TimestampSchema.optional(),
   })
-  .refine((value) => !value.expiresAt || value.expiresAt > value.observedAt, {
+  .refine((value) => !value.expiresAt || isAfter(value.expiresAt, value.observedAt), {
     message: 'State item expiry must be after observation',
   })
 
 const StateItemInputSchema = z.object({
   itemId: IdentifierSchemas.projectStateItemId,
   key: ItemKeySchema,
-  value: z.unknown(),
+  value: z.json(),
   sensitivity: z.enum(['public', 'internal', 'confidential', 'restricted']),
   freshness: StateItemFreshnessSchema,
   provenance: StateItemProvenanceSchema,
@@ -62,6 +65,8 @@ export const ProjectStateItemSchema = StateItemInputSchema.extend({
   itemRevision: z.number().int().positive(),
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
+}).refine((item) => !isAfter(item.createdAt, item.updatedAt), {
+  message: 'ProjectState item update cannot predate creation',
 })
 
 export const ProjectStateOperationSchema = z.discriminatedUnion('kind', [
@@ -70,7 +75,7 @@ export const ProjectStateOperationSchema = z.discriminatedUnion('kind', [
     kind: z.literal('update'),
     itemId: IdentifierSchemas.projectStateItemId,
     expectedItemRevision: z.number().int().positive(),
-    value: z.unknown(),
+    value: z.json(),
     sensitivity: z.enum(['public', 'internal', 'confidential', 'restricted']),
     freshness: StateItemFreshnessSchema,
     provenance: StateItemProvenanceSchema,
@@ -78,23 +83,27 @@ export const ProjectStateOperationSchema = z.discriminatedUnion('kind', [
   }),
 ])
 
-export const ProjectStateSchema = z.object({
-  schemaVersion: z.literal(1),
-  workspaceId: IdentifierSchemas.workspaceId,
-  projectId: IdentifierSchemas.projectId,
-  revision: z.number().int().nonnegative(),
-  items: z
-    .array(ProjectStateItemSchema)
-    .max(10_000)
-    .refine((items) => new Set(items.map((item) => item.itemId)).size === items.length, {
-      message: 'ProjectState item IDs must be unique',
-    })
-    .refine((items) => new Set(items.map((item) => item.key)).size === items.length, {
-      message: 'ProjectState item keys must be unique',
-    }),
-  createdAt: TimestampSchema,
-  updatedAt: TimestampSchema,
-})
+export const ProjectStateSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    workspaceId: IdentifierSchemas.workspaceId,
+    projectId: IdentifierSchemas.projectId,
+    revision: z.number().int().nonnegative(),
+    items: z
+      .array(ProjectStateItemSchema)
+      .max(10_000)
+      .refine((items) => new Set(items.map((item) => item.itemId)).size === items.length, {
+        message: 'ProjectState item IDs must be unique',
+      })
+      .refine((items) => new Set(items.map((item) => item.key)).size === items.length, {
+        message: 'ProjectState item keys must be unique',
+      }),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema,
+  })
+  .refine((state) => !isAfter(state.createdAt, state.updatedAt), {
+    message: 'ProjectState update cannot predate creation',
+  })
 
 export const StatePromotionProposalSchema = z
   .object({
@@ -117,7 +126,7 @@ export const StatePromotionProposalSchema = z
     supersededByProposalId: IdentifierSchemas.statePromotionProposalId.optional(),
     expiredAt: TimestampSchema.optional(),
   })
-  .refine((proposal) => proposal.expiresAt > proposal.createdAt, {
+  .refine((proposal) => isAfter(proposal.expiresAt, proposal.createdAt), {
     message: 'Promotion expiry must be after creation',
   })
   .superRefine((proposal, context) => {
@@ -300,6 +309,7 @@ export type ProjectStateErrorCode =
   | 'PROPOSAL_EXPIRED'
   | 'PROPOSAL_NOT_EXPIRED'
   | 'REVISION_MISSING'
+  | 'TIMESTAMP_REGRESSION'
 
 export class ProjectStateError extends Error {
   constructor(readonly code: ProjectStateErrorCode) {
@@ -406,6 +416,9 @@ export class ProjectStateService {
     for (;;) {
       const current = await this.repository.get(mutation.workspaceId, mutation.projectId)
       if (!current) throw new ProjectStateError('PROJECT_STATE_MISSING')
+      if (isAfter(current.updatedAt, mutation.at)) {
+        throw new ProjectStateError('TIMESTAMP_REGRESSION')
+      }
       if (mutation.expectedRevision > current.revision) {
         throw new ProjectStateConflict(mutation.expectedRevision, current.revision, [])
       }
@@ -518,6 +531,10 @@ export class ProjectStateService {
 
   async approvePromotion(input: unknown): Promise<StatePromotionProposal> {
     const parsed = reviewInput(input)
+    const proposal = await this.#getProposal(parsed.proposalId)
+    if (!isAfter(proposal.expiresAt, parsed.reviewedAt)) {
+      throw new ProjectStateError('PROPOSAL_EXPIRED')
+    }
     return this.#transitionProposal(parsed.proposalId, 'candidate', {
       state: 'approved',
       reviewedAt: parsed.reviewedAt,
@@ -545,7 +562,9 @@ export class ProjectStateService {
       .parse(input)
     const proposal = await this.#getProposal(parsed.proposalId)
     if (proposal.state !== 'approved') throw new ProjectStateError('PROPOSAL_STATE_CONFLICT')
-    if (parsed.mergedAt >= proposal.expiresAt) throw new ProjectStateError('PROPOSAL_EXPIRED')
+    if (!isAfter(proposal.expiresAt, parsed.mergedAt)) {
+      throw new ProjectStateError('PROPOSAL_EXPIRED')
+    }
     const result = await this.#applyMutation(
       {
         mutationId: parsed.mutationId,
@@ -590,7 +609,10 @@ export class ProjectStateService {
   async expirePromotion(proposalId: string, expiredAt: string): Promise<StatePromotionProposal> {
     const proposal = await this.#getProposal(proposalId)
     const at = TimestampSchema.parse(expiredAt)
-    if (at < proposal.expiresAt) throw new ProjectStateError('PROPOSAL_NOT_EXPIRED')
+    if (!['candidate', 'approved'].includes(proposal.state)) {
+      throw new ProjectStateError('PROPOSAL_STATE_CONFLICT')
+    }
+    if (isAfter(proposal.expiresAt, at)) throw new ProjectStateError('PROPOSAL_NOT_EXPIRED')
     return this.#replaceProposal(proposal, { state: 'expired', expiredAt: at })
   }
 
@@ -735,6 +757,10 @@ function stateKey(workspaceId: string, projectId: string): string {
 
 function mutationKey(workspaceId: string, projectId: string, mutationId: string): string {
   return `${stateKey(workspaceId, projectId)}:${mutationId}`
+}
+
+function isAfter(left: string, right: string): boolean {
+  return Date.parse(left) > Date.parse(right)
 }
 
 function digest(value: unknown): string {
