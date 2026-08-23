@@ -3,6 +3,7 @@ import {
   InMemoryProjectStateRepository,
   InMemoryStatePromotionProposalRepository,
   ProjectStateConflict,
+  ProjectStateOperationSchema,
   ProjectStateService,
   RecordingProjectStateEventPublisher,
 } from './index.ts'
@@ -226,6 +227,38 @@ describe('revisioned ProjectState and promotion proposals', () => {
     expect(
       (await service.getHistory({ workspaceId, projectId })).map((state) => state.revision)
     ).toEqual([0, 1, 2])
+  })
+
+  test('rejects non-JSON values, time regression, and approval after expiry', async () => {
+    const operation = appendItem('psi_01JABCDEF0123456789ABCDEFG', 'invalid', 'value')
+    expect(() =>
+      ProjectStateOperationSchema.parse({
+        ...operation,
+        item: { ...operation.item, value: () => 'not durable' },
+      })
+    ).toThrow()
+
+    const { service } = setup()
+    await service.initialize({ workspaceId, projectId, at: now })
+    await expect(
+      service.applyMutation({
+        ...mutation('stm_01JABCDEF0123456789ABCDEFG', 0, [
+          appendItem('psi_01JABCDEF0123456789ABCDEFG', 'goal', 'ship M2'),
+        ]),
+        at: '2026-08-23T11:00:00.000Z',
+      })
+    ).rejects.toMatchObject({ code: 'TIMESTAMP_REGRESSION' })
+
+    const candidate = await service.createPromotionProposal(
+      proposal('spp_01JABCDEF0123456789ABCDEFG')
+    )
+    await expect(
+      service.approvePromotion({
+        proposalId: candidate.proposalId,
+        reviewingPrincipalRef: 'principal://agent-hq/user/42',
+        reviewedAt: '2026-09-02T00:00:00.000Z',
+      })
+    ).rejects.toMatchObject({ code: 'PROPOSAL_EXPIRED' })
   })
 })
 
