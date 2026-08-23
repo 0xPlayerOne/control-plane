@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { CatalogError, InMemoryVersionedCatalogRepository, VersionedCatalog } from './index.ts'
+import {
+  CatalogError,
+  InMemoryVersionedCatalogRepository,
+  VersionedCatalog,
+  executionConstraintFixtures,
+} from './index.ts'
 
 const now = '2026-08-23T12:00:00.000Z'
 const later = '2026-08-23T13:00:00.000Z'
@@ -106,7 +111,7 @@ describe('immutable AgentProfile and Skill versions', () => {
     expect(incompatible.state).toBe('incompatible')
     expect(incompatible.reasons).toEqual([
       'MISSING_CAPABILITY:filesystem.read',
-      'MISSING_TOOL:files',
+      'MISSING_TOOL:project-files',
     ])
     expect((await catalog.resolveAgentProfile({ profileId, profileVersionId })).state).toBe(
       'deprecated'
@@ -294,14 +299,7 @@ function profileDefinition(skills) {
     personaInstructions: 'Be concise and evidence-led',
     skills,
     capabilityRequirements: ['filesystem.read'],
-    modelPolicyRef: { policyId: 'model-standard', version: 1 },
-    toolRequirements: [{ toolId: 'files', versionRange: '^1.0.0' }],
-    contextPolicyRef: { policyId: 'context-standard', version: 1 },
-    runtimeConstraints: { allowedRuntimeClasses: ['local'], localProjectRequired: false },
-    interactionPolicy: {
-      allowedModes: ['interactive', 'approval_required'],
-      approvalRequiredForSideEffects: true,
-    },
+    executionConstraints: executionConstraintFixtures.readOnly,
     outputContractRefs: ['contract://execution-summary/v1'],
   }
 }
