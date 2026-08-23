@@ -70,12 +70,14 @@ pnpm-debug.log*
 .direnv/
 .envrc
 .vercel/
-.devin/
-.hermes/
-.pi/
-# .agents/ is committed for team sharing — do NOT ignore it
 mise.local.toml
 .mise.local.toml
 mise.local.lock
 .mise.local.lock
 *.code-workspace
+
+# Repository-specific rules
+.devin/
+.hermes/
+.pi/
+# .agents/ is committed for team sharing — do NOT ignore it

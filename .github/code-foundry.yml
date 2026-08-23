@@ -1,11 +1,11 @@
 version: 1
-features: none
+features: all
 license: apache-2.0
 prune_standard: true
 profile: monorepo
 languages: typescript
-codeql: auto
-dependency_review: auto
+codeql: false
+dependency_review: false
 package_manager: bun
 codeql_rust_shards: '["all"]'
 codeql_rust_threads: 1

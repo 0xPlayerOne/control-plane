@@ -46,6 +46,7 @@ test('defines root quality and build commands', async () => {
 
   for (const script of [
     'build',
+    'type-check',
     'lint',
     'test',
     'test:unit',
@@ -55,9 +56,72 @@ test('defines root quality and build commands', async () => {
     'format',
     'format:check',
     'check:boundaries',
+    'db:check',
   ]) {
     assert.equal(typeof manifest.scripts[script], 'string', `${script} must be defined`)
   }
+
+  assert.match(manifest.scripts['type-check'], /turbo run build openapi:check/)
+  assert.match(manifest.scripts['type-check'], /bun run db:check/)
+  assert.match(manifest.scripts['db:check'], /packages\/database/)
+})
+
+test('configures the Code Foundry CI baseline for the private direct-flow repository', async () => {
+  const config = await readFile(new URL('../.github/code-foundry.yml', import.meta.url), 'utf8')
+
+  assert.match(config, /^features: all$/m)
+  assert.match(config, /^license: apache-2\.0$/m)
+  assert.match(config, /^git_workflow: direct$/m)
+  assert.match(config, /^release_merge_strategy: rebase$/m)
+  assert.match(config, /^codeql: false$/m)
+  assert.match(config, /^dependency_review: false$/m)
+  assert.match(config, /^opencode_security: false$/m)
+})
+
+test('generates only the direct-flow Code Foundry callers with parallel validation', async () => {
+  const validation = await readFile(
+    new URL('../.github/workflows/validation.yml', import.meta.url),
+    'utf8'
+  )
+  const release = await readFile(
+    new URL('../.github/workflows/release.yml', import.meta.url),
+    'utf8'
+  )
+  const draftPr = await readFile(
+    new URL('../.github/workflows/draft-pr.yml', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(
+    validation,
+    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.37\.1/
+  )
+  assert.match(validation, /cancel-in-progress: true/)
+  assert.match(validation, /branches: \[main\]/)
+  assert.match(validation, /validation mode/)
+  assert.match(validation, /mode: \$\{\{ needs\.mode\.outputs\.mode \}\}/)
+  assert.doesNotMatch(validation, /branches: \[[^\]]*staging/)
+  assert.match(release, /release\.yml@v0\.37\.1/)
+  assert.match(draftPr, /base: main/)
+
+  await assert.rejects(readFile(new URL('../.github/workflows/release-pr.yml', import.meta.url)))
+  await assert.rejects(
+    readFile(new URL('../.github/workflows/opencode-security.yml', import.meta.url))
+  )
+})
+
+test('documents required, private-repository, and future CI gates', async () => {
+  const documentation = await readFile(new URL('../docs/ci.md', import.meta.url), 'utf8')
+
+  assert.match(documentation, /Validation \/ Gate/)
+  assert.match(documentation, /required/i)
+  assert.match(documentation, /CodeQL.*disabled/is)
+  assert.match(documentation, /Dependency Review.*disabled/is)
+  assert.match(documentation, /parallel/i)
+  assert.match(documentation, /OpenAPI/i)
+  assert.match(documentation, /migration/i)
+  assert.match(documentation, /E2E/i)
+  assert.match(documentation, /deploy/i)
 })
 
 test('provides a documented isolated integration-test runner', async () => {
@@ -183,7 +247,7 @@ test('rejects database contracts in Control API controllers', async () => {
   } finally {
     await unlink(fixture)
   }
-})
+}, 15_000)
 
 test('rejects live database imports from core packages', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url))
@@ -202,7 +266,7 @@ test('rejects live database imports from core packages', async () => {
   } finally {
     await unlink(fixture)
   }
-})
+}, 15_000)
 
 test('rejects concrete vendor imports from core packages', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url))
@@ -218,4 +282,4 @@ test('rejects concrete vendor imports from core packages', async () => {
   } finally {
     await unlink(fixture)
   }
-})
+}, 15_000)

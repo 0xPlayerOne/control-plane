@@ -9,9 +9,11 @@ This repository uses Bun and Turborepo. The canonical commands are:
 ```sh
 bun run format:check     # Prettier formatting check
 bun run lint             # ESLint + turbo boundaries
+bun run type-check       # Workspace types + OpenAPI and migration-schema drift
 bun run build            # TypeScript build via Turborepo
 bun run test             # Per-package tests (turbo) + repository acceptance tests
 bun run openapi:check    # OpenAPI contract validation (control-api only)
+bun run db:check         # Drizzle migration-schema validation
 ```
 
 `bun test` (bare) is scoped to `tests/` via `bunfig.toml`; per-package tests run through `turbo run test` in `bun run test`.
