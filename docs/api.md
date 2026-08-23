@@ -15,6 +15,11 @@ inward and are wired by modules at the application edge.
 Database rows are never response contracts. Public and service responses are purpose-built, versioned,
 and independently evolvable.
 
+The canonical Agent HQ service schemas, opaque identifiers, envelopes, compatibility rules, and
+fixtures are documented in [`contracts.md`](contracts.md) and exported by `@control-plane/contracts`.
+Transport DTOs must implement that boundary rather than inventing database- or runtime-native public
+shapes.
+
 ## HTTP conventions
 
 Business endpoints use URI versioning under `/v1`. Health endpoints remain unversioned at `/health`

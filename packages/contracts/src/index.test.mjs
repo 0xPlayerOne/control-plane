@@ -1,11 +1,15 @@
 import { describe, expect, test } from 'bun:test'
+import { readFile } from 'node:fs/promises'
+import { URL } from 'node:url'
 import {
   ArtifactReferenceSchema,
+  ContractDeprecationSchema,
   ContractVersionSchema,
   ErrorClassSchema,
   EventEnvelopeSchema,
   IdentifierSchemas,
   PublicContractFixtures,
+  PublicContractManifest,
   ReadRequestEnvelopeSchema,
   ResponseEnvelopeSchema,
   RuntimeReadModelEnvelopeSchema,
@@ -101,6 +105,20 @@ describe('contract version compatibility', () => {
     expect(ContractVersionSchema.safeParse({ major: 0, minor: 1 }).success).toBe(false)
     expect(ContractVersionSchema.safeParse({ major: 1, minor: -1 }).success).toBe(false)
   })
+
+  test('publishes the supported boundary and rejects an inverted deprecation window', () => {
+    expect(PublicContractManifest).toEqual({
+      name: 'agent-hq-control-plane',
+      current: { major: 1, minor: 0 },
+      supported: [{ major: 1, minor: 0 }],
+    })
+    expect(
+      ContractDeprecationSchema.safeParse({
+        deprecatedAt: '2026-09-01T00:00:00.000Z',
+        sunsetAt: '2026-08-01T00:00:00.000Z',
+      }).success
+    ).toBe(false)
+  })
 })
 
 describe('versioned public envelopes', () => {
@@ -181,5 +199,13 @@ describe('versioned public envelopes', () => {
     ]) {
       expect(serializedFixtures).not.toContain(prohibitedTerm)
     }
+  })
+
+  test('keeps the public schema package independent of Control Plane implementation packages', async () => {
+    const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+
+    expect(manifest.dependencies).toEqual({ zod: '4.4.3' })
+    expect(JSON.stringify(manifest)).not.toContain('@control-plane/domain')
+    expect(JSON.stringify(manifest)).not.toContain('@control-plane/database')
   })
 })

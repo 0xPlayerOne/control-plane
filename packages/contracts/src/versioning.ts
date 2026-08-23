@@ -9,6 +9,12 @@ export const ContractVersionSchema = z
 
 export type ContractVersion = z.infer<typeof ContractVersionSchema>
 
+export const PublicContractManifest = Object.freeze({
+  name: 'agent-hq-control-plane',
+  current: { major: 1, minor: 0 },
+  supported: [{ major: 1, minor: 0 }],
+})
+
 export type CompatibilityDirection =
   'exact' | 'backward-compatible' | 'forward-compatible' | 'breaking'
 
@@ -65,5 +71,17 @@ export const ContractDeprecationSchema = z
     documentationUrl: z.url().optional(),
   })
   .strict()
+  .superRefine((deprecation, context) => {
+    if (
+      deprecation.sunsetAt !== undefined &&
+      Date.parse(deprecation.sunsetAt) <= Date.parse(deprecation.deprecatedAt)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['sunsetAt'],
+        message: 'sunsetAt must be later than deprecatedAt',
+      })
+    }
+  })
 
 export type ContractDeprecation = z.infer<typeof ContractDeprecationSchema>
