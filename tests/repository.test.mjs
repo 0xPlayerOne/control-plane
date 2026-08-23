@@ -139,6 +139,33 @@ test('configures strict TypeScript and dependency-boundary checks', async () => 
   }
 })
 
+test('keeps observability vendor SDKs behind the telemetry package boundary', async () => {
+  const vendorPattern = /@opentelemetry|@sentry/
+
+  for (const packageName of [
+    'domain',
+    'contracts',
+    'events',
+    'execution-plan',
+    'runtime-sdk',
+    'tool-sdk',
+    'policy',
+    'context',
+  ]) {
+    const manifest = await readFile(
+      new URL(`../packages/${packageName}/package.json`, import.meta.url),
+      'utf8'
+    )
+    const source = await readFile(
+      new URL(`../packages/${packageName}/src/index.ts`, import.meta.url),
+      'utf8'
+    )
+
+    assert.doesNotMatch(manifest, vendorPattern)
+    assert.doesNotMatch(source, vendorPattern)
+  }
+})
+
 test('rejects database contracts in Control API controllers', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url))
   const fixture = new URL(

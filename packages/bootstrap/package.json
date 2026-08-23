@@ -24,6 +24,7 @@
     "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {
-    "@control-plane/config": "workspace:*"
+    "@control-plane/config": "workspace:*",
+    "@control-plane/telemetry": "workspace:*"
   }
 }

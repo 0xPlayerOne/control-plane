@@ -97,6 +97,26 @@ describe('Control API', () => {
     )
   })
 
+  test('propagates valid W3C trace context through the HTTP boundary', async () => {
+    const logs = []
+    const application = await createApplication(logs)
+    const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+
+    const response = await application.inject({
+      method: 'GET',
+      url: '/v1/system/echo?message=hello',
+      headers: { traceparent },
+    })
+
+    expect(response.headers.traceparent).toBe(traceparent)
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        event: 'http.request.completed',
+        details: expect.objectContaining({ traceId: '4bf92f3577b34da6a3ce929d0e0e4736' }),
+      })
+    )
+  })
+
   test('replaces unsafe external context identifiers', async () => {
     const application = await createApplication()
 

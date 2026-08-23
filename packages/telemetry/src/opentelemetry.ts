@@ -1,0 +1,86 @@
+import {
+  context as activeContext,
+  metrics,
+  SpanStatusCode,
+  trace,
+  type Attributes,
+  type Counter,
+  type Span,
+  type SpanContext,
+} from '@opentelemetry/api'
+import type {
+  MetricAdapter,
+  SpanOutcome,
+  TelemetrySpan,
+  TraceAdapter,
+  TraceContext,
+} from './types.js'
+
+export function createOpenTelemetryTraceAdapter(serviceName: string): TraceAdapter {
+  const tracer = trace.getTracer(serviceName)
+  return {
+    startSpan(input) {
+      const parent = input.parent ? contextFromTraceparent(input.parent) : undefined
+      const parentContext = parent
+        ? trace.setSpanContext(activeContext.active(), parent)
+        : activeContext.active()
+      const span = tracer.startSpan(
+        input.name,
+        { attributes: input.attributes as Attributes },
+        parentContext
+      )
+      const spanContext = span.spanContext()
+      const propagatedContext = validSpanContext(spanContext)
+        ? traceContextFromSpan(spanContext, input.parent?.tracestate)
+        : input.parent
+      return {
+        ...(propagatedContext === undefined ? {} : { context: propagatedContext }),
+        end(outcome) {
+          finishSpan(span, outcome)
+        },
+      } satisfies TelemetrySpan
+    },
+  }
+}
+
+export function createOpenTelemetryMetricAdapter(serviceName: string): MetricAdapter {
+  const meter = metrics.getMeter(serviceName)
+  const counters = new Map<string, Counter>()
+  return {
+    add(name, value, attributes) {
+      let counter = counters.get(name)
+      if (!counter) {
+        counter = meter.createCounter(name)
+        counters.set(name, counter)
+      }
+      counter.add(value, attributes as Attributes)
+    },
+  }
+}
+
+function contextFromTraceparent(context: TraceContext): SpanContext | undefined {
+  const match = context.traceparent.match(/^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/)
+  if (!match?.[1] || !match[2] || !match[3]) return undefined
+  return {
+    traceId: match[1],
+    spanId: match[2],
+    traceFlags: Number.parseInt(match[3], 16),
+    isRemote: true,
+  }
+}
+
+function validSpanContext(value: SpanContext): boolean {
+  return !/^0+$/.test(value.traceId) && !/^0+$/.test(value.spanId)
+}
+
+function traceContextFromSpan(span: SpanContext, tracestate?: string): TraceContext {
+  const flags = span.traceFlags.toString(16).padStart(2, '0')
+  const traceparent = `00-${span.traceId}-${span.spanId}-${flags}`
+  return tracestate === undefined ? { traceparent } : { traceparent, tracestate }
+}
+
+function finishSpan(span: Span, outcome: SpanOutcome): void {
+  span.setStatus({ code: outcome.status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+  if (outcome.status === 'error') span.recordException(String(outcome.error ?? 'operation failed'))
+  span.end()
+}

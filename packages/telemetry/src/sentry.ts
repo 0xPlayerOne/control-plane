@@ -1,0 +1,51 @@
+import { redactTelemetryValue } from './redaction.js'
+import type { ErrorTracker } from './types.js'
+
+export interface SentryScopePort {
+  setContext(name: string, context: Record<string, unknown>): void
+}
+
+export interface SentrySdkPort {
+  captureException(error: unknown): void
+  flush(timeout?: number): Promise<boolean>
+  init(options: Record<string, unknown>): void
+  withScope(operation: (scope: SentryScopePort) => void): void
+}
+
+export interface SentryErrorTrackerOptions {
+  readonly dsn?: string
+  readonly enabled?: boolean
+  readonly environment: string
+  readonly release: string
+  readonly sdk?: SentrySdkPort
+}
+
+export async function createSentryErrorTracker(
+  options: SentryErrorTrackerOptions
+): Promise<ErrorTracker> {
+  const sdk = options.sdk ?? ((await import('@sentry/node')) as unknown as SentrySdkPort)
+  sdk.init({
+    dsn: options.dsn,
+    enabled: options.enabled ?? Boolean(options.dsn),
+    environment: options.environment,
+    release: options.release,
+    sendDefaultPii: false,
+  })
+  return {
+    captureException(error, context) {
+      sdk.withScope((scope) => {
+        const safeContext = redactTelemetryValue(context)
+        scope.setContext(
+          'control-plane',
+          safeContext && typeof safeContext === 'object'
+            ? (safeContext as Record<string, unknown>)
+            : { value: safeContext }
+        )
+        sdk.captureException(redactTelemetryValue(error))
+      })
+    },
+    async flush() {
+      await sdk.flush(2_000)
+    },
+  }
+}

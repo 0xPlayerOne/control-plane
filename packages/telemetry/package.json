@@ -21,6 +21,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun test src/index.test.mjs"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@sentry/node": "10.70.0"
   }
 }
