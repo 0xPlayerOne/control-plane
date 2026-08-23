@@ -10,3 +10,6 @@ node_modules
 .turbo
 coverage
 bun.lock
+
+# Agent skills are third-party documentation, not project source
+.agents/*/
