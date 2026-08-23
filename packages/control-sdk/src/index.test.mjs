@@ -118,16 +118,20 @@ describe('Control Plane SDK public client', () => {
 
   test('publishes only the contracts dependency and stable public entry points', async () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+    const releaseManifest = JSON.parse(
+      await readFile(new URL('../../../.release-please-manifest.json', import.meta.url), 'utf8')
+    )
     const publicModule = await import('./index.ts')
     const serializedExports = Object.keys(publicModule).join(' ').toLowerCase()
 
     expect(manifest).toMatchObject({
       name: '@control-plane/sdk',
-      version: '0.0.0',
       license: 'Apache-2.0',
       dependencies: { '@control-plane/contracts': 'workspace:^' },
       publishConfig: { access: 'public', provenance: true },
     })
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(manifest.version).toBe(releaseManifest['packages/control-sdk'])
     expect(manifest.private).toBeUndefined()
     expect(PublicContractManifest.current).toEqual({ major: 1, minor: 0 })
     for (const prohibited of [
