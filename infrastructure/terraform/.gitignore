@@ -1,0 +1,10 @@
+# Local provider caches, state, backend settings, and variable values
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+*.tfbackend
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log

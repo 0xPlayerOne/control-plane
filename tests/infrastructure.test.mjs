@@ -45,7 +45,7 @@ test('defines reproducible non-root container builds for every deployable servic
 
 test('separates Terraform state and service configuration by environment', async () => {
   const manifest = JSON.parse(await readRepositoryFile('package.json'))
-  const gitignore = await readRepositoryFile('.gitignore')
+  const gitignore = await readRepositoryFile('infrastructure/terraform/.gitignore')
 
   for (const environment of ['development', 'staging', 'production']) {
     const root = `infrastructure/terraform/environments/${environment}`
