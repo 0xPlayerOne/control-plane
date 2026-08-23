@@ -10,6 +10,7 @@ const packages = [
   'config',
   'domain',
   'contracts',
+  'control-sdk',
   'database',
   'events',
   'telemetry',
@@ -20,6 +21,7 @@ const packages = [
   'policy',
   'context',
 ]
+const publicPackages = new Set(['contracts', 'control-sdk'])
 
 async function readJson(path) {
   return JSON.parse(await readFile(new URL(`../${path}`, import.meta.url), 'utf8'))
@@ -172,21 +174,33 @@ test('scaffolds every application with an executable placeholder target', async 
   }
 })
 
-test('scaffolds every internal package with server-only public exports', async () => {
+test('scaffolds every package with an explicit private or publishable server-only surface', async () => {
   for (const packageName of packages) {
     const manifest = await readJson(`packages/${packageName}/package.json`)
 
-    assert.equal(manifest.name, `@control-plane/${packageName}`)
-    assert.equal(manifest.private, true)
+    assert.equal(
+      manifest.name,
+      packageName === 'control-sdk' ? '@control-plane/sdk' : `@control-plane/${packageName}`
+    )
+    if (publicPackages.has(packageName)) {
+      assert.equal(manifest.private, undefined)
+      assert.equal(manifest.version, '1.0.0')
+      assert.equal(manifest.license, 'Apache-2.0')
+      assert.deepEqual(manifest.publishConfig, { access: 'public', provenance: true })
+    } else {
+      assert.equal(manifest.private, true)
+    }
     assert.equal(manifest.browser, false)
-    assert.deepEqual(manifest.files, ['dist'])
+    assert.deepEqual(manifest.files, packageName === 'control-sdk' ? ['dist', 'openapi'] : ['dist'])
     assert.deepEqual(
       Object.keys(manifest.exports),
       packageName === 'database'
         ? ['.', './migration', './testing']
         : packageName === 'testing'
           ? ['.', './postgres']
-          : ['.']
+          : packageName === 'control-sdk'
+            ? ['.', './testing']
+            : ['.']
     )
     assert.equal(manifest.exports['.'].types, './dist/index.d.ts')
     assert.equal(manifest.exports['.'].node, './dist/index.js')
