@@ -1,5 +1,5 @@
 {
-  "name": "@control-plane/runtime-worker",
+  "name": "@control-plane/config",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,14 +7,20 @@
   "engines": {
     "node": ">=24 <25"
   },
-  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "bun src/start.ts",
     "lint": "eslint src",
     "test": "bun test --pass-with-no-tests"
-  },
-  "dependencies": {
-    "@control-plane/bootstrap": "workspace:*"
   }
 }

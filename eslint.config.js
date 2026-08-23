@@ -2,6 +2,8 @@ import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
 
 const coreFiles = [
+  'packages/bootstrap/**/*.ts',
+  'packages/config/**/*.ts',
   'packages/domain/**/*.ts',
   'packages/contracts/**/*.ts',
   'packages/events/**/*.ts',

@@ -22,6 +22,8 @@ bun test
 ```
 
 Run `bun install` without `--frozen-lockfile` only when intentionally updating dependencies.
+Service environment and startup conventions are documented in
+[`docs/configuration.md`](docs/configuration.md).
 
 ## Workspace commands
 
