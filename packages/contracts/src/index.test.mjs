@@ -13,6 +13,8 @@ import {
   ReadRequestEnvelopeSchema,
   ResponseEnvelopeSchema,
   RuntimeReadModelEnvelopeSchema,
+  ServiceCredentialClaimsSchema,
+  ServicePrincipalSchema,
   StateChangingCommandEnvelopeSchema,
   UsageEnvelopeSchema,
   assessContractCompatibility,
@@ -146,6 +148,18 @@ describe('versioned public envelopes', () => {
     }
   })
 
+  test('supports an additive calling-service assertion for authenticated routes', () => {
+    expect(ReadRequestEnvelopeSchema.parse(PublicContractFixtures.request).caller).toEqual({
+      servicePrincipalId: 'svc_agent-hq',
+    })
+    expect(
+      ReadRequestEnvelopeSchema.safeParse({
+        ...PublicContractFixtures.request,
+        caller: undefined,
+      }).success
+    ).toBe(true)
+  })
+
   test('validates request, response, event, usage, Artifact, and runtime read-model fixtures', () => {
     expect(ReadRequestEnvelopeSchema.parse(PublicContractFixtures.request)).toBeDefined()
     expect(ResponseEnvelopeSchema.parse(PublicContractFixtures.response)).toBeDefined()
@@ -207,5 +221,55 @@ describe('versioned public envelopes', () => {
     expect(manifest.dependencies).toEqual({ zod: '4.4.3' })
     expect(JSON.stringify(manifest)).not.toContain('@control-plane/domain')
     expect(JSON.stringify(manifest)).not.toContain('@control-plane/database')
+  })
+})
+
+describe('service authentication contracts', () => {
+  test('keeps credential classes distinct and models a stable least-privilege principal', () => {
+    const claims = {
+      audience: 'control-plane',
+      credentialId: 'credential-agent-hq-2026-08',
+      credentialKind: 'service',
+      expiresAt: '2026-08-23T13:00:00.000Z',
+      issuedAt: '2026-08-23T12:00:00.000Z',
+      issuer: 'https://agent-hq.example',
+      keyId: 'agent-hq-2026-08',
+      principalId: 'svc_agent-hq',
+      projectIds: ['prj_01JABCDEF0123456789ABCDEFG'],
+      scopes: ['system:authenticate'],
+      workspaceIds: ['wsp_01JABCDEF0123456789ABCDEFG'],
+    }
+
+    expect(ServiceCredentialClaimsSchema.parse(claims)).toEqual(claims)
+    expect(
+      ServicePrincipalSchema.parse({
+        kind: 'agent_hq_service',
+        principalId: claims.principalId,
+        projectIds: claims.projectIds,
+        scopes: claims.scopes,
+        workspaceIds: claims.workspaceIds,
+      })
+    ).toBeDefined()
+
+    for (const credentialKind of ['browser_session', 'runtime_device', 'provider']) {
+      expect(ServiceCredentialClaimsSchema.safeParse({ ...claims, credentialKind }).success).toBe(
+        true
+      )
+    }
+  })
+
+  test('rejects ambient and malformed scope grants', () => {
+    const principal = {
+      kind: 'internal_service',
+      principalId: 'svc_execution-dispatcher',
+      projectIds: [],
+      scopes: ['*'],
+      workspaceIds: [],
+    }
+
+    expect(ServicePrincipalSchema.safeParse(principal).success).toBe(false)
+    expect(
+      ServicePrincipalSchema.safeParse({ ...principal, scopes: ['execution:dispatch'] }).success
+    ).toBe(true)
   })
 })
