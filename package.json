@@ -15,6 +15,7 @@
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint && eslint eslint.config.js tests && bun run check:boundaries",
+    "openapi:check": "turbo run openapi:check",
     "test": "turbo run test && bun test tests",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

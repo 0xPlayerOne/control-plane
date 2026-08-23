@@ -15,7 +15,9 @@ export interface ServiceResource {
 export interface ServiceStartContext<Service extends ServiceName> {
   readonly config: ServiceConfiguration<Service>
   readonly metadata: ApplicationMetadata<Service>
+  health(): HealthResponse
   markReady(): void
+  readiness(): ReadinessResponse
   registerResource(name: string, close: ServiceResource['close']): void
 }
 
@@ -55,9 +57,11 @@ export class ServiceRuntime<Service extends ServiceName> {
     return {
       config: this.#config,
       metadata: this.metadata,
+      health: () => this.health(),
       markReady: () => {
         this.#ready = true
       },
+      readiness: () => this.readiness(),
       registerResource: (name, close) => {
         this.#resources.push({ name, close })
       },

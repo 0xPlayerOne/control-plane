@@ -52,6 +52,35 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/control-api/src/**/*.controller.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@control-plane/database',
+                '@control-plane/database/*',
+                'drizzle-orm',
+                'drizzle-orm/*',
+                'postgres',
+              ],
+              message:
+                'Controllers must use purpose-built service contracts, never persistence rows.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/control-api/src/**/*.module.ts'],
+    rules: {
+      '@typescript-eslint/no-extraneous-class': 'off',
+    },
+  },
+  {
     files: coreFiles,
     rules: {
       'no-restricted-imports': [
