@@ -106,7 +106,7 @@ test('generates only the direct-flow Code Foundry callers with parallel validati
 
   assert.match(
     validation,
-    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.37\.2/
+    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.37\.4/
   )
   assert.match(validation, /cancel-in-progress: true/)
   assert.doesNotMatch(validation, /ubuntu-slim/)
@@ -114,7 +114,7 @@ test('generates only the direct-flow Code Foundry callers with parallel validati
   assert.match(validation, /validation mode/)
   assert.match(validation, /mode: \$\{\{ needs\.mode\.outputs\.mode \}\}/)
   assert.doesNotMatch(validation, /branches: \[[^\]]*staging/)
-  assert.match(release, /release\.yml@v0\.37\.2/)
+  assert.match(release, /release\.yml@v0\.37\.4/)
   assert.match(draftPr, /base: main/)
 
   await assert.rejects(readFile(new URL('../.github/workflows/release-pr.yml', import.meta.url)))
