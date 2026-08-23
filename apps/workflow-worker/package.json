@@ -10,7 +10,11 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start": "bun src/start.ts",
     "lint": "eslint src",
     "test": "bun test --pass-with-no-tests"
+  },
+  "dependencies": {
+    "@control-plane/bootstrap": "workspace:*"
   }
 }

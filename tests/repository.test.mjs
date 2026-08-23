@@ -6,6 +6,8 @@ import { ESLint } from 'eslint'
 
 const apps = ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
 const packages = [
+  'bootstrap',
+  'config',
   'domain',
   'contracts',
   'database',
@@ -57,9 +59,11 @@ test('scaffolds every application with an executable placeholder target', async 
     assert.equal(manifest.browser, false)
     assert.equal(manifest.engines.node, '>=24 <25')
     assert.equal(typeof manifest.scripts.build, 'string')
+    assert.equal(typeof manifest.scripts.start, 'string')
     assert.equal(typeof manifest.scripts.lint, 'string')
     assert.equal(typeof manifest.scripts.test, 'string')
     assert.match(source, /serviceName/)
+    assert.match(source, /bootstrapService/)
   }
 })
 

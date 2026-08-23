@@ -6,6 +6,7 @@
       "name": "@control-plane/workspace",
       "devDependencies": {
         "@eslint/js": "10.0.1",
+        "@types/node": "24.13.3",
         "eslint": "10.0.1",
         "prettier": "3.9.6",
         "turbo": "2.10.10",
@@ -16,21 +17,47 @@
     "apps/control-api": {
       "name": "@control-plane/control-api",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/bootstrap": "workspace:*",
+      },
     },
     "apps/runtime-gateway": {
       "name": "@control-plane/runtime-gateway",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/bootstrap": "workspace:*",
+      },
     },
     "apps/runtime-worker": {
       "name": "@control-plane/runtime-worker",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/bootstrap": "workspace:*",
+      },
     },
     "apps/tool-gateway": {
       "name": "@control-plane/tool-gateway",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/bootstrap": "workspace:*",
+      },
     },
     "apps/workflow-worker": {
       "name": "@control-plane/workflow-worker",
+      "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/bootstrap": "workspace:*",
+      },
+    },
+    "packages/bootstrap": {
+      "name": "@control-plane/bootstrap",
+      "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/config": "workspace:*",
+      },
+    },
+    "packages/config": {
+      "name": "@control-plane/config",
       "version": "0.0.0",
     },
     "packages/context": {
@@ -79,6 +106,10 @@
     },
   },
   "packages": {
+    "@control-plane/bootstrap": ["@control-plane/bootstrap@workspace:packages/bootstrap"],
+
+    "@control-plane/config": ["@control-plane/config@workspace:packages/config"],
+
     "@control-plane/context": ["@control-plane/context@workspace:packages/context"],
 
     "@control-plane/contracts": ["@control-plane/contracts@workspace:packages/contracts"],
@@ -154,6 +185,8 @@
     "@types/estree": ["@types/estree@1.0.9", "", {}, "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg=="],
 
     "@types/json-schema": ["@types/json-schema@7.0.15", "", {}, "sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA=="],
+
+    "@types/node": ["@types/node@24.13.3", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="],
 
     "@typescript-eslint/eslint-plugin": ["@typescript-eslint/eslint-plugin@8.67.0", "", { "dependencies": { "@eslint-community/regexpp": "^4.12.2", "@typescript-eslint/scope-manager": "8.67.0", "@typescript-eslint/type-utils": "8.67.0", "@typescript-eslint/utils": "8.67.0", "@typescript-eslint/visitor-keys": "8.67.0", "ignore": "^7.0.5", "natural-compare": "^1.4.0", "ts-api-utils": "^2.5.0" }, "peerDependencies": { "@typescript-eslint/parser": "^8.67.0", "eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.1.0" } }, "sha512-Un7Heoyj65NREbKAyIrFxeM143NZpExWmy1Nep4DLeQOeLlTeumPjoNKnBrU5D5moWXbPJgRa5Uwcdu0faVNGQ=="],
 
@@ -290,6 +323,8 @@
     "typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "typescript-eslint": ["typescript-eslint@8.67.0", "", { "dependencies": { "@typescript-eslint/eslint-plugin": "8.67.0", "@typescript-eslint/parser": "8.67.0", "@typescript-eslint/typescript-estree": "8.67.0", "@typescript-eslint/utils": "8.67.0" }, "peerDependencies": { "eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.1.0" } }, "sha512-S2udFs8tCKEKffuJ4TB1idGUZiXdCPGi3IPBGWXarbLQ5UPXORV8QEVzJ4gCRduURMb5EkpNCdjbk0eDIuI8Yg=="],
+
+    "undici-types": ["undici-types@7.18.2", "", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
     "uri-js": ["uri-js@4.4.1", "", { "dependencies": { "punycode": "^2.1.0" } }, "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg=="],
 
