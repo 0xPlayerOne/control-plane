@@ -38,6 +38,8 @@ Revisioned canonical project context, provenance, CAS conflicts, history, and re
 promotion are documented in [`docs/project-state.md`](docs/project-state.md).
 Reproducible bounded ContextPackage compilation, classified reference failures, and child-scope
 narrowing are documented in [`docs/context-packages.md`](docs/context-packages.md).
+Immutable ExecutionPlan compilation, resolved version pins, content-addressed persistence, and child
+authority narrowing are documented in [`docs/execution-plans.md`](docs/execution-plans.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in
