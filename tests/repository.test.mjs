@@ -175,6 +175,8 @@ test('scaffolds every application with an executable placeholder target', async 
 })
 
 test('scaffolds every package with an explicit private or publishable server-only surface', async () => {
+  const releaseManifest = await readJson('.release-please-manifest.json')
+
   for (const packageName of packages) {
     const manifest = await readJson(`packages/${packageName}/package.json`)
 
@@ -184,7 +186,8 @@ test('scaffolds every package with an explicit private or publishable server-onl
     )
     if (publicPackages.has(packageName)) {
       assert.equal(manifest.private, undefined)
-      assert.equal(manifest.version, '0.0.0')
+      assert.match(manifest.version, /^\d+\.\d+\.\d+$/)
+      assert.equal(manifest.version, releaseManifest[`packages/${packageName}`])
       assert.equal(manifest.license, 'Apache-2.0')
       assert.deepEqual(manifest.publishConfig, { access: 'public', provenance: true })
     } else {
@@ -217,8 +220,8 @@ test('tracks both public packages for coordinated release automation', async () 
 
   assert.equal(config.packages['packages/contracts']['package-name'], '@control-plane/contracts')
   assert.equal(config.packages['packages/control-sdk']['package-name'], '@control-plane/sdk')
-  assert.equal(manifest['packages/contracts'], '0.0.0')
-  assert.equal(manifest['packages/control-sdk'], '0.0.0')
+  assert.match(manifest['packages/contracts'], /^\d+\.\d+\.\d+$/)
+  assert.match(manifest['packages/control-sdk'], /^\d+\.\d+\.\d+$/)
 })
 
 test('configures strict TypeScript and dependency-boundary checks', async () => {

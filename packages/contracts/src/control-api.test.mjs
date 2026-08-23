@@ -18,9 +18,13 @@ import {
 describe('Agent HQ Control API contracts', () => {
   test('prepares the independently installable contract package for release automation', async () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+    const releaseManifest = JSON.parse(
+      await readFile(new URL('../../../.release-please-manifest.json', import.meta.url), 'utf8')
+    )
 
     expect(manifest.name).toBe('@control-plane/contracts')
-    expect(manifest.version).toBe('0.0.0')
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(manifest.version).toBe(releaseManifest['packages/contracts'])
     expect(manifest.license).toBe('Apache-2.0')
     expect(manifest.private).toBeUndefined()
     expect(manifest.publishConfig).toEqual({ access: 'public', provenance: true })
