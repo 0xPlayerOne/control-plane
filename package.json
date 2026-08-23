@@ -18,7 +18,9 @@
     "test": "turbo run test && bun test tests",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:boundaries": "turbo boundaries"
+    "check:boundaries": "turbo boundaries",
+    "db:up": "docker compose up -d postgres",
+    "db:stop": "docker compose stop postgres"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

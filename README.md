@@ -23,7 +23,8 @@ bun test
 
 Run `bun install` without `--frozen-lockfile` only when intentionally updating dependencies.
 Service environment and startup conventions are documented in
-[`docs/configuration.md`](docs/configuration.md).
+[`docs/configuration.md`](docs/configuration.md). PostgreSQL schema, migration, credential, and
+recovery conventions are documented in [`docs/database.md`](docs/database.md).
 
 ## Workspace commands
 

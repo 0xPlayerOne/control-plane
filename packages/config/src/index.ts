@@ -1,3 +1,5 @@
+export { databaseCredentialRoles, loadDatabaseCredentials } from './database.js'
+export type { DatabaseCredentialRole, DatabaseCredentials } from './database.js'
 export {
   applicationEnvironments,
   EnvironmentNameError,

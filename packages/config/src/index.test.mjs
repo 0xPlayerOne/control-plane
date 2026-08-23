@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ConfigurationError,
+  loadDatabaseCredentials,
   loadEnvironment,
   loadServiceConfiguration,
   redactDiagnostics,
@@ -106,6 +107,39 @@ describe('loadEnvironment', () => {
 
     expect(environment.COMMIT_SHA).toBeUndefined()
     expect(environment.DATABASE_URL).toBeUndefined()
+  })
+})
+
+describe('loadDatabaseCredentials', () => {
+  test('keeps application, migration, and administration credentials distinct', () => {
+    const environment = {
+      DATABASE_URL: 'postgresql://app:app-secret@database/control_plane',
+      DATABASE_MIGRATION_URL: 'postgresql://migrator:migration-secret@database/control_plane',
+      DATABASE_ADMIN_URL: 'postgresql://admin:admin-secret@database/postgres',
+    }
+
+    expect(loadDatabaseCredentials(environment, 'application').url).toContain('app-secret')
+    expect(loadDatabaseCredentials(environment, 'migration').url).toContain('migration-secret')
+    expect(loadDatabaseCredentials(environment, 'administration').url).toContain('admin-secret')
+  })
+
+  test('reports only a missing credential name', () => {
+    try {
+      loadDatabaseCredentials(
+        { DATABASE_URL: 'postgresql://app:secret@database/control_plane' },
+        'migration'
+      )
+      throw new Error('Expected credential loading to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConfigurationError)
+      expect(error.diagnostic).toEqual({
+        code: 'INVALID_DATABASE_CONFIGURATION',
+        invalid: [],
+        missing: ['DATABASE_MIGRATION_URL'],
+        role: 'migration',
+      })
+      expect(JSON.stringify(error)).not.toContain('postgresql://')
+    }
   })
 })
 

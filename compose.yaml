@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:18.3-alpine
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      POSTGRES_PASSWORD: local-admin-only
+      POSTGRES_USER: control_plane_admin
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U control_plane_admin -d postgres]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    ports:
+      - 127.0.0.1:54329:5432
+    volumes:
+      - control-plane-postgres:/var/lib/postgresql
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/001-control-plane.sql:ro
+
+volumes:
+  control-plane-postgres:
