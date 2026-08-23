@@ -17,4 +17,4 @@ The file records:
 
 A row marked `planned` or `partially_verified` does **not** represent production support. M6 owns implementation and compatibility certification. M9 consumes the exact certified combinations in evaluation and release gates.
 
-Changes to a material adapter, driver, protocol, harness/runtime, RuntimeNode location, or policy version invalidate stale certification until the required conformance and acceptance suites pass again.
+Changes to a material adapter, driver, protocol, harness/runtime, RuntimeNode location, or policy version invalidate stale certification until the required conformance and acceptance suites pass again. Update the YAML and human-readable matrix together when certification evidence changes.
