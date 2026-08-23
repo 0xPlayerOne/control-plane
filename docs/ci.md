@@ -40,6 +40,14 @@ Maintainers must treat a successful `Validation / Gate` as required and merge
 only through a pull request. Repository rules should require that stable gate
 without enumerating its internal parallel jobs.
 
+## Foundation acceptance extension
+
+`Foundation Acceptance / Gate` is the repository-specific M1 extension added after the Code Foundry
+baseline. Code Foundry remains authoritative for generic formatting, lint, build, test, audit, CodeQL,
+and dependency-review behavior. The extension exists only for requirements generic CI cannot infer:
+accepted milestone ancestry, all Terraform environment roots, and the shared service/migration
+container graph. Its core, Terraform, and container jobs run in parallel and converge on one gate.
+
 ## Future gates
 
 Add repository-owned workflows only when the generic Code Foundry jobs cannot

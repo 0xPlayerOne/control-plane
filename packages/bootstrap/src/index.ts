@@ -22,6 +22,12 @@ export interface BootstrapOptions<Service extends ServiceName> extends Environme
   readonly start: (context: ServiceStartContext<Service>) => void | Promise<void>
 }
 
+export interface ServiceStartOptions {
+  readonly environment?: RawEnvironment
+  readonly logger?: StructuredLogger
+  readonly processAdapter?: ProcessAdapter
+}
+
 export class ServiceStartupError extends Error {
   constructor() {
     super('Service startup failed')
