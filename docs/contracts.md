@@ -31,6 +31,9 @@ from their contents.
 | RuntimeNode reference | `rnr_` |
 | RuntimeConnection     | `rtc_` |
 | External session      | `ses_` |
+| ProjectState item     | `psi_` |
+| State mutation        | `stm_` |
+| Promotion proposal    | `spp_` |
 | Artifact reference    | `art_` |
 | Event                 | `evt_` |
 | Trace                 | `trc_` |
