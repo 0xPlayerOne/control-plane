@@ -75,7 +75,10 @@ test('scaffolds every internal package with server-only public exports', async (
     assert.equal(manifest.private, true)
     assert.equal(manifest.browser, false)
     assert.deepEqual(manifest.files, ['dist'])
-    assert.deepEqual(Object.keys(manifest.exports), ['.'])
+    assert.deepEqual(
+      Object.keys(manifest.exports),
+      packageName === 'database' ? ['.', './migration', './testing'] : ['.']
+    )
     assert.equal(manifest.exports['.'].types, './dist/index.d.ts')
     assert.equal(manifest.exports['.'].node, './dist/index.js')
     assert.equal(manifest.exports['.'].default, './dist/index.js')
@@ -101,6 +104,25 @@ test('configures strict TypeScript and dependency-boundary checks', async () => 
     'pi-ai',
   ]) {
     assert.match(eslintConfig, new RegExp(prohibited.replaceAll('/', '\\/')))
+  }
+})
+
+test('rejects live database imports from core packages', async () => {
+  const cwd = fileURLToPath(new URL('../', import.meta.url))
+  const fixture = new URL(
+    '../packages/domain/src/database-import.boundary-test.ts',
+    import.meta.url
+  )
+  await writeFile(fixture, 'import "@control-plane/database";\n')
+
+  try {
+    const eslint = new ESLint({ cwd })
+    const [result] = await eslint.lintFiles([fileURLToPath(fixture)])
+
+    assert.equal(result.errorCount, 1)
+    assert.equal(result.messages[0]?.ruleId, 'no-restricted-imports')
+  } finally {
+    await unlink(fixture)
   }
 })
 

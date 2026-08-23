@@ -32,6 +32,8 @@ const prohibitedAdapters = [
   'acp/*',
   '@agentclientprotocol/*',
   '@control-plane/adapter-*',
+  '@control-plane/database',
+  '@control-plane/database/*',
 ]
 
 export default tseslint.config(

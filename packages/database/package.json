@@ -16,11 +16,31 @@
       "types": "./dist/index.d.ts",
       "node": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./migration": {
+      "types": "./dist/migration.d.ts",
+      "node": "./dist/migration.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "node": "./dist/testing.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "eslint src",
-    "test": "bun test --pass-with-no-tests"
+    "db:check": "drizzle-kit check --config=drizzle.config.mjs",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.mjs",
+    "db:migrate": "bun src/cli/migrate.ts",
+    "lint": "eslint src drizzle.config.mjs",
+    "test": "bun test src/index.test.mjs",
+    "test:integration": "bun test src/integration.test.mjs"
+  },
+  "dependencies": {
+    "@control-plane/config": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
   }
 }

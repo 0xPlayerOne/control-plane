@@ -1,0 +1,109 @@
+import type { DatabaseCredentials } from '@control-plane/config'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { randomUUID } from 'node:crypto'
+import postgres from 'postgres'
+import { assertPostgresUrl, type ControlPlaneDatabase } from './connection.js'
+import { migrateDatabase } from './migration.js'
+import * as schema from './schema/index.js'
+import { withDomainTransaction, type DomainTransaction } from './transaction.js'
+
+export interface IsolatedDatabaseCredentials {
+  readonly administration: DatabaseCredentials<'administration'>
+  readonly application: DatabaseCredentials<'application'>
+  readonly migration: DatabaseCredentials<'migration'>
+}
+
+export interface IsolatedTestDatabase {
+  readonly application: ControlPlaneDatabase
+  readonly name: string
+  dispose(): Promise<void>
+  migrate(): Promise<void>
+  transaction<Result>(
+    operation: (transaction: DomainTransaction) => Promise<Result>
+  ): Promise<Result>
+}
+
+export class TestDatabaseError extends Error {
+  readonly diagnostic: Readonly<Record<string, unknown>>
+
+  constructor(code: string) {
+    super('Isolated test database operation failed')
+    this.name = 'TestDatabaseError'
+    this.diagnostic = { code }
+  }
+}
+
+export async function createIsolatedTestDatabase(
+  credentials: IsolatedDatabaseCredentials
+): Promise<IsolatedTestDatabase> {
+  assertCredentials(credentials)
+  const name = `control_plane_test_${randomUUID().replaceAll('-', '')}`
+  const migrationUrl = replaceDatabaseName(credentials.migration.url, name)
+  const applicationUrl = replaceDatabaseName(credentials.application.url, name)
+  const administration = postgres(credentials.administration.url, { max: 1, prepare: false })
+  const migrationRole = new URL(credentials.migration.url).username
+  const applicationRole = new URL(credentials.application.url).username
+  await administration`create database ${administration(name)} owner ${administration(migrationRole)}`
+
+  const applicationClient = postgres(applicationUrl, { max: 4, prepare: false })
+  const application = drizzle(applicationClient, { schema })
+  let disposed = false
+
+  return {
+    application,
+    name,
+    async dispose() {
+      if (disposed) return
+      disposed = true
+      await applicationClient.end({ timeout: 5 })
+      await administration`
+        select pg_terminate_backend(pid)
+        from pg_stat_activity
+        where datname = ${name} and pid <> pg_backend_pid()
+      `
+      await administration`drop database ${administration(name)}`
+      await administration.end({ timeout: 5 })
+    },
+    async migrate() {
+      await migrateDatabase({ role: 'migration', url: migrationUrl })
+      await grantApplicationAccess(migrationUrl, applicationRole)
+    },
+    transaction: (operation) => withDomainTransaction(application, operation),
+  }
+}
+
+async function grantApplicationAccess(
+  migrationUrl: string,
+  applicationRole: string
+): Promise<void> {
+  const migration = postgres(migrationUrl, { max: 1, prepare: false })
+  try {
+    await migration`grant usage on schema public to ${migration(applicationRole)}`
+    await migration`grant select, insert, update, delete on all tables in schema public to ${migration(applicationRole)}`
+    await migration`grant usage, select on all sequences in schema public to ${migration(applicationRole)}`
+    await migration`alter default privileges grant select, insert, update, delete on tables to ${migration(applicationRole)}`
+    await migration`alter default privileges grant usage, select on sequences to ${migration(applicationRole)}`
+  } finally {
+    await migration.end({ timeout: 5 })
+  }
+}
+
+function assertCredentials(credentials: IsolatedDatabaseCredentials): void {
+  if (
+    credentials.administration.role !== 'administration' ||
+    credentials.application.role !== 'application' ||
+    credentials.migration.role !== 'migration'
+  ) {
+    throw new TestDatabaseError('INVALID_CREDENTIAL_ROLE')
+  }
+  for (const credentialsForRole of Object.values(credentials))
+    assertPostgresUrl(credentialsForRole.url)
+  const usernames = new Set(Object.values(credentials).map(({ url }) => new URL(url).username))
+  if (usernames.size !== 3) throw new TestDatabaseError('CREDENTIAL_ROLES_MUST_BE_DISTINCT')
+}
+
+function replaceDatabaseName(value: string, name: string): string {
+  const url = new URL(value)
+  url.pathname = `/${name}`
+  return url.toString()
+}
