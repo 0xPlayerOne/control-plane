@@ -122,6 +122,13 @@
     "packages/execution-plan": {
       "name": "@control-plane/execution-plan",
       "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/context": "workspace:*",
+        "@control-plane/contracts": "workspace:*",
+        "@control-plane/domain": "workspace:*",
+        "@control-plane/runtime-sdk": "workspace:*",
+        "zod": "4.4.3",
+      },
     },
     "packages/policy": {
       "name": "@control-plane/policy",
