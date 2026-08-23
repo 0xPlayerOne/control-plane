@@ -38,6 +38,7 @@ describe('canonical identifiers', () => {
       attemptId: 'att_01JABCDEF0123456789ABCDEFG',
       workflowId: 'wfl_01JABCDEF0123456789ABCDEFG',
       interactionId: 'int_01JABCDEF0123456789ABCDEFG',
+      runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
       runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
       runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
       externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
