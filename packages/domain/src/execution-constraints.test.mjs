@@ -104,6 +104,12 @@ describe('tool, model, policy, and execution constraints', () => {
       executionConstraintFixtures.budgetConstrained,
     ])
 
+    expect(
+      composeExecutionConstraints([
+        executionConstraintFixtures.budgetConstrained,
+        executionConstraintFixtures.write,
+      ])
+    ).toEqual(composed)
     expect(composed.limits.budget.maximumMicrounits).toBe(2_000_000)
     expect(composed.limits.concurrency.maximumParallel).toBe(2)
     expect(
