@@ -29,6 +29,9 @@ export const IdentifierSchemas = {
   runtimeNodeRefId: opaqueIdentifier('rnr', 'runtime-node reference ID'),
   runtimeConnectionId: opaqueIdentifier('rtc', 'runtime-connection ID'),
   externalSessionId: opaqueIdentifier('ses', 'external-session ID'),
+  projectStateItemId: opaqueIdentifier('psi', 'ProjectState-item ID'),
+  stateMutationId: opaqueIdentifier('stm', 'state-mutation ID'),
+  statePromotionProposalId: opaqueIdentifier('spp', 'state-promotion-proposal ID'),
   artifactId: opaqueIdentifier('art', 'Artifact reference ID'),
   eventId: opaqueIdentifier('evt', 'event ID'),
   traceId: opaqueIdentifier('trc', 'trace ID'),
@@ -52,6 +55,11 @@ export type RuntimeDefinitionId = z.output<(typeof IdentifierSchemas)['runtimeDe
 export type RuntimeNodeRefId = z.output<(typeof IdentifierSchemas)['runtimeNodeRefId']>
 export type RuntimeConnectionId = z.output<(typeof IdentifierSchemas)['runtimeConnectionId']>
 export type ExternalSessionId = z.output<(typeof IdentifierSchemas)['externalSessionId']>
+export type ProjectStateItemId = z.output<(typeof IdentifierSchemas)['projectStateItemId']>
+export type StateMutationId = z.output<(typeof IdentifierSchemas)['stateMutationId']>
+export type StatePromotionProposalId = z.output<
+  (typeof IdentifierSchemas)['statePromotionProposalId']
+>
 export type ArtifactId = z.output<(typeof IdentifierSchemas)['artifactId']>
 export type EventId = z.output<(typeof IdentifierSchemas)['eventId']>
 export type TraceId = z.output<(typeof IdentifierSchemas)['traceId']>
