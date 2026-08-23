@@ -44,9 +44,37 @@ test('pins the required Node and Bun toolchain', async () => {
 test('defines root quality and build commands', async () => {
   const manifest = await readJson('package.json')
 
-  for (const script of ['build', 'lint', 'test', 'format', 'format:check', 'check:boundaries']) {
+  for (const script of [
+    'build',
+    'lint',
+    'test',
+    'test:unit',
+    'test:integration',
+    'test:foundation',
+    'test:coverage',
+    'format',
+    'format:check',
+    'check:boundaries',
+  ]) {
     assert.equal(typeof manifest.scripts[script], 'string', `${script} must be defined`)
   }
+})
+
+test('provides a documented isolated integration-test runner', async () => {
+  const runner = await readFile(
+    new URL('../scripts/run-integration-tests.mjs', import.meta.url),
+    'utf8'
+  )
+  const documentation = await readFile(new URL('../docs/testing.md', import.meta.url), 'utf8')
+
+  assert.match(runner, /docker compose/)
+  assert.match(runner, /RUN_DATABASE_INTEGRATION/)
+  assert.match(documentation, /bun run test:foundation/)
+  assert.match(documentation, /unit/i)
+  assert.match(documentation, /integration/i)
+  assert.match(documentation, /contract/i)
+  assert.match(documentation, /failure-injection/i)
+  assert.match(documentation, /end-to-end/i)
 })
 
 test('scaffolds every application with an executable placeholder target', async () => {
@@ -77,7 +105,11 @@ test('scaffolds every internal package with server-only public exports', async (
     assert.deepEqual(manifest.files, ['dist'])
     assert.deepEqual(
       Object.keys(manifest.exports),
-      packageName === 'database' ? ['.', './migration', './testing'] : ['.']
+      packageName === 'database'
+        ? ['.', './migration', './testing']
+        : packageName === 'testing'
+          ? ['.', './postgres']
+          : ['.']
     )
     assert.equal(manifest.exports['.'].types, './dist/index.d.ts')
     assert.equal(manifest.exports['.'].node, './dist/index.js')

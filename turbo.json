@@ -11,6 +11,16 @@
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": [
+        "DATABASE_ADMIN_URL",
+        "DATABASE_MIGRATION_URL",
+        "DATABASE_URL",
+        "RUN_DATABASE_INTEGRATION"
+      ]
     }
   }
 }
