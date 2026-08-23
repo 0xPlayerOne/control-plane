@@ -1,0 +1,15 @@
+.git
+.github
+.terraform
+.turbo
+**/.env
+**/.env.*
+**/*.tfstate
+**/*.tfstate.*
+**/coverage
+**/dist
+**/node_modules
+*.key
+*.pem
+*.log
+Dockerfile*

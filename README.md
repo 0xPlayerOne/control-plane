@@ -26,6 +26,8 @@ Service environment and startup conventions are documented in
 [`docs/configuration.md`](docs/configuration.md). PostgreSQL schema, migration, credential, and
 recovery conventions are documented in [`docs/database.md`](docs/database.md). Control API transport,
 dependency, validation, and error conventions are documented in [`docs/api.md`](docs/api.md).
+Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
+[`docs/infrastructure.md`](docs/infrastructure.md).
 
 ## Workspace commands
 
@@ -37,6 +39,10 @@ dependency, validation, and error conventions are documented in [`docs/api.md`](
 | `bun run check:boundaries` | Reject undeclared dependencies and cross-package source imports            |
 | `bun run format`           | Format the repository with Prettier                                        |
 | `bun run format:check`     | Check formatting without modifying files                                   |
+| `bun run containers:print` | Print the five-service Buildx Bake plan without building images            |
+| `bun run containers:build` | Build the five production-shaped service images                            |
+| `bun run infra:fmt:check`  | Check Terraform formatting using Terraform or Docker                       |
+| `bun run infra:validate`   | Initialize and validate all three isolated Terraform roots                 |
 
 ## Architecture map
 
