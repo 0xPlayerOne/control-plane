@@ -21,6 +21,7 @@ describe('Agent HQ Control API contracts', () => {
 
     expect(manifest.name).toBe('@control-plane/contracts')
     expect(manifest.version).toBe('1.0.0')
+    expect(manifest.license).toBe('Apache-2.0')
     expect(manifest.private).toBeUndefined()
     expect(manifest.publishConfig).toEqual({ access: 'public', provenance: true })
   })

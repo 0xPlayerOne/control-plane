@@ -101,6 +101,10 @@
       "dependencies": {
         "@control-plane/contracts": "workspace:^",
       },
+      "devDependencies": {
+        "prettier": "3.9.6",
+        "zod": "4.4.3",
+      },
     },
     "packages/database": {
       "name": "@control-plane/database",

@@ -40,6 +40,8 @@ Reproducible bounded ContextPackage compilation, classified reference failures, 
 narrowing are documented in [`docs/context-packages.md`](docs/context-packages.md).
 Immutable ExecutionPlan compilation, resolved version pins, content-addressed persistence, and child
 authority narrowing are documented in [`docs/execution-plans.md`](docs/execution-plans.md).
+The publishable Agent HQ client, deterministic stub harness, OpenAPI compatibility gate, and package
+versioning policy are documented in [`docs/sdk.md`](docs/sdk.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 System boundaries, technology decisions, and service ownership are documented in
@@ -85,6 +87,7 @@ business rules belong in stable packages.
 
 - `packages/domain`: domain entities, values, and invariants
 - `packages/contracts`: versioned service and integration contracts
+- `packages/control-sdk`: publishable Agent HQ-facing typed client and contract-test harness
 - `packages/events`: stable domain and integration event definitions
 - `packages/execution-plan`: execution-plan model and compilation ports
 - `packages/runtime-sdk`: runtime-facing ports and SDK surface
@@ -109,7 +112,8 @@ those integrations.
 
 ## Package rules
 
-All packages are private and server-only (`browser: false`). Library exports expose only the package
-root from `dist`; deep imports into `src` are unsupported. Workspace dependencies must be declared
+Packages are private and server-only (`browser: false`) except the explicitly public
+`@control-plane/contracts` and `@control-plane/sdk` packages. Library exports expose only declared
+`dist` entry points; deep imports into `src` are unsupported. Workspace dependencies must be declared
 in the importing package's manifest using Bun's workspace protocol. TypeScript runs in strict mode
 for every app and package.

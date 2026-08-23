@@ -1,6 +1,7 @@
 {
   "name": "@control-plane/sdk",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "type": "module",
   "browser": false,
   "engines": {
@@ -30,9 +31,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
+    "openapi:check": "bun scripts/openapi.mjs --check",
+    "openapi:generate": "bun scripts/openapi.mjs --write",
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {
     "@control-plane/contracts": "workspace:^"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "zod": "4.4.3"
   }
 }

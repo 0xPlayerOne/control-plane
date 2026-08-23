@@ -247,7 +247,36 @@ const contextPackageReference = {
   compilerVersion: '1.0.0',
 }
 
-export const ControlApiFixtures = Object.freeze({
+export interface ControlApiFixtureSet {
+  readonly authentication: {
+    readonly request: ServiceAuthenticationRequest
+    readonly response: z.input<typeof ServiceAuthenticationResponseSchema>
+  }
+  readonly profileResolution: {
+    readonly request: ProfileResolutionRequest
+    readonly response: z.input<typeof ProfileResolutionResponseSchema>
+  }
+  readonly projectStateReference: z.input<typeof ProjectStateReferenceSchema>
+  readonly contextPackageReference: z.input<typeof ContextPackagePublicReferenceSchema>
+  readonly projectStateResolution: {
+    readonly request: ProjectStateResolutionRequest
+    readonly response: z.input<typeof ProjectStateResolutionResponseSchema>
+  }
+  readonly contextPackageResolution: {
+    readonly request: ContextPackageResolutionRequest
+    readonly response: z.input<typeof ContextPackageResolutionResponseSchema>
+  }
+  readonly runtimeList: {
+    readonly request: RuntimeListRequest
+    readonly response: z.input<typeof RuntimeListResponseSchema>
+  }
+  readonly executionValidation: {
+    readonly request: ExecutionRequestValidationRequest
+    readonly response: z.input<typeof ExecutionRequestValidationResponseSchema>
+  }
+}
+
+export const ControlApiFixtures: ControlApiFixtureSet = Object.freeze({
   authentication: {
     request: {
       ...requestContext,
@@ -372,4 +401,4 @@ export const ControlApiFixtures = Object.freeze({
       },
     },
   },
-})
+} satisfies ControlApiFixtureSet)
