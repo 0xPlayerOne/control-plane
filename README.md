@@ -29,6 +29,13 @@ dependency, validation, and error conventions are documented in [`docs/api.md`](
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
 
+## Architecture and governance references
+
+- [`docs/architecture/diagram-sources.md`](docs/architecture/diagram-sources.md) contains the version-controlled Mermaid definitions for Control Plane-owned execution, context, RuntimeAdapter, and ProjectState diagrams.
+- [`docs/runtime-compatibility/README.md`](docs/runtime-compatibility/README.md) explains the machine-readable runtime compatibility baseline and certification semantics.
+- [`.github/labels.yml`](.github/labels.yml) defines the shared issue-label taxonomy without installing a synchronization workflow.
+- Canonical TDDs, specifications, ADRs, roadmap decisions, and terminology remain in the Agent HQ Google Docs corpus.
+
 ## Workspace commands
 
 | Command                    | Purpose                                                                    |
