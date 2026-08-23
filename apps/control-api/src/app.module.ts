@@ -1,5 +1,11 @@
 import { Module, type DynamicModule } from '@nestjs/common'
 import {
+  createConsoleTraceAdapter,
+  createOpenTelemetryMetricAdapter,
+  createOpenTelemetryTraceAdapter,
+  createTelemetry,
+} from '@control-plane/telemetry'
+import {
   DisabledServiceAuthenticator,
   SERVICE_AUTHENTICATOR,
   ServiceAuthenticationGuard,
@@ -12,6 +18,7 @@ import {
   API_LOGGER,
   API_METADATA,
   API_READINESS,
+  API_TELEMETRY,
   type ApiRuntimeBindings,
 } from './http/tokens.js'
 import { SystemController } from './system/system.controller.js'
@@ -25,6 +32,18 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
 export class AppModule {}
 
 export function createAppModule(options: AppModuleOptions): DynamicModule {
+  const traceAdapter =
+    options.metadata.environment === 'development'
+      ? createConsoleTraceAdapter(options.logger)
+      : createOpenTelemetryTraceAdapter(options.metadata.serviceName)
+  const telemetry =
+    options.telemetry ??
+    createTelemetry({
+      serviceName: options.metadata.serviceName,
+      logger: options.logger,
+      traceAdapter,
+      metricAdapter: createOpenTelemetryMetricAdapter(options.metadata.serviceName),
+    })
   return {
     module: AppModule,
     controllers: [HealthController, SystemController],
@@ -33,6 +52,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       { provide: API_LOGGER, useValue: options.logger },
       { provide: API_METADATA, useValue: options.metadata },
       { provide: API_READINESS, useValue: options.readiness },
+      { provide: API_TELEMETRY, useValue: telemetry },
       {
         provide: SERVICE_AUTHENTICATOR,
         useValue: options.serviceAuthenticator ?? new DisabledServiceAuthenticator(),
