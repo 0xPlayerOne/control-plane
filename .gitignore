@@ -76,6 +76,15 @@ mise.local.lock
 .mise.local.lock
 *.code-workspace
 
+# Terraform local state and provider caches
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+*.tfbackend
+crash.log
+crash.*.log
+
 # Repository-specific rules
 .devin/
 .hermes/

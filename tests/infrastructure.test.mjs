@@ -19,11 +19,15 @@ test('defines reproducible non-root container builds for every deployable servic
   const entrypoint = await readRepositoryFile('infrastructure/containers/entrypoint.sh')
   const manifest = JSON.parse(await readRepositoryFile('package.json'))
 
-  assert.match(dockerfile, /^FROM oven\/bun:1\.3\.14-alpine AS /m)
+  assert.match(
+    dockerfile,
+    /^FROM oven\/bun:1\.3\.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS /m
+  )
   assert.match(dockerfile, /bun install --frozen-lockfile/)
   assert.match(dockerfile, /^USER bun$/m)
   assert.doesNotMatch(dockerfile, /^\s*(?:ARG|ENV)\s+.*(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)/im)
   assert.match(bake, /context\s*=\s*"\."/)
+  assert.match(bake, /platforms\s*=\s*\["linux\/arm64"\]/)
   assert.doesNotMatch(bake, /context\s*=\s*"\.\.\//)
 
   for (const service of services) {
@@ -37,4 +41,56 @@ test('defines reproducible non-root container builds for every deployable servic
   assert.doesNotMatch(entrypoint, /\beval\b/)
   assert.match(manifest.scripts['containers:print'], /docker buildx bake/)
   assert.match(manifest.scripts['containers:build'], /docker buildx bake/)
+})
+
+test('separates Terraform state and service configuration by environment', async () => {
+  const manifest = JSON.parse(await readRepositoryFile('package.json'))
+
+  for (const environment of ['development', 'staging', 'production']) {
+    const root = `infrastructure/terraform/environments/${environment}`
+    const backend = await readRepositoryFile(`${root}/backend.tf`)
+    const main = await readRepositoryFile(`${root}/main.tf`)
+    const variables = await readRepositoryFile(`${root}/variables.tf`)
+    const example = await readRepositoryFile(`${root}/terraform.tfvars.example`)
+
+    assert.match(backend, new RegExp(`control-plane/${environment}/terraform\\.tfstate`))
+    assert.match(backend, /use_lockfile\s*=\s*true/)
+    assert.match(main, /module "environment"/)
+    assert.match(main, new RegExp(`environment\\s*=\\s*"${environment}"`))
+    assert.match(variables, /variable "image_references"/)
+    for (const service of services) assert.match(example, new RegExp(`${service}\\s*=`))
+  }
+
+  assert.match(manifest.scripts['infra:fmt:check'], /terraform/)
+  assert.match(manifest.scripts['infra:validate'], /validate-terraform/)
+})
+
+test('models AWS dependencies without leaking secrets or Kubernetes into service images', async () => {
+  const platform = await readRepositoryFile('infrastructure/terraform/modules/aws-platform/main.tf')
+  const service = await readRepositoryFile('infrastructure/terraform/modules/ecs-service/main.tf')
+  const environment = await readRepositoryFile(
+    'infrastructure/terraform/modules/environment/main.tf'
+  )
+  const terraformSources = `${platform}\n${service}\n${environment}`
+
+  for (const resource of [
+    'aws_vpc',
+    'aws_db_instance',
+    'aws_s3_bucket',
+    'aws_elasticache_replication_group',
+    'aws_kms_key',
+    'aws_secretsmanager_secret',
+    'aws_ecs_cluster',
+  ]) {
+    assert.match(platform, new RegExp(`resource "${resource}"`))
+  }
+  assert.doesNotMatch(platform, /aws_secretsmanager_secret_version/)
+  assert.match(service, /readonlyRootFilesystem/)
+  assert.match(service, /secrets\s*=/)
+  assert.match(service, /aws_ecs_task_definition/)
+  assert.match(environment, /module "database_migration"/)
+  assert.match(environment, /create_service\s*=\s*false/)
+  assert.match(environment, /DATABASE_MIGRATION_URL/)
+  assert.doesNotMatch(terraformSources, /kubernetes/i)
+  assert.doesNotMatch(terraformSources, /(?:temporal|litellm|e2b).*resource/is)
 })

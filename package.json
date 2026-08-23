@@ -28,6 +28,8 @@
     "check:boundaries": "turbo boundaries",
     "containers:build": "docker buildx bake -f infrastructure/containers/docker-bake.hcl",
     "containers:print": "docker buildx bake -f infrastructure/containers/docker-bake.hcl --print",
+    "infra:fmt:check": "bun scripts/validate-terraform.mjs --format-only",
+    "infra:validate": "bun scripts/validate-terraform.mjs",
     "db:check": "bun --cwd=packages/database run db:check",
     "db:up": "docker compose up -d postgres",
     "db:stop": "docker compose stop postgres"

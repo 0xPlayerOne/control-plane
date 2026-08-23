@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.14-alpine AS dependencies
+FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS dependencies
 
 WORKDIR /workspace
 
@@ -12,7 +12,7 @@ FROM dependencies AS build
 
 RUN bun run build
 
-FROM oven/bun:1.3.14-alpine AS runtime
+FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS runtime
 
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME} \
