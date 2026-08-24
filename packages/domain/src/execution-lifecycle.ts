@@ -56,15 +56,46 @@ export const ExecutionCorrelationSchema = z
   })
   .strict()
 
+export const AttemptRoutingDecisionSchema = z
+  .object({
+    routingVersion: z.literal(1),
+    policy: z
+      .object({
+        policyId: z.string().min(1).max(128),
+        version: z.number().int().positive(),
+        digest: DigestSchema,
+      })
+      .strict(),
+    evaluatedAt: TimestampSchema,
+    inputDigest: DigestSchema,
+    decisionDigest: DigestSchema,
+    selectedRank: z.number().int().positive(),
+    candidateCount: z.number().int().positive(),
+    reasonCodes: z
+      .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/))
+      .max(32)
+      .refine((reasons) => new Set(reasons).size === reasons.length),
+  })
+  .strict()
+  .refine(
+    (decision) => decision.selectedRank <= decision.candidateCount,
+    'Selected routing rank cannot exceed the candidate count'
+  )
+
 export const AttemptRuntimeSchema = z
   .object({
     runtimeDefinitionId: IdentifierSchemas.runtimeDefinitionId.optional(),
     runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId.optional(),
     runtimeConnectionId: IdentifierSchemas.runtimeConnectionId.optional(),
     externalSessionId: IdentifierSchemas.externalSessionId.optional(),
+    routingDecision: AttemptRoutingDecisionSchema.optional(),
   })
   .strict()
   .refine((runtime) => Object.keys(runtime).length > 0, 'Runtime metadata cannot be empty')
+  .refine(
+    (runtime) => runtime.routingDecision === undefined || runtime.runtimeConnectionId !== undefined,
+    'A routing decision requires the selected RuntimeConnection'
+  )
 
 const lifecycleTimestamps = {
   acceptedAt: TimestampSchema,
@@ -118,12 +149,21 @@ export const ExecutionAttemptSchema = z
     ...lifecycleTimestamps,
   })
   .strict()
-  .superRefine(validateStateMetadata)
+  .superRefine((attempt, context) => {
+    validateStateMetadata(attempt, context)
+    if (
+      attempt.runtime?.routingDecision !== undefined &&
+      Date.parse(attempt.runtime.routingDecision.evaluatedAt) > Date.parse(attempt.queuedAt ?? '')
+    ) {
+      context.addIssue({ code: 'custom', message: 'Routing cannot occur after attempt queueing' })
+    }
+  })
 
 export type ExecutionState = z.output<typeof ExecutionStateSchema>
 export type ExecutionAttemptState = z.output<typeof ExecutionAttemptStateSchema>
 export type Execution = z.output<typeof ExecutionSchema>
 export type ExecutionAttempt = z.output<typeof ExecutionAttemptSchema>
+export type AttemptRoutingDecision = z.output<typeof AttemptRoutingDecisionSchema>
 
 export interface ExecutionRepository {
   insertExecution(execution: Execution): Promise<boolean>
@@ -199,7 +239,13 @@ export class InMemoryExecutionRepository implements ExecutionRepository {
   }
 
   async compareAndSetAttempt(expectedVersion: number, attempt: ExecutionAttempt): Promise<boolean> {
-    if (this.#attempts.get(attempt.attemptId)?.version !== expectedVersion) return false
+    const current = this.#attempts.get(attempt.attemptId)
+    if (
+      current?.version !== expectedVersion ||
+      !hasSameImmutableAttemptIdentity(current, attempt)
+    ) {
+      return false
+    }
     this.#attempts.set(attempt.attemptId, clone(attempt))
     return true
   }
@@ -514,6 +560,17 @@ function hasSameImmutableExecutionIdentity(left: Execution, right: Execution): b
     left.parentExecutionId === right.parentExecutionId &&
     JSON.stringify(left.correlation) === JSON.stringify(right.correlation) &&
     JSON.stringify(left.executionPlan) === JSON.stringify(right.executionPlan) &&
+    left.acceptedAt === right.acceptedAt &&
+    left.createdAt === right.createdAt
+  )
+}
+
+function hasSameImmutableAttemptIdentity(left: ExecutionAttempt, right: ExecutionAttempt): boolean {
+  return (
+    left.attemptId === right.attemptId &&
+    left.executionId === right.executionId &&
+    left.sequence === right.sequence &&
+    JSON.stringify(left.runtime) === JSON.stringify(right.runtime) &&
     left.acceptedAt === right.acceptedAt &&
     left.createdAt === right.createdAt
   )

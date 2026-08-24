@@ -22,6 +22,21 @@ const ids = {
   artifactId: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV',
 }
 
+const routingDecision = {
+  routingVersion: 1,
+  policy: {
+    policyId: 'runtime-standard',
+    version: 1,
+    digest: `sha256:${'c'.repeat(64)}`,
+  },
+  evaluatedAt: '2026-08-23T10:00:59.000Z',
+  inputDigest: `sha256:${'d'.repeat(64)}`,
+  decisionDigest: `sha256:${'e'.repeat(64)}`,
+  selectedRank: 1,
+  candidateCount: 2,
+  reasonCodes: ['HEALTH', 'LOCALITY'],
+}
+
 const acceptedAt = '2026-08-23T10:00:00.000Z'
 const digest = `sha256:${'a'.repeat(64)}`
 
@@ -63,6 +78,7 @@ describe('Execution lifecycle', () => {
         runtimeDefinitionId: ids.runtimeDefinitionId,
         runtimeNodeRefId: ids.runtimeNodeRefId,
         runtimeConnectionId: ids.runtimeConnectionId,
+        routingDecision,
       },
     })
     const afterFirst = await service.getExecution(execution.executionId)
@@ -89,6 +105,7 @@ describe('Execution lifecycle', () => {
         runtimeDefinitionId: ids.runtimeDefinitionId,
         runtimeNodeRefId: ids.runtimeNodeRefId,
         runtimeConnectionId: ids.runtimeConnectionId,
+        routingDecision,
       },
     })
     expect(JSON.stringify(await service.getExecution(execution.executionId))).not.toContain(
@@ -273,5 +290,30 @@ describe('ExecutionAttempt lifecycle', () => {
       })
     ).rejects.toMatchObject({ code: 'STALE_ATTEMPT_VERSION', currentVersion: starting.version })
     expect(starting.runtime).toEqual({ runtimeDefinitionId: ids.runtimeDefinitionId })
+  })
+
+  test('keeps the routing policy and decision immutable on the selected attempt', async () => {
+    const { repository, service } = setup()
+    const execution = await service.createExecution(executionInput())
+    const attempt = await service.createAttempt({
+      executionId: execution.executionId,
+      attemptId: ids.attemptId,
+      expectedExecutionVersion: execution.version,
+      queuedAt: '2026-08-23T10:01:00.000Z',
+      runtime: { runtimeConnectionId: ids.runtimeConnectionId, routingDecision },
+    })
+
+    expect(attempt.runtime.routingDecision).toEqual(routingDecision)
+    expect(
+      await repository.compareAndSetAttempt(attempt.version, {
+        ...attempt,
+        version: attempt.version + 1,
+        runtime: {
+          ...attempt.runtime,
+          routingDecision: { ...routingDecision, decisionDigest: `sha256:${'f'.repeat(64)}` },
+        },
+      })
+    ).toBe(false)
+    expect(await repository.getAttempt(attempt.attemptId)).toEqual(attempt)
   })
 })
