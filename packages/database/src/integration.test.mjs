@@ -5,6 +5,7 @@ import { loadDatabaseCredentials } from '@control-plane/config'
 import {
   CommandInboxService,
   ExecutionLifecycleService,
+  ExecutionReconciliationService,
   InteractionService,
 } from '@control-plane/domain'
 import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
@@ -12,12 +13,14 @@ import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
+import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import {
   commandInbox,
   executions,
   inboxMessages,
   interactionRequests,
   outboxEvents,
+  reconciliationCheckpoints,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
 
@@ -54,6 +57,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'executions',
         'inbox_messages',
         'outbox_events',
+        'reconciliation_checkpoints',
       ])
     )
   })
@@ -121,6 +125,72 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     ])
     expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
     expect(outcomes.filter(({ status }) => status === 'rejected')).toHaveLength(1)
+  })
+
+  test('persists reconciliation checkpoints and replays the decision without repeating effects', async () => {
+    const acceptance = new CommandInboxService({
+      repository: new PostgresCommandAcceptanceRepository(isolated.application),
+      executionIdFactory: () => 'exe_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+      executionPlanValidator: { validate: async () => true },
+    })
+    const { execution } = await acceptance.acceptExecution({
+      callerPrincipalId: 'svc_agent-hq',
+      operation: 'execution.accept',
+      commandId: 'cmd_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+      requestId: 'req_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+      idempotencyKey: 'reconciliation-integration',
+      payloadHash: '8'.repeat(64),
+      correlation: {
+        workspaceId: 'wsp_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+        projectId: 'prj_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+        taskId: 'tsk_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+        agentId: 'agt_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+        contentDigest: `sha256:${'7'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      receivedAt: '2026-08-24T14:00:00.000Z',
+      retentionExpiresAt: '2026-09-24T14:00:00.000Z',
+    })
+    const observation = {
+      executionId: execution.executionId,
+      checkedAt: '2026-08-24T15:00:00.000Z',
+      command: { status: 'accepted', commandId: 'cmd_01DRZ3NDEKTSV4RRFFQ69G5FAV' },
+      execution: { state: 'accepted', updatedAt: execution.updatedAt },
+      workflow: { status: 'missing' },
+      runtime: { status: 'unknown', observedAt: '2026-08-24T15:00:00.000Z' },
+      delivery: { pendingCount: 0 },
+    }
+    const effects = []
+    const options = {
+      repository: new PostgresReconciliationCheckpointRepository(isolated.application),
+      source: {
+        load: async () => observation,
+        listCandidates: async () => [execution.executionId],
+      },
+      effects: {
+        markReconciliationRequired: async (input) => effects.push(['mark', input]),
+        resumeWorkflow: async (input) => effects.push(['resume', input]),
+        applyRuntimeTerminal: async (input) => effects.push(['terminal', input]),
+        replayEvents: async (input) => effects.push(['replay', input]),
+      },
+    }
+
+    const first = await new ExecutionReconciliationService(options).reconcile(execution.executionId)
+    const replay = await new ExecutionReconciliationService(options).reconcile(
+      execution.executionId
+    )
+
+    expect(replay).toEqual(first)
+    expect(effects.map(([kind]) => kind)).toEqual(['mark', 'resume'])
+    expect(
+      await isolated.application
+        .select()
+        .from(reconciliationCheckpoints)
+        .where(eq(reconciliationCheckpoints.executionId, execution.executionId))
+    ).toHaveLength(1)
   })
 
   test('atomically accepts one execution for concurrent duplicate commands and audits conflicts', async () => {

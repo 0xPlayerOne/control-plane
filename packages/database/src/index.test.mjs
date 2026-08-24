@@ -11,6 +11,7 @@ import {
   interactionRequests,
   outboxEvents,
   persistenceConventions,
+  reconciliationCheckpoints,
   withDomainTransaction,
 } from './index.ts'
 
@@ -32,12 +33,14 @@ describe('persistence schema', () => {
     const event = getTableConfig(executionEvents)
     const attempt = getTableConfig(executionAttempts)
     const interaction = getTableConfig(interactionRequests)
+    const reconciliation = getTableConfig(reconciliationCheckpoints)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
     expect(outbox.name).toBe('outbox_events')
     expect(execution.name).toBe('executions')
     expect(attempt.name).toBe('execution_attempts')
     expect(interaction.name).toBe('interaction_requests')
+    expect(reconciliation.name).toBe('reconciliation_checkpoints')
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',
@@ -159,6 +162,32 @@ describe('persistence schema', () => {
         'interaction_requests_execution_index',
         'interaction_requests_attempt_state_index',
         'interaction_requests_expiry_index',
+      ])
+    )
+    expect(reconciliation.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'checkpoint_id',
+        'execution_id',
+        'command_id',
+        'attempt_id',
+        'workflow_id',
+        'runtime_command_id',
+        'pending_event_count',
+        'observation_hash',
+        'reason',
+        'action',
+        'state',
+        'diagnostics',
+        'version',
+        'checked_at',
+      ])
+    )
+    expect(reconciliation.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'reconciliation_checkpoints_observation_unique',
+        'reconciliation_checkpoints_execution_index',
+        'reconciliation_checkpoints_command_index',
+        'reconciliation_checkpoints_state_index',
       ])
     )
   })

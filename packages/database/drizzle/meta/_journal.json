@@ -50,6 +50,13 @@
       "when": 1787549346182,
       "tag": "0006_regular_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787557426877,
+      "tag": "0007_peaceful_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

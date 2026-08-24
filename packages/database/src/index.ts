@@ -7,6 +7,7 @@ export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
+export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
 export type {
   ControlPlaneDatabase,
   PostgresConnection,
@@ -31,6 +32,10 @@ export {
   outboxEvents,
   outboxStatus,
   persistenceConventions,
+  reconciliationAction,
+  reconciliationCheckpoints,
+  reconciliationCheckpointState,
+  reconciliationReason,
   revisionColumn,
   softDeleteColumns,
   timestampColumns,
