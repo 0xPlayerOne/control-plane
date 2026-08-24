@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/testing-v1.0.0...testing-v1.1.0) (2026-08-24)
+
+
+### Features
+
+* **workflows:** add Temporal execution lifecycle ([#111](https://github.com/0xPlayerOne/control-plane/issues/111)) ([f70ad1e](https://github.com/0xPlayerOne/control-plane/commit/f70ad1e06c5c87fb349909188ca01cfc4c212aef)), closes [#23](https://github.com/0xPlayerOne/control-plane/issues/23)
+
 ## 1.0.0 (2026-08-24)
 
 
