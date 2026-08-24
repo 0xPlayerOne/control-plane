@@ -8,6 +8,13 @@
       "when": 1787451534017,
       "tag": "0000_curly_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787535231750,
+      "tag": "0001_red_vargas",
+      "breakpoints": true
     }
   ]
 }
