@@ -98,6 +98,15 @@ describe('Agent HQ Control API contracts', () => {
       )
     ).toEqual(ControlApiFixtures.executionValidation.response)
 
+    for (const scopeField of ['workspaceId', 'projectId']) {
+      const mismatched = globalThis.structuredClone(ControlApiFixtures.executionValidation.request)
+      mismatched.payload.projectState[scopeField] =
+        scopeField === 'workspaceId'
+          ? 'wsp_01JZBCDEF0123456789ABCDEFG'
+          : 'prj_01JZBCDEF0123456789ABCDEFG'
+      expect(ExecutionRequestValidationRequestSchema.safeParse(mismatched).success).toBe(false)
+    }
+
     expect(
       ExecutionRequestValidationRequestSchema.safeParse({
         ...ControlApiFixtures.executionValidation.request,

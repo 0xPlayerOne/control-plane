@@ -177,6 +177,17 @@ export const ExecutionRequestValidationRequestSchema = CommandContextSchema.exte
     runtimeRequirements: z.array(CapabilityNameSchema).max(128),
     outputContractRef: z.string().min(1).max(512),
   }),
+}).superRefine((request, context) => {
+  if (
+    request.payload.projectState.workspaceId !== request.workspaceId ||
+    request.payload.projectState.projectId !== request.projectId
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['payload', 'projectState'],
+      message: 'ProjectState scope must match the execution request scope',
+    })
+  }
 })
 
 export const ExecutionRequestValidationResponseSchema = successResponse(

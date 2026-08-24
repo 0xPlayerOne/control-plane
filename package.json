@@ -36,6 +36,11 @@
     "db:stop": "docker compose stop postgres"
   },
   "devDependencies": {
+    "@control-plane/context": "workspace:*",
+    "@control-plane/contracts": "workspace:*",
+    "@control-plane/domain": "workspace:*",
+    "@control-plane/execution-plan": "workspace:*",
+    "@control-plane/sdk": "workspace:*",
     "@eslint/js": "10.0.1",
     "@types/node": "24.13.3",
     "eslint": "10.0.1",

@@ -10,9 +10,10 @@ and prefer real implementations over mocks when the dependency is local and inex
   integration projects, and stops only the database service that it started.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
   checkout with one command.
-- `bun run test:acceptance` is the one-command M1 acceptance gate. It checks dependency ancestry,
+- `bun run test:acceptance` is the one-command acceptance gate. It checks dependency ancestry,
   installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
-  the full foundation suite, Terraform validation, and all service plus migration container builds.
+  the full foundation and M2 core-domain suites, Terraform validation, and all service plus migration
+  container builds.
 - `bun run test:coverage` produces per-package Bun coverage reports without imposing a new
   threshold beyond the repository policy.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to package
@@ -50,3 +51,17 @@ removes its own PostgreSQL test service and needs no persistent local state or m
 CI runs the core suite, three environment-specific Terraform validations, and the shared container
 build graph as parallel jobs. `Foundation Acceptance / Gate` aggregates them into one stable result.
 Local iteration may use the runner's explicit skip flags, but completion requires the unskipped command.
+
+## M2 core-domain acceptance
+
+`tests/m2-core-domain.test.mjs` submits a versioned Agent HQ service intent through the public SDK,
+authenticates the least-privilege service principal, resolves exact published profile and Skill
+versions, compiles a revision-pinned ContextPackage, and persists a deterministic immutable
+ExecutionPlan. The test retrieves the content-addressed references without a database or vendor
+adapter and asserts that runtime dispatch remains at zero.
+
+The same suite fails closed for invalid, expired, revoked, and cross-scope credentials; missing,
+deprecated, revoked, or incompatible catalog versions; stale, unauthorized, and over-budget context;
+contradictory runtime, model, policy, or tool requirements; persisted-plan mutation; and public SDK
+contract-major drift. It deliberately does not execute Pi, ACP, LangGraph, LiteLLM, MCP, E2B, or
+Temporal, so M3 runtime work and M4 durable-execution work can start from the same pinned seam.

@@ -61,7 +61,7 @@ System boundaries, technology decisions, and service ownership are documented in
 | `bun run build`            | Build every app and package through Turborepo                              |
 | `bun run lint`             | Lint source, lint repository configuration, and enforce package boundaries |
 | `bun test`                 | Run every package's Bun tests and the repository acceptance tests          |
-| `bun run test:acceptance`  | Validate the complete M1 foundation and infrastructure baseline            |
+| `bun run test:acceptance`  | Validate the M1 foundation and M2 core-domain acceptance baseline          |
 | `bun run check:boundaries` | Reject undeclared dependencies and cross-package source imports            |
 | `bun run format`           | Format the repository with Prettier                                        |
 | `bun run format:check`     | Check formatting without modifying files                                   |

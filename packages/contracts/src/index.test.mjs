@@ -165,6 +165,18 @@ describe('versioned public envelopes', () => {
         caller: undefined,
       }).success
     ).toBe(true)
+    expect(
+      ReadRequestEnvelopeSchema.safeParse({
+        ...PublicContractFixtures.request,
+        operation: 'project-state.resolve',
+      }).success
+    ).toBe(true)
+    for (const operation of ['project--state.resolve', 'project-.resolve', '-project.resolve']) {
+      expect(
+        ReadRequestEnvelopeSchema.safeParse({ ...PublicContractFixtures.request, operation })
+          .success
+      ).toBe(false)
+    }
   })
 
   test('validates request, response, event, usage, Artifact, and runtime read-model fixtures', () => {
