@@ -21,7 +21,7 @@
     },
     "apps/control-api": {
       "name": "@control-plane/control-api",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
         "@control-plane/config": "workspace:*",
@@ -44,28 +44,28 @@
     },
     "apps/runtime-gateway": {
       "name": "@control-plane/runtime-gateway",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
       },
     },
     "apps/runtime-worker": {
       "name": "@control-plane/runtime-worker",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
       },
     },
     "apps/tool-gateway": {
       "name": "@control-plane/tool-gateway",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
       },
     },
     "apps/workflow-worker": {
       "name": "@control-plane/workflow-worker",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
         "@control-plane/config": "workspace:*",
@@ -74,7 +74,7 @@
     },
     "packages/bootstrap": {
       "name": "@control-plane/bootstrap",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/config": "workspace:*",
         "@control-plane/telemetry": "workspace:*",
@@ -82,11 +82,11 @@
     },
     "packages/config": {
       "name": "@control-plane/config",
-      "version": "0.0.0",
+      "version": "1.0.0",
     },
     "packages/context": {
       "name": "@control-plane/context",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/contracts": "workspace:*",
         "@control-plane/domain": "workspace:*",
@@ -95,14 +95,14 @@
     },
     "packages/contracts": {
       "name": "@control-plane/contracts",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "zod": "4.4.3",
       },
     },
     "packages/control-sdk": {
       "name": "@control-plane/sdk",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/contracts": "workspace:^",
       },
@@ -113,7 +113,7 @@
     },
     "packages/database": {
       "name": "@control-plane/database",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/config": "workspace:*",
         "drizzle-orm": "0.45.2",
@@ -125,7 +125,7 @@
     },
     "packages/domain": {
       "name": "@control-plane/domain",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/contracts": "workspace:*",
         "zod": "4.4.3",
@@ -133,11 +133,11 @@
     },
     "packages/events": {
       "name": "@control-plane/events",
-      "version": "0.0.0",
+      "version": "1.0.0",
     },
     "packages/execution-plan": {
       "name": "@control-plane/execution-plan",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/context": "workspace:*",
         "@control-plane/contracts": "workspace:*",
@@ -148,11 +148,11 @@
     },
     "packages/policy": {
       "name": "@control-plane/policy",
-      "version": "0.0.0",
+      "version": "1.0.0",
     },
     "packages/runtime-sdk": {
       "name": "@control-plane/runtime-sdk",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/contracts": "workspace:*",
         "zod": "4.4.3",
@@ -160,7 +160,7 @@
     },
     "packages/telemetry": {
       "name": "@control-plane/telemetry",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@opentelemetry/api": "1.9.1",
         "@sentry/node": "10.70.0",
@@ -168,7 +168,7 @@
     },
     "packages/testing": {
       "name": "@control-plane/testing",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@control-plane/config": "workspace:*",
         "@control-plane/database": "workspace:*",
@@ -176,7 +176,7 @@
     },
     "packages/tool-sdk": {
       "name": "@control-plane/tool-sdk",
-      "version": "0.0.0",
+      "version": "1.0.0",
     },
   },
   "packages": {
