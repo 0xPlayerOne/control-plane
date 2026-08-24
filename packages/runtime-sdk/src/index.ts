@@ -7,5 +7,6 @@ export * from './eligibility.js'
 export * from './mock.js'
 export * from './models.js'
 export * from './registry.js'
+export * from './routing.js'
 
 export const packageName = 'runtime-sdk'

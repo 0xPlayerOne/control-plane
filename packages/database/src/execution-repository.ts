@@ -109,6 +109,8 @@ export class PostgresExecutionRepository implements ExecutionRepository {
 
   async compareAndSetAttempt(expectedVersion: number, attempt: ExecutionAttempt): Promise<boolean> {
     const parsed = ExecutionAttemptSchema.parse(attempt)
+    const current = await this.getAttempt(parsed.attemptId)
+    if (!current || !hasSameImmutableAttemptIdentity(current, parsed)) return false
     const updated = await this.database
       .update(executionAttempts)
       .set(toAttemptUpdate(parsed))
@@ -201,6 +203,7 @@ function toAttemptRow(attempt: ExecutionAttempt): typeof executionAttempts.$infe
     runtimeNodeRefId: attempt.runtime?.runtimeNodeRefId ?? null,
     runtimeConnectionId: attempt.runtime?.runtimeConnectionId ?? null,
     externalSessionId: attempt.runtime?.externalSessionId ?? null,
+    routingDecision: attempt.runtime?.routingDecision ?? null,
     failureClassification: attempt.failure?.classification ?? null,
     failureCode: attempt.failure?.code ?? null,
     terminalResultRef: attempt.terminalResultRef ?? null,
@@ -227,6 +230,7 @@ function fromAttemptRow(row: AttemptRow): ExecutionAttempt {
     ...(row.runtimeNodeRefId ? { runtimeNodeRefId: row.runtimeNodeRefId } : {}),
     ...(row.runtimeConnectionId ? { runtimeConnectionId: row.runtimeConnectionId } : {}),
     ...(row.externalSessionId ? { externalSessionId: row.externalSessionId } : {}),
+    ...(row.routingDecision ? { routingDecision: row.routingDecision } : {}),
   }
   return ExecutionAttemptSchema.parse({
     attemptId: row.attemptId,
@@ -305,6 +309,17 @@ function hasSameImmutableExecutionIdentity(left: Execution, right: Execution): b
     left.parentExecutionId === right.parentExecutionId &&
     JSON.stringify(left.correlation) === JSON.stringify(right.correlation) &&
     JSON.stringify(left.executionPlan) === JSON.stringify(right.executionPlan) &&
+    left.acceptedAt === right.acceptedAt &&
+    left.createdAt === right.createdAt
+  )
+}
+
+function hasSameImmutableAttemptIdentity(left: ExecutionAttempt, right: ExecutionAttempt): boolean {
+  return (
+    left.attemptId === right.attemptId &&
+    left.executionId === right.executionId &&
+    left.sequence === right.sequence &&
+    JSON.stringify(left.runtime) === JSON.stringify(right.runtime) &&
     left.acceptedAt === right.acceptedAt &&
     left.createdAt === right.createdAt
   )

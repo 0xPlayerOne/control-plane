@@ -76,6 +76,21 @@ remain explicit degradations. The audit envelope records the evaluator version, 
 connection, policy snapshot, evaluation time, and a canonical input digest. Managed-cloud candidates
 use `not_applicable` node status so cloud eligibility does not invent Agent HQ device health.
 
+## Runtime routing
+
+The versioned runtime router receives only eligibility decisions and never re-authorizes an
+ineligible runtime. Its policy assigns explicit integer weights to connection/family/deployment
+preference, locality, health, load, queue depth, entitlement priority, and cost class. Equal scores
+use the canonical RuntimeConnection ID as the final tie-breaker, so candidate input order cannot
+change the result.
+
+Selected decisions include the chosen connection, ranked alternatives, contribution-level reason
+metadata, excluded candidates and their eligibility reasons, and canonical input/decision digests.
+Empty results distinguish no candidate, transient unavailability, and unavailable preferences. User
+preference influences ranking only among eligible candidates. The selected policy version, decision
+digests, rank, candidate count, and reason codes are pinned immutably on the execution attempt and
+persisted independently of later runtime inventory changes.
+
 ## Runtime adapter contract
 
 `RuntimeAdapter` is the stable port used by execution code for inspection, capability evaluation,

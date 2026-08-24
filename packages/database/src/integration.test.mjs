@@ -282,6 +282,20 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       runtime: {
         runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         runtimeConnectionId: 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        routingDecision: {
+          routingVersion: 1,
+          policy: {
+            policyId: 'runtime-standard',
+            version: 1,
+            digest: `sha256:${'b'.repeat(64)}`,
+          },
+          evaluatedAt: '2026-08-23T10:00:59.000Z',
+          inputDigest: `sha256:${'c'.repeat(64)}`,
+          decisionDigest: `sha256:${'d'.repeat(64)}`,
+          selectedRank: 1,
+          candidateCount: 2,
+          reasonCodes: ['HEALTH', 'LOCALITY'],
+        },
       },
     })
     const afterFirst = await service.getExecution(execution.executionId)
@@ -293,6 +307,17 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     })
 
     expect(firstAttempt.sequence).toBe(1)
+    expect(await repository.getAttempt(firstAttempt.attemptId)).toMatchObject({
+      runtime: {
+        runtimeConnectionId: 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        routingDecision: {
+          routingVersion: 1,
+          policy: { policyId: 'runtime-standard', version: 1 },
+          selectedRank: 1,
+          candidateCount: 2,
+        },
+      },
+    })
     expect(secondAttempt.sequence).toBe(2)
     expect(await repository.listAttempts(execution.executionId)).toHaveLength(2)
     expect(await service.getExecution(execution.executionId)).toMatchObject({

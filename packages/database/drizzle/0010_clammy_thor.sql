@@ -1,0 +1,1 @@
+ALTER TABLE "execution_attempts" ADD COLUMN "routing_decision" jsonb;

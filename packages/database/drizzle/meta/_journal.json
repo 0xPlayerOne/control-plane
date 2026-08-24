@@ -71,6 +71,13 @@
       "when": 1787590278164,
       "tag": "0009_keen_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787592456795,
+      "tag": "0010_clammy_thor",
+      "breakpoints": true
     }
   ]
 }

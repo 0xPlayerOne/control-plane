@@ -3,12 +3,14 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   timestamp,
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core'
+import type { AttemptRoutingDecision } from '@control-plane/domain'
 
 export const executionState = pgEnum('execution_state', [
   'accepted',
@@ -115,6 +117,7 @@ export const executionAttempts = pgTable(
     runtimeNodeRefId: identifier('runtime_node_ref_id'),
     runtimeConnectionId: identifier('runtime_connection_id'),
     externalSessionId: identifier('external_session_id'),
+    routingDecision: jsonb('routing_decision').$type<AttemptRoutingDecision>(),
     failureClassification: executionFailureClassification('failure_classification'),
     failureCode: varchar('failure_code', { length: 128 }),
     terminalResultRef: identifier('terminal_result_ref'),

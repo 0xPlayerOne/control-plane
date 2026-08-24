@@ -136,6 +136,7 @@ describe('persistence schema', () => {
         'runtime_definition_id',
         'runtime_node_ref_id',
         'runtime_connection_id',
+        'routing_decision',
         'state',
         'version',
       ])
