@@ -4,6 +4,7 @@ export {
   DatabaseConnectionError,
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
+export { PostgresExecutionEventRepository } from './execution-event-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
 export type {
   ControlPlaneDatabase,
@@ -13,6 +14,8 @@ export type {
 export {
   commandInbox,
   commandInboxStatus,
+  eventPublicationStatus,
+  executionEvents,
   executionAttempts,
   executionAttemptState,
   executionFailureClassification,

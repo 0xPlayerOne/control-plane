@@ -38,6 +38,7 @@
   "dependencies": {
     "@control-plane/config": "workspace:*",
     "@control-plane/domain": "workspace:*",
+    "@control-plane/events": "workspace:*",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"
   },

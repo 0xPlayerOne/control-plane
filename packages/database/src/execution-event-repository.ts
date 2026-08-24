@@ -1,0 +1,208 @@
+import { ExecutionSchema, type Execution } from '@control-plane/domain'
+import {
+  ExecutionEventSchema,
+  type ExecutionEvent,
+  type ExecutionEventDraft,
+  type ExecutionEventRepository,
+} from '@control-plane/events'
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import type { ControlPlaneDatabase } from './connection.js'
+import { toExecutionUpdate } from './execution-repository.js'
+import { executionEvents } from './schema/events.js'
+import { executions } from './schema/executions.js'
+
+export class PostgresExecutionEventRepository implements ExecutionEventRepository {
+  constructor(readonly database: ControlPlaneDatabase) {}
+
+  append(draft: ExecutionEventDraft): Promise<ExecutionEvent | undefined> {
+    return this.database.transaction((transaction) => appendInTransaction(transaction, draft))
+  }
+
+  async transitionExecution(
+    expectedVersion: number,
+    execution: Execution,
+    draft: ExecutionEventDraft
+  ): Promise<ExecutionEvent | undefined> {
+    const parsed = ExecutionSchema.parse(execution)
+    return this.database
+      .transaction(async (transaction) => {
+        const updated = await transaction
+          .update(executions)
+          .set(toExecutionUpdate(parsed))
+          .where(
+            and(
+              eq(executions.executionId, parsed.executionId),
+              eq(executions.version, expectedVersion)
+            )
+          )
+          .returning({ executionId: executions.executionId })
+        if (updated.length !== 1) return undefined
+        const event = await appendInTransaction(transaction, draft)
+        if (!event) throw new EventInsertConflict()
+        return event
+      })
+      .catch((error: unknown) => {
+        if (error instanceof EventInsertConflict) return undefined
+        throw error
+      })
+  }
+
+  async get(eventId: string): Promise<ExecutionEvent | undefined> {
+    const [row] = await this.database
+      .select()
+      .from(executionEvents)
+      .where(eq(executionEvents.eventId, eventId))
+      .limit(1)
+    return row ? fromRow(row) : undefined
+  }
+
+  async queryAfter(executionId: string, afterSequence: number, limit: number) {
+    const rows = await this.database
+      .select()
+      .from(executionEvents)
+      .where(
+        and(
+          eq(executionEvents.executionId, executionId),
+          gt(executionEvents.sequence, afterSequence),
+          isNull(executionEvents.archivedAt)
+        )
+      )
+      .orderBy(asc(executionEvents.sequence))
+      .limit(limit)
+    return rows.map(fromRow)
+  }
+
+  async queryPending(limit: number) {
+    const rows = await this.database
+      .select()
+      .from(executionEvents)
+      .where(
+        and(
+          inArray(executionEvents.publicationStatus, ['pending', 'failed']),
+          isNull(executionEvents.archivedAt)
+        )
+      )
+      .orderBy(asc(executionEvents.recordedAt))
+      .limit(limit)
+    return rows.map(fromRow)
+  }
+
+  async compareAndSetPublication(expectedVersion: number, event: ExecutionEvent): Promise<boolean> {
+    const parsed = ExecutionEventSchema.parse(event)
+    const updated = await this.database
+      .update(executionEvents)
+      .set({
+        publicationStatus: parsed.publication.status,
+        publicationAttempts: parsed.publication.attempts,
+        publicationVersion: parsed.publication.version,
+        lastAttemptAt: optionalDate(parsed.publication.lastAttemptAt),
+        publishedAt: optionalDate(parsed.publication.publishedAt),
+        publicationErrorReference: parsed.publication.errorReference ?? null,
+      })
+      .where(
+        and(
+          eq(executionEvents.eventId, parsed.eventId),
+          eq(executionEvents.publicationVersion, expectedVersion)
+        )
+      )
+      .returning({ eventId: executionEvents.eventId })
+    return updated.length === 1
+  }
+
+  async archive(eventId: string, archivedAt: string): Promise<ExecutionEvent | undefined> {
+    const [row] = await this.database
+      .update(executionEvents)
+      .set({ archivedAt: new Date(archivedAt) })
+      .where(eq(executionEvents.eventId, eventId))
+      .returning()
+    return row ? fromRow(row) : undefined
+  }
+}
+
+class EventInsertConflict extends Error {}
+
+type Transaction = Parameters<Parameters<ControlPlaneDatabase['transaction']>[0]>[0]
+type EventRow = typeof executionEvents.$inferSelect
+
+async function appendInTransaction(transaction: Transaction, draft: ExecutionEventDraft) {
+  await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${draft.executionId}))`)
+  const [latest] = await transaction
+    .select({ sequence: executionEvents.sequence })
+    .from(executionEvents)
+    .where(eq(executionEvents.executionId, draft.executionId))
+    .orderBy(sql`${executionEvents.sequence} desc`)
+    .limit(1)
+  const event = ExecutionEventSchema.parse({
+    ...draft,
+    sequence: (latest?.sequence ?? 0) + 1,
+    payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
+    publication: { status: 'pending', attempts: 0, version: 1 },
+  })
+  const [inserted] = await transaction
+    .insert(executionEvents)
+    .values(toRow(event))
+    .onConflictDoNothing()
+    .returning()
+  return inserted ? fromRow(inserted) : undefined
+}
+
+function toRow(event: ExecutionEvent): typeof executionEvents.$inferInsert {
+  return {
+    eventId: event.eventId,
+    executionId: event.executionId,
+    attemptId: event.attemptId ?? null,
+    workflowId: event.workflowId ?? null,
+    sequence: event.sequence,
+    eventType: event.type,
+    schemaVersion: event.schemaVersion,
+    requestId: event.correlation.requestId,
+    commandId: event.correlation.commandId ?? null,
+    traceId: event.correlation.traceId,
+    payload: event.payload,
+    payloadBytes: event.payloadBytes,
+    occurredAt: new Date(event.occurredAt),
+    recordedAt: new Date(event.recordedAt),
+    retentionExpiresAt: new Date(event.retentionExpiresAt),
+    archivedAt: optionalDate(event.archivedAt),
+    publicationStatus: event.publication.status,
+    publicationAttempts: event.publication.attempts,
+    publicationVersion: event.publication.version,
+    lastAttemptAt: optionalDate(event.publication.lastAttemptAt),
+    publishedAt: optionalDate(event.publication.publishedAt),
+    publicationErrorReference: event.publication.errorReference ?? null,
+  }
+}
+
+function fromRow(row: EventRow): ExecutionEvent {
+  return ExecutionEventSchema.parse({
+    eventId: row.eventId,
+    executionId: row.executionId,
+    ...(row.attemptId ? { attemptId: row.attemptId } : {}),
+    ...(row.workflowId ? { workflowId: row.workflowId } : {}),
+    sequence: row.sequence,
+    type: row.eventType,
+    schemaVersion: row.schemaVersion,
+    correlation: {
+      requestId: row.requestId,
+      ...(row.commandId ? { commandId: row.commandId } : {}),
+      traceId: row.traceId,
+    },
+    payload: row.payload,
+    payloadBytes: row.payloadBytes,
+    occurredAt: row.occurredAt.toISOString(),
+    recordedAt: row.recordedAt.toISOString(),
+    retentionExpiresAt: row.retentionExpiresAt.toISOString(),
+    ...(row.archivedAt ? { archivedAt: row.archivedAt.toISOString() } : {}),
+    publication: {
+      status: row.publicationStatus,
+      attempts: row.publicationAttempts,
+      version: row.publicationVersion,
+      ...(row.lastAttemptAt ? { lastAttemptAt: row.lastAttemptAt.toISOString() } : {}),
+      ...(row.publishedAt ? { publishedAt: row.publishedAt.toISOString() } : {}),
+      ...(row.publicationErrorReference ? { errorReference: row.publicationErrorReference } : {}),
+    },
+  })
+}
+function optionalDate(value: string | undefined): Date | null {
+  return value ? new Date(value) : null
+}

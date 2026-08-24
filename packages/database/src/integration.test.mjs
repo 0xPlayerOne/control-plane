@@ -3,7 +3,9 @@ import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
 import { CommandInboxService, ExecutionLifecycleService } from '@control-plane/domain'
+import { ExecutionEventService } from '@control-plane/events'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
+import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
 import { commandInbox, executions, inboxMessages, outboxEvents } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
@@ -172,6 +174,66 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     })
     expect(processing).toMatchObject({ status: 'processing', version: record.version + 1 })
     expect((await service.acceptExecution(input)).command).toEqual(processing)
+  })
+
+  test('commits execution transitions and ordered outbox events atomically', async () => {
+    const repository = new PostgresExecutionEventRepository(isolated.application)
+    const service = new ExecutionEventService(repository)
+    const executionId = 'exe_01BRZ3NDEKTSV4RRFFQ69G5FAV'
+    const executionRepository = new PostgresExecutionRepository(isolated.application)
+    const current = await executionRepository.getExecution(executionId)
+    const queued = {
+      ...current,
+      state: 'queued',
+      version: current.version + 1,
+      queuedAt: '2026-08-24T11:02:00.000Z',
+      updatedAt: '2026-08-24T11:02:00.000Z',
+    }
+    const draft = {
+      eventId: 'evt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      executionId,
+      type: 'execution.queued',
+      schemaVersion: 1,
+      correlation: {
+        requestId: current.correlation.requestId,
+        traceId: 'trc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+      payload: { state: 'queued' },
+      occurredAt: queued.updatedAt,
+      recordedAt: queued.updatedAt,
+      retentionExpiresAt: '2026-11-22T11:02:00.000Z',
+    }
+    expect(await repository.transitionExecution(current.version, queued, draft)).toMatchObject({
+      sequence: 1,
+    })
+
+    const stored = await executionRepository.getExecution(executionId)
+    const running = {
+      ...stored,
+      state: 'running',
+      version: stored.version + 1,
+      runningAt: '2026-08-24T11:03:00.000Z',
+      updatedAt: '2026-08-24T11:03:00.000Z',
+    }
+    expect(await repository.transitionExecution(stored.version, running, draft)).toBeUndefined()
+    expect((await executionRepository.getExecution(executionId)).version).toBe(stored.version)
+
+    const events = await Promise.all([
+      service.append({
+        ...draft,
+        eventId: 'evt_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+        type: 'execution.progressed',
+      }),
+      service.append({
+        ...draft,
+        eventId: 'evt_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+        type: 'execution.progressed',
+      }),
+    ])
+    expect(events.map(({ sequence }) => sequence).sort()).toEqual([2, 3])
+    expect(
+      (await repository.queryAfter(executionId, 1, 10)).map(({ sequence }) => sequence)
+    ).toEqual([2, 3])
   })
 
   test('commits inbox and outbox writes atomically and rolls them back together', async () => {
