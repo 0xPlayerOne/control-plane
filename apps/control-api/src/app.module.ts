@@ -23,9 +23,17 @@ import {
 } from './http/tokens.js'
 import { SystemController } from './system/system.controller.js'
 import { SystemService } from './system/system.service.js'
+import { RuntimeDiscoveryController } from './runtime-discovery/runtime-discovery.controller.js'
+import {
+  EmptyRuntimeDiscoveryRepository,
+  RUNTIME_DISCOVERY_REPOSITORY,
+  type RuntimeDiscoveryRepository,
+} from './runtime-discovery/runtime-discovery.repository.js'
+import { RuntimeDiscoveryService } from './runtime-discovery/runtime-discovery.service.js'
 
 export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly serviceAuthenticator?: ServiceAuthenticator
+  readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
 }
 
 @Module({})
@@ -46,7 +54,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
     })
   return {
     module: AppModule,
-    controllers: [HealthController, SystemController],
+    controllers: [HealthController, RuntimeDiscoveryController, SystemController],
     providers: [
       { provide: API_HEALTH, useValue: options.health },
       { provide: API_LOGGER, useValue: options.logger },
@@ -57,8 +65,13 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
         provide: SERVICE_AUTHENTICATOR,
         useValue: options.serviceAuthenticator ?? new DisabledServiceAuthenticator(),
       },
+      {
+        provide: RUNTIME_DISCOVERY_REPOSITORY,
+        useValue: options.runtimeDiscoveryRepository ?? new EmptyRuntimeDiscoveryRepository(),
+      },
       RequestLoggingInterceptor,
       ServiceAuthenticationGuard,
+      RuntimeDiscoveryService,
       SystemService,
     ],
   }

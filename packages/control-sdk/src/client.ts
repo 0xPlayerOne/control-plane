@@ -18,6 +18,14 @@ import {
   type RuntimeListResponse,
   type ServiceAuthenticationRequest,
   type ServiceAuthenticationResponse,
+  type ExternalSessionGetRequest,
+  type ExternalSessionGetResponse,
+  type ExternalSessionListRequest,
+  type ExternalSessionListResponse,
+  type RuntimeConnectionGetRequest,
+  type RuntimeConnectionGetResponse,
+  type RuntimeConnectionListRequest,
+  type RuntimeConnectionListResponse,
 } from '@control-plane/contracts'
 import { ControlApiOperations } from './operations.js'
 
@@ -120,6 +128,24 @@ export class ControlPlaneClient {
 
   listRuntimes(input: RuntimeListRequest): Promise<RuntimeListResponse> {
     return this.#request(ControlApiOperations.listRuntimes, input)
+  }
+
+  listRuntimeConnections(
+    input: RuntimeConnectionListRequest
+  ): Promise<RuntimeConnectionListResponse> {
+    return this.#request(ControlApiOperations.listRuntimeConnections, input)
+  }
+
+  getRuntimeConnection(input: RuntimeConnectionGetRequest): Promise<RuntimeConnectionGetResponse> {
+    return this.#request(ControlApiOperations.getRuntimeConnection, input)
+  }
+
+  listExternalSessions(input: ExternalSessionListRequest): Promise<ExternalSessionListResponse> {
+    return this.#request(ControlApiOperations.listExternalSessions, input)
+  }
+
+  getExternalSession(input: ExternalSessionGetRequest): Promise<ExternalSessionGetResponse> {
+    return this.#request(ControlApiOperations.getExternalSession, input)
   }
 
   validateExecutionRequest(

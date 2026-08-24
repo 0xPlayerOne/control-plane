@@ -13,6 +13,14 @@ import {
   RuntimeListResponseSchema,
   ServiceAuthenticationRequestSchema,
   ServiceAuthenticationResponseSchema,
+  ExternalSessionGetRequestSchema,
+  ExternalSessionGetResponseSchema,
+  ExternalSessionListRequestSchema,
+  ExternalSessionListResponseSchema,
+  RuntimeConnectionGetRequestSchema,
+  RuntimeConnectionGetResponseSchema,
+  RuntimeConnectionListRequestSchema,
+  RuntimeConnectionListResponseSchema,
 } from '@control-plane/contracts'
 
 export const ControlApiOperations = Object.freeze({
@@ -50,6 +58,34 @@ export const ControlApiOperations = Object.freeze({
     path: '/v1/runtimes/list',
     requestSchema: RuntimeListRequestSchema,
     responseSchema: RuntimeListResponseSchema,
+  },
+  listRuntimeConnections: {
+    operation: 'runtime-connection.list',
+    method: 'POST',
+    path: '/v1/runtime-connections/list',
+    requestSchema: RuntimeConnectionListRequestSchema,
+    responseSchema: RuntimeConnectionListResponseSchema,
+  },
+  getRuntimeConnection: {
+    operation: 'runtime-connection.get',
+    method: 'POST',
+    path: '/v1/runtime-connections/get',
+    requestSchema: RuntimeConnectionGetRequestSchema,
+    responseSchema: RuntimeConnectionGetResponseSchema,
+  },
+  listExternalSessions: {
+    operation: 'external-session.list',
+    method: 'POST',
+    path: '/v1/external-sessions/list',
+    requestSchema: ExternalSessionListRequestSchema,
+    responseSchema: ExternalSessionListResponseSchema,
+  },
+  getExternalSession: {
+    operation: 'external-session.get',
+    method: 'POST',
+    path: '/v1/external-sessions/get',
+    requestSchema: ExternalSessionGetRequestSchema,
+    responseSchema: ExternalSessionGetResponseSchema,
   },
   validateExecutionRequest: {
     operation: 'execution.validate',

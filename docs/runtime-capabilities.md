@@ -108,6 +108,26 @@ optimistically versioned, capability snapshots cannot regress or conflict at one
 revocation is terminal. The PostgreSQL record preserves only the scoped opaque reference and normalized
 metadata, not native ownership or unrestricted session state.
 
+## Agent HQ discovery read models
+
+The Control API exposes authenticated v1 list/get operations for runtime connections and external
+sessions. Agent HQ calls only these Control Plane operations; it does not call Runtime Gateway,
+drivers, harnesses, or native runtimes directly. Every request carries the normal service envelope and
+is authorized against its workspace, optional project, and optional RuntimeNode scope.
+
+Runtime connection summaries keep RuntimeNode status and health separate from connection status,
+health, and availability. They include location, adapter/driver/harness/protocol versions, capability
+support, compatibility, freshness, LocalProjectGrant and entitlement hints, limitations, eligibility
+reasons, degradations, and bounded remediation actions. External-session summaries expose only safe
+display metadata, snapshot freshness, independent operation controls, and recoverability. Projection
+schemas strip opaque native references, raw paths, process handles, credentials, native configuration,
+and unrestricted native session state.
+
+List operations sort by canonical public ID and use bounded opaque-cursor pagination. Filters cover
+RuntimeNode, normalized state, runtime connection, required capabilities, and external-session state.
+Fresh, stale, expired, and unknown data are explicit; offline, incompatible, capability-mismatch,
+removed, and revoked conditions remain machine-readable rather than being collapsed into absence.
+
 ## Runtime adapter contract
 
 `RuntimeAdapter` is the stable port used by execution code for inspection, capability evaluation,
