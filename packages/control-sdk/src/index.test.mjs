@@ -36,6 +36,27 @@ describe('Control Plane SDK public client', () => {
     })
   })
 
+  test('submits execution acceptance commands through the versioned idempotent operation', async () => {
+    const calls = []
+    const client = new ControlPlaneClient({
+      baseUrl: 'https://control-plane.test',
+      credential: 'service-token',
+      fetch: async (url, init) => {
+        calls.push({ url, init })
+        return globalThis.Response.json(ControlApiFixtures.executionAcceptance.response)
+      },
+    })
+
+    const response = await client.acceptExecution(ControlApiFixtures.executionAcceptance.request)
+
+    expect(response).toEqual(ControlApiFixtures.executionAcceptance.response)
+    expect(String(calls[0].url)).toBe('https://control-plane.test/v1/executions/accept')
+    expect(JSON.parse(calls[0].init.body)).toMatchObject({
+      operation: 'execution.accept',
+      idempotencyKey: 'intent-01JABCDEF0123456789ABCDEFG',
+    })
+  })
+
   test('protects service credentials from insecure remote transport', () => {
     expect(
       () =>

@@ -1,6 +1,8 @@
 import {
   ContextPackageResolutionRequestSchema,
   ContextPackageResolutionResponseSchema,
+  ExecutionAcceptanceRequestSchema,
+  ExecutionAcceptanceResponseSchema,
   ExecutionRequestValidationRequestSchema,
   ExecutionRequestValidationResponseSchema,
   ProfileResolutionRequestSchema,
@@ -55,6 +57,13 @@ export const ControlApiOperations = Object.freeze({
     path: '/v1/executions/validate',
     requestSchema: ExecutionRequestValidationRequestSchema,
     responseSchema: ExecutionRequestValidationResponseSchema,
+  },
+  acceptExecution: {
+    operation: 'execution.accept',
+    method: 'POST',
+    path: '/v1/executions/accept',
+    requestSchema: ExecutionAcceptanceRequestSchema,
+    responseSchema: ExecutionAcceptanceResponseSchema,
   },
 } as const)
 
