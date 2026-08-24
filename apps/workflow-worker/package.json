@@ -1,22 +1,27 @@
 {
   "name": "@control-plane/workflow-worker",
   "version": "1.0.0",
-  "private": true,
-  "type": "module",
+  "main": "./dist/index.js",
+  "dependencies": {
+    "@control-plane/bootstrap": "workspace:*",
+    "@control-plane/config": "workspace:*",
+    "@control-plane/contracts": "workspace:*",
+    "@control-plane/domain": "workspace:*",
+    "@control-plane/execution-plan": "workspace:*",
+    "@control-plane/telemetry": "workspace:*",
+    "@temporalio/worker": "1.22.0",
+    "@temporalio/workflow": "1.22.0"
+  },
   "browser": false,
   "engines": {
     "node": ">=24 <25"
   },
-  "main": "./dist/index.js",
+  "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "bun src/start.ts",
     "lint": "eslint src",
-    "test": "bun test src/index.test.mjs"
+    "test": "bun test src/*.test.mjs"
   },
-  "dependencies": {
-    "@control-plane/bootstrap": "workspace:*",
-    "@control-plane/config": "workspace:*",
-    "@control-plane/telemetry": "workspace:*"
-  }
+  "type": "module"
 }

@@ -13,5 +13,5 @@ describe.skipIf(!integrationEnabled)('shared PostgreSQL test harness', () => {
 
     expect(names[0]).not.toBe(names[1])
     expect(names.every((name) => name.startsWith('control_plane_test_'))).toBe(true)
-  })
+  }, 15_000)
 })

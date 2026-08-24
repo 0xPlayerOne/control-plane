@@ -36,20 +36,20 @@ required forbidden-import regression test.
 
 ## Technology decisions
 
-| Technology | Status        | Foundation decision                                                        |
-| ---------- | ------------- | -------------------------------------------------------------------------- |
-| TypeScript | accepted      | Primary application and package language under strict workspace settings.  |
-| NestJS     | accepted      | Control API composition and dependency-injection framework.                |
-| Fastify    | accepted      | HTTP adapter beneath NestJS and for lightweight transport boundaries.      |
-| PostgreSQL | accepted      | Durable relational store, accessed through an owning service boundary.     |
-| Drizzle    | accepted      | Schema and migration implementation inside `packages/database`.            |
-| Temporal   | adapter-bound | Durable workflow provider behind orchestration ports; rollout is deferred. |
-| LangGraph  | adapter-bound | Optional graph execution integration; stable packages cannot import it.    |
-| Pi         | adapter-bound | Optional agent-runtime integration behind runtime ports.                   |
-| ACP        | adapter-bound | External agent protocol implemented at a gateway boundary when required.   |
-| MCP        | adapter-bound | Tool protocol implemented at the tool gateway boundary.                    |
-| LiteLLM    | adapter-bound | Model-routing provider behind a model gateway port.                        |
-| E2B        | adapter-bound | Concrete remote sandbox harness; adoption is deferred until runtime work.  |
+| Technology | Status        | Foundation decision                                                                                                   |
+| ---------- | ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| TypeScript | accepted      | Primary application and package language under strict workspace settings.                                             |
+| NestJS     | accepted      | Control API composition and dependency-injection framework.                                                           |
+| Fastify    | accepted      | HTTP adapter beneath NestJS and for lightweight transport boundaries.                                                 |
+| PostgreSQL | accepted      | Durable relational store, accessed through an owning service boundary.                                                |
+| Drizzle    | accepted      | Schema and migration implementation inside `packages/database`.                                                       |
+| Temporal   | accepted      | Durable outer execution lifecycle in `apps/workflow-worker`; runtime effects remain behind idempotent activity ports. |
+| LangGraph  | adapter-bound | Optional graph execution integration; stable packages cannot import it.                                               |
+| Pi         | adapter-bound | Optional agent-runtime integration behind runtime ports.                                                              |
+| ACP        | adapter-bound | External agent protocol implemented at a gateway boundary when required.                                              |
+| MCP        | adapter-bound | Tool protocol implemented at the tool gateway boundary.                                                               |
+| LiteLLM    | adapter-bound | Model-routing provider behind a model gateway port.                                                                   |
+| E2B        | adapter-bound | Concrete remote sandbox harness; adoption is deferred until runtime work.                                             |
 
 “Accepted” means the foundation may depend on the technology at its stated boundary. “Adapter-bound”
 means the domain cannot depend on it and a replaceable adapter is mandatory. “Deferred” means no
