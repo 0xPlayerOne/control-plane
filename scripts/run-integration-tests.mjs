@@ -45,7 +45,9 @@ try {
     environment: integrationEnvironment,
   })
 } finally {
-  if (!postgresWasRunning) run('docker', ['compose', 'stop', 'postgres'])
+  if (!postgresWasRunning) {
+    run('docker', ['compose', 'stop', '--timeout', '60', 'postgres'])
+  }
 }
 
 void COMPOSE_COMMAND

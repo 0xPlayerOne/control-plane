@@ -8,7 +8,9 @@ and prefer real implementations over mocks when the dependency is local and inex
 - `bun run test` builds once, then runs the unit, end-to-end, and smoke groups in parallel.
 - `bun run test:unit` runs colocated package and application tests and enforces coverage.
 - `bun run test:integration` starts the pinned local PostgreSQL service when needed, runs all
-  integration projects, and stops only the database service that it started.
+  integration projects, and stops only the database service that it started. Integration files use a
+  30-second per-test budget for cold database creation and migration, and the runner allows PostgreSQL
+  up to 60 seconds to checkpoint during shutdown.
 - `bun run test:e2e` runs the M2, M3, and M4 cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean

@@ -27,7 +27,7 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "bun test src/index.test.mjs",
-    "test:integration": "bun test src/postgres.integration.test.mjs"
+    "test:integration": "bun test --timeout 30000 src/postgres.integration.test.mjs"
   },
   "dependencies": {
     "@control-plane/config": "workspace:*",
