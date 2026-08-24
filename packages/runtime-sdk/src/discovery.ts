@@ -150,6 +150,13 @@ export function projectExternalSessionDiscovery(inputValue: {
 }): ExternalSessionDiscoveryReadModel {
   const session = ExternalSessionSchema.parse(inputValue.session)
   const assessment = ExternalSessionAssessmentSchema.parse(inputValue.assessment)
+  const freshnessState =
+    assessment.evaluatedAt !== undefined &&
+    Date.parse(session.capabilitySnapshot.expiresAt) <= Date.parse(assessment.evaluatedAt)
+      ? 'expired'
+      : assessment.state === 'stale'
+        ? 'stale'
+        : 'fresh'
   const limitations = uniqueCodes([
     ...session.safeMetadata.limitations,
     ...Object.values(assessment.operations).flatMap((operation) =>
@@ -169,7 +176,7 @@ export function projectExternalSessionDiscovery(inputValue: {
         : { displayName: session.safeMetadata.displayName }),
     },
     freshness: {
-      state: assessment.state === 'stale' ? 'stale' : 'fresh',
+      state: freshnessState,
       observedAt: session.capabilitySnapshot.observedAt,
       expiresAt: session.capabilitySnapshot.expiresAt,
     },

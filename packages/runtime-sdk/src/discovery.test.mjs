@@ -54,6 +54,7 @@ describe('Agent HQ runtime discovery projection', () => {
   })
 
   test('projects revoked external sessions without opaque native state', async () => {
+    const evaluatedAt = '2026-08-24T20:02:30.000Z'
     const registry = new ExternalSessionRegistry(new InMemoryExternalSessionRepository())
     const session = await registry.register(sessionRegistration({ state: 'revoked' }))
     const assessment = assessExternalSession(session, {
@@ -64,7 +65,7 @@ describe('Agent HQ runtime discovery projection', () => {
         compatibilityState: 'revoked',
       }),
       nodeStatus: 'revoked',
-      evaluatedAt: '2026-08-24T20:01:30.000Z',
+      evaluatedAt,
     })
 
     const model = projectExternalSessionDiscovery({ session, assessment })
@@ -72,6 +73,7 @@ describe('Agent HQ runtime discovery projection', () => {
     expect(model).toMatchObject({
       state: 'revoked',
       recoverable: false,
+      freshness: { state: 'expired' },
       capabilitySummary: {
         controls: { resume: { available: false, reason: 'SESSION_REVOKED' } },
       },

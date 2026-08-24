@@ -361,6 +361,7 @@ export const ExternalSessionAssessmentSchema = z
   .object({
     state: ExternalSessionAssessmentStateSchema,
     recoverable: z.boolean(),
+    evaluatedAt: RuntimeTimestampSchema.optional(),
     operations: z
       .object({
         reference: ExternalSessionOperationAvailabilitySchema,
@@ -411,6 +412,7 @@ export function assessExternalSession(
   )
   return ExternalSessionAssessmentSchema.parse({
     ...base,
+    evaluatedAt: context.evaluatedAt,
     operations: { reference: { available: true }, ...operations },
   })
 }
