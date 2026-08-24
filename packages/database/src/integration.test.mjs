@@ -192,6 +192,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       runtimeConnectionId,
       reportSequence: 1,
       observedAt: '2026-08-24T21:01:00.000Z',
+      discoveredAt: '2026-08-24T21:00:30.000Z',
       nodeStatus: 'online',
       runtimeState: 'healthy',
       versions: {
@@ -220,6 +221,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       capabilitySnapshotVersion: 1,
       capabilityVerification: 'verified',
       lastHealthReportSequence: 1,
+      lastDiscoveredAt: '2026-08-24T21:00:30.000Z',
     })
     expect(changes.events).toHaveLength(1)
 
@@ -242,7 +244,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     })
     expect(stale).toMatchObject({
       applied: true,
-      connection: { availabilityState: 'stale', status: 'expired' },
+      connection: { availabilityState: 'stale', status: 'unavailable' },
       assessment: {
         nodeStatus: 'offline',
         executable: false,

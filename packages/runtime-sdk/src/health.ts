@@ -19,6 +19,18 @@ import {
 
 const uniqueCapabilities = (capabilities: RuntimeCapability[]) =>
   new Set(capabilities.map((capability) => capability.name)).size === capabilities.length
+const RuntimeDisplayLimitationSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine(
+    (value) =>
+      [...value].every((character) => {
+        const code = character.charCodeAt(0)
+        return code >= 32 && code !== 127
+      }),
+    'Display text cannot contain control characters'
+  )
 
 export const RuntimeNodeHealthStatusSchema = z.enum(['online', 'offline', 'unknown', 'revoked'])
 export const RuntimeReportedStateSchema = z.enum([
@@ -34,6 +46,7 @@ export const RuntimeHealthReportSchema = z
     runtimeConnectionId: IdentifierSchemas.runtimeConnectionId,
     reportSequence: z.number().int().positive(),
     observedAt: RuntimeTimestampSchema,
+    discoveredAt: RuntimeTimestampSchema,
     nodeStatus: RuntimeNodeHealthStatusSchema,
     runtimeState: RuntimeReportedStateSchema,
     versions: z
@@ -54,13 +67,17 @@ export const RuntimeHealthReportSchema = z
         capabilities: z.array(RuntimeCapabilitySchema).max(64).refine(uniqueCapabilities),
       })
       .strict(),
-    limitations: z.array(z.string().min(1).max(512)).max(64),
+    limitations: z.array(RuntimeDisplayLimitationSchema).max(64),
     diagnostics: z.array(RuntimeDiagnosticCodeSchema).max(64),
   })
   .strict()
   .refine(
     (report) => Date.parse(report.capabilitySnapshot.observedAt) <= Date.parse(report.observedAt),
     'Capability snapshot cannot be newer than its health report'
+  )
+  .refine(
+    (report) => Date.parse(report.discoveredAt) <= Date.parse(report.observedAt),
+    'Discovery observation cannot be newer than its health report'
   )
 
 export const RuntimeAvailabilityAssessmentSchema = z
@@ -268,7 +285,7 @@ export class RuntimeHealthIngestionService {
       runtimeConnectionId: current.runtimeConnectionId,
       expectedVersion: current.version,
       observedAt: refresh.evaluatedAt,
-      status: 'expired',
+      status: 'unavailable',
       health: 'unavailable',
       availabilityState: 'stale',
       compatibilityState: 'unavailable',
@@ -385,9 +402,9 @@ function connectionUpdate(
     lastHealthReportDigest: reportDigest,
     limitations: report.limitations,
     diagnostics: assessment.diagnostics,
+    lastDiscoveredAt: report.discoveredAt,
     lastHeartbeatAt: report.observedAt,
     lastHealthCheckAt: report.observedAt,
-    expiresAt: assessment.capabilitySnapshotExpiresAt,
   }
 }
 
@@ -397,7 +414,7 @@ function connectionStatus(
   if (state === 'healthy') return 'connected'
   if (state === 'degraded' || state === 'reconnecting') return 'degraded'
   if (state === 'offline') return 'disconnected'
-  if (state === 'stale') return 'expired'
+  if (state === 'stale') return 'unavailable'
   return 'unavailable'
 }
 
@@ -519,6 +536,8 @@ function parsePolicy(policy: RuntimeHealthIngestionPolicy): RuntimeHealthIngesti
 function eligibilityFingerprint(connection: RuntimeConnection): string {
   return JSON.stringify({
     availabilityState: connection.availabilityState ?? 'unknown',
+    status: connection.status,
+    health: connection.health,
     compatibilityState: connection.compatibilityState,
     capabilities: connection.capabilities,
     adapterVersion: connection.adapterVersion,

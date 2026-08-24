@@ -171,6 +171,12 @@ export const RuntimeConnectionSchema = z
         message: 'Revoked connections require revoked availability when health has been ingested',
       })
     }
+    if (connection.status !== 'revoked' && connection.availabilityState === 'revoked') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Revoked availability requires revoked connection status',
+      })
+    }
     const snapshotMetadata = [
       connection.capabilitySnapshotVersion,
       connection.capabilitySnapshotObservedAt,

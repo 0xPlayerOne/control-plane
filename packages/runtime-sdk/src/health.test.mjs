@@ -55,6 +55,7 @@ function report(overrides = {}) {
     runtimeConnectionId: connectionId,
     reportSequence: 2,
     observedAt: '2026-08-24T20:01:00.000Z',
+    discoveredAt: '2026-08-24T20:00:30.000Z',
     nodeStatus: 'online',
     runtimeState: 'healthy',
     versions: {
@@ -104,6 +105,7 @@ describe('runtime health ingestion', () => {
         health: 'degraded',
         availabilityState: 'degraded',
         compatibilityState: 'degraded',
+        lastDiscoveredAt: '2026-08-24T20:00:30.000Z',
       },
     })
     expect(changes.events).toHaveLength(1)
@@ -128,7 +130,10 @@ describe('runtime health ingestion', () => {
       executable: false,
       diagnostics: expect.arrayContaining(['CAPABILITY_SNAPSHOT_STALE', 'NODE_OFFLINE']),
     })
-    expect(result.connection.status).toBe('expired')
+    expect(result.connection).toMatchObject({
+      status: 'unavailable',
+      expiresAt: '2026-08-24T20:10:00.000Z',
+    })
     expect(runtimeAvailabilityIsExecutable('stale')).toBe(false)
   })
 
@@ -231,9 +236,29 @@ describe('runtime health ingestion', () => {
     expect(refreshed).toMatchObject({
       applied: true,
       assessment: { availabilityState: 'stale', executable: false },
-      connection: { availabilityState: 'stale', status: 'expired' },
+      connection: {
+        availabilityState: 'stale',
+        status: 'unavailable',
+        expiresAt: '2026-08-24T20:10:00.000Z',
+      },
     })
     expect(changes.events.map(({ currentState }) => currentState)).toEqual(['healthy', 'stale'])
+  })
+
+  test('rejects unsafe display limitations and free-form diagnostics', async () => {
+    const { service } = await createHarness()
+    await expect(
+      service.ingest(
+        report({ limitations: ['unsafe\nmultiline value'] }),
+        '2026-08-24T20:01:10.000Z'
+      )
+    ).rejects.toBeInstanceOf(Error)
+    await expect(
+      service.ingest(
+        report({ diagnostics: ['native path: /private/runtime'] }),
+        '2026-08-24T20:01:10.000Z'
+      )
+    ).rejects.toBeInstanceOf(Error)
   })
 
   test('classifies reconnecting, offline, unknown, and revoked reports explicitly', async () => {
