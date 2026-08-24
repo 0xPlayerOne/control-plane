@@ -5,6 +5,8 @@
   "apps/runtime-worker": "0.0.0",
   "apps/tool-gateway": "0.0.0",
   "apps/workflow-worker": "0.0.0",
+  "packages/bootstrap": "0.0.0",
+  "packages/config": "0.0.0",
   "packages/context": "0.0.0",
   "packages/contracts": "0.0.0",
   "packages/control-sdk": "0.0.0",

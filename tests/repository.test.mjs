@@ -214,14 +214,22 @@ test('scaffolds every package with an explicit private or publishable server-onl
   }
 })
 
-test('tracks both public packages for coordinated release automation', async () => {
+test('tracks every workspace for coordinated stable release automation', async () => {
   const config = await readJson('release-please-config.json')
   const manifest = await readJson('.release-please-manifest.json')
 
-  assert.equal(config.packages['packages/contracts']['package-name'], '@control-plane/contracts')
-  assert.equal(config.packages['packages/control-sdk']['package-name'], '@control-plane/sdk')
-  assert.match(manifest['packages/contracts'], /^\d+\.\d+\.\d+$/)
-  assert.match(manifest['packages/control-sdk'], /^\d+\.\d+\.\d+$/)
+  assert.equal(config['bump-minor-pre-major'], undefined)
+  for (const [path, packageName] of [
+    ['.', 'workspace'],
+    ...apps.map((app) => [`apps/${app}`, app]),
+    ...packages.map((packageName) => [
+      `packages/${packageName}`,
+      packageName === 'control-sdk' ? 'sdk' : packageName,
+    ]),
+  ]) {
+    assert.equal(config.packages[path]['package-name'], `@control-plane/${packageName}`)
+    assert.match(manifest[path], /^\d+\.\d+\.\d+$/)
+  }
 })
 
 test('configures strict TypeScript and dependency-boundary checks', async () => {
