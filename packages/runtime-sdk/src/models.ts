@@ -59,6 +59,7 @@ export const RuntimeNodeRefSchema = z.object({
   observedAt: RuntimeTimestampSchema,
 })
 
+export const RuntimeConnectionLocationSchema = z.enum(['local_device', 'managed_sandbox'])
 export const RuntimeConnectionTypeSchema = z.enum([
   'managed_cloud',
   'managed_local',
@@ -95,7 +96,7 @@ export const RuntimeConnectionSchema = z
     connectionType: RuntimeConnectionTypeSchema,
     runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId.optional(),
     runtimeDefinitionId: IdentifierSchemas.runtimeDefinitionId,
-    location: RuntimeLocationSchema,
+    location: RuntimeConnectionLocationSchema,
     opaqueNativeRef: RuntimeOpaqueNativeRefSchema.optional(),
     adapterVersion: RuntimeSemanticVersionSchema,
     driverVersion: RuntimeSemanticVersionSchema,

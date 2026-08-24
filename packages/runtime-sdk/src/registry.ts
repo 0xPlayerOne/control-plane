@@ -4,11 +4,11 @@ import { RuntimeCapabilitySchema, type RuntimeCapability } from './capabilities.
 import {
   RuntimeCompatibilityStateSchema,
   RuntimeConnectionIdentityDigestSchema,
+  RuntimeConnectionLocationSchema,
   RuntimeConnectionSchema,
   RuntimeConnectionStatusSchema,
   RuntimeConnectionTypeSchema,
   RuntimeHealthSchema,
-  RuntimeLocationSchema,
   RuntimeOpaqueNativeRefSchema,
   RuntimeSemanticVersionSchema,
   RuntimeTimestampSchema,
@@ -25,7 +25,7 @@ export const RuntimeConnectionRegistrationSchema = z
     connectionType: RuntimeConnectionTypeSchema,
     runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId.optional(),
     runtimeDefinitionId: IdentifierSchemas.runtimeDefinitionId,
-    location: RuntimeLocationSchema,
+    location: RuntimeConnectionLocationSchema,
     opaqueNativeRef: RuntimeOpaqueNativeRefSchema.optional(),
     adapterVersion: RuntimeSemanticVersionSchema,
     driverVersion: RuntimeSemanticVersionSchema,
@@ -177,7 +177,8 @@ export class RuntimeConnectionRegistry {
     registration: z.output<typeof RuntimeConnectionRegistrationSchema>
   ): Promise<RuntimeConnection> {
     this.#assertMutable(existing)
-    if (!sameStableIdentity(existing, registration)) fail('STABLE_IDENTITY_CONFLICT')
+    if (!runtimeConnectionsShareStableIdentity(existing, registration))
+      fail('STABLE_IDENTITY_CONFLICT')
     const discovered = Date.parse(registration.lastDiscoveredAt)
     const currentDiscovered = Date.parse(existing.lastDiscoveredAt)
     if (discovered < currentDiscovered) fail('STALE_OBSERVATION')
@@ -272,7 +273,7 @@ export class InMemoryRuntimeConnectionRepository implements RuntimeConnectionRep
     const connection = RuntimeConnectionSchema.parse(connectionInput)
     const current = this.#connections.get(connection.runtimeConnectionId)
     if (!current || current.version !== expectedVersion) return false
-    if (!sameStableIdentity(current, connection)) return false
+    if (!runtimeConnectionsShareStableIdentity(current, connection)) return false
     this.#connections.set(connection.runtimeConnectionId, clone(connection))
     return true
   }
@@ -285,7 +286,7 @@ export class InMemoryRuntimeConnectionRepository implements RuntimeConnectionRep
   }
 }
 
-function sameStableIdentity(
+export function runtimeConnectionsShareStableIdentity(
   left: RuntimeConnection,
   right: Pick<
     RuntimeConnection,

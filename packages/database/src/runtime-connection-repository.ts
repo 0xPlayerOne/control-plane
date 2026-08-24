@@ -1,5 +1,6 @@
 import {
   RuntimeConnectionSchema,
+  runtimeConnectionsShareStableIdentity,
   type RuntimeConnection,
   type RuntimeConnectionRepository,
 } from '@control-plane/runtime-sdk'
@@ -44,7 +45,13 @@ export class PostgresRuntimeConnectionRepository implements RuntimeConnectionRep
   ): Promise<boolean> {
     const connection = RuntimeConnectionSchema.parse(connectionInput)
     const current = await this.get(connection.runtimeConnectionId)
-    if (!current || !sameStableIdentity(current, connection)) return false
+    if (
+      !current ||
+      !runtimeConnectionsShareStableIdentity(current, connection) ||
+      current.createdAt !== connection.createdAt
+    ) {
+      return false
+    }
     const updated = await this.database
       .update(runtimeConnections)
       .set(toRuntimeConnectionUpdate(connection))
@@ -145,19 +152,6 @@ function toRuntimeConnectionUpdate(
     version: connection.version,
     updatedAt: new Date(connection.updatedAt),
   }
-}
-
-function sameStableIdentity(left: RuntimeConnection, right: RuntimeConnection): boolean {
-  return (
-    left.runtimeConnectionId === right.runtimeConnectionId &&
-    left.identityDigest === right.identityDigest &&
-    left.connectionType === right.connectionType &&
-    left.runtimeNodeRefId === right.runtimeNodeRefId &&
-    left.runtimeDefinitionId === right.runtimeDefinitionId &&
-    left.location === right.location &&
-    left.opaqueNativeRef === right.opaqueNativeRef &&
-    left.createdAt === right.createdAt
-  )
 }
 
 function optionalDate(value: string | undefined): Date | null {

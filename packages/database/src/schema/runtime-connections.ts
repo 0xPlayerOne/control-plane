@@ -18,7 +18,6 @@ export const runtimeConnectionType = pgEnum('runtime_connection_type', [
 ])
 export const runtimeConnectionLocation = pgEnum('runtime_connection_location', [
   'local_device',
-  'remote_host',
   'managed_sandbox',
 ])
 export const runtimeConnectionStatus = pgEnum('runtime_connection_status', [
@@ -56,7 +55,7 @@ export const runtimeConnections = pgTable(
     runtimeNodeRefId: identifier('runtime_node_ref_id'),
     runtimeDefinitionId: identifier('runtime_definition_id').notNull(),
     location: runtimeConnectionLocation('location').notNull(),
-    opaqueNativeRef: varchar('opaque_native_ref', { length: 133 }),
+    opaqueNativeRef: varchar('opaque_native_ref', { length: 31 }),
     adapterVersion: varchar('adapter_version', { length: 32 }).notNull(),
     driverVersion: varchar('driver_version', { length: 32 }).notNull(),
     harnessVersion: varchar('harness_version', { length: 32 }).notNull(),
@@ -90,7 +89,7 @@ export const runtimeConnections = pgTable(
     ),
     check(
       'runtime_connections_native_ref_check',
-      sql`${table.opaqueNativeRef} is null or ${table.opaqueNativeRef} ~ '^nref_[A-Za-z0-9_-]+$'`
+      sql`${table.opaqueNativeRef} is null or ${table.opaqueNativeRef} ~ '^nref_[0-9A-HJKMNP-TV-Z]{26}$'`
     ),
   ]
 )

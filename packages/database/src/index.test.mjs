@@ -219,6 +219,9 @@ describe('persistence schema', () => {
         'updated_at',
       ])
     )
+    expect(
+      runtimeConnection.columns.find(({ name }) => name === 'opaque_native_ref')?.getSQLType()
+    ).toBe('varchar(31)')
     expect(runtimeConnection.indexes.map(({ config }) => config.name)).toEqual(
       expect.arrayContaining([
         'runtime_connections_identity_unique',

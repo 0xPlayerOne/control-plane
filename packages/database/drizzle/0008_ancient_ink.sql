@@ -1,6 +1,6 @@
 CREATE TYPE "public"."runtime_compatibility_state" AS ENUM('compatible', 'degraded', 'untested', 'incompatible', 'deprecated', 'revoked', 'unavailable', 'capability_missing');--> statement-breakpoint
 CREATE TYPE "public"."runtime_connection_health" AS ENUM('healthy', 'degraded', 'unavailable');--> statement-breakpoint
-CREATE TYPE "public"."runtime_connection_location" AS ENUM('local_device', 'remote_host', 'managed_sandbox');--> statement-breakpoint
+CREATE TYPE "public"."runtime_connection_location" AS ENUM('local_device', 'managed_sandbox');--> statement-breakpoint
 CREATE TYPE "public"."runtime_connection_status" AS ENUM('connected', 'degraded', 'unavailable', 'disconnected', 'expired', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."runtime_connection_type" AS ENUM('managed_cloud', 'managed_local', 'external_local');--> statement-breakpoint
 CREATE TABLE "runtime_connections" (
@@ -10,7 +10,7 @@ CREATE TABLE "runtime_connections" (
 	"runtime_node_ref_id" varchar(30),
 	"runtime_definition_id" varchar(30) NOT NULL,
 	"location" "runtime_connection_location" NOT NULL,
-	"opaque_native_ref" varchar(133),
+	"opaque_native_ref" varchar(31),
 	"adapter_version" varchar(32) NOT NULL,
 	"driver_version" varchar(32) NOT NULL,
 	"harness_version" varchar(32) NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE "runtime_connections" (
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "runtime_connections_location_check" CHECK (("runtime_connections"."connection_type" = 'managed_cloud' and "runtime_connections"."location" = 'managed_sandbox' and "runtime_connections"."runtime_node_ref_id" is null) or ("runtime_connections"."connection_type" <> 'managed_cloud' and "runtime_connections"."location" = 'local_device' and "runtime_connections"."runtime_node_ref_id" is not null)),
-	CONSTRAINT "runtime_connections_native_ref_check" CHECK ("runtime_connections"."opaque_native_ref" is null or "runtime_connections"."opaque_native_ref" ~ '^nref_[A-Za-z0-9_-]+$')
+	CONSTRAINT "runtime_connections_native_ref_check" CHECK ("runtime_connections"."opaque_native_ref" is null or "runtime_connections"."opaque_native_ref" ~ '^nref_[0-9A-HJKMNP-TV-Z]{26}$')
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "runtime_connections_identity_unique" ON "runtime_connections" USING btree ("identity_digest");--> statement-breakpoint

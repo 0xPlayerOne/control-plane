@@ -486,12 +486,8 @@
           "name": "execution_attempts_execution_id_executions_execution_id_fk",
           "tableFrom": "execution_attempts",
           "tableTo": "executions",
-          "columnsFrom": [
-            "execution_id"
-          ],
-          "columnsTo": [
-            "execution_id"
-          ],
+          "columnsFrom": ["execution_id"],
+          "columnsTo": ["execution_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -779,12 +775,8 @@
           "name": "execution_events_execution_id_executions_execution_id_fk",
           "tableFrom": "execution_events",
           "tableTo": "executions",
-          "columnsFrom": [
-            "execution_id"
-          ],
-          "columnsTo": [
-            "execution_id"
-          ],
+          "columnsFrom": ["execution_id"],
+          "columnsTo": ["execution_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1055,12 +1047,8 @@
           "name": "executions_parent_execution_fk",
           "tableFrom": "executions",
           "tableTo": "executions",
-          "columnsFrom": [
-            "parent_execution_id"
-          ],
-          "columnsTo": [
-            "execution_id"
-          ],
+          "columnsFrom": ["parent_execution_id"],
+          "columnsTo": ["execution_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1328,12 +1316,8 @@
           "name": "interaction_requests_execution_id_executions_execution_id_fk",
           "tableFrom": "interaction_requests",
           "tableTo": "executions",
-          "columnsFrom": [
-            "execution_id"
-          ],
-          "columnsTo": [
-            "execution_id"
-          ],
+          "columnsFrom": ["execution_id"],
+          "columnsTo": ["execution_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1341,12 +1325,8 @@
           "name": "interaction_requests_attempt_id_execution_attempts_attempt_id_fk",
           "tableFrom": "interaction_requests",
           "tableTo": "execution_attempts",
-          "columnsFrom": [
-            "attempt_id"
-          ],
-          "columnsTo": [
-            "attempt_id"
-          ],
+          "columnsFrom": ["attempt_id"],
+          "columnsTo": ["attempt_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1669,12 +1649,8 @@
           "name": "reconciliation_checkpoints_execution_id_executions_execution_id_fk",
           "tableFrom": "reconciliation_checkpoints",
           "tableTo": "executions",
-          "columnsFrom": [
-            "execution_id"
-          ],
-          "columnsTo": [
-            "execution_id"
-          ],
+          "columnsFrom": ["execution_id"],
+          "columnsTo": ["execution_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1682,12 +1658,8 @@
           "name": "reconciliation_checkpoints_command_id_command_inbox_command_id_fk",
           "tableFrom": "reconciliation_checkpoints",
           "tableTo": "command_inbox",
-          "columnsFrom": [
-            "command_id"
-          ],
-          "columnsTo": [
-            "command_id"
-          ],
+          "columnsFrom": ["command_id"],
+          "columnsTo": ["command_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1695,12 +1667,8 @@
           "name": "reconciliation_checkpoints_attempt_id_execution_attempts_attempt_id_fk",
           "tableFrom": "reconciliation_checkpoints",
           "tableTo": "execution_attempts",
-          "columnsFrom": [
-            "attempt_id"
-          ],
-          "columnsTo": [
-            "attempt_id"
-          ],
+          "columnsFrom": ["attempt_id"],
+          "columnsTo": ["attempt_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1755,7 +1723,7 @@
         },
         "opaque_native_ref": {
           "name": "opaque_native_ref",
-          "type": "varchar(133)",
+          "type": "varchar(31)",
           "primaryKey": false,
           "notNull": false
         },
@@ -1932,7 +1900,7 @@
         },
         "runtime_connections_native_ref_check": {
           "name": "runtime_connections_native_ref_check",
-          "value": "\"runtime_connections\".\"opaque_native_ref\" is null or \"runtime_connections\".\"opaque_native_ref\" ~ '^nref_[A-Za-z0-9_-]+$'"
+          "value": "\"runtime_connections\".\"opaque_native_ref\" is null or \"runtime_connections\".\"opaque_native_ref\" ~ '^nref_[0-9A-HJKMNP-TV-Z]{26}$'"
         }
       },
       "isRLSEnabled": false
@@ -1942,23 +1910,12 @@
     "public.command_inbox_status": {
       "name": "command_inbox_status",
       "schema": "public",
-      "values": [
-        "accepted",
-        "processing",
-        "completed",
-        "failed",
-        "reconciliation_required"
-      ]
+      "values": ["accepted", "processing", "completed", "failed", "reconciliation_required"]
     },
     "public.event_publication_status": {
       "name": "event_publication_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "published",
-        "failed",
-        "quarantined"
-      ]
+      "values": ["pending", "published", "failed", "quarantined"]
     },
     "public.execution_attempt_state": {
       "name": "execution_attempt_state",
@@ -2010,32 +1967,17 @@
     "public.interaction_kind": {
       "name": "interaction_kind",
       "schema": "public",
-      "values": [
-        "approval",
-        "input",
-        "permission",
-        "resume",
-        "cancel"
-      ]
+      "values": ["approval", "input", "permission", "resume", "cancel"]
     },
     "public.interaction_state": {
       "name": "interaction_state",
       "schema": "public",
-      "values": [
-        "pending",
-        "responded",
-        "expired",
-        "cancelled"
-      ]
+      "values": ["pending", "responded", "expired", "cancelled"]
     },
     "public.outbox_status": {
       "name": "outbox_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "published",
-        "failed"
-      ]
+      "values": ["pending", "published", "failed"]
     },
     "public.reconciliation_action": {
       "name": "reconciliation_action",
@@ -2052,13 +1994,7 @@
     "public.reconciliation_checkpoint_state": {
       "name": "reconciliation_checkpoint_state",
       "schema": "public",
-      "values": [
-        "reconciling",
-        "waiting",
-        "remediated",
-        "manual_intervention",
-        "resolved"
-      ]
+      "values": ["reconciling", "waiting", "remediated", "manual_intervention", "resolved"]
     },
     "public.reconciliation_reason": {
       "name": "reconciliation_reason",
@@ -2091,41 +2027,22 @@
     "public.runtime_connection_health": {
       "name": "runtime_connection_health",
       "schema": "public",
-      "values": [
-        "healthy",
-        "degraded",
-        "unavailable"
-      ]
+      "values": ["healthy", "degraded", "unavailable"]
     },
     "public.runtime_connection_location": {
       "name": "runtime_connection_location",
       "schema": "public",
-      "values": [
-        "local_device",
-        "remote_host",
-        "managed_sandbox"
-      ]
+      "values": ["local_device", "managed_sandbox"]
     },
     "public.runtime_connection_status": {
       "name": "runtime_connection_status",
       "schema": "public",
-      "values": [
-        "connected",
-        "degraded",
-        "unavailable",
-        "disconnected",
-        "expired",
-        "revoked"
-      ]
+      "values": ["connected", "degraded", "unavailable", "disconnected", "expired", "revoked"]
     },
     "public.runtime_connection_type": {
       "name": "runtime_connection_type",
       "schema": "public",
-      "values": [
-        "managed_cloud",
-        "managed_local",
-        "external_local"
-      ]
+      "values": ["managed_cloud", "managed_local", "external_local"]
     }
   },
   "schemas": {},
