@@ -9,7 +9,7 @@ afterEach(async () => {
 })
 
 describe('deterministic Control Plane stub', () => {
-  test('supports representative Agent HQ flows before real execution exists', async () => {
+  test('supports representative Agent HQ contract flows', async () => {
     const stub = await createControlPlaneStub()
     stubs.push(stub)
     const client = new ControlPlaneClient({
@@ -35,6 +35,9 @@ describe('deterministic Control Plane stub', () => {
     expect(
       await client.validateExecutionRequest(ControlApiFixtures.executionValidation.request)
     ).toEqual(ControlApiFixtures.executionValidation.response)
+    expect(await client.acceptExecution(ControlApiFixtures.executionAcceptance.request)).toEqual(
+      ControlApiFixtures.executionAcceptance.response
+    )
 
     expect(stub.requests.map((request) => request.operation)).toEqual([
       'authentication.verify',
@@ -43,6 +46,7 @@ describe('deterministic Control Plane stub', () => {
       'context-package.resolve',
       'runtime.list',
       'execution.validate',
+      'execution.accept',
     ])
     expect(JSON.stringify(stub.requests)).not.toContain('stub-agent-hq-token')
   })

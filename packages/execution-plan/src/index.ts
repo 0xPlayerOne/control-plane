@@ -277,6 +277,28 @@ export class InMemoryExecutionPlanRepository implements ExecutionPlanRepository 
   }
 }
 
+export class ExecutionPlanAcceptanceValidator {
+  constructor(readonly repository: ExecutionPlanRepository) {}
+
+  async validate(input: {
+    readonly executionPlan: ExecutionPlanReference & { readonly schemaVersion: number }
+    readonly workspaceId: string
+    readonly projectId: string
+    readonly taskId: string
+    readonly agentId: string
+  }): Promise<boolean> {
+    const plan = await this.repository.get(input.executionPlan)
+    return (
+      plan !== undefined &&
+      plan.schemaVersion === input.executionPlan.schemaVersion &&
+      plan.correlation.workspaceId === input.workspaceId &&
+      plan.correlation.projectId === input.projectId &&
+      plan.correlation.taskId === input.taskId &&
+      plan.correlation.agentId === input.agentId
+    )
+  }
+}
+
 function parseCompilationInput(input: unknown): z.output<typeof CompilationInputSchema> {
   const result = CompilationInputSchema.safeParse(input)
   if (!result.success) fail('INVALID_INPUT')

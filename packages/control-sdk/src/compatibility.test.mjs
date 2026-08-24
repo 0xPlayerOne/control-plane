@@ -18,6 +18,7 @@ describe('Control API generated contract', () => {
     expect(Object.keys(generated.paths).sort()).toEqual([
       '/v1/authentication/verify',
       '/v1/context-packages/resolve',
+      '/v1/executions/accept',
       '/v1/executions/validate',
       '/v1/profiles/resolve',
       '/v1/project-states/resolve',

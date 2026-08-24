@@ -12,6 +12,11 @@ const IdempotencyKeySchema = z
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/)
 const PayloadHashSchema = z.string().regex(/^[a-f0-9]{64}$/)
+const ExternalReferenceSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .regex(/^[a-z][a-z0-9+.-]*:\/\/\S+$/)
 const CapabilityNameSchema = z
   .string()
   .min(1)
@@ -197,6 +202,36 @@ export const ExecutionRequestValidationResponseSchema = successResponse(
   })
 )
 
+export const ExecutionAcceptanceRequestSchema = CommandContextSchema.extend({
+  projectId: IdentifierSchemas.projectId,
+  operation: z.literal('execution.accept'),
+  issuedAt: TimestampSchema,
+  payload: z.object({
+    taskId: IdentifierSchemas.taskId,
+    agentId: IdentifierSchemas.agentId,
+    executionPlan: ExecutionPlanPublicReferenceSchema.extend({
+      schemaVersion: z.number().int().positive(),
+    }),
+    parentExecutionId: IdentifierSchemas.executionId.optional(),
+    deadlineAt: TimestampSchema.optional(),
+    retentionExpiresAt: TimestampSchema,
+  }),
+})
+
+export const ExecutionAcceptanceResponseSchema = successResponse(
+  z.object({
+    commandId: IdentifierSchemas.commandId,
+    executionId: IdentifierSchemas.executionId,
+    executionPlan: ExecutionPlanPublicReferenceSchema.extend({
+      schemaVersion: z.number().int().positive(),
+    }),
+    status: z.enum(['accepted', 'processing', 'completed', 'failed', 'reconciliation_required']),
+    replayed: z.boolean(),
+    resultReference: IdentifierSchemas.artifactId.optional(),
+    errorReference: ExternalReferenceSchema.optional(),
+  })
+)
+
 export type ServiceAuthenticationRequest = z.input<typeof ServiceAuthenticationRequestSchema>
 export type ServiceAuthenticationResponse = z.output<typeof ServiceAuthenticationResponseSchema>
 export type ProfileResolutionRequest = z.input<typeof ProfileResolutionRequestSchema>
@@ -215,6 +250,8 @@ export type ExecutionRequestValidationRequest = z.input<
 export type ExecutionRequestValidationResponse = z.output<
   typeof ExecutionRequestValidationResponseSchema
 >
+export type ExecutionAcceptanceRequest = z.input<typeof ExecutionAcceptanceRequestSchema>
+export type ExecutionAcceptanceResponse = z.output<typeof ExecutionAcceptanceResponseSchema>
 
 const contractVersion = { major: 1, minor: 0 } as const
 const requestId = 'req_01JABCDEF0123456789ABCDEFG'
@@ -267,6 +304,10 @@ export interface ControlApiFixtureSet {
     readonly request: ExecutionRequestValidationRequest
     readonly response: z.input<typeof ExecutionRequestValidationResponseSchema>
   }
+  readonly executionAcceptance: {
+    readonly request: ExecutionAcceptanceRequest
+    readonly response: z.input<typeof ExecutionAcceptanceResponseSchema>
+  }
 }
 
 export const ControlApiFixtures: ControlApiFixtureSet = Object.freeze({
@@ -283,7 +324,7 @@ export const ControlApiFixtures: ControlApiFixtureSet = Object.freeze({
         principal: {
           kind: 'agent_hq_service',
           principalId: 'svc_agent-hq',
-          scopes: ['profile:resolve', 'runtime:read', 'execution:validate'],
+          scopes: ['profile:resolve', 'runtime:read', 'execution:validate', 'execution:accept'],
           workspaceIds: [workspaceId],
           projectIds: [projectId],
         },
@@ -391,6 +432,41 @@ export const ControlApiFixtures: ControlApiFixtureSet = Object.freeze({
           executionPlanId: 'pln_01JABCDEF0123456789ABCDEFG',
           contentDigest: `sha256:${'e'.repeat(64)}`,
         },
+      },
+    },
+  },
+  executionAcceptance: {
+    request: {
+      ...requestContext,
+      commandId,
+      idempotencyKey: 'intent-01JABCDEF0123456789ABCDEFG',
+      payloadHash: 'f'.repeat(64),
+      operation: 'execution.accept',
+      issuedAt: '2026-08-23T12:00:00.000Z',
+      payload: {
+        taskId: 'tsk_01JABCDEF0123456789ABCDEFG',
+        agentId: 'agt_01JABCDEF0123456789ABCDEFG',
+        executionPlan: {
+          executionPlanId: 'pln_01JABCDEF0123456789ABCDEFG',
+          contentDigest: `sha256:${'e'.repeat(64)}`,
+          schemaVersion: 1,
+        },
+        deadlineAt: '2026-08-23T13:00:00.000Z',
+        retentionExpiresAt: '2026-09-22T12:00:00.000Z',
+      },
+    },
+    response: {
+      ...responseContext,
+      data: {
+        commandId,
+        executionId: 'exe_01JABCDEF0123456789ABCDEFG',
+        executionPlan: {
+          executionPlanId: 'pln_01JABCDEF0123456789ABCDEFG',
+          contentDigest: `sha256:${'e'.repeat(64)}`,
+          schemaVersion: 1,
+        },
+        status: 'accepted',
+        replayed: false,
       },
     },
   },

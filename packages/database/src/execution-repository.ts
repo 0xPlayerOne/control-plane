@@ -128,7 +128,7 @@ class AttemptInsertConflict extends Error {}
 type ExecutionRow = typeof executions.$inferSelect
 type AttemptRow = typeof executionAttempts.$inferSelect
 
-function toExecutionRow(execution: Execution): typeof executions.$inferInsert {
+export function toExecutionRow(execution: Execution): typeof executions.$inferInsert {
   return {
     executionId: execution.executionId,
     state: execution.state,
@@ -164,7 +164,7 @@ function toExecutionUpdate(execution: Execution): Partial<typeof executions.$inf
   }
 }
 
-function fromExecutionRow(row: ExecutionRow): Execution {
+export function fromExecutionRow(row: ExecutionRow): Execution {
   return ExecutionSchema.parse({
     executionId: row.executionId,
     state: row.state,

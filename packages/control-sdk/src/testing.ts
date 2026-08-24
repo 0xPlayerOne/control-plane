@@ -20,6 +20,7 @@ const fixtureByPath = new Map<string, unknown>([
     ControlApiFixtures.contextPackageResolution.response,
   ],
   [ControlApiOperations.listRuntimes.path, ControlApiFixtures.runtimeList.response],
+  [ControlApiOperations.acceptExecution.path, ControlApiFixtures.executionAcceptance.response],
   [
     ControlApiOperations.validateExecutionRequest.path,
     ControlApiFixtures.executionValidation.response,

@@ -3,6 +3,7 @@ import { contextPackageSerializationFixtures, deriveContextPackage } from '@cont
 import { executionConstraintFixtures } from '@control-plane/domain'
 import {
   ExecutionPlanCompiler,
+  ExecutionPlanAcceptanceValidator,
   ExecutionPlanError,
   InMemoryExecutionPlanRepository,
   deriveExecutionPlan,
@@ -157,6 +158,38 @@ describe('immutable ExecutionPlan compilation', () => {
     await expect(
       repository.put({ ...plan, compiledAt: '2026-08-23T13:00:00.000Z' })
     ).rejects.toThrow('EXECUTION_PLAN_INTEGRITY_ERROR')
+  })
+
+  test('validates persisted plan digest, schema version, and execution scope before acceptance', async () => {
+    const plan = compile(baseInput())
+    const repository = new InMemoryExecutionPlanRepository()
+    await repository.put(plan)
+    const validator = new ExecutionPlanAcceptanceValidator(repository)
+    const input = {
+      executionPlan: {
+        executionPlanId: plan.executionPlanId,
+        contentDigest: plan.contentDigest,
+        schemaVersion: plan.schemaVersion,
+      },
+      workspaceId: plan.correlation.workspaceId,
+      projectId: plan.correlation.projectId,
+      taskId: plan.correlation.taskId,
+      agentId: plan.correlation.agentId,
+    }
+
+    expect(await validator.validate(input)).toBe(true)
+    expect(
+      await validator.validate({
+        ...input,
+        executionPlan: { ...input.executionPlan, schemaVersion: 2 },
+      })
+    ).toBe(false)
+    expect(
+      await validator.validate({
+        ...input,
+        projectId: 'prj_01JZBCDEF0123456789ABCDEFG',
+      })
+    ).toBe(false)
   })
 
   test('allows child derivation to narrow authority and rejects every expansion dimension', () => {

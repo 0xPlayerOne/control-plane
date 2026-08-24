@@ -48,6 +48,19 @@ The foundation migration creates inbox and outbox tables for atomic domain mutat
 publication. `withDomainTransaction` uses a serializable, read-write transaction so domain records,
 inbox acknowledgements, and outbox events can commit or roll back together.
 
+## CommandInbox retention and replay
+
+`command_inbox` deduplicates state-changing requests by service principal, operation, workspace,
+project, and idempotency key. The first accepted record and its logical execution commit in one
+transaction. Identical retries return the stored execution and current accepted, processing,
+terminal, or reconciliation-required status. Reusing the key with another canonical payload hash
+fails closed and increments durable conflict audit metadata; raw command payloads are not retained.
+
+Every record has an explicit `retention_expires_at`. It must extend beyond the upstream outbox retry
+and reconciliation window. Retries after that deadline fail closed rather than creating another
+logical execution. Operators may purge expired records only after the upstream replay window has
+also expired; an idempotency key must not be reused while either side can still replay it.
+
 ## Migration workflow
 
 Generate and review migrations from the database package:

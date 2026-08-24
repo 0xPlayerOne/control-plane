@@ -1,3 +1,4 @@
+export { commandInbox, commandInboxStatus } from './commands.js'
 export {
   idColumn,
   jsonColumn,

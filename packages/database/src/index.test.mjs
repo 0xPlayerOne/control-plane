@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
+  commandInbox,
   createPostgresConnection,
   DatabaseConnectionError,
   executionAttempts,
@@ -23,10 +24,12 @@ describe('persistence schema', () => {
     })
 
     const inbox = getTableConfig(inboxMessages)
+    const command = getTableConfig(commandInbox)
     const outbox = getTableConfig(outboxEvents)
     const execution = getTableConfig(executions)
     const attempt = getTableConfig(executionAttempts)
     expect(inbox.name).toBe('inbox_messages')
+    expect(command.name).toBe('command_inbox')
     expect(outbox.name).toBe('outbox_events')
     expect(execution.name).toBe('executions')
     expect(attempt.name).toBe('execution_attempts')
@@ -42,6 +45,30 @@ describe('persistence schema', () => {
     )
     expect(outbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining(['id', 'payload', 'status', 'revision', 'created_at', 'updated_at'])
+    )
+    expect(command.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'command_id',
+        'caller_principal_id',
+        'operation',
+        'idempotency_key',
+        'payload_hash',
+        'workspace_id',
+        'project_id',
+        'task_id',
+        'request_id',
+        'status',
+        'execution_id',
+        'retention_expires_at',
+        'conflict_count',
+      ])
+    )
+    expect(command.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'command_inbox_scope_idempotency_unique',
+        'command_inbox_status_retention_index',
+        'command_inbox_execution_index',
+      ])
     )
     expect(execution.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([

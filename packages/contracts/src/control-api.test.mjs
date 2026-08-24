@@ -4,6 +4,8 @@ import { URL } from 'node:url'
 import {
   ContextPackagePublicReferenceSchema,
   ControlApiFixtures,
+  ExecutionAcceptanceRequestSchema,
+  ExecutionAcceptanceResponseSchema,
   ExecutionRequestValidationRequestSchema,
   ExecutionRequestValidationResponseSchema,
   ProfileResolutionRequestSchema,
@@ -128,6 +130,36 @@ describe('Agent HQ Control API contracts', () => {
         },
       })
     ).toEqual(ControlApiFixtures.executionValidation.response)
+  })
+
+  test('accepts execution commands with durable replay and lifecycle responses', () => {
+    expect(
+      ExecutionAcceptanceRequestSchema.parse(ControlApiFixtures.executionAcceptance.request)
+    ).toEqual(ControlApiFixtures.executionAcceptance.request)
+    expect(
+      ExecutionAcceptanceResponseSchema.parse(ControlApiFixtures.executionAcceptance.response)
+    ).toEqual(ControlApiFixtures.executionAcceptance.response)
+
+    for (const status of [
+      'accepted',
+      'processing',
+      'completed',
+      'failed',
+      'reconciliation_required',
+    ]) {
+      expect(
+        ExecutionAcceptanceResponseSchema.safeParse({
+          ...ControlApiFixtures.executionAcceptance.response,
+          data: { ...ControlApiFixtures.executionAcceptance.response.data, status },
+        }).success
+      ).toBe(true)
+    }
+    expect(
+      ExecutionAcceptanceRequestSchema.safeParse({
+        ...ControlApiFixtures.executionAcceptance.request,
+        projectId: undefined,
+      }).success
+    ).toBe(false)
   })
 
   test('accepts additive fields without exposing them and rejects ambient scopes', () => {

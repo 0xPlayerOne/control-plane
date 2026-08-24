@@ -6,6 +6,8 @@ import {
   type ContextPackageResolutionRequest,
   type ContextPackageResolutionResponse,
   type ErrorClass,
+  type ExecutionAcceptanceRequest,
+  type ExecutionAcceptanceResponse,
   type ExecutionRequestValidationRequest,
   type ExecutionRequestValidationResponse,
   type ProfileResolutionRequest,
@@ -124,6 +126,10 @@ export class ControlPlaneClient {
     input: ExecutionRequestValidationRequest
   ): Promise<ExecutionRequestValidationResponse> {
     return this.#request(ControlApiOperations.validateExecutionRequest, input)
+  }
+
+  acceptExecution(input: ExecutionAcceptanceRequest): Promise<ExecutionAcceptanceResponse> {
+    return this.#request(ControlApiOperations.acceptExecution, input)
   }
 
   async #request<RequestInput, RequestOutput, ResponseOutput>(

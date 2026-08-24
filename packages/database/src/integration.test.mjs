@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
-import { ExecutionLifecycleService } from '@control-plane/domain'
+import { CommandInboxService, ExecutionLifecycleService } from '@control-plane/domain'
+import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
-import { inboxMessages, outboxEvents } from './schema/index.ts'
+import { commandInbox, executions, inboxMessages, outboxEvents } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
 
 const integrationEnabled = process.env.RUN_DATABASE_INTEGRATION === 'true'
@@ -107,6 +108,70 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     ])
     expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
     expect(outcomes.filter(({ status }) => status === 'rejected')).toHaveLength(1)
+  })
+
+  test('atomically accepts one execution for concurrent duplicate commands and audits conflicts', async () => {
+    const repository = new PostgresCommandAcceptanceRepository(isolated.application)
+    const service = new CommandInboxService({
+      repository,
+      executionIdFactory: () => 'exe_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+      executionPlanValidator: { validate: async () => true },
+      now: () => '2026-08-24T11:00:00.000Z',
+    })
+    const input = {
+      callerPrincipalId: 'svc_agent-hq',
+      operation: 'execution.accept',
+      commandId: 'cmd_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+      requestId: 'req_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+      idempotencyKey: 'integration-task-1',
+      payloadHash: 'c'.repeat(64),
+      correlation: {
+        workspaceId: 'wsp_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+        projectId: 'prj_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+        taskId: 'tsk_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+        agentId: 'agt_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+        contentDigest: `sha256:${'d'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      receivedAt: '2026-08-24T11:00:00.000Z',
+      retentionExpiresAt: '2026-09-23T11:00:00.000Z',
+    }
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => service.acceptExecution(input))
+    )
+
+    expect(results.filter(({ replayed }) => !replayed)).toHaveLength(1)
+    expect(new Set(results.map(({ execution }) => execution.executionId))).toEqual(
+      new Set(['exe_01BRZ3NDEKTSV4RRFFQ69G5FAV'])
+    )
+    expect(
+      await isolated.application
+        .select()
+        .from(executions)
+        .where(eq(executions.taskId, input.correlation.taskId))
+    ).toHaveLength(1)
+
+    await expect(
+      service.acceptExecution({ ...input, payloadHash: 'e'.repeat(64) })
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_CONFLICT' })
+    const [record] = await isolated.application
+      .select()
+      .from(commandInbox)
+      .where(eq(commandInbox.commandId, input.commandId))
+    expect(record).toMatchObject({ conflictCount: 1, payloadHash: input.payloadHash })
+
+    const processing = await service.transitionCommand({
+      ...input,
+      expectedVersion: record.version,
+      to: 'processing',
+      transitionedAt: '2026-08-24T11:01:00.000Z',
+    })
+    expect(processing).toMatchObject({ status: 'processing', version: record.version + 1 })
+    expect((await service.acceptExecution(input)).command).toEqual(processing)
   })
 
   test('commits inbox and outbox writes atomically and rolls them back together', async () => {
