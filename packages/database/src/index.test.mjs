@@ -102,10 +102,17 @@ describe('persistence schema', () => {
       expect.arrayContaining([
         'event_id',
         'execution_id',
+        'workspace_id',
+        'project_id',
+        'task_id',
+        'agent_id',
         'sequence',
         'event_type',
         'payload',
+        'payload_hash',
         'publication_status',
+        'next_attempt_at',
+        'quarantined_at',
       ])
     )
     expect(event.indexes.map(({ config }) => config.name)).toEqual(

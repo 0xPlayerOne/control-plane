@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   ExecutionEventError,
   ExecutionEventService,
+  hashExecutionEventPayload,
   InMemoryExecutionEventRepository,
 } from './index.ts'
 
@@ -12,6 +13,10 @@ const base = (eventId, type = 'execution.progressed') => ({
   type,
   schemaVersion: 1,
   correlation: {
+    workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    taskId: 'tsk_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     requestId: 'req_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     traceId: 'trc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -28,6 +33,12 @@ function setup() {
 }
 
 describe('ExecutionEvent log', () => {
+  test('hashes equivalent normalized payloads independently of object key order', () => {
+    expect(hashExecutionEventPayload({ b: 2, a: { d: 4, c: 3 } })).toBe(
+      hashExecutionEventPayload({ a: { c: 3, d: 4 }, b: 2 })
+    )
+  })
+
   test('appends immutable normalized events in deterministic per-execution order', async () => {
     const { repository, service } = setup()
     const inputs = Array.from({ length: 8 }, (_, index) =>
@@ -41,6 +52,7 @@ describe('ExecutionEvent log', () => {
     ])
     expect(replay.map(({ sequence }) => sequence)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
     expect(await repository.queryAfter(executionId, 5, 2)).toEqual(replay.slice(5, 7))
+    expect(events.every(({ payloadHash }) => /^[a-f0-9]{64}$/.test(payloadHash))).toBe(true)
   })
 
   test('redacts secret-bearing payload fields and text before persistence', async () => {

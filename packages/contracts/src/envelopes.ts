@@ -113,6 +113,34 @@ export const EventEnvelopeSchema = z.object({
 
 export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>
 
+export const AgentHqExecutionEventEnvelopeSchema = z.object({
+  contractVersion: ContractVersionSchema,
+  eventId: IdentifierSchemas.eventId,
+  eventType: z
+    .string()
+    .regex(/^(?:execution|attempt|interaction|usage|artifact|reconciliation)\.[a-z][a-z0-9_-]*$/),
+  executionId: IdentifierSchemas.executionId,
+  attemptId: IdentifierSchemas.attemptId.optional(),
+  workflowId: IdentifierSchemas.workflowId.optional(),
+  workspaceId: IdentifierSchemas.workspaceId,
+  projectId: IdentifierSchemas.projectId,
+  taskId: IdentifierSchemas.taskId,
+  agentId: IdentifierSchemas.agentId,
+  sequence: z.number().int().positive(),
+  schemaVersion: z.number().int().positive(),
+  payloadHash: Sha256Schema,
+  occurredAt: TimestampSchema,
+  recordedAt: TimestampSchema,
+  correlation: z.object({
+    requestId: IdentifierSchemas.requestId,
+    commandId: IdentifierSchemas.commandId.optional(),
+    traceId: IdentifierSchemas.traceId,
+  }),
+  data: z.record(z.string(), z.json()),
+})
+
+export type AgentHqExecutionEventEnvelope = z.infer<typeof AgentHqExecutionEventEnvelopeSchema>
+
 export const UsageEnvelopeSchema = z.object({
   contractVersion: ContractVersionSchema,
   requestId: IdentifierSchemas.requestId,
