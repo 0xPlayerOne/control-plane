@@ -9,6 +9,7 @@ import type { RawEnvironment } from '@control-plane/config'
 import type { NestFastifyApplication } from '@nestjs/platform-fastify'
 import { createControlApiApplication } from './application.js'
 import type { ServiceAuthenticator } from './auth/service-authentication.js'
+import type { RuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.js'
 
 export const serviceName = 'control-api'
 
@@ -18,6 +19,7 @@ export interface ControlApiStartOptions {
   readonly listen?: boolean
   readonly logger?: StructuredLogger
   readonly processAdapter?: ProcessAdapter
+  readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
   readonly serviceAuthenticator?: ServiceAuthenticator
 }
 
@@ -41,6 +43,9 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         logger,
         metadata,
         readiness,
+        ...(options.runtimeDiscoveryRepository === undefined
+          ? {}
+          : { runtimeDiscoveryRepository: options.runtimeDiscoveryRepository }),
         ...(options.serviceAuthenticator === undefined
           ? {}
           : { serviceAuthenticator: options.serviceAuthenticator }),

@@ -506,6 +506,40 @@ describe('Control API', () => {
     expect(processAdapter.exitCode).toBe(0)
     expect(started.runtime.readiness().status).toBe('not_ready')
   })
+
+  test('wires runtime discovery through the production start boundary', async () => {
+    const processAdapter = new FakeProcessAdapter()
+    const started = await start({
+      environment: {
+        APP_ENV: 'test',
+        COMMIT_SHA: 'abc123',
+        CONTROL_API_PORT: '3000',
+        INSTANCE_ID: 'control-api-test',
+        SERVICE_VERSION: '1.4.0',
+      },
+      listen: false,
+      logger: { write: () => undefined },
+      processAdapter,
+      runtimeDiscoveryRepository: discoveryRepository(),
+      serviceAuthenticator: policyAuthenticator({ claims: validServiceClaims() }),
+    })
+
+    const response = await started.application.inject({
+      method: 'POST',
+      url: '/v1/runtime-connections/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('runtime-connection.list', {
+        limit: 50,
+        states: [],
+        requiredCapabilities: [],
+      }),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().data.runtimeConnections).toHaveLength(1)
+
+    await processAdapter.emit('SIGTERM')
+  })
 })
 
 function validServiceClaims() {
