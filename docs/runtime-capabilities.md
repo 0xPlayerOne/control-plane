@@ -62,6 +62,20 @@ deterministic and sorted:
 - missing or degraded optional capabilities produce degraded eligibility with explicit reasons;
 - all satisfied requirements produce full eligibility.
 
+## Runtime eligibility
+
+The versioned eligibility evaluator applies an immutable ExecutionPlan's runtime requirements to one
+normalized candidate before routing. It fails closed on node and connection availability, capability
+freshness and verification, runtime compatibility, workspace family/location/connection policy,
+security authorization, LocalProjectGrant state, and entitlement. A runtime preference is accepted as
+context only; it cannot remove an ineligibility reason or bypass policy.
+
+Every decision is full, degraded, or ineligible and contains sorted machine-readable reasons. Missing
+or insufficient required capabilities are ineligible, while missing or degraded optional capabilities
+remain explicit degradations. The audit envelope records the evaluator version, plan, runtime
+connection, policy snapshot, evaluation time, and a canonical input digest. Managed-cloud candidates
+use `not_applicable` node status so cloud eligibility does not invent Agent HQ device health.
+
 ## Runtime adapter contract
 
 `RuntimeAdapter` is the stable port used by execution code for inspection, capability evaluation,
