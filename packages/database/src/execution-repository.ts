@@ -151,7 +151,7 @@ export function toExecutionRow(execution: Execution): typeof executions.$inferIn
   }
 }
 
-function toExecutionUpdate(execution: Execution): Partial<typeof executions.$inferInsert> {
+export function toExecutionUpdate(execution: Execution): Partial<typeof executions.$inferInsert> {
   return {
     state: execution.state,
     version: execution.version,

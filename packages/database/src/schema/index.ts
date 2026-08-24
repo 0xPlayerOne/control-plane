@@ -7,6 +7,7 @@ export {
   softDeleteColumns,
   timestampColumns,
 } from './conventions.js'
+export { eventPublicationStatus, executionEvents } from './events.js'
 export {
   executionAttempts,
   executionAttemptState,

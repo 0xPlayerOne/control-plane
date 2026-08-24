@@ -117,6 +117,7 @@
       "dependencies": {
         "@control-plane/config": "workspace:*",
         "@control-plane/domain": "workspace:*",
+        "@control-plane/events": "workspace:*",
         "drizzle-orm": "0.45.2",
         "postgres": "3.4.9",
       },
@@ -135,6 +136,11 @@
     "packages/events": {
       "name": "@control-plane/events",
       "version": "1.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "@control-plane/telemetry": "workspace:*",
+        "zod": "4.4.3",
+      },
     },
     "packages/execution-plan": {
       "name": "@control-plane/execution-plan",

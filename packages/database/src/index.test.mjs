@@ -5,6 +5,7 @@ import {
   createPostgresConnection,
   DatabaseConnectionError,
   executionAttempts,
+  executionEvents,
   executions,
   inboxMessages,
   outboxEvents,
@@ -27,6 +28,7 @@ describe('persistence schema', () => {
     const command = getTableConfig(commandInbox)
     const outbox = getTableConfig(outboxEvents)
     const execution = getTableConfig(executions)
+    const event = getTableConfig(executionEvents)
     const attempt = getTableConfig(executionAttempts)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
@@ -91,6 +93,23 @@ describe('persistence schema', () => {
         'executions_scope_index',
         'executions_state_deadline_index',
         'executions_parent_index',
+      ])
+    )
+    expect(event.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'event_id',
+        'execution_id',
+        'sequence',
+        'event_type',
+        'payload',
+        'publication_status',
+      ])
+    )
+    expect(event.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'execution_events_execution_sequence_unique',
+        'execution_events_replay_index',
+        'execution_events_publication_index',
       ])
     )
     expect(attempt.columns.map(({ name }) => name)).toEqual(

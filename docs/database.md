@@ -61,6 +61,18 @@ and reconciliation window. Retries after that deadline fail closed rather than c
 logical execution. Operators may purge expired records only after the upstream replay window has
 also expired; an idempotency key must not be reused while either side can still replay it.
 
+## ExecutionEvent log and outbox
+
+`execution_events` is the authoritative append-only execution event log and publication outbox. Events
+receive a unique per-execution sequence under a transaction-scoped lock, replay in sequence order,
+and retain the same event ID across delivery retries. Required execution transitions and their events
+commit in one transaction; a failed event insert rolls the state mutation back.
+
+Payloads are normalized, redacted before persistence, and limited to 16 KiB. Raw harness, prompt,
+model, tool, credential, and file payloads are prohibited. Publication attempts update delivery
+metadata without creating another semantic event. Events remain replayable until their explicit
+retention deadline and are hidden from ordinary replay only after archival.
+
 ## Migration workflow
 
 Generate and review migrations from the database package:
