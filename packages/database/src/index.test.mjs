@@ -12,6 +12,7 @@ import {
   outboxEvents,
   persistenceConventions,
   reconciliationCheckpoints,
+  runtimeConnections,
   withDomainTransaction,
 } from './index.ts'
 
@@ -34,6 +35,7 @@ describe('persistence schema', () => {
     const attempt = getTableConfig(executionAttempts)
     const interaction = getTableConfig(interactionRequests)
     const reconciliation = getTableConfig(reconciliationCheckpoints)
+    const runtimeConnection = getTableConfig(runtimeConnections)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
     expect(outbox.name).toBe('outbox_events')
@@ -41,6 +43,7 @@ describe('persistence schema', () => {
     expect(attempt.name).toBe('execution_attempts')
     expect(interaction.name).toBe('interaction_requests')
     expect(reconciliation.name).toBe('reconciliation_checkpoints')
+    expect(runtimeConnection.name).toBe('runtime_connections')
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',
@@ -188,6 +191,40 @@ describe('persistence schema', () => {
         'reconciliation_checkpoints_execution_index',
         'reconciliation_checkpoints_command_index',
         'reconciliation_checkpoints_state_index',
+      ])
+    )
+    expect(runtimeConnection.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'runtime_connection_id',
+        'identity_digest',
+        'connection_type',
+        'runtime_node_ref_id',
+        'runtime_definition_id',
+        'location',
+        'opaque_native_ref',
+        'adapter_version',
+        'driver_version',
+        'harness_version',
+        'status',
+        'health',
+        'capabilities',
+        'compatibility_state',
+        'limitations',
+        'last_discovered_at',
+        'last_heartbeat_at',
+        'last_health_check_at',
+        'expires_at',
+        'version',
+        'created_at',
+        'updated_at',
+      ])
+    )
+    expect(runtimeConnection.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'runtime_connections_identity_unique',
+        'runtime_connections_node_index',
+        'runtime_connections_status_freshness_index',
+        'runtime_connections_definition_index',
       ])
     )
   })

@@ -57,6 +57,13 @@
       "when": 1787557426877,
       "tag": "0007_peaceful_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787588616926,
+      "tag": "0008_ancient_ink",
+      "breakpoints": true
     }
   ]
 }

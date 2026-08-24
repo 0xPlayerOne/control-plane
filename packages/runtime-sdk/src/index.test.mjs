@@ -101,7 +101,7 @@ describe('runtime capability vocabulary', () => {
       runtimeNodeRefId: node.runtimeNodeRefId,
       runtimeDefinitionId: RuntimeFixtures.mock.runtimeDefinitionId,
       location: 'local_device',
-      opaqueNativeRef: 'nref_mock-runtime',
+      opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFG',
       adapterVersion: '1.0.0',
       driverVersion: '1.0.0',
       harnessVersion: '1.0.0',

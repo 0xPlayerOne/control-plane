@@ -85,9 +85,8 @@ export const RuntimeCompatibilityStateSchema = z.enum([
 export const RuntimeConnectionIdentityDigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
 export const RuntimeOpaqueNativeRefSchema = z
   .string()
-  .min(6)
-  .max(133)
-  .regex(/^nref_[A-Za-z0-9_-]+$/)
+  .length(31)
+  .regex(/^nref_[0-9A-HJKMNP-TV-Z]{26}$/)
 
 export const RuntimeConnectionSchema = z
   .object({

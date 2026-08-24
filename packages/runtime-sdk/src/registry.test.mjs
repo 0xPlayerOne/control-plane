@@ -22,7 +22,7 @@ function registration(overrides = {}) {
     runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
     runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
     location: 'local_device',
-    opaqueNativeRef: 'nref_mock-runtime-1',
+    opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFG',
     adapterVersion: '1.0.0',
     driverVersion: '1.0.0',
     harnessVersion: '1.0.0',
@@ -51,7 +51,7 @@ describe('RuntimeConnection registry', () => {
         runtimeConnectionId: 'rtc_01JBBCDEF0123456789ABCDEFG',
         identityDigest: `sha256:${'2'.repeat(64)}`,
         runtimeDefinitionId: 'rtd_01JBBCDEF0123456789ABCDEFG',
-        opaqueNativeRef: 'nref_mock-runtime-2',
+        opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFH',
         status: 'degraded',
         health: 'degraded',
         compatibilityState: 'degraded',
@@ -73,7 +73,7 @@ describe('RuntimeConnection registry', () => {
         connectionType: 'managed_cloud',
         runtimeNodeRefId: undefined,
         location: 'managed_sandbox',
-        opaqueNativeRef: 'nref_cloud-runtime-1',
+        opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFJ',
       })
     )
     const externalLocal = await registry.register(
@@ -81,7 +81,7 @@ describe('RuntimeConnection registry', () => {
         runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFJ',
         identityDigest: `sha256:${'4'.repeat(64)}`,
         connectionType: 'external_local',
-        opaqueNativeRef: 'nref_external-runtime-1',
+        opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFK',
       })
     )
 

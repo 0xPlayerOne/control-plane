@@ -18,6 +18,14 @@ export {
 export { interactionKind, interactionRequests, interactionState } from './interactions.js'
 export { inboxMessages, outboxEvents, outboxStatus } from './messaging.js'
 export {
+  runtimeCompatibilityState,
+  runtimeConnectionHealth,
+  runtimeConnections,
+  runtimeConnectionLocation,
+  runtimeConnectionStatus,
+  runtimeConnectionType,
+} from './runtime-connections.js'
+export {
   reconciliationAction,
   reconciliationCheckpoints,
   reconciliationCheckpointState,

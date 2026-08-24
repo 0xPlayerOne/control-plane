@@ -9,11 +9,13 @@ import {
   InteractionService,
 } from '@control-plane/domain'
 import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
+import { RuntimeConnectionRegistry } from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
+import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
 import {
   commandInbox,
   executions,
@@ -21,6 +23,7 @@ import {
   interactionRequests,
   outboxEvents,
   reconciliationCheckpoints,
+  runtimeConnections,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
 
@@ -58,8 +61,67 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'inbox_messages',
         'outbox_events',
         'reconciliation_checkpoints',
+        'runtime_connections',
       ])
     )
+  })
+
+  test('persists idempotent runtime inventory and optimistic lifecycle updates', async () => {
+    await isolated.migrate()
+    const repository = new PostgresRuntimeConnectionRepository(isolated.application)
+    const registry = new RuntimeConnectionRegistry(repository)
+    const registration = {
+      runtimeConnectionId: 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      identityDigest: `sha256:${'d'.repeat(64)}`,
+      connectionType: 'managed_local',
+      runtimeNodeRefId: 'rnr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      location: 'local_device',
+      opaqueNativeRef: 'nref_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      adapterVersion: '1.0.0',
+      driverVersion: '1.0.0',
+      harnessVersion: '1.0.0',
+      status: 'connected',
+      health: 'healthy',
+      capabilities: [{ name: 'stream.output', support: 'supported' }],
+      compatibilityState: 'compatible',
+      limitations: [],
+      lastDiscoveredAt: '2026-08-24T20:00:00.000Z',
+      lastHeartbeatAt: '2026-08-24T20:00:00.000Z',
+      lastHealthCheckAt: '2026-08-24T20:00:00.000Z',
+      expiresAt: '2026-08-24T20:10:00.000Z',
+    }
+    const [first, replay] = await Promise.all([
+      registry.register(registration),
+      registry.register(registration),
+    ])
+
+    expect(replay).toEqual(first)
+    expect(await registry.listByRuntimeNode(registration.runtimeNodeRefId)).toEqual([first])
+    const update = {
+      runtimeConnectionId: first.runtimeConnectionId,
+      expectedVersion: first.version,
+      observedAt: '2026-08-24T20:01:00.000Z',
+      lastHeartbeatAt: '2026-08-24T20:01:00.000Z',
+      status: 'degraded',
+      health: 'degraded',
+      compatibilityState: 'degraded',
+    }
+    const outcomes = await Promise.allSettled([
+      registry.update(update),
+      registry.update({ ...update, limitations: ['Concurrent health report'] }),
+    ])
+    expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+    expect(outcomes.filter(({ status }) => status === 'rejected')).toHaveLength(1)
+
+    const current = await registry.get(first.runtimeConnectionId)
+    const revoked = await registry.revoke({
+      runtimeConnectionId: first.runtimeConnectionId,
+      expectedVersion: current.version,
+      observedAt: '2026-08-24T20:02:00.000Z',
+    })
+    expect(revoked.status).toBe('revoked')
+    expect(await isolated.application.select().from(runtimeConnections)).toHaveLength(1)
   })
 
   test('persists lifecycle transitions and multiple runtime attempts with optimistic concurrency', async () => {

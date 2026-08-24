@@ -11,10 +11,23 @@ versions, location, health, lifecycle, capabilities, tested-version metadata, an
 `RuntimeNodeRef` is an opaque reference to Agent HQ-owned device identity. It always declares
 `authority: agent_hq`; the Control Plane neither recreates nor owns that identity.
 
-A Control Plane-owned `RuntimeConnection` links its opaque connection ID to one RuntimeNode reference
-and one RuntimeDefinition. It contains only normalized health, status, negotiated capabilities,
-limitations, and freshness time. Raw paths, credentials, process handles, and native configuration are
-not schema fields and are stripped from read models.
+A Control Plane-owned `RuntimeConnection` links its opaque connection ID to one RuntimeDefinition and,
+for local runtimes, one RuntimeNode reference. Managed-cloud connections deliberately have no node
+reference. A node can expose multiple independent runtime connections without coupling node health to
+runtime health.
+
+## Runtime connection inventory
+
+The registry supports managed-cloud, managed-local, and external-local connections. Stable identity is
+represented by a unique SHA-256 digest; any native reference must be a canonical opaque `nref_` ID.
+Raw paths, credentials, process handles, and unrestricted native configuration are rejected at the
+public registration boundary and are not persisted.
+
+Registration is idempotent for one stable identity. Updates use optimistic versions and monotonic
+observation timestamps. Discovery, heartbeat, health-check, and expiry timestamps remain distinct, as
+do normalized status, health, compatibility, capabilities, and adapter, driver, and harness versions.
+Disconnect, expiry, and revocation are state transitions rather than deletes, so historical execution
+attempts keep valid connection references after a runtime disappears. Revocation is terminal.
 
 ## Capability requirements
 
