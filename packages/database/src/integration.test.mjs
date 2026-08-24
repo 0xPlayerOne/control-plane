@@ -114,6 +114,31 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
     expect(outcomes.filter(({ status }) => status === 'rejected')).toHaveLength(1)
 
+    const executionRepository = new PostgresExecutionRepository(isolated.application)
+    const executionService = new ExecutionLifecycleService(executionRepository)
+    const execution = await executionService.createExecution({
+      executionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+      correlation: {
+        workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+        projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+        taskId: 'tsk_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+        agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+        requestId: 'req_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+        contentDigest: `sha256:${'e'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      acceptedAt: '2026-08-24T20:01:00.000Z',
+    })
+    const historicalAttempt = await executionService.createAttempt({
+      executionId: execution.executionId,
+      attemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAH',
+      expectedExecutionVersion: execution.version,
+      queuedAt: '2026-08-24T20:01:30.000Z',
+      runtime: { runtimeConnectionId: first.runtimeConnectionId },
+    })
     const current = await registry.get(first.runtimeConnectionId)
     const revoked = await registry.revoke({
       runtimeConnectionId: first.runtimeConnectionId,
@@ -121,6 +146,9 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       observedAt: '2026-08-24T20:02:00.000Z',
     })
     expect(revoked.status).toBe('revoked')
+    expect(await executionRepository.getAttempt(historicalAttempt.attemptId)).toMatchObject({
+      runtime: { runtimeConnectionId: revoked.runtimeConnectionId },
+    })
     expect(await isolated.application.select().from(runtimeConnections)).toHaveLength(1)
   })
 
