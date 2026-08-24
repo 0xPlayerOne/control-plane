@@ -1,11 +1,12 @@
 import { ExecutionSchema, type Execution } from '@control-plane/domain'
 import {
   ExecutionEventSchema,
+  hashExecutionEventPayload,
   type ExecutionEvent,
   type ExecutionEventDraft,
   type ExecutionEventRepository,
 } from '@control-plane/events'
-import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { ControlPlaneDatabase } from './connection.js'
 import { toExecutionUpdate } from './execution-repository.js'
 import { executionEvents } from './schema/events.js'
@@ -72,14 +73,22 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
     return rows.map(fromRow)
   }
 
-  async queryPending(limit: number) {
+  async queryPending(limit: number, dueAt?: string) {
     const rows = await this.database
       .select()
       .from(executionEvents)
       .where(
         and(
           inArray(executionEvents.publicationStatus, ['pending', 'failed']),
-          isNull(executionEvents.archivedAt)
+          isNull(executionEvents.archivedAt),
+          ...(dueAt
+            ? [
+                or(
+                  isNull(executionEvents.nextAttemptAt),
+                  lte(executionEvents.nextAttemptAt, new Date(dueAt))
+                ),
+              ]
+            : [])
         )
       )
       .orderBy(asc(executionEvents.recordedAt))
@@ -96,7 +105,9 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
         publicationAttempts: parsed.publication.attempts,
         publicationVersion: parsed.publication.version,
         lastAttemptAt: optionalDate(parsed.publication.lastAttemptAt),
+        nextAttemptAt: optionalDate(parsed.publication.nextAttemptAt),
         publishedAt: optionalDate(parsed.publication.publishedAt),
+        quarantinedAt: optionalDate(parsed.publication.quarantinedAt),
         publicationErrorReference: parsed.publication.errorReference ?? null,
       })
       .where(
@@ -136,6 +147,7 @@ async function appendInTransaction(transaction: Transaction, draft: ExecutionEve
     ...draft,
     sequence: (latest?.sequence ?? 0) + 1,
     payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
+    payloadHash: hashExecutionEventPayload(draft.payload),
     publication: { status: 'pending', attempts: 0, version: 1 },
   })
   const [inserted] = await transaction
@@ -156,10 +168,15 @@ function toRow(event: ExecutionEvent): typeof executionEvents.$inferInsert {
     eventType: event.type,
     schemaVersion: event.schemaVersion,
     requestId: event.correlation.requestId,
+    workspaceId: event.correlation.workspaceId,
+    projectId: event.correlation.projectId,
+    taskId: event.correlation.taskId,
+    agentId: event.correlation.agentId,
     commandId: event.correlation.commandId ?? null,
     traceId: event.correlation.traceId,
     payload: event.payload,
     payloadBytes: event.payloadBytes,
+    payloadHash: event.payloadHash,
     occurredAt: new Date(event.occurredAt),
     recordedAt: new Date(event.recordedAt),
     retentionExpiresAt: new Date(event.retentionExpiresAt),
@@ -168,7 +185,9 @@ function toRow(event: ExecutionEvent): typeof executionEvents.$inferInsert {
     publicationAttempts: event.publication.attempts,
     publicationVersion: event.publication.version,
     lastAttemptAt: optionalDate(event.publication.lastAttemptAt),
+    nextAttemptAt: optionalDate(event.publication.nextAttemptAt),
     publishedAt: optionalDate(event.publication.publishedAt),
+    quarantinedAt: optionalDate(event.publication.quarantinedAt),
     publicationErrorReference: event.publication.errorReference ?? null,
   }
 }
@@ -183,12 +202,17 @@ function fromRow(row: EventRow): ExecutionEvent {
     type: row.eventType,
     schemaVersion: row.schemaVersion,
     correlation: {
+      workspaceId: row.workspaceId,
+      projectId: row.projectId,
+      taskId: row.taskId,
+      agentId: row.agentId,
       requestId: row.requestId,
       ...(row.commandId ? { commandId: row.commandId } : {}),
       traceId: row.traceId,
     },
     payload: row.payload,
     payloadBytes: row.payloadBytes,
+    payloadHash: row.payloadHash,
     occurredAt: row.occurredAt.toISOString(),
     recordedAt: row.recordedAt.toISOString(),
     retentionExpiresAt: row.retentionExpiresAt.toISOString(),
@@ -198,7 +222,9 @@ function fromRow(row: EventRow): ExecutionEvent {
       attempts: row.publicationAttempts,
       version: row.publicationVersion,
       ...(row.lastAttemptAt ? { lastAttemptAt: row.lastAttemptAt.toISOString() } : {}),
+      ...(row.nextAttemptAt ? { nextAttemptAt: row.nextAttemptAt.toISOString() } : {}),
       ...(row.publishedAt ? { publishedAt: row.publishedAt.toISOString() } : {}),
+      ...(row.quarantinedAt ? { quarantinedAt: row.quarantinedAt.toISOString() } : {}),
       ...(row.publicationErrorReference ? { errorReference: row.publicationErrorReference } : {}),
     },
   })

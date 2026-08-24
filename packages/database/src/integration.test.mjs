@@ -7,7 +7,7 @@ import {
   ExecutionLifecycleService,
   InteractionService,
 } from '@control-plane/domain'
-import { ExecutionEventService } from '@control-plane/events'
+import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
@@ -268,6 +268,10 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       type: 'execution.queued',
       schemaVersion: 1,
       correlation: {
+        workspaceId: current.correlation.workspaceId,
+        projectId: current.correlation.projectId,
+        taskId: current.correlation.taskId,
+        agentId: current.correlation.agentId,
         requestId: current.correlation.requestId,
         traceId: 'trc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
       },
@@ -307,6 +311,26 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(
       (await repository.queryAfter(executionId, 1, 10)).map(({ sequence }) => sequence)
     ).toEqual([2, 3])
+
+    const delivered = []
+    const dispatcher = new ExecutionEventDispatcher({
+      repository,
+      publicationService: service,
+      transport: {
+        deliver: async (envelope) => {
+          delivered.push(envelope)
+          return { outcome: 'accepted' }
+        },
+      },
+      now: () => '2026-08-24T11:04:00.000Z',
+    })
+    expect(await dispatcher.dispatchBatch(10)).toEqual({
+      delivered: 3,
+      failed: 0,
+      quarantined: 0,
+    })
+    expect(delivered.map(({ eventId }) => eventId)).toHaveLength(3)
+    expect(await repository.queryPending(10)).toEqual([])
   })
 
   test('commits inbox and outbox writes atomically and rolls them back together', async () => {

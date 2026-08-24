@@ -1,5 +1,6 @@
 import { IdentifierSchemas } from '@control-plane/contracts'
 import { redactTelemetryValue } from '@control-plane/telemetry'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 
 const TimestampSchema = z.iso.datetime()
@@ -11,11 +12,13 @@ const ErrorReferenceSchema = z
   .max(512)
   .regex(/^[a-z][a-z0-9+.-]*:\/\/\S+$/)
 const PublicationSchema = z.object({
-  status: z.enum(['pending', 'published', 'failed']),
+  status: z.enum(['pending', 'published', 'failed', 'quarantined']),
   attempts: z.number().int().nonnegative(),
   version: z.number().int().positive(),
   lastAttemptAt: TimestampSchema.optional(),
+  nextAttemptAt: TimestampSchema.optional(),
   publishedAt: TimestampSchema.optional(),
+  quarantinedAt: TimestampSchema.optional(),
   errorReference: ErrorReferenceSchema.optional(),
 })
 
@@ -28,12 +31,17 @@ export const ExecutionEventSchema = z.object({
   type: EventTypeSchema,
   schemaVersion: z.number().int().positive(),
   correlation: z.object({
+    workspaceId: IdentifierSchemas.workspaceId,
+    projectId: IdentifierSchemas.projectId,
+    taskId: IdentifierSchemas.taskId,
+    agentId: IdentifierSchemas.agentId,
     requestId: IdentifierSchemas.requestId,
     commandId: IdentifierSchemas.commandId.optional(),
     traceId: IdentifierSchemas.traceId,
   }),
-  payload: z.record(z.string(), z.unknown()),
+  payload: z.record(z.string(), z.json()),
   payloadBytes: z.number().int().nonnegative().max(16_384),
+  payloadHash: z.string().regex(/^[a-f0-9]{64}$/),
   occurredAt: TimestampSchema,
   recordedAt: TimestampSchema,
   retentionExpiresAt: TimestampSchema,
@@ -44,7 +52,7 @@ export const ExecutionEventSchema = z.object({
 export type ExecutionEvent = z.output<typeof ExecutionEventSchema>
 export type ExecutionEventDraft = Omit<
   ExecutionEvent,
-  'sequence' | 'payloadBytes' | 'publication' | 'archivedAt'
+  'sequence' | 'payloadBytes' | 'payloadHash' | 'publication' | 'archivedAt'
 >
 
 export interface ExecutionEventRepository {
@@ -55,7 +63,7 @@ export interface ExecutionEventRepository {
     afterSequence: number,
     limit: number
   ): Promise<readonly ExecutionEvent[]>
-  queryPending(limit: number): Promise<readonly ExecutionEvent[]>
+  queryPending(limit: number, dueAt?: string): Promise<readonly ExecutionEvent[]>
   compareAndSetPublication(expectedVersion: number, event: ExecutionEvent): Promise<boolean>
   archive(eventId: string, archivedAt: string): Promise<ExecutionEvent | undefined>
 }
@@ -71,6 +79,7 @@ export class InMemoryExecutionEventRepository implements ExecutionEventRepositor
       ...draft,
       sequence,
       payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
+      payloadHash: hashExecutionEventPayload(draft.payload),
       publication: { status: 'pending', attempts: 0, version: 1 },
     })
     this.#sequences.set(draft.executionId, sequence)
@@ -93,9 +102,16 @@ export class InMemoryExecutionEventRepository implements ExecutionEventRepositor
       .map(clone)
   }
 
-  async queryPending(limit: number): Promise<readonly ExecutionEvent[]> {
+  async queryPending(limit: number, dueAt?: string): Promise<readonly ExecutionEvent[]> {
     return [...this.#events.values()]
-      .filter((event) => event.publication.status !== 'published' && !event.archivedAt)
+      .filter(
+        (event) =>
+          (event.publication.status === 'pending' || event.publication.status === 'failed') &&
+          !event.archivedAt &&
+          (!dueAt ||
+            !event.publication.nextAttemptAt ||
+            Date.parse(event.publication.nextAttemptAt) <= Date.parse(dueAt))
+      )
       .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt))
       .slice(0, limit)
       .map(clone)
@@ -144,6 +160,7 @@ export class ExecutionEventService {
     const result = ExecutionEventSchema.omit({
       sequence: true,
       payloadBytes: true,
+      payloadHash: true,
       publication: true,
       archivedAt: true,
     }).safeParse({ ...candidate, payload })
@@ -161,6 +178,7 @@ export class ExecutionEventService {
         eventId: IdentifierSchemas.eventId,
         expectedPublicationVersion: z.number().int().positive(),
         attemptedAt: TimestampSchema,
+        nextAttemptAt: TimestampSchema.optional(),
         errorReference: ErrorReferenceSchema,
       })
       .parse(input)
@@ -173,6 +191,7 @@ export class ExecutionEventService {
         attempts: current.publication.attempts + 1,
         version: current.publication.version + 1,
         lastAttemptAt: parsed.attemptedAt,
+        ...(parsed.nextAttemptAt ? { nextAttemptAt: parsed.nextAttemptAt } : {}),
         errorReference: parsed.errorReference,
       },
     })
@@ -196,6 +215,51 @@ export class ExecutionEventService {
         version: current.publication.version + 1,
         lastAttemptAt: parsed.publishedAt,
         publishedAt: parsed.publishedAt,
+      },
+    })
+  }
+
+  async quarantinePublication(input: unknown): Promise<ExecutionEvent> {
+    const parsed = z
+      .object({
+        eventId: IdentifierSchemas.eventId,
+        expectedPublicationVersion: z.number().int().positive(),
+        quarantinedAt: TimestampSchema,
+        errorReference: ErrorReferenceSchema,
+        attempted: z.boolean(),
+      })
+      .parse(input)
+    const current = await this.#get(parsed.eventId)
+    if (current.publication.status === 'published') fail('EVENT_ALREADY_PUBLISHED')
+    return this.#save(parsed.expectedPublicationVersion, {
+      ...current,
+      publication: {
+        status: 'quarantined',
+        attempts: current.publication.attempts + (parsed.attempted ? 1 : 0),
+        version: current.publication.version + 1,
+        ...(parsed.attempted ? { lastAttemptAt: parsed.quarantinedAt } : {}),
+        quarantinedAt: parsed.quarantinedAt,
+        errorReference: parsed.errorReference,
+      },
+    })
+  }
+
+  async requeuePublication(input: unknown): Promise<ExecutionEvent> {
+    const parsed = z
+      .object({
+        eventId: IdentifierSchemas.eventId,
+        expectedPublicationVersion: z.number().int().positive(),
+        requestedAt: TimestampSchema,
+      })
+      .parse(input)
+    const current = await this.#get(parsed.eventId)
+    if (current.publication.status === 'published') fail('EVENT_ALREADY_PUBLISHED')
+    return this.#save(parsed.expectedPublicationVersion, {
+      ...current,
+      publication: {
+        status: 'pending',
+        attempts: current.publication.attempts,
+        version: current.publication.version + 1,
       },
     })
   }
@@ -237,4 +301,24 @@ function cloneOptional<Value>(value: Value | undefined): Value | undefined {
   return value === undefined ? undefined : clone(value)
 }
 
+export function hashExecutionEventPayload(payload: Readonly<Record<string, unknown>>): string {
+  return createHash('sha256').update(canonicalJson(payload)).digest('hex')
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return JSON.stringify(value)
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
+      .join(',')}}`
+  }
+  throw new Error('EVENT_PAYLOAD_MUST_BE_JSON')
+}
+
 export const packageName = 'events'
+export * from './delivery.js'

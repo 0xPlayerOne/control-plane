@@ -14,6 +14,7 @@ export const eventPublicationStatus = pgEnum('event_publication_status', [
   'pending',
   'published',
   'failed',
+  'quarantined',
 ])
 const identifier = (name: string) => varchar(name, { length: 30 })
 
@@ -30,10 +31,15 @@ export const executionEvents = pgTable(
     eventType: varchar('event_type', { length: 128 }).notNull(),
     schemaVersion: integer('schema_version').notNull(),
     requestId: identifier('request_id').notNull(),
+    workspaceId: identifier('workspace_id').notNull(),
+    projectId: identifier('project_id').notNull(),
+    taskId: identifier('task_id').notNull(),
+    agentId: identifier('agent_id').notNull(),
     commandId: identifier('command_id'),
     traceId: identifier('trace_id').notNull(),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
     payloadBytes: integer('payload_bytes').notNull(),
+    payloadHash: varchar('payload_hash', { length: 64 }).notNull(),
     occurredAt: timestamp('occurred_at', { mode: 'date', withTimezone: true }).notNull(),
     recordedAt: timestamp('recorded_at', { mode: 'date', withTimezone: true }).notNull(),
     retentionExpiresAt: timestamp('retention_expires_at', {
@@ -45,7 +51,9 @@ export const executionEvents = pgTable(
     publicationAttempts: integer('publication_attempts').notNull(),
     publicationVersion: integer('publication_version').notNull(),
     lastAttemptAt: timestamp('last_attempt_at', { mode: 'date', withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { mode: 'date', withTimezone: true }),
     publishedAt: timestamp('published_at', { mode: 'date', withTimezone: true }),
+    quarantinedAt: timestamp('quarantined_at', { mode: 'date', withTimezone: true }),
     publicationErrorReference: varchar('publication_error_reference', { length: 512 }),
   },
   (table) => [

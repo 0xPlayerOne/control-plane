@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
 import {
+  AgentHqExecutionEventEnvelopeSchema,
   ArtifactReferenceSchema,
   ContractDeprecationSchema,
   ContractVersionSchema,
@@ -186,6 +187,34 @@ describe('versioned public envelopes', () => {
     expect(UsageEnvelopeSchema.parse(PublicContractFixtures.usage)).toBeDefined()
     expect(ArtifactReferenceSchema.parse(PublicContractFixtures.artifact)).toBeDefined()
     expect(RuntimeReadModelEnvelopeSchema.parse(PublicContractFixtures.runtime)).toBeDefined()
+  })
+
+  test('validates the versioned Agent HQ execution event inbox boundary', () => {
+    expect(
+      AgentHqExecutionEventEnvelopeSchema.parse({
+        contractVersion: { major: 1, minor: 0 },
+        eventId: 'evt_01JABCDEF0123456789ABCDEFG',
+        eventType: 'execution.awaiting_input',
+        executionId: 'exe_01JABCDEF0123456789ABCDEFG',
+        attemptId: 'att_01JABCDEF0123456789ABCDEFG',
+        workflowId: 'wfl_01JABCDEF0123456789ABCDEFG',
+        workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+        projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+        taskId: 'tsk_01JABCDEF0123456789ABCDEFG',
+        agentId: 'agt_01JABCDEF0123456789ABCDEFG',
+        sequence: 7,
+        schemaVersion: 1,
+        payloadHash: 'a'.repeat(64),
+        occurredAt: '2026-08-24T12:00:00.000Z',
+        recordedAt: '2026-08-24T12:00:01.000Z',
+        correlation: {
+          requestId: 'req_01JABCDEF0123456789ABCDEFG',
+          commandId: 'cmd_01JABCDEF0123456789ABCDEFG',
+          traceId: 'trc_01JABCDEF0123456789ABCDEFG',
+        },
+        data: { state: 'awaiting_input' },
+      }).sequence
+    ).toBe(7)
   })
 
   test('distinguishes every normalized failure class', () => {
