@@ -222,9 +222,16 @@ test('provides a documented isolated integration-test runner', async () => {
     'utf8'
   )
   const documentation = await readFile(new URL('../docs/testing.md', import.meta.url), 'utf8')
+  const database = await readJson('packages/database/package.json')
+  const testing = await readJson('packages/testing/package.json')
 
   assert.match(runner, /docker compose/)
   assert.match(runner, /RUN_DATABASE_INTEGRATION/)
+  assert.match(runner, /SELECT 1/)
+  assert.match(runner, /database system is accepting SQL connections/)
+  assert.match(runner, /'stop', '--timeout', '60', 'postgres'/)
+  assert.match(database.scripts['test:integration'], /--timeout 30000/)
+  assert.match(testing.scripts['test:integration'], /--timeout 30000/)
   assert.match(documentation, /bun run test:foundation/)
   assert.match(documentation, /unit/i)
   assert.match(documentation, /integration/i)

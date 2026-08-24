@@ -19,6 +19,41 @@ function run(command, arguments_, options = {}) {
   return result.stdout ?? ''
 }
 
+async function waitForPostgres() {
+  const deadline = Date.now() + 30_000
+  const readinessCommand = [
+    'compose',
+    'exec',
+    '-T',
+    'postgres',
+    'psql',
+    '--username',
+    'control_plane_admin',
+    '--dbname',
+    'postgres',
+    '--tuples-only',
+    '--no-align',
+    '--command',
+    'SELECT 1',
+  ]
+
+  while (Date.now() < deadline) {
+    const result = spawnSync('docker', readinessCommand, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: 'pipe',
+    })
+    if (result.error) throw result.error
+    if (result.status === 0 && result.stdout.trim() === '1') {
+      console.log('PostgreSQL database system is accepting SQL connections')
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+
+  throw new Error('PostgreSQL did not accept SQL connections within 30 seconds')
+}
+
 const runningServices = run('docker', ['compose', 'ps', '--status', 'running', '--services'], {
   capture: true,
 })
@@ -28,6 +63,7 @@ const postgresWasRunning = runningServices.includes('postgres')
 
 try {
   if (!postgresWasRunning) run('docker', ['compose', 'up', '-d', '--wait', 'postgres'])
+  await waitForPostgres()
   const integrationEnvironment = {
     ...process.env,
     DATABASE_ADMIN_URL:
@@ -45,7 +81,9 @@ try {
     environment: integrationEnvironment,
   })
 } finally {
-  if (!postgresWasRunning) run('docker', ['compose', 'stop', 'postgres'])
+  if (!postgresWasRunning) {
+    run('docker', ['compose', 'stop', '--timeout', '60', 'postgres'])
+  }
 }
 
 void COMPOSE_COMMAND
