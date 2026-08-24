@@ -3,6 +3,12 @@ import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath, URL } from 'node:url'
 import { test } from 'bun:test'
 import { ESLint } from 'eslint'
+import {
+  assertCoverageGoal,
+  parseCoverageMinimum,
+  summarizeLcov,
+} from '../scripts/check-coverage.mjs'
+import { discoverTestFiles } from '../scripts/run-bun-test-group.mjs'
 
 const apps = ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
 const packages = [
@@ -29,6 +35,7 @@ async function readJson(path) {
 
 test('pins the required Node and Bun toolchain', async () => {
   const manifest = await readJson('package.json')
+  const testTsconfig = await readJson('tsconfig.json')
 
   assert.equal(manifest.packageManager, 'bun@1.3.14')
   assert.equal(manifest.engines.node, '>=24 <25')
@@ -41,6 +48,9 @@ test('pins the required Node and Bun toolchain', async () => {
     (await readFile(new URL('../.bun-version', import.meta.url), 'utf8')).trim(),
     '1.3.14'
   )
+  assert.equal(testTsconfig.extends, './tsconfig.base.json')
+  assert.equal(testTsconfig.compilerOptions.experimentalDecorators, true)
+  assert.equal(testTsconfig.compilerOptions.emitDecoratorMetadata, true)
 })
 
 test('defines root quality and build commands', async () => {
@@ -53,6 +63,8 @@ test('defines root quality and build commands', async () => {
     'test',
     'test:unit',
     'test:integration',
+    'test:e2e',
+    'test:smoke',
     'test:foundation',
     'test:coverage',
     'format',
@@ -66,6 +78,71 @@ test('defines root quality and build commands', async () => {
   assert.match(manifest.scripts['type-check'], /turbo run build openapi:check/)
   assert.match(manifest.scripts['type-check'], /bun run db:check/)
   assert.match(manifest.scripts['db:check'], /packages\/database/)
+  assert.match(manifest.scripts['test:unit'], /--coverage/)
+  assert.match(manifest.scripts.test, /--parallel/)
+})
+
+test('configures an uploadable Code Foundry coverage report', async () => {
+  const bunfig = await readFile(new URL('../bunfig.toml', import.meta.url), 'utf8')
+  const manifest = await readJson('package.json')
+  const codeFoundry = await readFile(
+    new URL('../.github/code-foundry.yml', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(bunfig, /coverageSkipTestFiles\s*=\s*true/)
+  assert.match(bunfig, /coverageReporter\s*=\s*\["text",\s*"lcov"\]/)
+  assert.match(bunfig, /coverageDir\s*=\s*"coverage"/)
+  assert.match(bunfig, /coveragePathIgnorePatterns\s*=\s*\[[^\]]*dist/s)
+  assert.match(manifest.scripts['test:unit'], /--coverage/)
+  assert.match(codeFoundry, /^coverage_minimum: 80$/m)
+})
+
+test('discovers disjoint Bun test groups for Code Foundry', async () => {
+  const unit = await discoverTestFiles('unit')
+  const e2e = await discoverTestFiles('e2e')
+  const smoke = await discoverTestFiles('smoke')
+
+  assert.ok(unit.includes('apps/control-api/src/application.test.mjs'))
+  assert.ok(unit.includes('packages/database/src/index.test.mjs'))
+  assert.ok(!unit.includes('packages/database/src/integration.test.mjs'))
+  assert.ok(!unit.includes('packages/testing/src/postgres.integration.test.mjs'))
+  assert.deepEqual(e2e, [
+    'tests/m2-core-domain.test.mjs',
+    'tests/m3-durable-execution.test.mjs',
+    'tests/m4-runtime-fabric.test.mjs',
+  ])
+  assert.deepEqual(smoke, [
+    'tests/foundation.test.mjs',
+    'tests/infrastructure.test.mjs',
+    'tests/repository.test.mjs',
+  ])
+  assert.equal(new Set([...unit, ...e2e, ...smoke]).size, unit.length + e2e.length + smoke.length)
+})
+
+test('enforces aggregate line and function coverage from LCOV', () => {
+  const summary = summarizeLcov(`
+TN:
+SF:first.ts
+FNF:8
+FNH:7
+LF:10
+LH:8
+end_of_record
+SF:second.ts
+FNF:2
+FNH:1
+LF:10
+LH:9
+end_of_record
+`)
+
+  assert.deepEqual(summary, { functions: 80, lines: 85 })
+  assert.doesNotThrow(() => assertCoverageGoal(summary, 80))
+  assert.throws(() => assertCoverageGoal(summary, 81), /functions coverage 80\.00%/)
+  assert.throws(() => assertCoverageGoal(summarizeLcov('TN:\n'), 80), /coverage 0\.00%/)
+  assert.equal(parseCoverageMinimum('coverage_minimum: 80\n'), 80)
+  assert.throws(() => parseCoverageMinimum('features: all\n'), /not configured/)
 })
 
 test('configures the Code Foundry CI baseline for the public direct-flow repository', async () => {
@@ -154,6 +231,9 @@ test('provides a documented isolated integration-test runner', async () => {
   assert.match(documentation, /contract/i)
   assert.match(documentation, /failure-injection/i)
   assert.match(documentation, /end-to-end/i)
+  assert.match(documentation, /80%/)
+  assert.match(documentation, /LCOV/)
+  assert.match(documentation, /parallel/i)
 })
 
 test('scaffolds every application with an executable placeholder target', async () => {

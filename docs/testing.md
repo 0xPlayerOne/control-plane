@@ -5,21 +5,39 @@ and prefer real implementations over mocks when the dependency is local and inex
 
 ## Commands
 
-- `bun run test:unit` runs package and repository unit tests.
+- `bun run test` builds once, then runs the unit, end-to-end, and smoke groups in parallel.
+- `bun run test:unit` runs colocated package and application tests and enforces coverage.
 - `bun run test:integration` starts the pinned local PostgreSQL service when needed, runs all
   integration projects, and stops only the database service that it started.
+- `bun run test:e2e` runs the M2, M3, and M4 cross-package acceptance scenarios.
+- `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
   checkout with one command.
 - `bun run test:acceptance` is the one-command acceptance gate. It checks dependency ancestry,
   installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
   the full foundation and M2 core-domain suites, Terraform validation, and all service plus migration
   container builds.
-- `bun run test:coverage` produces per-package Bun coverage reports without imposing a new
-  threshold beyond the repository policy.
+- `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
+  Foundry's coverage upload step.
 - `bun run test:m4-acceptance` runs the adapter-neutral Runtime Fabric scenario matrix used to
   qualify inventory, eligibility, routing, sessions, read models, and historical attempt references.
-- `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to package
-  tests. CI shards must use distinct PostgreSQL databases; the shared fixture does this by default.
+- `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
+  group. CI shards must use distinct output directories if they collect coverage.
+
+Code Foundry detects the four public group scripts (`test:unit`, `test:integration`, `test:e2e`, and
+`test:smoke`) and schedules them as independent parallel jobs. The internal `test:group:*` scripts
+avoid rebuilding when `bun run test` mirrors that fan-out locally.
+
+## Coverage goals
+
+Unit coverage must remain at or above 80% for both lines and functions. Bun excludes test files and
+compiled `dist/` copies from the denominator, prints a text summary, and writes an LCOV report under
+`coverage/`. `scripts/check-coverage.mjs` enforces the aggregate threshold from that LCOV file, while
+`.github/code-foundry.yml` retains the same 80% policy for CI reporting. The threshold is checked after
+Bun has produced the complete workspace report, so a low-level adapter cannot replace the intended
+aggregate gate. Add focused tests instead of lowering the goal.
+The root `tsconfig.json` preserves the Control API's legacy-decorator transform when Bun executes all
+workspace tests in one process, so that application remains part of the aggregate coverage result.
 
 ## Suite ownership
 
@@ -30,8 +48,8 @@ and prefer real implementations over mocks when the dependency is local and inex
   drift is checked separately through `bun run openapi:check`.
 - **Failure-injection** tests use recording or deliberately failing port adapters and assert state,
   not internal call order.
-- **End-to-end** tests are reserved for critical cross-service user flows and will be introduced
-  when M2+ supplies those flows.
+- **End-to-end** tests cover the critical cross-package M2-M4 acceptance flows without external
+  credentials.
 
 Vendor adapters must expose stable ports and use fakes or recording adapters in ordinary CI. Unit
 and integration tests must not require production credentials or a developer's persistent database.
