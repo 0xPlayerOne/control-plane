@@ -3,6 +3,8 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   createPostgresConnection,
   DatabaseConnectionError,
+  executionAttempts,
+  executions,
   inboxMessages,
   outboxEvents,
   persistenceConventions,
@@ -22,8 +24,12 @@ describe('persistence schema', () => {
 
     const inbox = getTableConfig(inboxMessages)
     const outbox = getTableConfig(outboxEvents)
+    const execution = getTableConfig(executions)
+    const attempt = getTableConfig(executionAttempts)
     expect(inbox.name).toBe('inbox_messages')
     expect(outbox.name).toBe('outbox_events')
+    expect(execution.name).toBe('executions')
+    expect(attempt.name).toBe('execution_attempts')
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',
@@ -36,6 +42,48 @@ describe('persistence schema', () => {
     )
     expect(outbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining(['id', 'payload', 'status', 'revision', 'created_at', 'updated_at'])
+    )
+    expect(execution.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'execution_id',
+        'execution_plan_id',
+        'execution_plan_digest',
+        'execution_plan_schema_version',
+        'workspace_id',
+        'project_id',
+        'task_id',
+        'agent_id',
+        'state',
+        'version',
+        'deadline_at',
+        'terminal_result_ref',
+      ])
+    )
+    expect(execution.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'executions_scope_index',
+        'executions_state_deadline_index',
+        'executions_parent_index',
+      ])
+    )
+    expect(attempt.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'attempt_id',
+        'execution_id',
+        'sequence',
+        'runtime_definition_id',
+        'runtime_node_ref_id',
+        'runtime_connection_id',
+        'state',
+        'version',
+      ])
+    )
+    expect(attempt.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'execution_attempts_execution_sequence_unique',
+        'execution_attempts_state_deadline_index',
+        'execution_attempts_runtime_index',
+      ])
     )
   })
 })

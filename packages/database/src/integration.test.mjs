@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
+import { ExecutionLifecycleService } from '@control-plane/domain'
+import { PostgresExecutionRepository } from './execution-repository.ts'
 import { inboxMessages, outboxEvents } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
 
@@ -33,8 +35,78 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       order by table_name
     `)
     expect(result.map(({ table_name: tableName }) => tableName)).toEqual(
-      expect.arrayContaining(['inbox_messages', 'outbox_events'])
+      expect.arrayContaining([
+        'execution_attempts',
+        'executions',
+        'inbox_messages',
+        'outbox_events',
+      ])
     )
+  })
+
+  test('persists lifecycle transitions and multiple runtime attempts with optimistic concurrency', async () => {
+    const repository = new PostgresExecutionRepository(isolated.application)
+    const service = new ExecutionLifecycleService(repository)
+    const execution = await service.createExecution({
+      executionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      correlation: {
+        workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        taskId: 'tsk_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        requestId: 'req_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        contentDigest: `sha256:${'a'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      acceptedAt: '2026-08-23T10:00:00.000Z',
+      deadlineAt: '2026-08-23T11:00:00.000Z',
+    })
+    const firstAttempt = await service.createAttempt({
+      executionId: execution.executionId,
+      attemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      expectedExecutionVersion: execution.version,
+      queuedAt: '2026-08-23T10:01:00.000Z',
+      runtime: {
+        runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        runtimeConnectionId: 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+    })
+    const afterFirst = await service.getExecution(execution.executionId)
+    const secondAttempt = await service.createAttempt({
+      executionId: execution.executionId,
+      attemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAW',
+      expectedExecutionVersion: afterFirst.version,
+      queuedAt: '2026-08-23T10:02:00.000Z',
+    })
+
+    expect(firstAttempt.sequence).toBe(1)
+    expect(secondAttempt.sequence).toBe(2)
+    expect(await repository.listAttempts(execution.executionId)).toHaveLength(2)
+    expect(await service.getExecution(execution.executionId)).toMatchObject({
+      version: 3,
+      attemptCount: 2,
+      latestAttemptId: secondAttempt.attemptId,
+    })
+
+    const outcomes = await Promise.allSettled([
+      service.transitionAttempt({
+        attemptId: secondAttempt.attemptId,
+        expectedVersion: secondAttempt.version,
+        to: 'starting',
+        transitionedAt: '2026-08-23T10:03:00.000Z',
+      }),
+      service.transitionAttempt({
+        attemptId: secondAttempt.attemptId,
+        expectedVersion: secondAttempt.version,
+        to: 'running',
+        transitionedAt: '2026-08-23T10:03:00.000Z',
+      }),
+    ])
+    expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+    expect(outcomes.filter(({ status }) => status === 'rejected')).toHaveLength(1)
   })
 
   test('commits inbox and outbox writes atomically and rolls them back together', async () => {

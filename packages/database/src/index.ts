@@ -3,12 +3,18 @@ export {
   createPostgresConnection,
   DatabaseConnectionError,
 } from './connection.js'
+export { PostgresExecutionRepository } from './execution-repository.js'
 export type {
   ControlPlaneDatabase,
   PostgresConnection,
   PostgresConnectionOptions,
 } from './connection.js'
 export {
+  executionAttempts,
+  executionAttemptState,
+  executionFailureClassification,
+  executions,
+  executionState,
   idColumn,
   inboxMessages,
   jsonColumn,
