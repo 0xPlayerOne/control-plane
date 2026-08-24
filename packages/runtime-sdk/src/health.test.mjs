@@ -224,6 +224,23 @@ describe('runtime health ingestion', () => {
     ])
   })
 
+  test('rejects runtime-declared capability claims mislabeled as verified', async () => {
+    const { service } = await createHarness()
+
+    await expect(
+      service.ingest(
+        report({
+          capabilitySnapshot: {
+            ...report().capabilitySnapshot,
+            verification: 'verified',
+            source: 'runtime_declaration',
+          },
+        }),
+        '2026-08-24T20:01:10.000Z'
+      )
+    ).rejects.toThrow('Only negotiated capability claims can be verified')
+  })
+
   test('refreshes previously healthy inventory to stale after its TTL', async () => {
     const { changes, service } = await createHarness()
     await service.ingest(report(), '2026-08-24T20:01:10.000Z')
