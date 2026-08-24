@@ -8,6 +8,7 @@ export {
   timestampColumns,
 } from './conventions.js'
 export { eventPublicationStatus, executionEvents } from './events.js'
+export { externalSessions, externalSessionState } from './external-sessions.js'
 export {
   executionAttempts,
   executionAttemptState,

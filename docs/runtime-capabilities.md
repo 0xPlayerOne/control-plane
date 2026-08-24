@@ -91,6 +91,23 @@ preference influences ranking only among eligible candidates. The selected polic
 digests, rank, candidate count, and reason codes are pinned immutably on the execution attempt and
 persisted independently of later runtime inventory changes.
 
+## External sessions
+
+An `ExternalSession` is a workspace-scoped reference to a session still owned by its native runtime.
+It records a Control Plane ID, RuntimeConnection, canonical opaque native-session ID, bounded freshness,
+independent session-operation capabilities, and safe display metadata. Ownership is always
+`external_runtime`, imported ownership is false, and concurrent native use remains allowed. Public
+registration rejects extra native configuration, credentials, paths, URLs, and unsafe display text.
+
+Resume, load, close, and history controls are evaluated independently against both the session's
+freshness-bound snapshot and the runtime's current advertised capabilities. Resume therefore never
+implies history. Assessments explicitly classify active, closed, stale, offline, runtime-missing,
+capability-changed, removed, and revoked references; historical references remain visible even when
+operations are unavailable. Registration is stable-identity idempotent, observation updates are
+optimistically versioned, capability snapshots cannot regress or conflict at one version, and
+revocation is terminal. The PostgreSQL record preserves only the scoped opaque reference and normalized
+metadata, not native ownership or unrestricted session state.
+
 ## Runtime adapter contract
 
 `RuntimeAdapter` is the stable port used by execution code for inspection, capability evaluation,

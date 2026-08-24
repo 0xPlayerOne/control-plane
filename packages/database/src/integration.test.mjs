@@ -10,12 +10,14 @@ import {
 } from '@control-plane/domain'
 import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
 import {
+  ExternalSessionRegistry,
   RecordingRuntimeAvailabilityChangePublisher,
   RuntimeConnectionRegistry,
   RuntimeHealthIngestionService,
 } from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
+import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
@@ -23,6 +25,7 @@ import { PostgresRuntimeConnectionRepository } from './runtime-connection-reposi
 import {
   commandInbox,
   executions,
+  externalSessions,
   inboxMessages,
   interactionRequests,
   outboxEvents,
@@ -62,6 +65,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       expect.arrayContaining([
         'execution_attempts',
         'executions',
+        'external_sessions',
         'inbox_messages',
         'outbox_events',
         'reconciliation_checkpoints',
@@ -252,6 +256,82 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       },
     })
     expect(restartedChanges.events).toHaveLength(1)
+  })
+
+  test('persists scoped external session references without native ownership transfer', async () => {
+    await isolated.migrate()
+    const runtimeConnectionId = 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAK'
+    const runtimeRegistry = new RuntimeConnectionRegistry(
+      new PostgresRuntimeConnectionRepository(isolated.application)
+    )
+    await runtimeRegistry.register({
+      runtimeConnectionId,
+      identityDigest: `sha256:${'9'.repeat(64)}`,
+      connectionType: 'managed_local',
+      runtimeNodeRefId: 'rnr_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      location: 'local_device',
+      opaqueNativeRef: 'nref_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      adapterVersion: '1.0.0',
+      driverVersion: '1.0.0',
+      harnessVersion: '1.0.0',
+      status: 'connected',
+      health: 'healthy',
+      capabilities: [{ name: 'session.resume', support: 'supported' }],
+      compatibilityState: 'compatible',
+      limitations: [],
+      lastDiscoveredAt: '2026-08-24T22:00:00.000Z',
+      lastHeartbeatAt: '2026-08-24T22:00:00.000Z',
+      lastHealthCheckAt: '2026-08-24T22:00:00.000Z',
+    })
+    const registry = new ExternalSessionRegistry(
+      new PostgresExternalSessionRepository(isolated.application)
+    )
+    const session = await registry.register({
+      externalSessionId: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      runtimeConnectionId,
+      opaqueNativeSessionId: 'nses_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAK',
+      state: 'active',
+      ownership: {
+        authority: 'external_runtime',
+        imported: false,
+        concurrentNativeUse: 'allowed',
+      },
+      capabilitySnapshot: {
+        version: 1,
+        observedAt: '2026-08-24T22:00:00.000Z',
+        expiresAt: '2026-08-24T22:01:00.000Z',
+        operations: ['session.resume'],
+      },
+      safeMetadata: {
+        origin: 'native_discovery',
+        displayName: 'Native planning session',
+        limitations: [],
+      },
+      lastObservedAt: '2026-08-24T22:00:00.000Z',
+    })
+    const restarted = new ExternalSessionRegistry(
+      new PostgresExternalSessionRepository(isolated.application)
+    )
+    expect(
+      await restarted.list({
+        workspaceId: session.workspaceId,
+        projectId: session.projectId,
+        runtimeConnectionId,
+      })
+    ).toEqual([session])
+    const removed = await restarted.update({
+      externalSessionId: session.externalSessionId,
+      expectedVersion: session.version,
+      observedAt: '2026-08-24T22:00:30.000Z',
+      state: 'removed',
+    })
+    expect(removed).toMatchObject({ state: 'removed', version: 2 })
+    expect(await isolated.application.select().from(externalSessions)).toHaveLength(1)
+    expect(JSON.stringify(removed)).not.toContain('/Users/')
+    expect(JSON.stringify(removed)).not.toContain('credential')
   })
 
   test('persists lifecycle transitions and multiple runtime attempts with optimistic concurrency', async () => {

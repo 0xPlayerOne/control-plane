@@ -5,6 +5,7 @@ export {
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
+export { PostgresExternalSessionRepository } from './external-session-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
@@ -24,6 +25,8 @@ export {
   executionFailureClassification,
   executions,
   executionState,
+  externalSessions,
+  externalSessionState,
   idColumn,
   inboxMessages,
   interactionKind,
