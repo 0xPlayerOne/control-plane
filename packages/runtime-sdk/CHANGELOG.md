@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.1.0...runtime-sdk-v1.1.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **runtime:** report expired session discovery snapshots ([#133](https://github.com/0xPlayerOne/control-plane/issues/133)) ([cd8834f](https://github.com/0xPlayerOne/control-plane/commit/cd8834fbe98ae5deef501f05e2d9b3c669df1e9b))
+* **runtime:** require negotiated capability verification ([#131](https://github.com/0xPlayerOne/control-plane/issues/131)) ([af0423f](https://github.com/0xPlayerOne/control-plane/commit/af0423f87810e7dd9bc0a11fa00836e3fbce9575))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.0.0...runtime-sdk-v1.1.0) (2026-08-24)
 
 
