@@ -4,5 +4,6 @@ export * from './conformance.js'
 export * from './fixtures.js'
 export * from './mock.js'
 export * from './models.js'
+export * from './registry.js'
 
 export const packageName = 'runtime-sdk'

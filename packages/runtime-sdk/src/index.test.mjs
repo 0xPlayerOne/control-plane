@@ -94,22 +94,37 @@ describe('runtime capability vocabulary', () => {
       rawPath: '/private/project',
       credential: 'secret',
     })
-    const connection = RuntimeConnectionSchema.parse({
+    const connectionInput = {
       runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+      identityDigest: `sha256:${'a'.repeat(64)}`,
+      connectionType: 'managed_local',
       runtimeNodeRefId: node.runtimeNodeRefId,
       runtimeDefinitionId: RuntimeFixtures.mock.runtimeDefinitionId,
+      location: 'local_device',
+      opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFG',
+      adapterVersion: '1.0.0',
+      driverVersion: '1.0.0',
+      harnessVersion: '1.0.0',
       status: 'connected',
       health: 'healthy',
-      negotiatedCapabilities: RuntimeFixtures.mock.capabilities,
-      observedAt: '2026-08-23T12:00:00.000Z',
+      capabilities: RuntimeFixtures.mock.capabilities,
+      compatibilityState: 'compatible',
       limitations: [],
-      processHandle: 1234,
-    })
+      lastDiscoveredAt: '2026-08-23T12:00:00.000Z',
+      lastHeartbeatAt: '2026-08-23T12:00:00.000Z',
+      lastHealthCheckAt: '2026-08-23T12:00:00.000Z',
+      version: 1,
+      createdAt: '2026-08-23T12:00:00.000Z',
+      updatedAt: '2026-08-23T12:00:00.000Z',
+    }
+    const connection = RuntimeConnectionSchema.parse(connectionInput)
 
     expect(connection.runtimeNodeRefId).toBe(node.runtimeNodeRefId)
     expect(JSON.stringify({ node, connection })).not.toContain('/private/project')
     expect(JSON.stringify({ node, connection })).not.toContain('secret')
-    expect(JSON.stringify({ node, connection })).not.toContain('processHandle')
+    expect(() =>
+      RuntimeConnectionSchema.parse({ ...connectionInput, processHandle: 1234 })
+    ).toThrow()
   })
 })
 
