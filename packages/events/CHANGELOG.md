@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/events-v1.0.0...events-v1.1.0) (2026-08-24)
+
+
+### Features
+
+* **events:** add durable execution event outbox ([#110](https://github.com/0xPlayerOne/control-plane/issues/110)) ([2d6355d](https://github.com/0xPlayerOne/control-plane/commit/2d6355d4a9b82b38ae2c3ba40055eab78a7401f8)), closes [#22](https://github.com/0xPlayerOne/control-plane/issues/22)
+* **events:** deliver execution events to Agent HQ ([#113](https://github.com/0xPlayerOne/control-plane/issues/113)) ([641ac7a](https://github.com/0xPlayerOne/control-plane/commit/641ac7aef9bcb05a6fbfc0d5c732dce0233b0b55))
+
 ## 1.0.0 (2026-08-24)
 
 

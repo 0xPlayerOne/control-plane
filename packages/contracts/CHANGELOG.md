@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.0.0...contracts-v1.1.0) (2026-08-24)
+
+
+### Features
+
+* **events:** deliver execution events to Agent HQ ([#113](https://github.com/0xPlayerOne/control-plane/issues/113)) ([641ac7a](https://github.com/0xPlayerOne/control-plane/commit/641ac7aef9bcb05a6fbfc0d5c732dce0233b0b55))
+* **execution:** add idempotent command acceptance ([#109](https://github.com/0xPlayerOne/control-plane/issues/109)) ([bd096fb](https://github.com/0xPlayerOne/control-plane/commit/bd096fb54f49110654a3853a268179a69f60e5c2)), closes [#21](https://github.com/0xPlayerOne/control-plane/issues/21)
+
 ## 1.0.0 (2026-08-24)
 
 

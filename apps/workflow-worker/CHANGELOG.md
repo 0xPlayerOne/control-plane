@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.0.0...workflow-worker-v1.1.0) (2026-08-24)
+
+
+### Features
+
+* **execution:** add durable interaction lifecycle ([#112](https://github.com/0xPlayerOne/control-plane/issues/112)) ([83a3bb6](https://github.com/0xPlayerOne/control-plane/commit/83a3bb6fcec8969bcb78dfa4bbbc167a5fe767c0))
+* **workflows:** add Temporal execution lifecycle ([#111](https://github.com/0xPlayerOne/control-plane/issues/111)) ([f70ad1e](https://github.com/0xPlayerOne/control-plane/commit/f70ad1e06c5c87fb349909188ca01cfc4c212aef)), closes [#23](https://github.com/0xPlayerOne/control-plane/issues/23)
+
 ## 1.0.0 (2026-08-24)
 
 
