@@ -9,7 +9,11 @@ import {
   InteractionService,
 } from '@control-plane/domain'
 import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
-import { RuntimeConnectionRegistry } from '@control-plane/runtime-sdk'
+import {
+  RecordingRuntimeAvailabilityChangePublisher,
+  RuntimeConnectionRegistry,
+  RuntimeHealthIngestionService,
+} from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
@@ -150,6 +154,102 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       runtime: { runtimeConnectionId: revoked.runtimeConnectionId },
     })
     expect(await isolated.application.select().from(runtimeConnections)).toHaveLength(1)
+  })
+
+  test('persists versioned health ingestion and freshness across service restarts', async () => {
+    const repository = new PostgresRuntimeConnectionRepository(isolated.application)
+    const registry = new RuntimeConnectionRegistry(repository)
+    const runtimeConnectionId = 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAJ'
+    await registry.register({
+      runtimeConnectionId,
+      identityDigest: `sha256:${'f'.repeat(64)}`,
+      connectionType: 'managed_local',
+      runtimeNodeRefId: 'rnr_01ARZ3NDEKTSV4RRFFQ69G5FAJ',
+      runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAJ',
+      location: 'local_device',
+      opaqueNativeRef: 'nref_01ARZ3NDEKTSV4RRFFQ69G5FAJ',
+      adapterVersion: '1.0.0',
+      driverVersion: '1.0.0',
+      harnessVersion: '1.0.0',
+      status: 'connected',
+      health: 'healthy',
+      capabilities: [],
+      compatibilityState: 'untested',
+      limitations: [],
+      lastDiscoveredAt: '2026-08-24T21:00:00.000Z',
+      lastHeartbeatAt: '2026-08-24T21:00:00.000Z',
+      lastHealthCheckAt: '2026-08-24T21:00:00.000Z',
+    })
+    const policy = {
+      adapterMajor: 1,
+      driverMajor: 1,
+      harnessMajor: 1,
+      protocolMajor: 1,
+      healthTtlMs: 60_000,
+      maximumCapabilityTtlMs: 60_000,
+    }
+    const report = {
+      runtimeConnectionId,
+      reportSequence: 1,
+      observedAt: '2026-08-24T21:01:00.000Z',
+      nodeStatus: 'online',
+      runtimeState: 'healthy',
+      versions: {
+        adapter: '1.0.0',
+        driver: '1.0.0',
+        harness: '1.0.0',
+        protocol: '1.0.0',
+      },
+      capabilitySnapshot: {
+        version: 1,
+        observedAt: '2026-08-24T21:01:00.000Z',
+        ttlMs: 60_000,
+        verification: 'verified',
+        source: 'adapter_driver_negotiation',
+        capabilities: [{ name: 'stream.output', support: 'supported' }],
+      },
+      limitations: [],
+      diagnostics: [],
+    }
+    const changes = new RecordingRuntimeAvailabilityChangePublisher()
+    const ingestion = new RuntimeHealthIngestionService({ registry, changes, policy })
+    const healthy = await ingestion.ingest(report, '2026-08-24T21:01:10.000Z')
+    expect(healthy.connection).toMatchObject({
+      availabilityState: 'healthy',
+      protocolVersion: '1.0.0',
+      capabilitySnapshotVersion: 1,
+      capabilityVerification: 'verified',
+      lastHealthReportSequence: 1,
+    })
+    expect(changes.events).toHaveLength(1)
+
+    const restartedChanges = new RecordingRuntimeAvailabilityChangePublisher()
+    const restarted = new RuntimeHealthIngestionService({
+      registry: new RuntimeConnectionRegistry(
+        new PostgresRuntimeConnectionRepository(isolated.application)
+      ),
+      changes: restartedChanges,
+      policy,
+    })
+    expect(await restarted.ingest(report, '2026-08-24T21:01:20.000Z')).toMatchObject({
+      applied: false,
+      reason: 'replayed_report',
+    })
+    const stale = await restarted.refresh({
+      runtimeConnectionId,
+      nodeStatus: 'offline',
+      evaluatedAt: '2026-08-24T21:02:01.000Z',
+    })
+    expect(stale).toMatchObject({
+      applied: true,
+      connection: { availabilityState: 'stale', status: 'expired' },
+      assessment: {
+        nodeStatus: 'offline',
+        executable: false,
+        diagnostics: expect.arrayContaining(['CAPABILITY_SNAPSHOT_STALE', 'NODE_OFFLINE']),
+      },
+    })
+    expect(restartedChanges.events).toHaveLength(1)
   })
 
   test('persists lifecycle transitions and multiple runtime attempts with optimistic concurrency', async () => {

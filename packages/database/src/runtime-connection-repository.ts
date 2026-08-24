@@ -95,7 +95,16 @@ export function toRuntimeConnectionRow(
     health: connection.health,
     capabilities: connection.capabilities,
     compatibilityState: connection.compatibilityState,
+    availabilityState: connection.availabilityState ?? null,
+    protocolVersion: connection.protocolVersion ?? null,
+    capabilitySnapshotVersion: connection.capabilitySnapshotVersion ?? null,
+    capabilitySnapshotObservedAt: optionalDate(connection.capabilitySnapshotObservedAt),
+    capabilitySnapshotExpiresAt: optionalDate(connection.capabilitySnapshotExpiresAt),
+    capabilityVerification: connection.capabilityVerification ?? null,
+    lastHealthReportSequence: connection.lastHealthReportSequence ?? null,
+    lastHealthReportDigest: connection.lastHealthReportDigest ?? null,
     limitations: connection.limitations,
+    diagnostics: connection.diagnostics ?? null,
     lastDiscoveredAt: new Date(connection.lastDiscoveredAt),
     lastHeartbeatAt: new Date(connection.lastHeartbeatAt),
     lastHealthCheckAt: new Date(connection.lastHealthCheckAt),
@@ -122,7 +131,24 @@ export function fromRuntimeConnectionRow(row: RuntimeConnectionRow): RuntimeConn
     health: row.health,
     capabilities: row.capabilities,
     compatibilityState: row.compatibilityState,
+    ...(row.availabilityState ? { availabilityState: row.availabilityState } : {}),
+    ...(row.protocolVersion ? { protocolVersion: row.protocolVersion } : {}),
+    ...(row.capabilitySnapshotVersion
+      ? { capabilitySnapshotVersion: row.capabilitySnapshotVersion }
+      : {}),
+    ...(row.capabilitySnapshotObservedAt
+      ? { capabilitySnapshotObservedAt: row.capabilitySnapshotObservedAt.toISOString() }
+      : {}),
+    ...(row.capabilitySnapshotExpiresAt
+      ? { capabilitySnapshotExpiresAt: row.capabilitySnapshotExpiresAt.toISOString() }
+      : {}),
+    ...(row.capabilityVerification ? { capabilityVerification: row.capabilityVerification } : {}),
+    ...(row.lastHealthReportSequence
+      ? { lastHealthReportSequence: row.lastHealthReportSequence }
+      : {}),
+    ...(row.lastHealthReportDigest ? { lastHealthReportDigest: row.lastHealthReportDigest } : {}),
     limitations: row.limitations,
+    ...(row.diagnostics ? { diagnostics: row.diagnostics } : {}),
     lastDiscoveredAt: row.lastDiscoveredAt.toISOString(),
     lastHeartbeatAt: row.lastHeartbeatAt.toISOString(),
     lastHealthCheckAt: row.lastHealthCheckAt.toISOString(),
@@ -144,7 +170,16 @@ function toRuntimeConnectionUpdate(
     health: connection.health,
     capabilities: connection.capabilities,
     compatibilityState: connection.compatibilityState,
+    availabilityState: connection.availabilityState ?? null,
+    protocolVersion: connection.protocolVersion ?? null,
+    capabilitySnapshotVersion: connection.capabilitySnapshotVersion ?? null,
+    capabilitySnapshotObservedAt: optionalDate(connection.capabilitySnapshotObservedAt),
+    capabilitySnapshotExpiresAt: optionalDate(connection.capabilitySnapshotExpiresAt),
+    capabilityVerification: connection.capabilityVerification ?? null,
+    lastHealthReportSequence: connection.lastHealthReportSequence ?? null,
+    lastHealthReportDigest: connection.lastHealthReportDigest ?? null,
     limitations: connection.limitations,
+    diagnostics: connection.diagnostics ?? null,
     lastDiscoveredAt: new Date(connection.lastDiscoveredAt),
     lastHeartbeatAt: new Date(connection.lastHeartbeatAt),
     lastHealthCheckAt: new Date(connection.lastHealthCheckAt),

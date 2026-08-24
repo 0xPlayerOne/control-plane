@@ -38,6 +38,8 @@ export {
   reconciliationCheckpointState,
   reconciliationReason,
   revisionColumn,
+  runtimeAvailabilityState,
+  runtimeCapabilityVerification,
   runtimeCompatibilityState,
   runtimeConnectionHealth,
   runtimeConnections,
