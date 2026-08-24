@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.1.0...contracts-v1.2.0) (2026-08-24)
+
+
+### Features
+
+* **runtime:** expose Agent HQ discovery models ([#123](https://github.com/0xPlayerOne/control-plane/issues/123)) ([cf43141](https://github.com/0xPlayerOne/control-plane/commit/cf43141f18d82fb3bd5466e47f1df8606b1d1fa1))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.0.0...contracts-v1.1.0) (2026-08-24)
 
 

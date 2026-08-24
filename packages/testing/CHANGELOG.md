@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/testing-v1.1.0...testing-v1.1.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **test:** stabilize parallel Postgres suites ([#130](https://github.com/0xPlayerOne/control-plane/issues/130)) ([9a0f106](https://github.com/0xPlayerOne/control-plane/commit/9a0f10637c7422e39740c662b70ed0163ef263c6))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/testing-v1.0.0...testing-v1.1.0) (2026-08-24)
 
 

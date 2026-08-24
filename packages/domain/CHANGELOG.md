@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.1.0...domain-v1.2.0) (2026-08-24)
+
+
+### Features
+
+* **runtime:** route eligible runtimes deterministically ([#121](https://github.com/0xPlayerOne/control-plane/issues/121)) ([9f7a0fd](https://github.com/0xPlayerOne/control-plane/commit/9f7a0fd74e179dd592d9727ae49bc222b99251d8))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.0.0...domain-v1.1.0) (2026-08-24)
 
 
