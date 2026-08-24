@@ -8,6 +8,7 @@
         "@control-plane/context": "workspace:*",
         "@control-plane/contracts": "workspace:*",
         "@control-plane/domain": "workspace:*",
+        "@control-plane/events": "workspace:*",
         "@control-plane/execution-plan": "workspace:*",
         "@control-plane/sdk": "workspace:*",
         "@eslint/js": "10.0.1",
