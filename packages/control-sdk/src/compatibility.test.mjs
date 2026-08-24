@@ -20,8 +20,12 @@ describe('Control API generated contract', () => {
       '/v1/context-packages/resolve',
       '/v1/executions/accept',
       '/v1/executions/validate',
+      '/v1/external-sessions/get',
+      '/v1/external-sessions/list',
       '/v1/profiles/resolve',
       '/v1/project-states/resolve',
+      '/v1/runtime-connections/get',
+      '/v1/runtime-connections/list',
       '/v1/runtimes/list',
     ])
   })

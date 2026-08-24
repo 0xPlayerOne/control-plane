@@ -57,6 +57,73 @@ describe('Control Plane SDK public client', () => {
     })
   })
 
+  test('lists and gets normalized runtime and session discovery models through versioned operations', async () => {
+    const calls = []
+    const response = runtimeDiscoveryResponse()
+    const sessionResponse = externalSessionDiscoveryResponse()
+    const client = new ControlPlaneClient({
+      baseUrl: 'https://control-plane.test',
+      credential: 'service-token',
+      fetch: async (url, init) => {
+        calls.push({ url, init })
+        if (String(url).includes('/external-sessions/')) {
+          return globalThis.Response.json(
+            String(url).endsWith('/get')
+              ? {
+                  ...sessionResponse,
+                  data: { externalSession: sessionResponse.data.externalSessions[0] },
+                }
+              : sessionResponse
+          )
+        }
+        return globalThis.Response.json(
+          String(url).endsWith('/get')
+            ? {
+                ...response,
+                data: { runtimeConnection: response.data.runtimeConnections[0] },
+              }
+            : response
+        )
+      },
+    })
+
+    await expect(client.listRuntimeConnections(runtimeDiscoveryRequest())).resolves.toEqual(
+      response
+    )
+    await expect(
+      client.getRuntimeConnection({
+        ...runtimeDiscoveryRequest(),
+        operation: 'runtime-connection.get',
+        parameters: {
+          runtimeConnectionId: response.data.runtimeConnections[0].runtimeConnectionId,
+        },
+      })
+    ).resolves.toEqual({
+      ...response,
+      data: { runtimeConnection: response.data.runtimeConnections[0] },
+    })
+    await expect(client.listExternalSessions(externalSessionDiscoveryRequest())).resolves.toEqual(
+      sessionResponse
+    )
+    await expect(
+      client.getExternalSession({
+        ...externalSessionDiscoveryRequest(),
+        operation: 'external-session.get',
+        parameters: {
+          externalSessionId: sessionResponse.data.externalSessions[0].externalSessionId,
+        },
+      })
+    ).resolves.toEqual({
+      ...sessionResponse,
+      data: { externalSession: sessionResponse.data.externalSessions[0] },
+    })
+
+    expect(String(calls[0].url)).toBe('https://control-plane.test/v1/runtime-connections/list')
+    expect(String(calls[1].url)).toBe('https://control-plane.test/v1/runtime-connections/get')
+    expect(String(calls[2].url)).toBe('https://control-plane.test/v1/external-sessions/list')
+    expect(String(calls[3].url)).toBe('https://control-plane.test/v1/external-sessions/get')
+  })
+
   test('protects service credentials from insecure remote transport', () => {
     expect(
       () =>
@@ -168,3 +235,106 @@ describe('Control Plane SDK public client', () => {
     }
   })
 })
+
+function runtimeDiscoveryRequest() {
+  return {
+    caller: { servicePrincipalId: 'svc_agent-hq' },
+    contractVersion: { major: 1, minor: 0 },
+    correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
+    operation: 'runtime-connection.list',
+    parameters: { limit: 50, states: [], requiredCapabilities: [] },
+    projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+    requestId: 'req_01JABCDEF0123456789ABCDEFG',
+    requestedAt: '2026-08-24T12:00:00.000Z',
+    workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+  }
+}
+
+function runtimeDiscoveryResponse() {
+  return {
+    contractVersion: { major: 1, minor: 0 },
+    requestId: 'req_01JABCDEF0123456789ABCDEFG',
+    correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
+    data: {
+      runtimeConnections: [
+        {
+          runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+          runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
+          family: 'codex',
+          connectionType: 'managed_cloud',
+          location: 'managed_sandbox',
+          status: 'available',
+          connection: { status: 'connected', health: 'healthy', availability: 'healthy' },
+          freshness: {
+            state: 'fresh',
+            observedAt: '2026-08-24T11:59:00.000Z',
+            expiresAt: '2026-08-24T12:05:00.000Z',
+          },
+          versions: { adapter: '1.2.0', driver: '1.1.0', harness: '2.0.0' },
+          capabilities: ['session.resume'],
+          capabilityDetails: [{ name: 'session.resume', support: 'supported' }],
+          compatibility: { state: 'compatible', limitations: [] },
+          access: {
+            localProjectGrant: { required: false, state: 'not_required' },
+            entitlement: { state: 'allowed', class: 'standard' },
+          },
+          eligibility: {
+            state: 'eligible',
+            reasons: [],
+            degradations: [],
+            remediation: [],
+          },
+          observedAt: '2026-08-24T11:59:00.000Z',
+          limitations: [],
+        },
+      ],
+      page: {},
+    },
+  }
+}
+
+function externalSessionDiscoveryRequest() {
+  return {
+    ...runtimeDiscoveryRequest(),
+    operation: 'external-session.list',
+    parameters: { limit: 50, states: [] },
+  }
+}
+
+function externalSessionDiscoveryResponse() {
+  return {
+    contractVersion: { major: 1, minor: 0 },
+    requestId: 'req_01JABCDEF0123456789ABCDEFG',
+    correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
+    data: {
+      externalSessions: [
+        {
+          externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+          runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+          projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+          state: 'offline',
+          recoverable: true,
+          display: { origin: 'native_discovery', displayName: 'Planning session' },
+          freshness: {
+            state: 'fresh',
+            observedAt: '2026-08-24T11:59:00.000Z',
+            expiresAt: '2026-08-24T12:05:00.000Z',
+          },
+          capabilitySummary: {
+            version: 1,
+            operations: ['session.resume'],
+            controls: {
+              reference: { available: true },
+              resume: { available: false, reason: 'RUNTIME_OFFLINE' },
+              load: { available: false, reason: 'RUNTIME_OFFLINE' },
+              close: { available: false, reason: 'RUNTIME_OFFLINE' },
+              history: { available: false, reason: 'RUNTIME_OFFLINE' },
+            },
+          },
+          limitations: ['RUNTIME_OFFLINE'],
+        },
+      ],
+      page: {},
+    },
+  }
+}

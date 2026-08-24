@@ -23,7 +23,12 @@ export class NormalizedExceptionFilter implements ExceptionFilter {
     const http = host.switchToHttp()
     const request = http.getRequest<FastifyRequest>()
     const reply = http.getResponse<FastifyReply>()
-    const status = exception instanceof HttpException ? exception.getStatus() : 500
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : isSchemaValidationError(exception)
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR
     reply.status(status).send({
       error: normalizedError(exception, status),
       meta: responseMetadata(request),
@@ -42,10 +47,37 @@ function normalizedError(exception: unknown, status: number) {
       }
     }
   }
+  if (isSchemaValidationError(exception)) {
+    return {
+      code: 'VALIDATION_ERROR',
+      details: exception.issues.map((issue) => ({
+        codes: [issue.code],
+        field: issue.path.map(String).join('.'),
+      })),
+      message: 'Request validation failed',
+    }
+  }
   if (status === HttpStatus.NOT_FOUND) return { code: 'NOT_FOUND', message: 'Resource not found' }
   if (status === HttpStatus.UNAUTHORIZED) return { code: 'UNAUTHORIZED', message: 'Unauthorized' }
   if (status >= 400 && status < 500) return { code: 'BAD_REQUEST', message: 'Request rejected' }
   return { code: 'INTERNAL_ERROR', message: 'Internal server error' }
+}
+
+function isSchemaValidationError(value: unknown): value is {
+  readonly issues: readonly { readonly code: string; readonly path: readonly PropertyKey[] }[]
+} {
+  if (typeof value !== 'object' || value === null) return false
+  const issues = Reflect.get(value, 'issues')
+  return (
+    Array.isArray(issues) &&
+    issues.every(
+      (issue) =>
+        typeof issue === 'object' &&
+        issue !== null &&
+        typeof Reflect.get(issue, 'code') === 'string' &&
+        Array.isArray(Reflect.get(issue, 'path'))
+    )
+  )
 }
 
 function isApiError(value: unknown): value is {

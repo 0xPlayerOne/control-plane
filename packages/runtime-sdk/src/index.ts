@@ -1,6 +1,7 @@
 export * from './adapter.js'
 export * from './capabilities.js'
 export * from './conformance.js'
+export * from './discovery.js'
 export * from './fixtures.js'
 export * from './health.js'
 export * from './eligibility.js'

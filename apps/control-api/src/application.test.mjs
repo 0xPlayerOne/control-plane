@@ -6,6 +6,7 @@ import {
   createInternalServicePrincipal,
 } from './auth/service-authentication.ts'
 import { start } from './index.ts'
+import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
 class FakeProcessAdapter {
   exitCode = undefined
@@ -39,13 +40,14 @@ const metadata = {
 }
 const applications = []
 
-async function createApplication(logs = [], serviceAuthenticator) {
+async function createApplication(logs = [], serviceAuthenticator, runtimeDiscoveryRepository) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
     logger: { write: (entry) => logs.push(entry) },
     metadata,
     readiness: () => ({ status: 'ready', metadata }),
     serviceAuthenticator,
+    runtimeDiscoveryRepository,
   })
   applications.push(application)
   return application
@@ -346,6 +348,131 @@ describe('Control API', () => {
     })
   })
 
+  test('serves scoped normalized runtime and external-session read models without native state', async () => {
+    const repository = discoveryRepository()
+    const application = await createApplication(
+      [],
+      policyAuthenticator({ claims: validServiceClaims() }),
+      repository
+    )
+
+    const runtimeList = await application.inject({
+      method: 'POST',
+      url: '/v1/runtime-connections/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('runtime-connection.list', {
+        limit: 1,
+        runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
+        states: ['stale'],
+        requiredCapabilities: ['session.resume'],
+      }),
+    })
+    const runtimeGet = await application.inject({
+      method: 'POST',
+      url: '/v1/runtime-connections/get',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('runtime-connection.get', {
+        runtimeConnectionId: runtimeModel().runtimeConnectionId,
+        runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
+      }),
+    })
+    const sessionList = await application.inject({
+      method: 'POST',
+      url: '/v1/external-sessions/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('external-session.list', {
+        limit: 50,
+        states: ['revoked'],
+      }),
+    })
+
+    expect(runtimeList.statusCode).toBe(200)
+    expect(runtimeList.json().data.runtimeConnections).toHaveLength(1)
+    expect(runtimeList.json().data.runtimeConnections[0]).toMatchObject({
+      node: { health: 'online' },
+      connection: { health: 'degraded', availability: 'stale' },
+      freshness: { state: 'stale' },
+      eligibility: {
+        state: 'ineligible',
+        reasons: ['REQUIRED_CAPABILITY_INSUFFICIENT', 'RUNTIME_STALE'],
+      },
+    })
+    expect(runtimeGet.statusCode).toBe(200)
+    expect(sessionList.statusCode).toBe(200)
+    expect(sessionList.json().data.externalSessions[0].capabilitySummary.controls.resume).toEqual({
+      available: false,
+      reason: 'SESSION_REVOKED',
+    })
+    const serialized = JSON.stringify({
+      runtime: runtimeGet.json(),
+      sessions: sessionList.json(),
+    })
+    for (const prohibited of [
+      '/Users/example',
+      'opaqueNativeRef',
+      'opaqueNativeSessionId',
+      'processHandle',
+      'nativeConfig',
+      'nativeSessionState',
+      'super-secret-native-token',
+    ]) {
+      expect(serialized).not.toContain(prohibited)
+    }
+  })
+
+  test('rejects cross-workspace discovery and returns scoped not-found results', async () => {
+    const repository = discoveryRepository()
+    const application = await createApplication(
+      [],
+      policyAuthenticator({ claims: validServiceClaims() }),
+      repository
+    )
+    const crossWorkspace = await application.inject({
+      method: 'POST',
+      url: '/v1/runtime-connections/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: {
+        ...discoveryRequest('runtime-connection.list', {
+          limit: 50,
+          states: [],
+          requiredCapabilities: [],
+        }),
+        workspaceId: 'wsp_01JBBCDEF0123456789ABCDEFG',
+      },
+    })
+    const missing = await application.inject({
+      method: 'POST',
+      url: '/v1/external-sessions/get',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('external-session.get', {
+        externalSessionId: 'ses_01JBBCDEF0123456789ABCDEFG',
+      }),
+    })
+    const malformed = await application.inject({
+      method: 'POST',
+      url: '/v1/runtime-connections/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('runtime-connection.list', {
+        limit: 101,
+        states: [],
+        requiredCapabilities: [],
+      }),
+    })
+
+    expect(crossWorkspace.statusCode).toBe(403)
+    expect(crossWorkspace.json().error.code).toBe('SERVICE_CREDENTIAL_SCOPE_MISMATCH')
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json().error.code).toBe('EXTERNAL_SESSION_NOT_FOUND')
+    expect(malformed.statusCode).toBe(400)
+    expect(malformed.json().error).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      message: 'Request validation failed',
+    })
+    expect(malformed.json().error.details).toContainEqual(
+      expect.objectContaining({ field: 'parameters.limit' })
+    )
+  })
+
   test('generates versioned OpenAPI paths', async () => {
     const application = await createApplication()
 
@@ -353,6 +480,8 @@ describe('Control API', () => {
 
     expect(document.openapi).toStartWith('3.')
     expect(document.paths).toHaveProperty('/v1/system/echo')
+    expect(document.paths).toHaveProperty('/v1/runtime-connections/list')
+    expect(document.paths).toHaveProperty('/v1/external-sessions/list')
     expect(document.paths).toHaveProperty('/health')
     expect(document.components?.securitySchemes).toHaveProperty('service-bearer')
   })
@@ -390,7 +519,7 @@ function validServiceClaims() {
     keyId: 'agent-hq-2026-08',
     principalId: 'svc_agent-hq',
     projectIds: ['prj_01JABCDEF0123456789ABCDEFG'],
-    scopes: ['system:authenticate'],
+    scopes: ['runtime:read', 'system:authenticate'],
     workspaceIds: ['wsp_01JABCDEF0123456789ABCDEFG'],
   }
 }
@@ -407,6 +536,116 @@ function scopedRequest() {
     requestedAt: '2026-08-23T12:00:00.000Z',
     workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
   }
+}
+
+function discoveryRequest(operation, parameters) {
+  return {
+    caller: { servicePrincipalId: 'svc_agent-hq' },
+    contractVersion: { major: 1, minor: 0 },
+    correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
+    operation,
+    parameters,
+    projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+    requestId: 'req_01JABCDEF0123456789ABCDEFG',
+    requestedAt: '2026-08-24T12:00:00.000Z',
+    workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+  }
+}
+
+function runtimeModel() {
+  return {
+    runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+    runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
+    family: 'codex',
+    connectionType: 'managed_local',
+    location: 'local_device',
+    status: 'unavailable',
+    node: {
+      runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+      location: 'local_device',
+      status: 'online',
+      health: 'online',
+      observedAt: '2026-08-24T11:59:00.000Z',
+    },
+    connection: { status: 'degraded', health: 'degraded', availability: 'stale' },
+    freshness: {
+      state: 'stale',
+      observedAt: '2026-08-24T11:50:00.000Z',
+      expiresAt: '2026-08-24T11:55:00.000Z',
+    },
+    versions: { adapter: '1.2.0', driver: '1.1.0', harness: '2.0.0' },
+    capabilities: ['session.resume'],
+    capabilityDetails: [
+      { name: 'session.resume', support: 'degraded', limitations: ['HISTORY_UNAVAILABLE'] },
+    ],
+    compatibility: { state: 'incompatible', limitations: ['DRIVER_MAJOR_MISMATCH'] },
+    access: {
+      localProjectGrant: { required: true, state: 'missing' },
+      entitlement: { state: 'allowed', class: 'standard' },
+    },
+    eligibility: {
+      state: 'ineligible',
+      reasons: ['REQUIRED_CAPABILITY_INSUFFICIENT', 'RUNTIME_STALE'],
+      degradations: [],
+      remediation: [{ code: 'REFRESH_RUNTIME', label: 'Refresh runtime health and capabilities' }],
+    },
+    observedAt: '2026-08-24T11:50:00.000Z',
+    limitations: ['HISTORY_UNAVAILABLE'],
+    opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFG',
+    rawPath: '/Users/example/.runtime',
+    processHandle: 4412,
+    credentials: { token: 'super-secret-native-token' },
+    nativeConfig: { unrestricted: true },
+  }
+}
+
+function externalSessionModel() {
+  return {
+    externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+    runtimeConnectionId: runtimeModel().runtimeConnectionId,
+    projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+    state: 'revoked',
+    recoverable: false,
+    display: { origin: 'native_discovery', displayName: 'Review session' },
+    freshness: {
+      state: 'expired',
+      observedAt: '2026-08-24T11:00:00.000Z',
+      expiresAt: '2026-08-24T11:05:00.000Z',
+    },
+    capabilitySummary: {
+      version: 4,
+      operations: ['session.resume'],
+      controls: {
+        reference: { available: true },
+        resume: { available: false, reason: 'SESSION_REVOKED' },
+        load: { available: false, reason: 'SESSION_REVOKED' },
+        close: { available: false, reason: 'SESSION_REVOKED' },
+        history: { available: false, reason: 'SESSION_REVOKED' },
+      },
+    },
+    limitations: ['SESSION_REVOKED'],
+    opaqueNativeSessionId: 'nses_01JABCDEF0123456789ABCDEFG',
+    nativeSessionState: { messages: ['private'] },
+  }
+}
+
+function discoveryRepository() {
+  return new InMemoryRuntimeDiscoveryRepository(
+    [
+      {
+        workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+        model: runtimeModel(),
+      },
+    ],
+    [
+      {
+        workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+        projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+        runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
+        model: externalSessionModel(),
+      },
+    ]
+  )
 }
 
 function authenticatedRequest(application, token, payload = scopedRequest()) {
