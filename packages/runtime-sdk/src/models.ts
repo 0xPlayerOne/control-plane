@@ -73,6 +73,22 @@ export const RuntimeConnectionStatusSchema = z.enum([
   'expired',
   'revoked',
 ])
+export const RuntimeAvailabilityStateSchema = z.enum([
+  'healthy',
+  'degraded',
+  'reconnecting',
+  'offline',
+  'incompatible',
+  'revoked',
+  'stale',
+  'unknown',
+])
+export const RuntimeCapabilityVerificationSchema = z.enum(['verified', 'unverified'])
+export const RuntimeDiagnosticCodeSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Z][A-Z0-9_]*$/)
 export const RuntimeCompatibilityStateSchema = z.enum([
   'compatible',
   'degraded',
@@ -105,7 +121,16 @@ export const RuntimeConnectionSchema = z
     health: RuntimeHealthSchema,
     capabilities: z.array(RuntimeCapabilitySchema).max(64).refine(uniqueCapabilities),
     compatibilityState: RuntimeCompatibilityStateSchema,
+    availabilityState: RuntimeAvailabilityStateSchema.optional(),
+    protocolVersion: RuntimeSemanticVersionSchema.optional(),
+    capabilitySnapshotVersion: z.number().int().positive().optional(),
+    capabilitySnapshotObservedAt: RuntimeTimestampSchema.optional(),
+    capabilitySnapshotExpiresAt: RuntimeTimestampSchema.optional(),
+    capabilityVerification: RuntimeCapabilityVerificationSchema.optional(),
+    lastHealthReportSequence: z.number().int().positive().optional(),
+    lastHealthReportDigest: RuntimeConnectionIdentityDigestSchema.optional(),
     limitations: z.array(z.string().min(1).max(512)).max(64),
+    diagnostics: z.array(RuntimeDiagnosticCodeSchema).max(64).optional(),
     lastDiscoveredAt: RuntimeTimestampSchema,
     lastHeartbeatAt: RuntimeTimestampSchema,
     lastHealthCheckAt: RuntimeTimestampSchema,
@@ -136,6 +161,38 @@ export const RuntimeConnectionSchema = z
         message: 'Revoked connections require revoked compatibility',
       })
     }
+    if (
+      connection.status === 'revoked' &&
+      connection.availabilityState !== undefined &&
+      connection.availabilityState !== 'revoked'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Revoked connections require revoked availability when health has been ingested',
+      })
+    }
+    if (connection.status !== 'revoked' && connection.availabilityState === 'revoked') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Revoked availability requires revoked connection status',
+      })
+    }
+    const snapshotMetadata = [
+      connection.capabilitySnapshotVersion,
+      connection.capabilitySnapshotObservedAt,
+      connection.capabilitySnapshotExpiresAt,
+      connection.capabilityVerification,
+    ]
+    const snapshotFields = snapshotMetadata.filter((value) => value !== undefined).length
+    if (snapshotFields !== 0 && snapshotFields !== snapshotMetadata.length) {
+      context.addIssue({ code: 'custom', message: 'Capability snapshot metadata must be complete' })
+    }
+    if (
+      (connection.lastHealthReportSequence === undefined) !==
+      (connection.lastHealthReportDigest === undefined)
+    ) {
+      context.addIssue({ code: 'custom', message: 'Health report identity must be complete' })
+    }
     if (Date.parse(connection.updatedAt) < Date.parse(connection.createdAt)) {
       context.addIssue({ code: 'custom', message: 'Connection timestamps cannot regress' })
     }
@@ -143,6 +200,7 @@ export const RuntimeConnectionSchema = z
 
 export type RuntimeNodeRef = z.output<typeof RuntimeNodeRefSchema>
 export type RuntimeConnection = z.output<typeof RuntimeConnectionSchema>
+export type RuntimeAvailabilityState = z.output<typeof RuntimeAvailabilityStateSchema>
 export type RuntimeCompatibilityState = z.output<typeof RuntimeCompatibilityStateSchema>
 
 export interface RuntimeCompatibilityResult {

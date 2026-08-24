@@ -29,6 +29,24 @@ do normalized status, health, compatibility, capabilities, and adapter, driver, 
 Disconnect, expiry, and revocation are state transitions rather than deletes, so historical execution
 attempts keep valid connection references after a runtime disappears. Revocation is terminal.
 
+## Health and freshness ingestion
+
+Normalized health reports keep Agent HQ-owned node status separate from runtime availability. This
+allows node-online/runtime-degraded and node-offline/runtime-stale conditions to remain distinct.
+Reports carry monotonic sequences, adapter, driver, harness, and protocol versions, and a versioned
+capability snapshot with bounded TTL and verification provenance.
+
+Availability is explicitly classified as healthy, degraded, reconnecting, offline, incompatible,
+revoked, stale, or unknown. Only healthy and degraded states are executable. Supported capability
+claims are retained only when verified through adapter/driver negotiation; unverified claims are stored
+as unsupported. Major-version mismatches are incompatible, and expired health or capability TTLs are
+stale regardless of the last successful state.
+
+Ingestion is idempotent, rejects conflicting report identities, and ignores out-of-order reports.
+Eligibility-affecting changes publish a normalized internal availability-change event. Limitations are
+bounded display text and diagnostics are normalized uppercase codes, preventing raw native details from
+entering Agent HQ-facing state.
+
 ## Capability requirements
 
 Capabilities are individually named and report supported, degraded, or unsupported state plus bounded

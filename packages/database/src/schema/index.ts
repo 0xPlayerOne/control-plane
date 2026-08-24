@@ -18,6 +18,8 @@ export {
 export { interactionKind, interactionRequests, interactionState } from './interactions.js'
 export { inboxMessages, outboxEvents, outboxStatus } from './messaging.js'
 export {
+  runtimeAvailabilityState,
+  runtimeCapabilityVerification,
   runtimeCompatibilityState,
   runtimeConnectionHealth,
   runtimeConnections,

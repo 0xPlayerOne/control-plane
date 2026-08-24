@@ -43,6 +43,20 @@ export const runtimeCompatibilityState = pgEnum('runtime_compatibility_state', [
   'unavailable',
   'capability_missing',
 ])
+export const runtimeAvailabilityState = pgEnum('runtime_availability_state', [
+  'healthy',
+  'degraded',
+  'reconnecting',
+  'offline',
+  'incompatible',
+  'revoked',
+  'stale',
+  'unknown',
+])
+export const runtimeCapabilityVerification = pgEnum('runtime_capability_verification', [
+  'verified',
+  'unverified',
+])
 
 const identifier = (name: string) => varchar(name, { length: 30 })
 
@@ -63,7 +77,22 @@ export const runtimeConnections = pgTable(
     health: runtimeConnectionHealth('health').notNull(),
     capabilities: jsonb('capabilities').notNull(),
     compatibilityState: runtimeCompatibilityState('compatibility_state').notNull(),
+    availabilityState: runtimeAvailabilityState('availability_state'),
+    protocolVersion: varchar('protocol_version', { length: 32 }),
+    capabilitySnapshotVersion: bigint('capability_snapshot_version', { mode: 'number' }),
+    capabilitySnapshotObservedAt: timestamp('capability_snapshot_observed_at', {
+      mode: 'date',
+      withTimezone: true,
+    }),
+    capabilitySnapshotExpiresAt: timestamp('capability_snapshot_expires_at', {
+      mode: 'date',
+      withTimezone: true,
+    }),
+    capabilityVerification: runtimeCapabilityVerification('capability_verification'),
+    lastHealthReportSequence: bigint('last_health_report_sequence', { mode: 'number' }),
+    lastHealthReportDigest: varchar('last_health_report_digest', { length: 71 }),
     limitations: jsonb('limitations').notNull(),
+    diagnostics: jsonb('diagnostics'),
     lastDiscoveredAt: timestamp('last_discovered_at', {
       mode: 'date',
       withTimezone: true,
@@ -82,6 +111,10 @@ export const runtimeConnections = pgTable(
     uniqueIndex('runtime_connections_identity_unique').on(table.identityDigest),
     index('runtime_connections_node_index').on(table.runtimeNodeRefId),
     index('runtime_connections_status_freshness_index').on(table.status, table.expiresAt),
+    index('runtime_connections_availability_freshness_index').on(
+      table.availabilityState,
+      table.capabilitySnapshotExpiresAt
+    ),
     index('runtime_connections_definition_index').on(table.runtimeDefinitionId),
     check(
       'runtime_connections_location_check',
