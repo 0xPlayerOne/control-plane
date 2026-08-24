@@ -1,8 +1,8 @@
 # Runtime capabilities and compatibility
 
 `@control-plane/runtime-sdk` defines the Control Plane-owned vocabulary for runtime discovery,
-eligibility, routing, and future adapter operations. The vocabulary is provider and harness neutral;
-Pi, ACP, and mock fixtures use the same schemas and no concrete runtime SDK is a dependency.
+eligibility, routing, and adapter operations. The vocabulary is provider and harness neutral; Pi, ACP,
+and mock fixtures use the same schemas and no concrete runtime SDK is a dependency.
 
 ## Runtime records and ownership
 
@@ -31,6 +31,20 @@ deterministic and sorted:
 - missing or degraded optional capabilities produce degraded eligibility with explicit reasons;
 - all satisfied requirements produce full eligibility.
 
+## Runtime adapter contract
+
+`RuntimeAdapter` is the stable port used by execution code for inspection, capability evaluation,
+start, ordered progress, input and approval responses, cancellation, status and reconciliation,
+session operations, and cleanup. Requests carry a readonly ExecutionPlan snapshot with its identity,
+digest, schema version, and normalized runtime requirements. Concrete adapters translate that snapshot
+inside their own package and must not mutate it or expose native SDK types through the contract.
+
+Handles, progress, terminal results, usage, Artifact references, and classified errors are normalized.
+Start, interactions, cancellation, session creation and closure, and cleanup have explicit idempotency
+expectations. The reusable conformance runner verifies inspection, eligibility, idempotent start,
+normalized conflicts, plan immutability, ordered progress, reconciliation, terminal results, and cleanup.
+`MockRuntimeAdapter` supplies a deterministic implementation for execution and adapter tests.
+
 ## Compatibility states
 
 Compatibility assessment checks lifecycle and health first, then declared compatibility, contract,
@@ -40,5 +54,5 @@ capability-missing. No version or capability is inferred from a related operatio
 
 Tested-version metadata records the exact public contract, adapter, driver, and harness versions used
 to establish compatibility. Equality helpers compare parsed normalized definitions and capability sets
-independent of capability ordering. These models describe future adapters only; they do not implement
-discovery, installation, native authentication, session behavior, or concrete Pi/ACP execution.
+independent of capability ordering. The neutral adapter contract and mock do not implement discovery,
+installation, native authentication, or concrete Pi/ACP execution.
