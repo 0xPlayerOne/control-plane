@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/control-api-v1.1.0...control-api-v1.1.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **api:** wire runtime discovery at startup ([#134](https://github.com/0xPlayerOne/control-plane/issues/134)) ([997cb29](https://github.com/0xPlayerOne/control-plane/commit/997cb297add20461a6fa90852da935783192fbeb))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/control-api-v1.0.0...control-api-v1.1.0) (2026-08-24)
 
 
