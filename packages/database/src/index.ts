@@ -6,6 +6,7 @@ export {
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
+export { PostgresInteractionRepository } from './interaction-repository.js'
 export type {
   ControlPlaneDatabase,
   PostgresConnection,
@@ -23,6 +24,9 @@ export {
   executionState,
   idColumn,
   inboxMessages,
+  interactionKind,
+  interactionRequests,
+  interactionState,
   jsonColumn,
   outboxEvents,
   outboxStatus,

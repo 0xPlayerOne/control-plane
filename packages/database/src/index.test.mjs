@@ -8,6 +8,7 @@ import {
   executionEvents,
   executions,
   inboxMessages,
+  interactionRequests,
   outboxEvents,
   persistenceConventions,
   withDomainTransaction,
@@ -30,11 +31,13 @@ describe('persistence schema', () => {
     const execution = getTableConfig(executions)
     const event = getTableConfig(executionEvents)
     const attempt = getTableConfig(executionAttempts)
+    const interaction = getTableConfig(interactionRequests)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
     expect(outbox.name).toBe('outbox_events')
     expect(execution.name).toBe('executions')
     expect(attempt.name).toBe('execution_attempts')
+    expect(interaction.name).toBe('interaction_requests')
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',
@@ -129,6 +132,26 @@ describe('persistence schema', () => {
         'execution_attempts_execution_sequence_unique',
         'execution_attempts_state_deadline_index',
         'execution_attempts_runtime_index',
+      ])
+    )
+    expect(interaction.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'interaction_id',
+        'execution_id',
+        'attempt_id',
+        'kind',
+        'state',
+        'version',
+        'allowed_principal_ids',
+        'expires_at',
+        'response',
+      ])
+    )
+    expect(interaction.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'interaction_requests_execution_index',
+        'interaction_requests_attempt_state_index',
+        'interaction_requests_expiry_index',
       ])
     )
   })

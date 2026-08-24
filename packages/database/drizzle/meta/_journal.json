@@ -29,6 +29,13 @@
       "when": 1787540014013,
       "tag": "0003_big_black_crow",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787548236078,
+      "tag": "0004_careful_chamber",
+      "breakpoints": true
     }
   ]
 }
