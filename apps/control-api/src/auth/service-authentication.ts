@@ -20,6 +20,7 @@ import {
 import type { StructuredLogger } from '@control-plane/bootstrap'
 import {
   ReadRequestEnvelopeSchema,
+  ServiceAuthenticationRequestSchema,
   ServiceCredentialClaimsSchema,
   ServicePrincipalSchema,
   StateChangingCommandEnvelopeSchema,
@@ -108,7 +109,7 @@ export class PolicyServiceAuthenticator implements ServiceAuthenticator {
       this.#rejectAuthentication(request, 'SERVICE_CREDENTIAL_REVOKED', claims.principalId)
     }
 
-    const envelope = this.#requestEnvelope(request)
+    const envelope = this.#requestEnvelope(request, requiredScopes)
     this.#validateScope(request, claims, requiredScopes, envelope)
     const principal = ServicePrincipalSchema.parse({
       kind: 'agent_hq_service',
@@ -184,7 +185,11 @@ export class PolicyServiceAuthenticator implements ServiceAuthenticator {
     }
   }
 
-  #requestEnvelope(request: FastifyRequest) {
+  #requestEnvelope(request: FastifyRequest, requiredScopes: readonly string[]) {
+    if (requiredScopes.length === 1 && requiredScopes[0] === 'system:authenticate') {
+      const authentication = ServiceAuthenticationRequestSchema.safeParse(request.body)
+      if (authentication.success) return authentication.data
+    }
     const read = ReadRequestEnvelopeSchema.safeParse(request.body)
     if (read.success) return read.data
     const command = StateChangingCommandEnvelopeSchema.safeParse(request.body)

@@ -8,7 +8,7 @@ const OperationSchema = z
   .string()
   .min(1)
   .max(128)
-  .regex(/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/)
+  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/)
 const IdempotencyKeySchema = z
   .string()
   .min(16)
