@@ -8,5 +8,6 @@ export * from './mock.js'
 export * from './models.js'
 export * from './registry.js'
 export * from './routing.js'
+export * from './sessions.js'
 
 export const packageName = 'runtime-sdk'

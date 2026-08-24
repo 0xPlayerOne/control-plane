@@ -7,6 +7,7 @@ import {
   executionAttempts,
   executionEvents,
   executions,
+  externalSessions,
   inboxMessages,
   interactionRequests,
   outboxEvents,
@@ -36,6 +37,7 @@ describe('persistence schema', () => {
     const interaction = getTableConfig(interactionRequests)
     const reconciliation = getTableConfig(reconciliationCheckpoints)
     const runtimeConnection = getTableConfig(runtimeConnections)
+    const externalSession = getTableConfig(externalSessions)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
     expect(outbox.name).toBe('outbox_events')
@@ -44,6 +46,7 @@ describe('persistence schema', () => {
     expect(interaction.name).toBe('interaction_requests')
     expect(reconciliation.name).toBe('reconciliation_checkpoints')
     expect(runtimeConnection.name).toBe('runtime_connections')
+    expect(externalSession.name).toBe('external_sessions')
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',
@@ -227,6 +230,28 @@ describe('persistence schema', () => {
         'version',
         'created_at',
         'updated_at',
+      ])
+    )
+    expect(externalSession.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'external_session_id',
+        'runtime_connection_id',
+        'opaque_native_session_id',
+        'workspace_id',
+        'project_id',
+        'state',
+        'ownership',
+        'capability_snapshot',
+        'safe_metadata',
+        'last_observed_at',
+        'version',
+      ])
+    )
+    expect(externalSession.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'external_sessions_runtime_native_unique',
+        'external_sessions_scope_state_index',
+        'external_sessions_runtime_index',
       ])
     )
     expect(
