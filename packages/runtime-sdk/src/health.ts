@@ -72,6 +72,12 @@ export const RuntimeHealthReportSchema = z
   })
   .strict()
   .refine(
+    (report) =>
+      report.capabilitySnapshot.verification !== 'verified' ||
+      report.capabilitySnapshot.source === 'adapter_driver_negotiation',
+    'Only negotiated capability claims can be verified'
+  )
+  .refine(
     (report) => Date.parse(report.capabilitySnapshot.observedAt) <= Date.parse(report.observedAt),
     'Capability snapshot cannot be newer than its health report'
   )
