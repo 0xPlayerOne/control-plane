@@ -16,6 +16,8 @@ and prefer real implementations over mocks when the dependency is local and inex
   container builds.
 - `bun run test:coverage` produces per-package Bun coverage reports without imposing a new
   threshold beyond the repository policy.
+- `bun run test:m4-acceptance` runs the adapter-neutral Runtime Fabric scenario matrix used to
+  qualify inventory, eligibility, routing, sessions, read models, and historical attempt references.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to package
   tests. CI shards must use distinct PostgreSQL databases; the shared fixture does this by default.
 
@@ -65,3 +67,16 @@ deprecated, revoked, or incompatible catalog versions; stale, unauthorized, and 
 contradictory runtime, model, policy, or tool requirements; persisted-plan mutation; and public SDK
 contract-major drift. It deliberately does not execute Pi, ACP, LangGraph, LiteLLM, MCP, E2B, or
 Temporal, so M3 runtime work and M4 durable-execution work can start from the same pinned seam.
+
+## M4 Runtime Fabric acceptance
+
+Run `bun run test:m4-acceptance` to exercise multiple RuntimeConnections on one RuntimeNode,
+managed-cloud and local candidates for the same plan, required and optional capability outcomes,
+node-online/runtime-unhealthy separation, stale capability inventory, policy-constrained preferences,
+stable tie-breaking, capability-specific external-session controls, safe Agent HQ read models, and a
+routed attempt that survives later runtime disconnection.
+
+The suite uses only the normalized Runtime Fabric and domain ports. It imports no concrete runtime
+gateway, Pi SDK, or ACP implementation, so M6 adapters can reuse the harness as a conformance target.
+Fixtures are deterministic and contain only opaque native identifiers; public projections are asserted
+not to expose those identifiers or unrestricted native state.
