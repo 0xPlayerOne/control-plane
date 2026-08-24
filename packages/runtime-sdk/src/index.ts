@@ -1,5 +1,8 @@
+export * from './adapter.js'
 export * from './capabilities.js'
+export * from './conformance.js'
 export * from './fixtures.js'
+export * from './mock.js'
 export * from './models.js'
 
 export const packageName = 'runtime-sdk'
