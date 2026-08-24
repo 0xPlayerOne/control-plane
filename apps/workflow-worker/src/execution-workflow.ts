@@ -54,14 +54,32 @@ export interface ExecutionLifecycleActivities {
     attemptId: string
     executionPlan: ExecutionWorkflowInput['executionPlan']
     effectKey: string
-  }): Promise<{ outcome: 'completed' | 'failed'; resultReference?: string }>
+  }): Promise<WorkflowRuntimeOutcome>
+  applyInteraction(
+    input: WorkflowInteractionResponse & {
+      executionId: string
+      attemptId: string
+      effectKey: string
+    }
+  ): Promise<WorkflowRuntimeOutcome>
   cleanup(input: { executionId: string; attemptId?: string; effectKey: string }): Promise<void>
 }
 
 export interface WorkflowControl {
   readonly cancelled?: boolean
   readonly deadlineReached?: boolean
+  readonly waitForInteraction?: (interactionId: string) => Promise<WorkflowInteractionResponse>
 }
+
+export interface WorkflowInteractionResponse {
+  readonly interactionId: string
+  readonly responseId: string
+  readonly action: 'approve' | 'deny' | 'input' | 'grant' | 'resume' | 'cancel'
+}
+
+export type WorkflowRuntimeOutcome =
+  | { readonly outcome: 'completed' | 'failed' | 'cancelled'; readonly resultReference?: string }
+  | { readonly outcome: 'awaiting_input'; readonly interactionId: string }
 
 export async function runExecutionLifecycle(
   input: ExecutionWorkflowInput,
@@ -109,13 +127,31 @@ export async function runExecutionLifecycle(
     state: 'running',
     effectKey: key('running'),
   })
-  const dispatched = await activities.dispatch({
+  let runtimeOutcome = await activities.dispatch({
     executionId: input.executionId,
     attemptId,
     executionPlan: input.executionPlan,
     effectKey: key('dispatch'),
   })
-  const status = dispatched.outcome === 'completed' ? 'completed' : 'failed'
+  while (runtimeOutcome.outcome === 'awaiting_input') {
+    const interactionId = runtimeOutcome.interactionId
+    await activities.persistStatus({
+      executionId: input.executionId,
+      attemptId,
+      state: 'awaiting_input',
+      effectKey: key(`awaiting-input:${interactionId}`),
+    })
+    if (!control.waitForInteraction) throw new Error('INTERACTION_WAITER_REQUIRED')
+    const response = await control.waitForInteraction(interactionId)
+    if (response.interactionId !== interactionId) throw new Error('INTERACTION_SIGNAL_MISMATCH')
+    runtimeOutcome = await activities.applyInteraction({
+      executionId: input.executionId,
+      attemptId,
+      ...response,
+      effectKey: key(`interaction:${interactionId}:${response.responseId}`),
+    })
+  }
+  const status = runtimeOutcome.outcome
   await activities.persistStatus({
     executionId: input.executionId,
     attemptId,
@@ -127,11 +163,13 @@ export async function runExecutionLifecycle(
     executionId: input.executionId,
     attemptId,
     status,
-    ...(dispatched.resultReference ? { resultReference: dispatched.resultReference } : {}),
+    ...(runtimeOutcome.resultReference ? { resultReference: runtimeOutcome.resultReference } : {}),
   }
 }
 
 const cancelSignal = defineSignal('cancelExecution')
+export const interactionResponseSignal =
+  defineSignal<[WorkflowInteractionResponse]>('respondToInteraction')
 const temporalActivities = proxyActivities<ExecutionLifecycleActivities>(
   workflowPolicies.activities
 )
@@ -141,14 +179,33 @@ export async function executionLifecycleWorkflow(
 ): Promise<ExecutionWorkflowResult> {
   patched(workflowPolicies.version)
   let cancelled = false
+  const interactionResponses: WorkflowInteractionResponse[] = []
   setHandler(cancelSignal, () => {
     cancelled = true
   })
+  setHandler(interactionResponseSignal, (response) => {
+    if (!interactionResponses.some(({ responseId }) => responseId === response.responseId)) {
+      interactionResponses.push(response)
+    }
+  })
+  const waitForInteraction = async (interactionId: string) => {
+    await condition(() =>
+      interactionResponses.some((response) => response.interactionId === interactionId)
+    )
+    const responseIndex = interactionResponses.findIndex(
+      (response) => response.interactionId === interactionId
+    )
+    const [response] = interactionResponses.splice(responseIndex, 1)
+    if (!response) throw new Error('INTERACTION_SIGNAL_MISSING')
+    return response
+  }
   const deadlineDelay = Math.max(0, Date.parse(input.deadlineAt) - Date.now())
   const terminalControl = await Promise.race([
     condition(() => cancelled).then(() => ({ cancelled: true })),
     condition(() => false, deadlineDelay).then(() => ({ deadlineReached: true })),
-    CancellationScope.cancellable(() => runExecutionLifecycle(input, temporalActivities)),
+    CancellationScope.cancellable(() =>
+      runExecutionLifecycle(input, temporalActivities, { waitForInteraction })
+    ),
   ])
   if ('status' in terminalControl) return terminalControl
   try {

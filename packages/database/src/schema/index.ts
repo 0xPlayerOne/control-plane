@@ -15,4 +15,5 @@ export {
   executions,
   executionState,
 } from './executions.js'
+export { interactionKind, interactionRequests, interactionState } from './interactions.js'
 export { inboxMessages, outboxEvents, outboxStatus } from './messaging.js'

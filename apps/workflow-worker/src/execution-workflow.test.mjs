@@ -17,10 +17,12 @@ function fakeActivities({ failDispatchOnce = false } = {}) {
   const effects = new Set()
   const states = []
   let dispatchCalls = 0
+  const interactionEffects = []
   return {
     attempts,
     effects,
     states,
+    interactionEffects,
     activities: {
       ensureAttempt: async ({ executionId, effectKey }) => {
         if (!attempts.has(effectKey)) attempts.set(effectKey, `att_${executionId.slice(4)}`)
@@ -31,6 +33,10 @@ function fakeActivities({ failDispatchOnce = false } = {}) {
         dispatchCalls += 1
         if (failDispatchOnce && dispatchCalls === 1) throw new Error('transient')
         effects.add(effectKey)
+        return { outcome: 'completed', resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV' }
+      },
+      applyInteraction: async (interaction) => {
+        interactionEffects.push(interaction)
         return { outcome: 'completed', resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV' }
       },
       cleanup: async () => undefined,
@@ -82,6 +88,32 @@ describe('Temporal execution lifecycle', () => {
     })
     expect(timeout.status).toBe('timed_out')
     expect(timedOut.states.at(-1)).toBe('timed_out')
+  })
+
+  test('waits durably for a normalized interaction response before resuming', async () => {
+    const fake = fakeActivities()
+    fake.activities.dispatch = async () => ({
+      outcome: 'awaiting_input',
+      interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    })
+
+    const result = await runExecutionLifecycle(input, fake.activities, {
+      waitForInteraction: async (interactionId) => ({
+        interactionId,
+        responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        action: 'approve',
+      }),
+    })
+
+    expect(result.status).toBe('completed')
+    expect(fake.states).toEqual(['queued', 'starting', 'running', 'awaiting_input', 'completed'])
+    expect(fake.interactionEffects).toEqual([
+      expect.objectContaining({
+        interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        action: 'approve',
+      }),
+    ])
   })
 
   test('pins workflow versioning and bounded activity policies', () => {

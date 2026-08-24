@@ -2,12 +2,23 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
-import { CommandInboxService, ExecutionLifecycleService } from '@control-plane/domain'
+import {
+  CommandInboxService,
+  ExecutionLifecycleService,
+  InteractionService,
+} from '@control-plane/domain'
 import { ExecutionEventService } from '@control-plane/events'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
-import { commandInbox, executions, inboxMessages, outboxEvents } from './schema/index.ts'
+import { PostgresInteractionRepository } from './interaction-repository.ts'
+import {
+  commandInbox,
+  executions,
+  inboxMessages,
+  interactionRequests,
+  outboxEvents,
+} from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
 
 const integrationEnabled = process.env.RUN_DATABASE_INTEGRATION === 'true'
@@ -174,6 +185,68 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     })
     expect(processing).toMatchObject({ status: 'processing', version: record.version + 1 })
     expect((await service.acceptExecution(input)).command).toEqual(processing)
+  })
+
+  test('persists one authorized interaction response across service restarts', async () => {
+    const executionRepository = new PostgresExecutionRepository(isolated.application)
+    const lifecycle = new ExecutionLifecycleService(executionRepository)
+    const execution = await lifecycle.createExecution({
+      executionId: 'exe_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      correlation: {
+        workspaceId: 'wsp_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+        projectId: 'prj_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+        taskId: 'tsk_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+        agentId: 'agt_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+        requestId: 'req_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+        contentDigest: `sha256:${'f'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      acceptedAt: '2026-08-24T12:00:00.000Z',
+    })
+    const attempt = await lifecycle.createAttempt({
+      executionId: execution.executionId,
+      attemptId: 'att_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      expectedExecutionVersion: execution.version,
+      queuedAt: '2026-08-24T12:01:00.000Z',
+    })
+    const repository = new PostgresInteractionRepository(isolated.application)
+    const service = new InteractionService(repository)
+    const interaction = await service.request({
+      interactionId: 'int_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      executionId: execution.executionId,
+      attemptId: attempt.attemptId,
+      kind: 'approval',
+      prompt: { title: 'Approve the durable operation' },
+      allowedActions: ['approve', 'deny'],
+      allowedPrincipalIds: ['svc_agent-hq'],
+      requestedAt: '2026-08-24T12:02:00.000Z',
+      expiresAt: '2026-08-24T13:02:00.000Z',
+    })
+    const restarted = new InteractionService(
+      new PostgresInteractionRepository(isolated.application)
+    )
+    const response = {
+      interactionId: interaction.interactionId,
+      executionId: execution.executionId,
+      attemptId: attempt.attemptId,
+      responseId: 'cmd_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      action: 'approve',
+      respondingPrincipalId: 'svc_agent-hq',
+      expectedVersion: interaction.version,
+      respondedAt: '2026-08-24T12:03:00.000Z',
+    }
+
+    expect(await restarted.respond(response)).toMatchObject({ state: 'responded', version: 2 })
+    expect(await restarted.respond(response)).toMatchObject({ state: 'responded', version: 2 })
+    expect(
+      await isolated.application
+        .select()
+        .from(interactionRequests)
+        .where(eq(interactionRequests.interactionId, interaction.interactionId))
+    ).toHaveLength(1)
   })
 
   test('commits execution transitions and ordered outbox events atomically', async () => {
