@@ -101,6 +101,34 @@ describe('Runtime Gateway WebSocket lifecycle', () => {
     ).toBe(1)
   })
 
+  test('disconnects an invalidated active channel before handling another frame', async () => {
+    const handled = []
+    const fixture = setup(
+      'gateway-a',
+      undefined,
+      undefined,
+      {},
+      {
+        handle: async (_record, envelope) => handled.push(envelope),
+      }
+    )
+    const authenticatedChannel = channel(1)
+    const socket = new FakeSocket()
+    fixture.gateway.open(connection('gwc-a', authenticatedChannel, socket))
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.hello))
+
+    authenticatedChannel.invalidate('revoked')
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.command))
+
+    expect(handled).toEqual([])
+    expect(socket.closed).toEqual({ code: 1008, reason: 'authentication_invalidated' })
+    expect(await fixture.coordination.lookup(nodeId)).toBeUndefined()
+    expect(fixture.reachability.events.at(-1)).toMatchObject({
+      state: 'offline',
+      reason: 'authentication_invalidated',
+    })
+  })
+
   test('fails oversized, malformed, backpressured, and over-limit connections safely', async () => {
     const fixture = setup('gateway-a')
     const malformed = new FakeSocket()
@@ -201,7 +229,13 @@ describe('Runtime Gateway WebSocket lifecycle', () => {
   })
 })
 
-function setup(instanceId, coordination = new InMemoryRuntimeNodeCoordination(), now, limits = {}) {
+function setup(
+  instanceId,
+  coordination = new InMemoryRuntimeNodeCoordination(),
+  now,
+  limits = {},
+  messages
+) {
   const reachability = new RecordingRuntimeNodeReachabilityPublisher()
   const metrics = new RecordingGatewayMetrics()
   const gateway = new RuntimeGatewayWebSocketLifecycle({
@@ -210,6 +244,7 @@ function setup(instanceId, coordination = new InMemoryRuntimeNodeCoordination(),
     reachability,
     metrics,
     now: now ?? (() => new Date('2026-08-25T12:00:01.000Z')),
+    messages,
     limits: {
       maxConnections: 8,
       maxConnectionsPerWorkspace: 8,
