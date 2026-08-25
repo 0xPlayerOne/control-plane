@@ -131,6 +131,10 @@ export class RuntimeGatewayWebSocketLifecycle {
   async receive(connectionId: string, frame: string | ArrayBuffer | Uint8Array): Promise<void> {
     const connection = this.#connections.get(connectionId)
     if (connection === undefined || connection.state === 'closed') return
+    if (!connection.authenticatedChannel.active) {
+      await this.#disconnect(connection, 1008, 'authentication_invalidated')
+      return
+    }
     if (connection.socket.bufferedAmount() > this.#limits.maxBufferedBytes) {
       await this.#disconnect(connection, 1013, 'backpressure_limit')
       return
