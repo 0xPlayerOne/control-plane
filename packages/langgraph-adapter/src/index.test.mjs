@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { MemorySaver } from '@langchain/langgraph'
-import { LangGraphOrchestrationAdapter, deterministicTestGraph } from './index.ts'
+import {
+  LangGraphOrchestrationAdapter,
+  deterministicInterruptGraph,
+  deterministicTestGraph,
+} from './index.ts'
 
 const request = {
   executionId: 'exe_01JABCDEF0123456789ABCDEFG',
@@ -75,5 +79,68 @@ describe('LangGraph orchestration adapter', () => {
         reason: 'user_request',
       })
     ).resolves.toBe(true)
+  })
+
+  test('resumes an interrupt from its exact durable checkpoint after adapter restart', async () => {
+    const checkpointer = new MemorySaver()
+    const calls = []
+    const options = {
+      graphs: [deterministicInterruptGraph(request.graph)],
+      checkpointer,
+      operations: {
+        async invoke(operation) {
+          calls.push(operation)
+          return { value: operation.name }
+        },
+        async cancel() {
+          return true
+        },
+      },
+      events: { async publish() {} },
+      now: () => '2026-08-25T12:00:00.000Z',
+    }
+    const first = await new LangGraphOrchestrationAdapter(options).run(request)
+    expect(first).toMatchObject({
+      status: 'awaiting_input',
+      interrupt: { interactionKey: 'approval-1', kind: 'approval' },
+    })
+    expect(first.checkpointId).toBeString()
+
+    const resumed = await new LangGraphOrchestrationAdapter(options).resume({
+      executionId: request.executionId,
+      attemptId: request.attemptId,
+      workspaceId: request.workspaceId,
+      workflowId: request.workflowId,
+      graph: request.graph,
+      threadId: request.threadId,
+      checkpointId: first.checkpointId,
+      response: { action: 'approve' },
+      idempotencyKey: 'test:segment:resume:approval-1',
+    })
+    expect(resumed).toMatchObject({ status: 'completed', output: { decision: 'approve' } })
+    expect(calls.map(({ name }) => name)).toEqual(['prepare', 'finalize'])
+  })
+
+  test('keeps node side-effect idempotency keys stable across activity retry', async () => {
+    const effects = new Set()
+    const adapter = new LangGraphOrchestrationAdapter({
+      graphs: [deterministicTestGraph(request.graph)],
+      checkpointer: new MemorySaver(),
+      operations: {
+        async invoke(operation) {
+          effects.add(operation.idempotencyKey)
+          return { value: operation.name }
+        },
+        async cancel() {
+          return true
+        },
+      },
+      events: { async publish() {} },
+    })
+    await adapter.run(request)
+    await adapter.run(request)
+    expect(effects).toEqual(
+      new Set(['test:segment:1:prepare', 'test:segment:1:reason', 'test:segment:1:lookup'])
+    )
   })
 })

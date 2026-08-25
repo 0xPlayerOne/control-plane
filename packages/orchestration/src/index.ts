@@ -42,6 +42,13 @@ export const GraphResumeRequestSchema = GraphCorrelationSchema.extend({
   idempotencyKey: SafeReferenceSchema,
 }).strict()
 
+export const GraphContinueRequestSchema = GraphCorrelationSchema.extend({
+  graph: GraphReferenceSchema,
+  threadId: SafeReferenceSchema,
+  checkpointId: SafeReferenceSchema,
+  idempotencyKey: SafeReferenceSchema,
+}).strict()
+
 export const GraphCancellationRequestSchema = GraphCorrelationSchema.extend({
   graph: GraphReferenceSchema,
   threadId: SafeReferenceSchema,
@@ -117,6 +124,7 @@ export const GraphNodeOperationSchema = GraphCorrelationSchema.extend({
 export type GraphReference = z.output<typeof GraphReferenceSchema>
 export type GraphExecutionRequest = z.output<typeof GraphExecutionRequestSchema>
 export type GraphResumeRequest = z.output<typeof GraphResumeRequestSchema>
+export type GraphContinueRequest = z.output<typeof GraphContinueRequestSchema>
 export type GraphCancellationRequest = z.output<typeof GraphCancellationRequestSchema>
 export type GraphEvent = z.output<typeof GraphEventSchema>
 export type GraphSegmentResult = z.output<typeof GraphSegmentResultSchema>
@@ -134,6 +142,7 @@ export interface GraphEventPublisher {
 export interface OrchestrationPort {
   run(request: GraphExecutionRequest): Promise<GraphSegmentResult>
   resume(request: GraphResumeRequest): Promise<GraphSegmentResult>
+  continue(request: GraphContinueRequest): Promise<GraphSegmentResult>
   cancel(request: GraphCancellationRequest): Promise<boolean>
 }
 
