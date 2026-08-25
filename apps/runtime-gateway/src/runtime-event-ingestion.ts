@@ -63,28 +63,26 @@ export interface NormalizedRuntimeTerminal {
   readonly payload: ExecutionEventDraft['payload']
 }
 
+interface RuntimeEventContext {
+  readonly command: RuntimeCommandRecord
+  readonly execution: Execution
+  readonly attempt: ExecutionAttempt
+}
+
+type RuntimeNormalizerInput<Frame> = RuntimeEventContext & { readonly frame: Frame }
+
 export interface RuntimeAdapterEventNormalizer {
-  normalizeProgress(input: {
-    readonly frame: GatewayProgressEnvelope
-    readonly command: RuntimeCommandRecord
-    readonly execution: Execution
-    readonly attempt: ExecutionAttempt
-  }): Promise<RuntimeExecutionProgress>
-  normalizeResult(input: {
-    readonly frame: GatewayResultEnvelope
-    readonly command: RuntimeCommandRecord
-    readonly execution: Execution
-    readonly attempt: ExecutionAttempt
-  }): Promise<NormalizedRuntimeTerminal>
-  normalizeError(input: {
-    readonly frame: GatewayErrorEnvelope & {
-      readonly commandId: string
-      readonly payloadHash: string
-    }
-    readonly command: RuntimeCommandRecord
-    readonly execution: Execution
-    readonly attempt: ExecutionAttempt
-  }): Promise<NormalizedRuntimeTerminal>
+  normalizeProgress(
+    input: RuntimeNormalizerInput<GatewayProgressEnvelope>
+  ): Promise<RuntimeExecutionProgress>
+  normalizeResult(
+    input: RuntimeNormalizerInput<GatewayResultEnvelope>
+  ): Promise<NormalizedRuntimeTerminal>
+  normalizeError(
+    input: RuntimeNormalizerInput<
+      GatewayErrorEnvelope & { readonly commandId: string; readonly payloadHash: string }
+    >
+  ): Promise<NormalizedRuntimeTerminal>
 }
 
 export interface RuntimeEventIngestionServiceOptions {
@@ -265,11 +263,7 @@ export class RuntimeEventIngestionService {
     source: RuntimeEventSourceChannel,
     historicalResult: boolean,
     allowTerminalCommand = historicalResult
-  ): Promise<{
-    readonly command: RuntimeCommandRecord
-    readonly execution: Execution
-    readonly attempt: ExecutionAttempt
-  }> {
+  ): Promise<RuntimeEventContext> {
     const command = await this.#commands.get(frame.commandId)
     if (!command) return this.#reject(frame, 'RUNTIME_EVENT_COMMAND_MISSING')
     const attempt = await this.#executions.getAttempt(command.attemptId)
@@ -316,11 +310,7 @@ export class RuntimeEventIngestionService {
   async #applyTerminal(
     frame:
       GatewayResultEnvelope | (GatewayErrorEnvelope & { commandId: string; payloadHash: string }),
-    context: {
-      readonly command: RuntimeCommandRecord
-      readonly execution: Execution
-      readonly attempt: ExecutionAttempt
-    },
+    context: RuntimeEventContext,
     normalized: NormalizedRuntimeTerminal
   ): Promise<RuntimeEventEffectResult> {
     validateTerminal(normalized)
@@ -354,11 +344,7 @@ export class RuntimeEventIngestionService {
   }
 
   #draft(
-    context: {
-      readonly command: RuntimeCommandRecord
-      readonly execution: Execution
-      readonly attempt: ExecutionAttempt
-    },
+    context: RuntimeEventContext,
     frame:
       | GatewayProgressEnvelope
       | GatewayResultEnvelope
