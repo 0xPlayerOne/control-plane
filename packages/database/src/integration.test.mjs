@@ -20,6 +20,7 @@ import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
+import { PostgresEvaluationRepository } from './evaluation-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
@@ -30,6 +31,7 @@ import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventor
 import {
   commandInbox,
   delegations,
+  evaluationRuns,
   executionEvents,
   executions,
   externalSessions,
@@ -76,6 +78,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'execution_attempts',
         'delegations',
         'executions',
+        'evaluation_runs',
         'external_sessions',
         'inbox_messages',
         'memory_write_proposals',
@@ -85,6 +88,65 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'runtime_inventory_checkpoints',
       ])
     )
+  })
+
+  test('persists immutable evaluation evidence across repository restart', async () => {
+    await isolated.migrate()
+    const run = {
+      evalRunId: 'eval-run-integration',
+      suite: {
+        evalSuiteId: 'suite-release',
+        version: 'v1',
+        digest: `sha256:${'1'.repeat(64)}`,
+        dataset: { id: 'dataset', version: 'v1', digest: `sha256:${'2'.repeat(64)}` },
+        mode: 'offline',
+        cases: [
+          {
+            evalCaseId: 'case-1',
+            inputDigest: `sha256:${'3'.repeat(64)}`,
+            scorers: [
+              {
+                metric: 'functional_correctness',
+                direction: 'min',
+                threshold: 0.9,
+                required: true,
+              },
+            ],
+          },
+        ],
+      },
+      configuration: {
+        executionPlanDigest: `sha256:${'4'.repeat(64)}`,
+        profile: { id: 'profile', version: 'v1', digest: `sha256:${'5'.repeat(64)}` },
+        skills: [],
+        graph: { id: 'graph', version: 'v1', digest: `sha256:${'6'.repeat(64)}` },
+        runtime: { id: 'runtime', version: 'v1', digest: `sha256:${'7'.repeat(64)}` },
+        model: { id: 'model', version: 'v1', digest: `sha256:${'8'.repeat(64)}` },
+        tools: [],
+        policy: { id: 'policy', version: 'v1', digest: `sha256:${'9'.repeat(64)}` },
+      },
+      results: [],
+      aggregateMetrics: { functional_correctness: 1 },
+      status: 'passed',
+      startedAt: '2026-08-25T12:00:00.000Z',
+      completedAt: '2026-08-25T12:00:01.000Z',
+    }
+    run.results.push({
+      evalCaseId: 'case-1',
+      dataset: run.suite.dataset,
+      configuration: run.configuration,
+      metrics: { functional_correctness: 1 },
+      failedRequiredMetrics: [],
+      status: 'passed',
+    })
+    const repository = new PostgresEvaluationRepository(isolated.application)
+
+    await repository.saveRun(run)
+    await repository.saveRun(run)
+
+    const restarted = new PostgresEvaluationRepository(isolated.application)
+    expect(await restarted.getRun(run.evalRunId)).toEqual(run)
+    expect(await isolated.application.select().from(evaluationRuns)).toHaveLength(1)
   })
 
   test('persists idempotent runtime inventory and optimistic lifecycle updates', async () => {
