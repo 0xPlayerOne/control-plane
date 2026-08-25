@@ -47,6 +47,13 @@ export const ManagedModelRequestSchema = z
     policySnapshot: PolicySnapshotReferenceSchema,
     traceId: IdentifierSchemas.traceId,
     fundingSource: z.enum(['hq_managed', 'external_subscription']),
+    routing: z
+      .object({
+        entitlements: z.array(AliasSchema).max(64),
+        maxCostClass: z.enum(['low', 'standard', 'premium']),
+        estimatedInputTokens: z.number().int().nonnegative().max(1_000_000),
+      })
+      .strict(),
   })
   .strict()
   .superRefine((request, context) => {
@@ -88,6 +95,15 @@ export const ManagedModelResultSchema = z
     fundingSource: z.enum(['hq_managed', 'external_subscription']),
     policySnapshot: PolicySnapshotReferenceSchema,
     policyDecisionId: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    route: z
+      .object({
+        deploymentId: ReferenceSchema,
+        routerVersion: z.literal('model-router/v1'),
+        eligibleCandidateIds: z.array(ReferenceSchema).min(1).max(128),
+        reason: z.literal('DETERMINISTIC_POLICY_RANK'),
+        fallbackFrom: ReferenceSchema.optional(),
+      })
+      .strict(),
   })
   .strict()
 
@@ -120,10 +136,17 @@ interface ModelDeployment {
   readonly credentialRef: string
   readonly adapterRef: string
   readonly enabled: boolean
+  readonly fundingSource: 'hq_managed' | 'external_subscription'
+  readonly maxContextTokens: number
+  readonly maxOutputTokens: number
+  readonly costClass: 'low' | 'standard' | 'premium'
+  readonly priority: number
+  readonly requiredEntitlements: readonly string[]
 }
 
 export class ModelRouteRegistry {
   readonly #deployments = new Map<string, ModelDeployment>()
+  readonly #health = new Map<string, 'healthy' | 'degraded' | 'unhealthy'>()
 
   register(input: ModelDeployment): void {
     if (
@@ -131,18 +154,35 @@ export class ModelRouteRegistry {
       !AliasSchema.safeParse(input.alias).success ||
       !AliasSchema.safeParse(input.provider).success ||
       !ReferenceSchema.safeParse(input.adapterRef).success ||
-      !/^(?:lease|vault):\/\/\S{1,500}$/.test(input.credentialRef)
+      !/^(?:lease|vault):\/\/\S{1,500}$/.test(input.credentialRef) ||
+      !Number.isSafeInteger(input.maxContextTokens) ||
+      input.maxContextTokens <= 0 ||
+      !Number.isSafeInteger(input.maxOutputTokens) ||
+      input.maxOutputTokens <= 0 ||
+      !Number.isSafeInteger(input.priority) ||
+      input.priority < 0
     ) {
       throw new Error('INVALID_MODEL_DEPLOYMENT')
     }
     if (this.#deployments.has(input.deploymentId)) throw new Error('MODEL_DEPLOYMENT_EXISTS')
     this.#deployments.set(input.deploymentId, clone(input))
+    this.#health.set(input.deploymentId, 'healthy')
+  }
+
+  setHealth(deploymentId: string, health: 'healthy' | 'degraded' | 'unhealthy'): void {
+    if (!this.#deployments.has(deploymentId)) throw new Error('MODEL_DEPLOYMENT_MISSING')
+    this.#health.set(deploymentId, health)
   }
 
   resolve(alias: string): readonly ModelDeployment[] {
     return [...this.#deployments.values()]
-      .filter((deployment) => deployment.enabled && deployment.alias === alias)
-      .sort((left, right) => left.deploymentId.localeCompare(right.deploymentId))
+      .filter(
+        (deployment) =>
+          deployment.enabled &&
+          deployment.alias === alias &&
+          this.#health.get(deployment.deploymentId) !== 'unhealthy'
+      )
+      .sort(compareDeployments)
       .map(clone)
   }
 }
@@ -198,6 +238,16 @@ export class ModelGatewayError extends Error {
   }
 }
 
+export class ModelProviderError extends Error {
+  constructor(
+    readonly providerCode: string,
+    readonly retryable: boolean
+  ) {
+    super(providerCode)
+    this.name = 'ModelProviderError'
+  }
+}
+
 export class ManagedModelGateway {
   readonly #registry: ModelRouteRegistry
   readonly #adapters: ReadonlyMap<string, ModelProviderAdapter>
@@ -218,40 +268,63 @@ export class ManagedModelGateway {
   }
 
   async complete(input: unknown): Promise<ManagedModelResult> {
-    const { request, deployment, adapter, decision } = await this.#prepare(input)
-    this.#calls.set(request.modelCallId, deployment.adapterRef)
-    let completion: AdapterCompletion
-    try {
-      completion = await withTimeout(
-        adapter.complete(request, deployment),
-        request.settings.timeoutMs
-      )
-    } catch {
-      throw new ModelGatewayError('PROVIDER_FAILED', true)
+    const { request, candidates } = await this.#prepare(input)
+    const eligibleCandidateIds = candidates.map(({ deployment }) => deployment.deploymentId)
+    let fallbackFrom: string | undefined
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index]
+      if (!candidate) continue
+      const { deployment, adapter, decision } = candidate
+      this.#calls.set(request.modelCallId, deployment.adapterRef)
+      let completion: AdapterCompletion
+      try {
+        completion = await withTimeout(
+          adapter.complete(request, deployment),
+          request.settings.timeoutMs
+        )
+      } catch (error) {
+        const retryable = error instanceof ModelProviderError && error.retryable
+        if (retryable && index + 1 < candidates.length) {
+          fallbackFrom ??= deployment.deploymentId
+          continue
+        }
+        throw new ModelGatewayError('PROVIDER_FAILED', retryable)
+      }
+      return ManagedModelResultSchema.parse({
+        modelCallId: request.modelCallId,
+        alias: request.alias,
+        content: completion.content,
+        finishReason: completion.finishReason,
+        usage: normalizeUsage(completion.usage),
+        latencyMs: completion.latencyMs,
+        provider: {
+          name: deployment.provider,
+          model: deployment.providerModel,
+          ...(completion.providerRequestId === undefined
+            ? {}
+            : { requestId: completion.providerRequestId }),
+        },
+        traceId: request.traceId,
+        fundingSource: request.fundingSource,
+        policySnapshot: decision.policySnapshot,
+        policyDecisionId: decision.decisionId,
+        route: {
+          deploymentId: deployment.deploymentId,
+          routerVersion: 'model-router/v1',
+          eligibleCandidateIds,
+          reason: 'DETERMINISTIC_POLICY_RANK',
+          ...(fallbackFrom === undefined ? {} : { fallbackFrom }),
+        },
+      })
     }
-    return ManagedModelResultSchema.parse({
-      modelCallId: request.modelCallId,
-      alias: request.alias,
-      content: completion.content,
-      finishReason: completion.finishReason,
-      usage: normalizeUsage(completion.usage),
-      latencyMs: completion.latencyMs,
-      provider: {
-        name: deployment.provider,
-        model: deployment.providerModel,
-        ...(completion.providerRequestId === undefined
-          ? {}
-          : { requestId: completion.providerRequestId }),
-      },
-      traceId: request.traceId,
-      fundingSource: request.fundingSource,
-      policySnapshot: decision.policySnapshot,
-      policyDecisionId: decision.decisionId,
-    })
+    throw new ModelGatewayError('MODEL_UNAVAILABLE')
   }
 
   async *stream(input: unknown): AsyncIterable<ModelStreamChunk> {
-    const { request, deployment, adapter } = await this.#prepare(input)
+    const { request, candidates } = await this.#prepare(input)
+    const selected = candidates[0]
+    if (!selected) throw new ModelGatewayError('MODEL_UNAVAILABLE')
+    const { deployment, adapter } = selected
     this.#calls.set(request.modelCallId, deployment.adapterRef)
     let sequence = 0
     try {
@@ -298,54 +371,62 @@ export class ManagedModelGateway {
     const parsed = ManagedModelRequestSchema.safeParse(input)
     if (!parsed.success) throw new ModelGatewayError('INVALID_REQUEST')
     const request = parsed.data
-    const deployment = this.#registry
+    const eligibleDeployments = this.#registry
       .resolve(request.alias)
-      .find((candidate) => eligible(candidate, request.requirement))
-    if (!deployment) throw new ModelGatewayError('MODEL_UNAVAILABLE')
-    const adapter = this.#adapters.get(deployment.adapterRef)
-    if (!adapter) throw new ModelGatewayError('ADAPTER_UNAVAILABLE')
-    let decision: z.output<typeof PolicyDecisionSchema>
-    try {
-      decision = PolicyDecisionSchema.parse(
-        await this.#decisionPoint.authorize({
-          requestId: request.requestId,
-          principal: {
-            type: 'service',
-            id: request.principalRef,
-            workspaceId: request.workspaceId,
-          },
-          action: 'model:invoke',
-          resource: {
-            type: 'model',
-            id: deployment.deploymentId,
-            workspaceId: request.workspaceId,
-            attributes: {
-              alias: request.alias,
-              provider: deployment.provider,
-              providerClass: deployment.providerClass,
-              dataResidency: deployment.dataResidency,
-              capabilities: [...deployment.capabilities],
-              fundingSource: request.fundingSource,
+      .filter((candidate) => eligible(candidate, request))
+    if (eligibleDeployments.length === 0) throw new ModelGatewayError('MODEL_UNAVAILABLE')
+    const candidates: {
+      deployment: ModelDeployment
+      adapter: ModelProviderAdapter
+      decision: z.output<typeof PolicyDecisionSchema>
+    }[] = []
+    for (const deployment of eligibleDeployments) {
+      const adapter = this.#adapters.get(deployment.adapterRef)
+      if (!adapter) continue
+      let decision: z.output<typeof PolicyDecisionSchema>
+      try {
+        decision = PolicyDecisionSchema.parse(
+          await this.#decisionPoint.authorize({
+            requestId: request.requestId,
+            principal: {
+              type: 'service',
+              id: request.principalRef,
+              workspaceId: request.workspaceId,
             },
-          },
-          context: {
-            workspaceId: request.workspaceId,
-            requestedAt: this.#now(),
-            attributes: {
-              executionId: request.executionId,
-              attemptId: request.attemptId,
-              modelCallId: request.modelCallId,
-              traceId: request.traceId,
+            action: 'model:invoke',
+            resource: {
+              type: 'model',
+              id: deployment.deploymentId,
+              workspaceId: request.workspaceId,
+              attributes: {
+                alias: request.alias,
+                provider: deployment.provider,
+                providerClass: deployment.providerClass,
+                dataResidency: deployment.dataResidency,
+                capabilities: [...deployment.capabilities],
+                fundingSource: request.fundingSource,
+              },
             },
-          },
-          policySnapshot: request.policySnapshot,
-        })
-      )
-    } catch {
-      throw new ModelGatewayError('MODEL_POLICY_DENIED')
+            context: {
+              workspaceId: request.workspaceId,
+              requestedAt: this.#now(),
+              attributes: {
+                executionId: request.executionId,
+                attemptId: request.attemptId,
+                modelCallId: request.modelCallId,
+                traceId: request.traceId,
+              },
+            },
+            policySnapshot: request.policySnapshot,
+          })
+        )
+      } catch {
+        throw new ModelGatewayError('MODEL_POLICY_DENIED')
+      }
+      if (decision.effect === 'allow') candidates.push({ deployment, adapter, decision })
     }
-    if (decision.effect !== 'allow') throw new ModelGatewayError('MODEL_POLICY_DENIED')
-    return { request, deployment, adapter, decision }
+    if (candidates.length === 0) throw new ModelGatewayError('MODEL_POLICY_DENIED')
+    return { request, candidates }
   }
 }
 
@@ -480,9 +561,15 @@ export class FakeModelAdapter implements ModelProviderAdapter {
   }
   streamChunks: readonly AdapterStreamChunk[] = []
   error: Error | undefined
+  readonly errorsByDeployment = new Map<
+    string,
+    { readonly code: string; readonly retryable: boolean }
+  >()
 
   async complete(request: ManagedModelRequest, deployment: ModelDeployment) {
     this.requests.push({ request: clone(request), deploymentId: deployment.deploymentId })
+    const classified = this.errorsByDeployment.get(deployment.deploymentId)
+    if (classified) throw new ModelProviderError(classified.code, classified.retryable)
     if (this.error) throw this.error
     return clone(this.completion)
   }
@@ -503,18 +590,36 @@ export class FakeModelAdapter implements ModelProviderAdapter {
   }
 }
 
-function eligible(
-  deployment: ModelDeployment,
-  requirement: z.output<typeof ModelRequirementSchema>
-): boolean {
+function eligible(deployment: ModelDeployment, request: ManagedModelRequest): boolean {
+  const requirement = request.requirement
   return (
+    deployment.fundingSource === request.fundingSource &&
     requirement.providerPolicy.allowedClasses.includes(deployment.providerClass) &&
     !requirement.providerPolicy.deniedProviders.includes(deployment.provider) &&
     requirement.providerPolicy.dataResidency.includes(deployment.dataResidency) &&
     requirement.requiredCapabilities.every((capability) =>
       deployment.capabilities.includes(capability)
-    )
+    ) &&
+    deployment.requiredEntitlements.every((entitlement) =>
+      request.routing.entitlements.includes(entitlement)
+    ) &&
+    costRank(deployment.costClass) <= costRank(request.routing.maxCostClass) &&
+    request.settings.maxOutputTokens <= deployment.maxOutputTokens &&
+    request.routing.estimatedInputTokens + request.settings.maxOutputTokens <=
+      deployment.maxContextTokens
   )
+}
+
+function compareDeployments(left: ModelDeployment, right: ModelDeployment): number {
+  return (
+    left.priority - right.priority ||
+    costRank(left.costClass) - costRank(right.costClass) ||
+    left.deploymentId.localeCompare(right.deploymentId)
+  )
+}
+
+function costRank(value: ModelDeployment['costClass']): number {
+  return { low: 0, standard: 1, premium: 2 }[value]
 }
 
 function normalizeUsage(usage: AdapterCompletion['usage']) {
@@ -539,7 +644,7 @@ async function withTimeout<Value>(promise: Promise<Value>, timeoutMs: number): P
     return await Promise.race([
       promise,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('MODEL_TIMEOUT')), timeoutMs)
+        timer = setTimeout(() => reject(new ModelProviderError('MODEL_TIMEOUT', true)), timeoutMs)
       }),
     ])
   } finally {
