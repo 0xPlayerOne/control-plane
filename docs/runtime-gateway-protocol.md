@@ -46,9 +46,19 @@ The durable per-node checkpoint records only the accepted version, canonical dig
 
 RuntimeNode reachability remains separate from individual runtime health. Inventory ingestion calls the ordinary M4 health and availability-change ports, so Agent HQ read models observe Control Plane API/event changes rather than gateway-specific client pushes. Context-provider inventory remains a distinct protocol family and is not registered as an executable RuntimeConnection.
 
+## Local managed Pi adapter
+
+`@control-plane/managed-pi-adapter` includes a Runtime Gateway client and a Control Plane-owned reference `ManagedPiDriver`. The client sends the adapter's normalized, pinned execution configuration through `runtime.execute` and maps status, cancellation, input, and approval to their provider-neutral runtime operations. Inventory supplies the driver, harness, protocol, capability, and health provenance used by adapter eligibility checks.
+
+The wire configuration contains a synthetic `LocalProjectGrant` reference, never an absolute path or reusable Pi credential. The node-side driver owns grant resolution, local installation, process, filesystem, and credential access. Offline or revoked nodes, missing or revoked grants, and incompatible Pi versions fail before execution delivery.
+
+The reference transport uses the M5 RuntimeNode duplicate-effect ledger. Reconnect redelivers the same command ID and payload hash and replays the recorded exchange without re-executing Pi. Deterministic fixtures cover progress, output, tool interaction, usage, Artifact emission, completion, cancellation, crash, timeout, and ambiguous outcomes without Agent HQ or production node dependencies.
+
 ## Reconnect reconciliation
 
 Protocol v1.3 lets the RuntimeNode hello carry a bounded, unique set of retained command outcomes alongside its last acknowledged transport sequence. The gateway correlates every retained outcome to the durable command's node, workspace, command ID, and payload hash. Cloud-terminal results are reused; node-terminal results flow through the same normalized terminal ingestion path; active retained work is reconciled with M3 execution state.
+
+Protocol v1.4 adds an explicit `runtime.status` command for adapter reconciliation. Status commands require the normalized `stream.events` capability and remain bound to the same node, workspace, runtime connection, execution, attempt, and payload identity as execution controls. Bounded token-limit fields are allowed as policy data, while credential-bearing token aliases remain prohibited at every payload depth.
 
 Queued commands and commands whose prior sequence is provably beyond the node's acknowledged watermark may be redelivered with the same semantic command ID. An acknowledged command missing from the retained ledger, an explicit unknown outcome, an unknown command, or a state conflict is never guessed: M3 reconciliation is invoked and manual-intervention telemetry is emitted. Expired commands are expired without send, while revoked nodes or grants and changed/incompatible runtime capabilities prevent resume. Recovery duration, redelivery, unknown outcome, and manual-intervention metrics describe the reconnect path.
 

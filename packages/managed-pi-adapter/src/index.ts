@@ -131,7 +131,7 @@ export function translateExecutionPlanToManagedPi(
   })
 }
 
-const ManagedPiInspectionSchema = z
+export const ManagedPiInspectionSchema = z
   .object({
     driverVersion: SemanticVersionSchema,
     runtimeVersion: SemanticVersionSchema,
@@ -143,7 +143,7 @@ const ManagedPiInspectionSchema = z
   })
   .strict()
 
-const ManagedPiEventSchema = z.discriminatedUnion('kind', [
+export const ManagedPiEventSchema = z.discriminatedUnion('kind', [
   z
     .object({
       sequence: z.number().int().positive(),
@@ -218,7 +218,7 @@ const ManagedPiEventSchema = z.discriminatedUnion('kind', [
     .strict(),
 ])
 
-const ManagedPiStatusSchema = z
+export const ManagedPiStatusSchema = z
   .object({
     state: z.enum([
       'queued',
@@ -251,6 +251,10 @@ export interface ManagedPiStartCommand {
   readonly idempotencyKey: string
   readonly configuration: ManagedPiConfiguration
 }
+
+export type ManagedPiInspection = z.output<typeof ManagedPiInspectionSchema>
+export type ManagedPiEvent = z.output<typeof ManagedPiEventSchema>
+export type ManagedPiStatus = z.output<typeof ManagedPiStatusSchema>
 
 export interface ManagedPiClient {
   inspect(): Promise<z.input<typeof ManagedPiInspectionSchema>>
@@ -662,3 +666,5 @@ function stable(value: unknown): string {
 function clone<Value>(value: Value): Value {
   return structuredClone(value)
 }
+
+export * from './gateway.js'

@@ -26,6 +26,7 @@ const forbiddenPayloadKeys = [
   'token',
   'url',
 ] as const
+const safePayloadKeys = new Set(['profile', 'profileid', 'profileversionid'])
 
 export const GatewayProtocolVersionSchema = z
   .object({ major: z.number().int().positive(), minor: z.number().int().nonnegative() })
@@ -34,12 +35,13 @@ export type GatewayProtocolVersion = z.output<typeof GatewayProtocolVersionSchem
 
 export const GatewayProtocolManifest = Object.freeze({
   name: 'control-plane-runtime-gateway',
-  current: { major: 1, minor: 3 },
+  current: { major: 1, minor: 4 },
   supported: [
     { major: 1, minor: 0 },
     { major: 1, minor: 1 },
     { major: 1, minor: 2 },
     { major: 1, minor: 3 },
+    { major: 1, minor: 4 },
   ],
 })
 
@@ -193,6 +195,7 @@ const GatewayCommandBaseSchema = CommonEnvelopeSchema.extend({
     'runtime.cancel',
     'runtime.input',
     'runtime.approval',
+    'runtime.status',
     'context.status',
     'context.read',
     'context.write',
@@ -245,7 +248,9 @@ export const GatewayCommandEnvelopeSchema = GatewayCommandBaseSchema.strict().su
             ? 'interaction.user-input'
             : command.operation === 'runtime.approval'
               ? 'interaction.approval'
-              : undefined
+              : command.operation === 'runtime.status'
+                ? 'stream.events'
+                : undefined
       if (controlCapability && !command.requiredCapabilities.includes(controlCapability)) {
         context.addIssue({
           code: 'custom',
@@ -458,7 +463,10 @@ function rejectPrivilegedPayload(
   if (typeof value !== 'object' || value === null) return
   for (const [key, entry] of Object.entries(value)) {
     const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase()
-    if (forbiddenPayloadKeys.some((forbidden) => normalizedKey.includes(forbidden))) {
+    if (
+      !safePayloadKeys.has(normalizedKey) &&
+      forbiddenPayloadKeys.some((forbidden) => forbiddenKeyMatches(normalizedKey, forbidden))
+    ) {
       context.addIssue({
         code: 'custom',
         path: [...path, key],
@@ -467,4 +475,23 @@ function rejectPrivilegedPayload(
     }
     rejectPrivilegedPayload(entry, context, [...path, key])
   }
+}
+
+function forbiddenKeyMatches(
+  normalizedKey: string,
+  forbidden: (typeof forbiddenPayloadKeys)[number]
+): boolean {
+  if (forbidden !== 'token') return normalizedKey.includes(forbidden)
+  return (
+    normalizedKey === 'token' ||
+    [
+      'accesstoken',
+      'apitoken',
+      'authtoken',
+      'bearertoken',
+      'idtoken',
+      'refreshtoken',
+      'sessiontoken',
+    ].includes(normalizedKey)
+  )
 }

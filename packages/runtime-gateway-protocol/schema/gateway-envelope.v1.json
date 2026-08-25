@@ -187,6 +187,7 @@
             "runtime.cancel",
             "runtime.input",
             "runtime.approval",
+            "runtime.status",
             "context.status",
             "context.read",
             "context.write"
