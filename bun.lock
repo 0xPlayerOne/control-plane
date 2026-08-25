@@ -245,6 +245,14 @@
         "prettier": "3.9.6",
       },
     },
+    "packages/sandbox": {
+      "name": "@control-plane/sandbox",
+      "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "zod": "4.4.3",
+      },
+    },
     "packages/telemetry": {
       "name": "@control-plane/telemetry",
       "version": "1.1.1",
@@ -317,6 +325,8 @@
     "@control-plane/runtime-sdk": ["@control-plane/runtime-sdk@workspace:packages/runtime-sdk"],
 
     "@control-plane/runtime-worker": ["@control-plane/runtime-worker@workspace:apps/runtime-worker"],
+
+    "@control-plane/sandbox": ["@control-plane/sandbox@workspace:packages/sandbox"],
 
     "@control-plane/sdk": ["@control-plane/sdk@workspace:packages/control-sdk"],
 
