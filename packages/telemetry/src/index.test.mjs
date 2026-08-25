@@ -206,12 +206,12 @@ describe('telemetry safety and correlation', () => {
 
   test('propagates only valid W3C trace context across a carrier boundary', () => {
     const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
-    const context = extractTraceContext({ traceparent, tracestate: 'vendor=value' })
+    const context = extractTraceContext({ traceparent, tracestate: 'vendor=OpaqueValue' })
     const carrier = {}
 
     injectTraceContext(context, carrier)
 
-    expect(carrier).toEqual({ traceparent, tracestate: 'vendor=value' })
+    expect(carrier).toEqual({ traceparent, tracestate: 'vendor=OpaqueValue' })
     expect(extractTraceContext({ traceparent: 'unsafe' })).toBeUndefined()
   })
 
