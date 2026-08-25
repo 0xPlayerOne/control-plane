@@ -13,6 +13,7 @@ const repositoryGroups = {
     'tests/m4-runtime-fabric.test.mjs',
     'tests/m5-runtime-gateway.test.mjs',
     'tests/m6-runtime-adapters.test.mjs',
+    'tests/m7-tools-models-sandboxes.test.mjs',
   ],
   smoke: [
     'tests/foundation.test.mjs',

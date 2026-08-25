@@ -14,13 +14,13 @@ and prefer real implementations over mocks when the dependency is local and inex
   cold database creation and migration, and the runner allows PostgreSQL up to 60 seconds to
   checkpoint during shutdown. Before projects start, the runner waits for a successful SQL query
   instead of relying only on the container health transition.
-- `bun run test:e2e` runs the M2-M6 cross-package acceptance scenarios.
+- `bun run test:e2e` runs the M2-M7 cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
   checkout with one command.
 - `bun run test:acceptance` is the one-command acceptance gate. It checks dependency ancestry,
   installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
-  the full foundation and M2-M6 suites, Terraform validation, and all service plus migration
+  the full foundation and M2-M7 suites, Terraform validation, and all service plus migration
   container builds.
 - `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
   Foundry's coverage upload step.
@@ -32,6 +32,8 @@ and prefer real implementations over mocks when the dependency is local and inex
 - `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, inventory, and
   protocol-version scenario matrix.
 - `bun run test:m6-acceptance` runs the managed Pi and ACP cross-runtime acceptance matrix.
+- `bun run test:m7-acceptance` runs the policy-controlled tools, models, credentials, sandbox, and
+  budget acceptance matrix with deterministic provider fakes.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
   group. CI shards must use distinct output directories if they collect coverage.
 
@@ -59,11 +61,16 @@ workspace tests in one process, so that application remains part of the aggregat
   drift is checked separately through `bun run openapi:check`.
 - **Failure-injection** tests use recording or deliberately failing port adapters and assert state,
   not internal call order.
-- **End-to-end** tests cover the critical cross-package M2-M6 acceptance flows without external
+- **End-to-end** tests cover the critical cross-package M2-M7 acceptance flows without external
   credentials.
+  The established M2-M6 acceptance flows remain included unchanged alongside M7.
 
 Vendor adapters must expose stable ports and use fakes or recording adapters in ordinary CI. Unit
 and integration tests must not require production credentials or a developer's persistent database.
+
+Targeted provider integration jobs may inject disposable LiteLLM, MCP, E2B, and secret-provider
+clients behind those same ports. They must use isolated resources, remain independent of the
+credential-free M7 acceptance command, and prove cleanup before the job exits.
 
 ## M1 foundation acceptance
 
@@ -141,3 +148,13 @@ session resume/history controls.
 The suite reads exact adapter, driver, harness, protocol, profile, and skill pins from
 `tests/fixtures/m6-runtime-adapters.v1.json`. It uses disposable drivers, synthetic grants, and a
 generic reference client; it neither clones nor starts Agent HQ.
+
+## M7 tools, models, and sandboxes acceptance
+
+Run `bun run test:m7-acceptance` to compile a bounded ExecutionPlan and drive one execution through
+model routing, an approval-required tool, a scoped credential lease, isolated sandbox artifact
+promotion, and usage settlement. The suite proves duplicate delivery does not repeat effects or
+charges and probes policy denial/evaluator failure, credential revocation, pinned tool-schema drift,
+allowed and disallowed model fallback, sandbox timeout and metadata-network denial, hard budget
+exhaustion, cleanup, and secret leakage. Ordinary CI uses deterministic fakes and no provider
+credentials.
