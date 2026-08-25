@@ -4,6 +4,7 @@ import {
   ToolDefinitionSchema,
   ToolExecutionRequestSchema,
   ToolExecutionResultSchema,
+  ToolExecutorError,
   ToolExecutorReferenceSchema,
   ToolVersionDraftSchema,
   ToolVersionSchema,
@@ -205,12 +206,26 @@ export type ToolGatewayErrorCode =
   | 'INPUT_LIMIT_EXCEEDED'
   | 'INVALID_OUTPUT'
   | 'OUTPUT_LIMIT_EXCEEDED'
+  | 'EXECUTION_TIMEOUT'
+  | 'EXECUTION_FAILED'
 
 export class ToolGatewayError extends Error {
-  constructor(readonly code: ToolGatewayErrorCode) {
+  constructor(
+    readonly code: ToolGatewayErrorCode,
+    readonly retryable = false,
+    readonly effectState: 'none' | 'committed' | 'unknown' = 'none',
+    readonly executorCode?: string
+  ) {
     super(code)
     this.name = 'ToolGatewayError'
   }
+}
+
+export interface PreparedToolExecution {
+  readonly request: ToolExecutionRequest
+  readonly version: ToolVersion
+  readonly operation: ToolVersion['operations'][number]
+  readonly executor: ToolExecutor
 }
 
 export class ToolGateway {
@@ -227,6 +242,10 @@ export class ToolGateway {
   }
 
   async execute(input: unknown): Promise<ToolExecutionResult> {
+    return this.invoke(await this.prepare(input))
+  }
+
+  async prepare(input: unknown): Promise<PreparedToolExecution> {
     const request = ToolExecutionRequestSchema.parse(input)
     assertGrant(request)
     let version: ToolVersion
@@ -239,9 +258,8 @@ export class ToolGateway {
     if (version.lifecycle !== 'published' && version.lifecycle !== 'deprecated') {
       failGateway('TOOL_UNAVAILABLE')
     }
-    if (!version.operations.some(({ name }) => name === request.operation)) {
-      failGateway('OPERATION_UNAVAILABLE')
-    }
+    const operation = version.operations.find(({ name }) => name === request.operation)
+    if (!operation) failGateway('OPERATION_UNAVAILABLE')
     assertSize(request.input, version.limits.maxInputBytes, 'INPUT_LIMIT_EXCEEDED')
     const validateInput = this.#validator(this.#inputValidators, version, 'input')
     if (!validateInput(request.input)) failGateway('INVALID_INPUT')
@@ -249,7 +267,36 @@ export class ToolGateway {
       executorKey(version.executor.type, version.executor.reference)
     )
     if (!executor) failGateway('EXECUTOR_UNAVAILABLE')
-    const result = await executor.execute(request, version)
+    return { request, version, operation, executor }
+  }
+
+  async invoke(prepared: PreparedToolExecution): Promise<ToolExecutionResult> {
+    const { request, version, operation, executor } = prepared
+    const retryPolicy = operation.retryPolicy ?? { maxAttempts: 1, retryableErrorCodes: [] }
+    let result: Awaited<ReturnType<ToolExecutor['execute']>> | undefined
+    let attempts = 0
+    while (attempts < retryPolicy.maxAttempts) {
+      attempts += 1
+      try {
+        result = await withTimeout(executor.execute(request, version), version.limits.timeoutMs)
+        break
+      } catch (error) {
+        const normalized = normalizeExecutorError(error)
+        const retry =
+          operation.idempotency !== 'none' &&
+          normalized.retryable &&
+          retryPolicy.retryableErrorCodes.includes(normalized.code) &&
+          attempts < retryPolicy.maxAttempts
+        if (retry) continue
+        throw new ToolGatewayError(
+          normalized.code === 'TIMEOUT' ? 'EXECUTION_TIMEOUT' : 'EXECUTION_FAILED',
+          normalized.retryable,
+          normalized.effectState,
+          normalized.code
+        )
+      }
+    }
+    if (!result) failGateway('EXECUTION_FAILED')
     assertSize(result.output, version.limits.maxOutputBytes, 'OUTPUT_LIMIT_EXCEEDED')
     const validateOutput = this.#validator(this.#outputValidators, version, 'output')
     if (!validateOutput(result.output)) failGateway('INVALID_OUTPUT')
@@ -260,6 +307,7 @@ export class ToolGateway {
       output: result.output,
       artifactRefs: result.artifactRefs ?? [],
       executor: version.executor,
+      attempts,
       audit: {
         ...request.audit,
         contentDigest: digest({
@@ -291,11 +339,16 @@ export class ToolGateway {
 export class FakeToolExecutor implements ToolExecutor {
   readonly requests: ToolExecutionRequest[] = []
 
-  constructor(readonly respond: (request: ToolExecutionRequest, version: ToolVersion) => unknown) {}
+  constructor(
+    readonly respond: (
+      request: ToolExecutionRequest,
+      version: ToolVersion
+    ) => unknown | Promise<unknown>
+  ) {}
 
   async execute(request: ToolExecutionRequest, version: ToolVersion) {
     this.requests.push(clone(request))
-    return { output: this.respond(request, version) }
+    return { output: await this.respond(request, version) }
   }
 }
 
@@ -360,4 +413,42 @@ function failRegistry(code: ToolRegistryErrorCode): never {
 
 function failGateway(code: ToolGatewayErrorCode): never {
   throw new ToolGatewayError(code)
+}
+
+async function withTimeout<Value>(promise: Promise<Value>, timeoutMs: number): Promise<Value> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new ToolExecutorError('TIMEOUT', true, 'unknown')),
+          timeoutMs
+        )
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+function normalizeExecutorError(error: unknown): ToolExecutorError {
+  if (error instanceof ToolExecutorError) return error
+  if (error instanceof Error) {
+    const candidate = error as Error & {
+      readonly code?: unknown
+      readonly retryable?: unknown
+      readonly effectState?: unknown
+    }
+    return new ToolExecutorError(
+      typeof candidate.code === 'string' ? candidate.code : 'EXECUTOR_ERROR',
+      candidate.retryable === true,
+      candidate.effectState === 'none' ||
+        candidate.effectState === 'committed' ||
+        candidate.effectState === 'unknown'
+        ? candidate.effectState
+        : 'unknown'
+    )
+  }
+  return new ToolExecutorError('EXECUTOR_ERROR', false, 'unknown')
 }
