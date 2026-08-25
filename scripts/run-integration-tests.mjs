@@ -80,6 +80,9 @@ try {
   run('bun', ['x', 'turbo', 'run', 'test:integration', '--concurrency=1'], {
     environment: integrationEnvironment,
   })
+  run('bun', ['scripts/run-postgres-restore-drill.mjs'], {
+    environment: integrationEnvironment,
+  })
 } finally {
   if (!postgresWasRunning) {
     run('docker', ['compose', 'stop', '--timeout', '60', 'postgres'])

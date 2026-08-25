@@ -24,6 +24,7 @@
     "test:group:smoke": "bun scripts/run-bun-test-group.mjs smoke",
     "test:unit": "bun run build && bun scripts/run-bun-test-group.mjs unit --coverage",
     "test:integration": "bun scripts/run-integration-tests.mjs",
+    "test:recovery": "bun scripts/run-postgres-restore-drill.mjs",
     "test:e2e": "bun run build && bun scripts/run-bun-test-group.mjs e2e",
     "test:smoke": "bun run build && bun scripts/run-bun-test-group.mjs smoke",
     "test:foundation": "bun run test && bun run test:integration",

@@ -25,3 +25,8 @@ export {
   SecretCanaryGuard,
 } from './security.js'
 export type { CredentialEnvelope, CredentialKind } from './security.js'
+export {
+  DurableFailureHarness,
+  failureScenarios,
+  productionRecoveryObjectives,
+} from './failure-injection.js'
