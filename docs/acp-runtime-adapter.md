@@ -33,6 +33,25 @@ select its working directory, inject credentials, or assume ownership of its ses
 methods returned during initialization are intentionally retained at the protocol edge and are not
 exposed through `RuntimeAdapter`.
 
+## Local Runtime Gateway driver
+
+Local ACP requests use Runtime Gateway protocol 1.5 and its `runtime.session` operation. The
+gateway client translates discovery, initialization, execution, interaction responses,
+cancellation, status, and retained-session operations into versioned commands for a node-side ACP
+driver. Driver inventory supplies the negotiated driver and harness versions plus the exact
+normalized capabilities used for eligibility; a missing required capability therefore blocks start
+before the ACP harness receives an execution request.
+
+The node-side driver resolves opaque `nses_` references to native session IDs and requires a
+synthetic `grant:` reference for execution. Neither native IDs nor absolute project paths cross the
+gateway boundary. Command identity, payload hashes, attempt IDs, and the M5 reference node's replay
+ledger provide correlation and duplicate-effect protection across disconnect and reconnect. A
+missing, incompatible, or disappeared driver fails closed, while a disconnected retained attempt
+reconciles as unknown until connectivity returns.
+
+The in-repository reference driver runs only a disposable ACP transport fixture. It does not launch
+Agent HQ or take ownership of native authentication, configuration, MCP setup, or session files.
+
 ## External session references
 
 When configured with an `ExternalSessionRegistry`, native list/create/resume/close observations create

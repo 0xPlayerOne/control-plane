@@ -35,13 +35,14 @@ export type GatewayProtocolVersion = z.output<typeof GatewayProtocolVersionSchem
 
 export const GatewayProtocolManifest = Object.freeze({
   name: 'control-plane-runtime-gateway',
-  current: { major: 1, minor: 4 },
+  current: { major: 1, minor: 5 },
   supported: [
     { major: 1, minor: 0 },
     { major: 1, minor: 1 },
     { major: 1, minor: 2 },
     { major: 1, minor: 3 },
     { major: 1, minor: 4 },
+    { major: 1, minor: 5 },
   ],
 })
 
@@ -196,6 +197,7 @@ const GatewayCommandBaseSchema = CommonEnvelopeSchema.extend({
     'runtime.input',
     'runtime.approval',
     'runtime.status',
+    'runtime.session',
     'context.status',
     'context.read',
     'context.write',
@@ -257,6 +259,22 @@ export const GatewayCommandEnvelopeSchema = GatewayCommandBaseSchema.strict().su
           path: ['requiredCapabilities'],
           message: 'Runtime control command requires its operation capability',
         })
+      }
+      if (command.operation === 'runtime.session') {
+        if (command.protocolVersion.minor < 5) {
+          context.addIssue({
+            code: 'custom',
+            path: ['protocolVersion'],
+            message: 'Runtime session commands require protocol v1.5',
+          })
+        }
+        if (!command.requiredCapabilities.some((capability) => capability.startsWith('session.'))) {
+          context.addIssue({
+            code: 'custom',
+            path: ['requiredCapabilities'],
+            message: 'Runtime session commands require a session capability',
+          })
+        }
       }
     } else {
       if (command.providerRef === undefined) {

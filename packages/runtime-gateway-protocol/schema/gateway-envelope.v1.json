@@ -188,6 +188,7 @@
             "runtime.input",
             "runtime.approval",
             "runtime.status",
+            "runtime.session",
             "context.status",
             "context.read",
             "context.write"

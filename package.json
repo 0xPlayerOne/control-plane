@@ -58,5 +58,8 @@
     "turbo": "2.10.11",
     "typescript": "6.0.3",
     "typescript-eslint": "8.67.0"
+  },
+  "overrides": {
+    "esbuild": "0.28.2"
   }
 }
