@@ -33,11 +33,28 @@ describe('Runtime Gateway reconnect reconciliation', () => {
   })
 
   test('makes acknowledged-without-outcome and unknown-ledger states explicit', async () => {
-    const fixture = await createFixture([record('A', 'acknowledged', 1)])
-    const result = await fixture.service.reconcile(hello(1, [outcome('Z', 'unknown')]), source())
-    expect(result.manualIntervention).toBe(2)
+    const fixture = await createFixture([
+      record('A', 'acknowledged', 1),
+      record('C', 'acknowledged', 2),
+    ])
+    const result = await fixture.service.reconcile(
+      hello(2, [outcome('Z', 'unknown'), outcome('C', 'unknown')]),
+      source()
+    )
+    expect(result.manualIntervention).toBe(3)
     expect(result.redelivered).toBe(0)
-    expect(fixture.reconciled).toEqual([executionId('A')])
+    expect(fixture.manualInterventions).toEqual([
+      {
+        executionId: executionId('C'),
+        commandId: commandId('C'),
+        reason: 'unknown_retained_outcome',
+      },
+      {
+        executionId: executionId('A'),
+        commandId: commandId('A'),
+        reason: 'acknowledged_without_outcome',
+      },
+    ])
   })
 
   test('does not resume expired, revoked, or capability-incompatible commands', async () => {
@@ -48,7 +65,13 @@ describe('Runtime Gateway reconnect reconciliation', () => {
     const result = await fixture.service.reconcile(hello(0, []), source())
     expect(result).toMatchObject({ expired: 1, invalid: 1, redelivered: 0 })
     expect(fixture.sent).toEqual([])
-    expect(fixture.reconciled).toEqual([executionId('B')])
+    expect(fixture.manualInterventions).toEqual([
+      {
+        executionId: executionId('B'),
+        commandId: commandId('B'),
+        reason: 'capability_changed',
+      },
+    ])
   })
 
   test('fails closed for wrong scope, payload conflicts, and duplicate retained outcomes', async () => {
@@ -88,10 +111,12 @@ async function createFixture(records, options = {}) {
   })
   const applied = []
   const reconciled = []
+  const manualInterventions = []
   return {
     sent,
     applied,
     reconciled,
+    manualInterventions,
     service: new RuntimeReconnectReconciliationService({
       repository,
       delivery,
@@ -104,7 +129,10 @@ async function createFixture(records, options = {}) {
             : { valid: true },
       },
       outcomes: { apply: async (command, retained) => applied.push({ command, retained }) },
-      executions: { reconcile: async (id) => reconciled.push(id) },
+      executions: {
+        reconcile: async (id) => reconciled.push(id),
+        requireManualIntervention: async (input) => manualInterventions.push(input),
+      },
     }),
   }
 }
