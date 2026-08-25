@@ -60,10 +60,27 @@ describe('Runtime Gateway protocol', () => {
         ...runtimeCommand(),
         payload: {
           version: 1,
-          parameters: { prompt: 'summarize the selected document', maxOutputBytes: 512 },
+          parameters: {
+            prompt: 'summarize the selected document',
+            maxOutputBytes: 512,
+            limits: { maximumTokens: 4096 },
+          },
         },
       }).success
     ).toBeTrue()
+
+    for (const parameters of [
+      { accessToken: 'credential-value' },
+      { refresh_token: 'credential-value' },
+      { nested: { bearerToken: 'credential-value' } },
+    ]) {
+      expect(
+        GatewayEnvelopeSchema.safeParse({
+          ...runtimeCommand(),
+          payload: { version: 1, parameters },
+        }).success
+      ).toBeFalse()
+    }
   })
 
   test('negotiates compatible versions and fails closed when no major version overlaps', () => {
@@ -112,6 +129,17 @@ describe('Runtime Gateway protocol', () => {
     expect(
       GatewayEnvelopeSchema.safeParse({ ...golden.error, payloadHash: undefined }).success
     ).toBeTrue()
+
+    expect(
+      GatewayEnvelopeSchema.safeParse({
+        ...runtimeCommand(),
+        protocolVersion: { major: 1, minor: 4 },
+        operation: 'runtime.status',
+        requiredCapabilities: ['stream.events'],
+        payload: { version: 1, parameters: { reconcile: true } },
+      }).success
+    ).toBeTrue()
+    expect(GatewayProtocolManifest.current).toEqual({ major: 1, minor: 4 })
   })
 
   test('fails closed instead of evicting duplicate-effect protection when its ledger is full', () => {

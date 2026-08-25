@@ -123,6 +123,6 @@ expired, replayed, and revoked credentials; lost acknowledgements and terminal o
 delivery; command expiry; cancellation races; stale inventory; cross-instance replacement; malformed
 and oversized frames; backpressure; and bounded restart recovery.
 
-The suite records protocol versions 1.0 through 1.3 and runs inside Code Foundry's independent E2E
+The suite records protocol versions 1.0 through 1.4 and runs inside Code Foundry's independent E2E
 job. Component tests remain colocated with the Runtime Gateway so the acceptance entrypoint reuses the
 same executable controls instead of maintaining divergent fixtures.
