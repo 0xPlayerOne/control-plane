@@ -1,9 +1,25 @@
 import { bootstrapService, type ServiceStartOptions } from '@control-plane/bootstrap'
+import type { HostedManagedPiWorker } from './hosted-managed-pi.js'
 
 export const serviceName = 'runtime-worker'
-export const start = (options: ServiceStartOptions = {}) =>
-  bootstrapService({
-    ...options,
+export interface RuntimeWorkerStartOptions extends ServiceStartOptions {
+  readonly hostedManagedPiWorker?: HostedManagedPiWorker
+}
+
+export const start = (options: RuntimeWorkerStartOptions = {}) => {
+  const { hostedManagedPiWorker, ...serviceOptions } = options
+  return bootstrapService({
+    ...serviceOptions,
     serviceName,
-    start: ({ markReady }) => markReady(),
+    start: async ({ markReady, registerResource }) => {
+      if (hostedManagedPiWorker) {
+        const readiness = await hostedManagedPiWorker.readiness()
+        if (!readiness.ready) throw new Error(`HOSTED_MANAGED_PI_${readiness.reason}`)
+        registerResource('hosted-managed-pi-worker', () => hostedManagedPiWorker.close())
+      }
+      markReady()
+    },
   })
+}
+
+export * from './hosted-managed-pi.js'
