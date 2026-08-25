@@ -102,6 +102,7 @@ package's source tree.
 
 ### Infrastructure and support
 
+- `packages/acp-adapter`: ACP v2 protocol negotiation and RuntimeAdapter normalization boundary
 - `packages/database`: persistence implementation boundary
 - `packages/telemetry`: observability implementation boundary
 - `packages/testing`: shared test fixtures and harnesses
