@@ -35,6 +35,8 @@ export const IdentifierSchemas = {
   contextPackageId: opaqueIdentifier('ctx', 'ContextPackage ID'),
   executionPlanId: opaqueIdentifier('pln', 'ExecutionPlan ID'),
   artifactId: opaqueIdentifier('art', 'Artifact reference ID'),
+  toolDefinitionId: opaqueIdentifier('tld', 'tool-definition ID'),
+  toolVersionId: opaqueIdentifier('tlv', 'tool-version ID'),
   eventId: opaqueIdentifier('evt', 'event ID'),
   traceId: opaqueIdentifier('trc', 'trace ID'),
 } as const
@@ -65,5 +67,7 @@ export type StatePromotionProposalId = z.output<
 export type ContextPackageId = z.output<(typeof IdentifierSchemas)['contextPackageId']>
 export type ExecutionPlanId = z.output<(typeof IdentifierSchemas)['executionPlanId']>
 export type ArtifactId = z.output<(typeof IdentifierSchemas)['artifactId']>
+export type ToolDefinitionId = z.output<(typeof IdentifierSchemas)['toolDefinitionId']>
+export type ToolVersionId = z.output<(typeof IdentifierSchemas)['toolVersionId']>
 export type EventId = z.output<(typeof IdentifierSchemas)['eventId']>
 export type TraceId = z.output<(typeof IdentifierSchemas)['traceId']>
