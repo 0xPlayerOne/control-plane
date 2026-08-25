@@ -17,6 +17,7 @@ import {
   runtimeEventReceipts,
   runtimeInventoryCheckpoints,
   runtimeConnections,
+  usageLedgerEntries,
   withDomainTransaction,
 } from './index.ts'
 
@@ -44,6 +45,7 @@ describe('persistence schema', () => {
     const runtimeEventReceipt = getTableConfig(runtimeEventReceipts)
     const runtimeInventoryCheckpoint = getTableConfig(runtimeInventoryCheckpoints)
     const externalSession = getTableConfig(externalSessions)
+    const usageLedger = getTableConfig(usageLedgerEntries)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
     expect(outbox.name).toBe('outbox_events')
@@ -56,6 +58,14 @@ describe('persistence schema', () => {
     expect(runtimeEventReceipt.name).toBe('runtime_event_receipts')
     expect(runtimeInventoryCheckpoint.name).toBe('runtime_inventory_checkpoints')
     expect(externalSession.name).toBe('external_sessions')
+    expect(usageLedger.name).toBe('usage_ledger_entries')
+    expect(usageLedger.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'usage_ledger_execution_sequence_unique',
+        'usage_ledger_workspace_idempotency_unique',
+        'usage_ledger_execution_recorded_index',
+      ])
+    )
     expect(runtimeCommand.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'command_id',
