@@ -32,7 +32,7 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.mjs",
     "db:migrate": "bun src/cli/migrate.ts",
     "lint": "eslint src drizzle.config.mjs",
-    "test": "bun test src/index.test.mjs",
+    "test": "bun test src/*.test.mjs",
     "test:integration": "bun test --timeout 30000 src/integration.test.mjs"
   },
   "dependencies": {
@@ -40,6 +40,7 @@
     "@control-plane/domain": "workspace:*",
     "@control-plane/events": "workspace:*",
     "@control-plane/runtime-sdk": "workspace:*",
+    "@control-plane/usage-ledger": "workspace:*",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"
   },

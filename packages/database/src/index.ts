@@ -13,6 +13,7 @@ export { PostgresRuntimeConnectionRepository } from './runtime-connection-reposi
 export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
 export { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.js'
 export { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.js'
+export { PostgresUsageLedgerRepository } from './usage-ledger-repository.js'
 export type {
   ControlPlaneDatabase,
   PostgresConnection,
@@ -60,6 +61,9 @@ export {
   runtimeInventoryCheckpoints,
   softDeleteColumns,
   timestampColumns,
+  usageFundingSource,
+  usageLedgerEntries,
+  usageLedgerEntryKind,
 } from './schema/index.js'
 export { withDomainTransaction } from './transaction.js'
 export type { DomainTransaction } from './transaction.js'
