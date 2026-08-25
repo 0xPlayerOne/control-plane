@@ -15,19 +15,21 @@ const ParentPlanSchema = z
     profile: z.object({ profileVersionId: IdentifierSchemas.profileVersionId }).passthrough(),
     constraints: z
       .object({
-        limits: z.object({
-          budget: z.object({
-            currency: z.literal('USD'),
-            maximumMicrounits: z.number().int().positive(),
-          }),
-          tokens: z.object({ maximumTotal: z.number().int().positive() }),
-          duration: z.object({ maximumMs: z.number().int().positive() }),
-          concurrency: z.object({ maximumParallel: z.number().int().positive() }),
-          childExecutions: z.object({
-            maximumTotal: z.number().int().nonnegative(),
-            maximumDepth: z.number().int().nonnegative(),
-          }),
-        }),
+        limits: z
+          .object({
+            budget: z.object({
+              currency: z.literal('USD'),
+              maximumMicrounits: z.number().int().positive(),
+            }),
+            tokens: z.object({ maximumTotal: z.number().int().positive() }),
+            duration: z.object({ maximumMs: z.number().int().positive() }),
+            concurrency: z.object({ maximumParallel: z.number().int().positive() }),
+            childExecutions: z.object({
+              maximumTotal: z.number().int().nonnegative(),
+              maximumDepth: z.number().int().nonnegative(),
+            }),
+          })
+          .passthrough(),
       })
       .passthrough(),
   })
@@ -52,11 +54,13 @@ const BranchSchema = z
       .object({
         constraints: z
           .object({
-            limits: z.object({
-              budget: z.object({ maximumMicrounits: z.number().int().positive() }).passthrough(),
-              tokens: z.object({ maximumTotal: z.number().int().positive() }),
-              duration: z.object({ maximumMs: z.number().int().positive() }),
-            }),
+            limits: z
+              .object({
+                budget: z.object({ maximumMicrounits: z.number().int().positive() }).passthrough(),
+                tokens: z.object({ maximumTotal: z.number().int().positive() }),
+                duration: z.object({ maximumMs: z.number().int().positive() }),
+              })
+              .passthrough(),
           })
           .passthrough(),
         compiledAt: TimestampSchema,
@@ -180,7 +184,7 @@ export class ParallelDelegationCoordinator {
 
     const results: ParallelDelegationBranch[] = []
     for (const { branch, contextPackage } of prepared) {
-      const delegated = await this.#delegations.delegate({
+      await this.#delegations.delegate({
         delegationId: branch.delegationId,
         delegationGroupId,
         parentExecutionId,
@@ -194,13 +198,13 @@ export class ParallelDelegationCoordinator {
         acceptedAt,
         ...(deadlineAt ? { deadlineAt } : {}),
       })
-      await this.#delegations.dispatchChild({
+      const dispatched = await this.#delegations.dispatchChild({
         delegationId: branch.delegationId,
         childAttemptId: branch.childAttemptId,
         runtime: branch.runtime,
         dispatchedAt: acceptedAt,
       })
-      results.push({ record: delegated.record, contextPackage })
+      results.push({ record: dispatched.record, contextPackage })
     }
     return results
   }

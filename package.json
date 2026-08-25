@@ -33,6 +33,7 @@
     "test:m5-acceptance": "bun run build && bun test tests/m5-runtime-gateway.test.mjs",
     "test:m6-acceptance": "bun run build && bun test tests/m6-runtime-adapters.test.mjs",
     "test:m7-acceptance": "bun run build && bun test tests/m7-tools-models-sandboxes.test.mjs",
+    "test:m8-acceptance": "bun run build && bun test tests/m8-multi-agent-orchestration.test.mjs",
     "test:coverage": "bun run test:unit",
     "test:shard": "bun run build && bun scripts/run-bun-test-group.mjs unit",
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path infrastructure/terraform/.gitignore",
@@ -47,6 +48,7 @@
     "db:stop": "docker compose stop postgres"
   },
   "devDependencies": {
+    "@langchain/langgraph": "1.4.12",
     "@control-plane/acp-adapter": "workspace:*",
     "@control-plane/context": "workspace:*",
     "@control-plane/contracts": "workspace:*",
@@ -54,7 +56,9 @@
     "@control-plane/events": "workspace:*",
     "@control-plane/execution-plan": "workspace:*",
     "@control-plane/managed-pi-adapter": "workspace:*",
+    "@control-plane/langgraph-adapter": "workspace:*",
     "@control-plane/model-gateway": "workspace:*",
+    "@control-plane/orchestration": "workspace:*",
     "@control-plane/credential-vault": "workspace:*",
     "@control-plane/sandbox": "workspace:*",
     "@control-plane/usage-ledger": "workspace:*",
