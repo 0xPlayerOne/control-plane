@@ -1,0 +1,789 @@
+{
+  "$id": "https://schemas.control-plane.dev/runtime-gateway/gateway-envelope.v1.json",
+  "title": "Control Plane Runtime Gateway Envelope v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "hello" },
+        "supportedVersions": {
+          "minItems": 1,
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+              "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+            },
+            "required": ["major", "minor"],
+            "additionalProperties": false
+          }
+        },
+        "lastAcknowledgedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "supportedVersions",
+        "lastAcknowledgedSequence"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "command" },
+        "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "family": { "type": "string", "enum": ["runtime", "context_provider"] },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "runtime.execute",
+            "runtime.input",
+            "runtime.approval",
+            "context.status",
+            "context.read",
+            "context.write"
+          ]
+        },
+        "driver": {
+          "type": "object",
+          "properties": {
+            "family": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+            "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$" }
+          },
+          "required": ["family", "version"],
+          "additionalProperties": false
+        },
+        "runtimeConnectionId": { "type": "string", "pattern": "^rtc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "executionId": { "type": "string", "pattern": "^exe_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "attemptId": { "type": "string", "pattern": "^att_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "providerRef": { "type": "string", "pattern": "^pvr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "authorizationRef": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128,
+          "pattern": "^authz:[A-Za-z0-9._:-]+$"
+        },
+        "requiredCapabilities": {
+          "minItems": 1,
+          "maxItems": 64,
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$" }
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "parameters": {
+                  "type": "object",
+                  "propertyNames": { "type": "string" },
+                  "additionalProperties": { "$ref": "#/$defs/__schema0" }
+                }
+              },
+              "required": ["version", "parameters"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "artifact": {
+                  "type": "object",
+                  "properties": {
+                    "artifactId": { "type": "string", "pattern": "^art_[0-9A-HJKMNP-TV-Z]{26}$" },
+                    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                    "mediaType": { "type": "string", "minLength": 1, "maxLength": 128 },
+                    "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }
+                  },
+                  "required": ["artifactId", "digest", "mediaType", "sizeBytes"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["version", "artifact"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "commandId",
+        "idempotencyKey",
+        "payloadHash",
+        "issuedAt",
+        "expiresAt",
+        "family",
+        "operation",
+        "driver",
+        "requiredCapabilities",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "ack" },
+        "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "disposition": { "type": "string", "enum": ["accepted", "replayed", "rejected", "expired"] }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "commandId",
+        "payloadHash",
+        "disposition"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "progress" },
+        "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "eventSequence": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+        "event": {
+          "type": "object",
+          "properties": {
+            "kind": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$" },
+            "data": {
+              "type": "object",
+              "propertyNames": { "type": "string" },
+              "additionalProperties": { "$ref": "#/$defs/__schema1" }
+            }
+          },
+          "required": ["kind", "data"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "commandId",
+        "payloadHash",
+        "eventSequence",
+        "event"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "result" },
+        "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "status": { "type": "string", "enum": ["succeeded", "failed", "cancelled"] },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "propertyNames": { "type": "string" },
+                  "additionalProperties": { "$ref": "#/$defs/__schema2" }
+                }
+              },
+              "required": ["data"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "artifact": {
+                  "type": "object",
+                  "properties": {
+                    "artifactId": { "type": "string", "pattern": "^art_[0-9A-HJKMNP-TV-Z]{26}$" },
+                    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                    "mediaType": { "type": "string", "minLength": 1, "maxLength": 128 },
+                    "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }
+                  },
+                  "required": ["artifactId", "digest", "mediaType", "sizeBytes"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["artifact"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "commandId",
+        "payloadHash",
+        "status",
+        "completedAt",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "cancel" },
+        "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["user_requested", "policy_revoked", "deadline_exceeded", "shutdown"]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "commandId",
+        "payloadHash",
+        "requestedAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "heartbeat" },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "status": { "type": "string", "enum": ["online", "degraded", "draining"] }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "observedAt",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "inventory" },
+        "snapshotVersion": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "runtimeDrivers": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "opaqueRef": { "type": "string", "pattern": "^(?:nref|pvr)_[0-9A-HJKMNP-TV-Z]{26}$" },
+              "driverFamily": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+              "driverVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+              },
+              "harnessVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+              },
+              "protocolVersion": {
+                "type": "object",
+                "properties": {
+                  "major": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                },
+                "required": ["major", "minor"],
+                "additionalProperties": false
+              },
+              "health": { "type": "string", "enum": ["healthy", "degraded", "unavailable"] },
+              "capabilities": {
+                "maxItems": 128,
+                "type": "array",
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$" }
+              },
+              "limitations": {
+                "maxItems": 64,
+                "type": "array",
+                "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+              }
+            },
+            "required": [
+              "opaqueRef",
+              "driverFamily",
+              "driverVersion",
+              "protocolVersion",
+              "health",
+              "capabilities",
+              "limitations"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "contextProviders": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "opaqueRef": { "type": "string", "pattern": "^(?:nref|pvr)_[0-9A-HJKMNP-TV-Z]{26}$" },
+              "driverFamily": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+              "driverVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+              },
+              "harnessVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+              },
+              "protocolVersion": {
+                "type": "object",
+                "properties": {
+                  "major": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                },
+                "required": ["major", "minor"],
+                "additionalProperties": false
+              },
+              "health": { "type": "string", "enum": ["healthy", "degraded", "unavailable"] },
+              "capabilities": {
+                "maxItems": 128,
+                "type": "array",
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$" }
+              },
+              "limitations": {
+                "maxItems": 64,
+                "type": "array",
+                "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+              }
+            },
+            "required": [
+              "opaqueRef",
+              "driverFamily",
+              "driverVersion",
+              "protocolVersion",
+              "health",
+              "capabilities",
+              "limitations"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "snapshotVersion",
+        "observedAt",
+        "runtimeDrivers",
+        "contextProviders"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "number", "const": 1 },
+        "protocolVersion": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+            "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          },
+          "required": ["major", "minor"],
+          "additionalProperties": false
+        },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "channelGeneration": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "type": { "type": "string", "const": "error" },
+        "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "code": { "type": "string", "maxLength": 96, "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "retryable": { "type": "boolean" }
+      },
+      "required": [
+        "schemaVersion",
+        "protocolVersion",
+        "sequence",
+        "nodeId",
+        "workspaceId",
+        "traceId",
+        "sentAt",
+        "channelGeneration",
+        "type",
+        "code",
+        "retryable"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array", "items": { "$ref": "#/$defs/__schema0" } },
+        {
+          "type": "object",
+          "propertyNames": { "type": "string" },
+          "additionalProperties": { "$ref": "#/$defs/__schema0" }
+        }
+      ]
+    },
+    "__schema1": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array", "items": { "$ref": "#/$defs/__schema1" } },
+        {
+          "type": "object",
+          "propertyNames": { "type": "string" },
+          "additionalProperties": { "$ref": "#/$defs/__schema1" }
+        }
+      ]
+    },
+    "__schema2": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array", "items": { "$ref": "#/$defs/__schema2" } },
+        {
+          "type": "object",
+          "propertyNames": { "type": "string" },
+          "additionalProperties": { "$ref": "#/$defs/__schema2" }
+        }
+      ]
+    }
+  },
+  "x-control-plane-prohibitedPayloadKeys": [
+    "credential",
+    "databaseId",
+    "endpoint",
+    "executable",
+    "localPath",
+    "password",
+    "privateKey",
+    "projectId",
+    "sourceScope",
+    "token",
+    "url"
+  ]
+}

@@ -1,0 +1,322 @@
+import { z } from 'zod'
+
+const canonicalId = (prefix: string, label: string) =>
+  z.string().regex(new RegExp(`^${prefix}_[0-9A-HJKMNP-TV-Z]{26}$`), `Invalid ${label}`)
+const TimestampSchema = z.iso.datetime()
+const DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+const CapabilitySchema = z.string().regex(/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/)
+const DriverFamilySchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)
+const VersionStringSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
+const forbiddenPayloadKeys = [
+  'credential',
+  'databaseid',
+  'endpoint',
+  'executable',
+  'localpath',
+  'password',
+  'privatekey',
+  'projectid',
+  'sourcescope',
+  'token',
+  'url',
+] as const
+
+export const GatewayProtocolVersionSchema = z
+  .object({ major: z.number().int().positive(), minor: z.number().int().nonnegative() })
+  .strict()
+export type GatewayProtocolVersion = z.output<typeof GatewayProtocolVersionSchema>
+
+export const GatewayProtocolManifest = Object.freeze({
+  name: 'control-plane-runtime-gateway',
+  current: { major: 1, minor: 0 },
+  supported: [{ major: 1, minor: 0 }],
+})
+
+export const GatewayProtocolDeprecationSchema = z
+  .object({
+    version: GatewayProtocolVersionSchema,
+    deprecatedAt: TimestampSchema,
+    sunsetAt: TimestampSchema.optional(),
+    replacement: GatewayProtocolVersionSchema.optional(),
+  })
+  .strict()
+  .superRefine((deprecation, context) => {
+    if (
+      deprecation.sunsetAt !== undefined &&
+      Date.parse(deprecation.sunsetAt) <= Date.parse(deprecation.deprecatedAt)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['sunsetAt'],
+        message: 'Protocol sunset must follow deprecation',
+      })
+    }
+  })
+
+export function negotiateGatewayProtocolVersion(
+  localValues: readonly GatewayProtocolVersion[],
+  remoteValues: readonly GatewayProtocolVersion[]
+): GatewayProtocolVersion | undefined {
+  const local = highestMinor(localValues)
+  const remote = highestMinor(remoteValues)
+  const major = [...local.keys()]
+    .filter((candidate) => remote.has(candidate))
+    .sort((left, right) => right - left)[0]
+  return major === undefined
+    ? undefined
+    : { major, minor: Math.min(local.get(major) ?? 0, remote.get(major) ?? 0) }
+}
+
+const CommonEnvelopeSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    protocolVersion: GatewayProtocolVersionSchema,
+    sequence: z.number().int().nonnegative(),
+    nodeId: canonicalId('rnr', 'RuntimeNode ID'),
+    workspaceId: canonicalId('wsp', 'workspace ID'),
+    traceId: canonicalId('trc', 'trace ID'),
+    sentAt: TimestampSchema,
+    channelGeneration: z.number().int().positive(),
+  })
+  .strict()
+
+export const GatewayArtifactReferenceSchema = z
+  .object({
+    artifactId: canonicalId('art', 'Artifact ID'),
+    digest: DigestSchema,
+    mediaType: z.string().min(1).max(128),
+    sizeBytes: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(64 * 1024 * 1024),
+  })
+  .strict()
+
+const InlinePayloadSchema = z
+  .object({
+    version: z.number().int().positive(),
+    parameters: z.record(z.string(), z.json()),
+  })
+  .strict()
+  .superRefine((payload, context) => rejectPrivilegedPayload(payload.parameters, context))
+
+const CommandPayloadSchema = z.union([
+  InlinePayloadSchema,
+  z
+    .object({ version: z.number().int().positive(), artifact: GatewayArtifactReferenceSchema })
+    .strict(),
+])
+
+export const GatewayHelloEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('hello'),
+  supportedVersions: z.array(GatewayProtocolVersionSchema).min(1).max(16),
+  lastAcknowledgedSequence: z.number().int().nonnegative(),
+}).strict()
+
+const GatewayCommandBaseSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('command'),
+  commandId: canonicalId('cmd', 'command ID'),
+  idempotencyKey: z
+    .string()
+    .min(16)
+    .max(128)
+    .regex(/^[A-Za-z0-9._:-]+$/),
+  payloadHash: DigestSchema,
+  issuedAt: TimestampSchema,
+  expiresAt: TimestampSchema,
+  family: z.enum(['runtime', 'context_provider']),
+  operation: z.enum([
+    'runtime.execute',
+    'runtime.input',
+    'runtime.approval',
+    'context.status',
+    'context.read',
+    'context.write',
+  ]),
+  driver: z.object({ family: DriverFamilySchema, version: VersionStringSchema }).strict(),
+  runtimeConnectionId: canonicalId('rtc', 'runtime connection ID').optional(),
+  executionId: canonicalId('exe', 'execution ID').optional(),
+  attemptId: canonicalId('att', 'attempt ID').optional(),
+  providerRef: canonicalId('pvr', 'context provider reference').optional(),
+  authorizationRef: z
+    .string()
+    .min(16)
+    .max(128)
+    .regex(/^authz:[A-Za-z0-9._:-]+$/)
+    .optional(),
+  requiredCapabilities: z.array(CapabilitySchema).min(1).max(64),
+  payload: CommandPayloadSchema,
+})
+
+export const GatewayCommandEnvelopeSchema = GatewayCommandBaseSchema.strict().superRefine(
+  (command, context) => {
+    if (Date.parse(command.expiresAt) <= Date.parse(command.issuedAt)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['expiresAt'],
+        message: 'Command expiry must follow issue time',
+      })
+    }
+    if (command.family === 'runtime') {
+      for (const field of ['runtimeConnectionId', 'executionId', 'attemptId'] as const) {
+        if (command[field] === undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: [field],
+            message: `${field} is required for runtime commands`,
+          })
+        }
+      }
+      if (!command.operation.startsWith('runtime.')) {
+        context.addIssue({
+          code: 'custom',
+          path: ['operation'],
+          message: 'Runtime command operation mismatch',
+        })
+      }
+    } else {
+      if (command.providerRef === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['providerRef'],
+          message: 'providerRef is required',
+        })
+      }
+      if (!command.operation.startsWith('context.')) {
+        context.addIssue({
+          code: 'custom',
+          path: ['operation'],
+          message: 'Provider command operation mismatch',
+        })
+      }
+      if (command.operation === 'context.write' && command.authorizationRef === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['authorizationRef'],
+          message: 'Writes require separate authorization',
+        })
+      }
+    }
+  }
+)
+
+export const GatewayAcknowledgementEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('ack'),
+  commandId: canonicalId('cmd', 'command ID'),
+  payloadHash: DigestSchema,
+  disposition: z.enum(['accepted', 'replayed', 'rejected', 'expired']),
+}).strict()
+
+export const GatewayProgressEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('progress'),
+  commandId: canonicalId('cmd', 'command ID'),
+  payloadHash: DigestSchema,
+  eventSequence: z.number().int().positive(),
+  event: z.object({ kind: CapabilitySchema, data: z.record(z.string(), z.json()) }).strict(),
+}).strict()
+
+export const GatewayResultEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('result'),
+  commandId: canonicalId('cmd', 'command ID'),
+  payloadHash: DigestSchema,
+  status: z.enum(['succeeded', 'failed', 'cancelled']),
+  completedAt: TimestampSchema,
+  result: z.union([
+    z.object({ data: z.record(z.string(), z.json()) }).strict(),
+    z.object({ artifact: GatewayArtifactReferenceSchema }).strict(),
+  ]),
+}).strict()
+
+export const GatewayCancellationEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('cancel'),
+  commandId: canonicalId('cmd', 'command ID'),
+  payloadHash: DigestSchema,
+  requestedAt: TimestampSchema,
+  reason: z.enum(['user_requested', 'policy_revoked', 'deadline_exceeded', 'shutdown']),
+}).strict()
+
+export const GatewayHeartbeatEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('heartbeat'),
+  observedAt: TimestampSchema,
+  status: z.enum(['online', 'degraded', 'draining']),
+}).strict()
+
+const DriverInventorySchema = z
+  .object({
+    opaqueRef: z.string().regex(/^(?:nref|pvr)_[0-9A-HJKMNP-TV-Z]{26}$/),
+    driverFamily: DriverFamilySchema,
+    driverVersion: VersionStringSchema,
+    harnessVersion: VersionStringSchema.optional(),
+    protocolVersion: GatewayProtocolVersionSchema,
+    health: z.enum(['healthy', 'degraded', 'unavailable']),
+    capabilities: z.array(CapabilitySchema).max(128),
+    limitations: z.array(z.string().regex(/^[A-Z][A-Z0-9_]*$/)).max(64),
+  })
+  .strict()
+
+export const GatewayInventoryEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('inventory'),
+  snapshotVersion: z.number().int().positive(),
+  observedAt: TimestampSchema,
+  runtimeDrivers: z.array(DriverInventorySchema).max(128),
+  contextProviders: z.array(DriverInventorySchema).max(32),
+}).strict()
+
+export const GatewayErrorEnvelopeSchema = CommonEnvelopeSchema.extend({
+  type: z.literal('error'),
+  commandId: canonicalId('cmd', 'command ID').optional(),
+  code: z
+    .string()
+    .regex(/^[A-Z][A-Z0-9_]*$/)
+    .max(96),
+  retryable: z.boolean(),
+}).strict()
+
+export const GatewayEnvelopeSchema = z.discriminatedUnion('type', [
+  GatewayHelloEnvelopeSchema,
+  GatewayCommandEnvelopeSchema,
+  GatewayAcknowledgementEnvelopeSchema,
+  GatewayProgressEnvelopeSchema,
+  GatewayResultEnvelopeSchema,
+  GatewayCancellationEnvelopeSchema,
+  GatewayHeartbeatEnvelopeSchema,
+  GatewayInventoryEnvelopeSchema,
+  GatewayErrorEnvelopeSchema,
+])
+export type GatewayEnvelope = z.output<typeof GatewayEnvelopeSchema>
+export type GatewayCommandEnvelope = z.output<typeof GatewayCommandEnvelopeSchema>
+export type GatewayAcknowledgementEnvelope = z.output<typeof GatewayAcknowledgementEnvelopeSchema>
+export type GatewayResultEnvelope = z.output<typeof GatewayResultEnvelopeSchema>
+
+function highestMinor(values: readonly GatewayProtocolVersion[]): Map<number, number> {
+  const result = new Map<number, number>()
+  for (const value of values) {
+    const version = GatewayProtocolVersionSchema.parse(value)
+    result.set(version.major, Math.max(result.get(version.major) ?? -1, version.minor))
+  }
+  return result
+}
+
+function rejectPrivilegedPayload(
+  value: unknown,
+  context: z.RefinementCtx,
+  path: PropertyKey[] = []
+): void {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => rejectPrivilegedPayload(entry, context, [...path, index]))
+    return
+  }
+  if (typeof value !== 'object' || value === null) return
+  for (const [key, entry] of Object.entries(value)) {
+    const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase()
+    if (forbiddenPayloadKeys.some((forbidden) => normalizedKey.includes(forbidden))) {
+      context.addIssue({
+        code: 'custom',
+        path: [...path, key],
+        message: 'Privileged local selector is prohibited',
+      })
+    }
+    rejectPrivilegedPayload(entry, context, [...path, key])
+  }
+}

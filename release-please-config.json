@@ -107,6 +107,10 @@
       "release-type": "node",
       "package-name": "@control-plane/policy"
     },
+    "packages/runtime-gateway-protocol": {
+      "release-type": "node",
+      "package-name": "@control-plane/runtime-gateway-protocol"
+    },
     "packages/runtime-sdk": {
       "release-type": "node",
       "package-name": "@control-plane/runtime-sdk"
