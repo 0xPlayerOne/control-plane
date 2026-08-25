@@ -67,6 +67,10 @@
       "release-type": "node",
       "package-name": "@control-plane/workflow-worker"
     },
+    "packages/acp-adapter": {
+      "release-type": "node",
+      "package-name": "@control-plane/acp-adapter"
+    },
     "packages/bootstrap": {
       "release-type": "node",
       "package-name": "@control-plane/bootstrap"
@@ -87,6 +91,14 @@
       "release-type": "node",
       "package-name": "@control-plane/sdk"
     },
+    "packages/cortana-context-adapter": {
+      "release-type": "node",
+      "package-name": "@control-plane/cortana-context-adapter"
+    },
+    "packages/credential-vault": {
+      "release-type": "node",
+      "package-name": "@control-plane/credential-vault"
+    },
     "packages/database": {
       "release-type": "node",
       "package-name": "@control-plane/database"
@@ -102,6 +114,26 @@
     "packages/execution-plan": {
       "release-type": "node",
       "package-name": "@control-plane/execution-plan"
+    },
+    "packages/langgraph-adapter": {
+      "release-type": "node",
+      "package-name": "@control-plane/langgraph-adapter"
+    },
+    "packages/managed-pi-adapter": {
+      "release-type": "node",
+      "package-name": "@control-plane/managed-pi-adapter"
+    },
+    "packages/memory-writeback": {
+      "release-type": "node",
+      "package-name": "@control-plane/memory-writeback"
+    },
+    "packages/model-gateway": {
+      "release-type": "node",
+      "package-name": "@control-plane/model-gateway"
+    },
+    "packages/orchestration": {
+      "release-type": "node",
+      "package-name": "@control-plane/orchestration"
     },
     "packages/policy": {
       "release-type": "node",
@@ -119,6 +151,10 @@
       "release-type": "node",
       "package-name": "@control-plane/runtime-sdk"
     },
+    "packages/sandbox": {
+      "release-type": "node",
+      "package-name": "@control-plane/sandbox"
+    },
     "packages/telemetry": {
       "release-type": "node",
       "package-name": "@control-plane/telemetry"
@@ -130,6 +166,10 @@
     "packages/tool-sdk": {
       "release-type": "node",
       "package-name": "@control-plane/tool-sdk"
+    },
+    "packages/usage-ledger": {
+      "release-type": "node",
+      "package-name": "@control-plane/usage-ledger"
     }
   }
 }
