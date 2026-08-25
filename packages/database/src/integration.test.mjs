@@ -20,6 +20,7 @@ import { PostgresExecutionEventRepository } from './execution-event-repository.t
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
+import { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
@@ -74,6 +75,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'executions',
         'external_sessions',
         'inbox_messages',
+        'memory_write_proposals',
         'outbox_events',
         'reconciliation_checkpoints',
         'runtime_connections',
@@ -1018,5 +1020,50 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         .from(outboxEvents)
         .where(eq(outboxEvents.aggregateType, 'test'))
     ).toHaveLength(1)
+  })
+
+  test('persists memory proposals with workspace dedupe and optimistic transitions', async () => {
+    await isolated.migrate()
+    const repository = new PostgresMemoryWriteProposalRepository(isolated.application)
+    const proposed = {
+      proposalId: 'mwp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      providerId: 'ctp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      connectionId: 'ctc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      scopeDigest: `sha256:${'a'.repeat(64)}`,
+      memoryType: 'fact',
+      content: 'Durable proposal fixture',
+      retention: 'project',
+      provenance: {
+        sourceExecutionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        sourceAttemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        confidence: 0.9,
+        importance: 0.8,
+        sensitivity: 'internal',
+        evidenceRefs: [],
+        artifactRefs: [],
+      },
+      dedupeHint: 'integration:memory-proposal',
+      contentDigest: `sha256:${'b'.repeat(64)}`,
+      state: 'proposed',
+      version: 1,
+      createdAt: '2026-08-25T12:00:00.000Z',
+      updatedAt: '2026-08-25T12:00:00.000Z',
+    }
+    expect(await repository.insert(proposed)).toBe(true)
+    expect(await repository.insert(proposed)).toBe(false)
+    expect(await repository.getByDedupe(proposed.workspaceId, proposed.dedupeHint)).toEqual(
+      proposed
+    )
+    const approved = {
+      ...proposed,
+      state: 'approved',
+      version: 2,
+      updatedAt: '2026-08-25T12:01:00.000Z',
+      outcome: { code: 'approved', observedAt: '2026-08-25T12:01:00.000Z' },
+    }
+    expect(await repository.compareAndSet(1, approved)).toBe(true)
+    expect(await repository.compareAndSet(1, approved)).toBe(false)
+    expect(await repository.list()).toEqual([approved])
   })
 })

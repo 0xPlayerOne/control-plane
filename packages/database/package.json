@@ -39,6 +39,8 @@
     "@control-plane/config": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/events": "workspace:*",
+    "@control-plane/contracts": "workspace:*",
+    "@control-plane/memory-writeback": "workspace:*",
     "@control-plane/runtime-sdk": "workspace:*",
     "@control-plane/usage-ledger": "workspace:*",
     "drizzle-orm": "0.45.2",

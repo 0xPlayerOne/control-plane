@@ -17,6 +17,7 @@ export {
   executionState,
 } from './executions.js'
 export { interactionKind, interactionRequests, interactionState } from './interactions.js'
+export { memoryWriteProposals, memoryWriteProposalState } from './memory-write-proposals.js'
 export { inboxMessages, outboxEvents, outboxStatus } from './messaging.js'
 export {
   runtimeAvailabilityState,

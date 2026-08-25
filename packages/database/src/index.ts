@@ -8,6 +8,7 @@ export { PostgresExecutionEventRepository } from './execution-event-repository.j
 export { PostgresExternalSessionRepository } from './external-session-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
+export { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.js'
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
 export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
@@ -36,6 +37,8 @@ export {
   interactionKind,
   interactionRequests,
   interactionState,
+  memoryWriteProposals,
+  memoryWriteProposalState,
   jsonColumn,
   outboxEvents,
   outboxStatus,
