@@ -18,3 +18,10 @@ export type {
 } from './evaluations.js'
 export { ReleaseGateRegistry } from './release-gates.js'
 export type { ReleaseAuditRecord, ReleaseGateDecision } from './release-gates.js'
+export {
+  assertCredentialPurpose,
+  findCredentialLeaks,
+  runAuthorizationIsolationMatrix,
+  SecretCanaryGuard,
+} from './security.js'
+export type { CredentialEnvelope, CredentialKind } from './security.js'

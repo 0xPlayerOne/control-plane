@@ -39,6 +39,7 @@
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path infrastructure/terraform/.gitignore",
     "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path infrastructure/terraform/.gitignore",
     "check:boundaries": "turbo boundaries",
+    "security:scan": "bun scripts/scan-secrets.mjs",
     "containers:build": "docker buildx bake -f infrastructure/containers/docker-bake.hcl",
     "containers:print": "docker buildx bake -f infrastructure/containers/docker-bake.hcl --print",
     "infra:fmt:check": "bun scripts/validate-terraform.mjs --format-only",

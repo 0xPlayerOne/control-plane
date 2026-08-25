@@ -22,6 +22,7 @@ The gate covers:
   isolated databases, deterministic migration replay, enforced 80% unit coverage, and LCOV upload;
 - OpenAPI drift and Drizzle migration-schema drift through `bun run type-check`;
 - dependency auditing that does not require production or vendor credentials.
+- repository credential-pattern scanning through `bun run security:scan` without echoing matches.
 
 Repository settings allow squash and rebase merges but disable merge commits.
 Feature branches must squash into `main`. Release Please version pull requests
