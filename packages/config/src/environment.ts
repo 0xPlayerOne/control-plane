@@ -11,7 +11,7 @@ export interface EnvironmentLoadOptions {
 }
 
 export function resolveApplicationEnvironment(environment: RawEnvironment): ApplicationEnvironment {
-  const value = environment.APP_ENV ?? 'development'
+  const value = environment['APP_ENV'] ?? 'development'
   if (applicationEnvironments.some((candidate) => candidate === value)) {
     return value as ApplicationEnvironment
   }

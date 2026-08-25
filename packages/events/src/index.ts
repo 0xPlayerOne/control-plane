@@ -162,7 +162,7 @@ export class ExecutionEventService {
 
   async append(input: unknown): Promise<ExecutionEvent> {
     const candidate = input as Record<string, unknown>
-    const payload = redactTelemetryValue(candidate.payload)
+    const payload = redactTelemetryValue(candidate['payload'])
     const payloadBytes = Buffer.byteLength(JSON.stringify(payload))
     if (payloadBytes > 16_384) fail('EVENT_PAYLOAD_TOO_LARGE')
     const result = ExecutionEventDraftSchema.safeParse({ ...candidate, payload })

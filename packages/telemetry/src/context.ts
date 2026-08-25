@@ -43,8 +43,8 @@ export function injectTraceContext(
   carrier: Record<string, string>
 ): void {
   if (!context) return
-  carrier.traceparent = context.traceparent
-  if (context.tracestate !== undefined) carrier.tracestate = context.tracestate
+  carrier['traceparent'] = context.traceparent
+  if (context.tracestate !== undefined) carrier['tracestate'] = context.tracestate
 }
 
 export function traceIdFromContext(context: TraceContext | undefined): string | undefined {
