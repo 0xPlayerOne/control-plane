@@ -2,6 +2,7 @@ import { bootstrapService, type ServiceStartOptions } from '@control-plane/boots
 
 export * from './tool-registry.js'
 export * from './tool-execution.js'
+export * from './mcp-adapter.js'
 
 export const serviceName = 'tool-gateway'
 export const start = (options: ServiceStartOptions = {}) =>
