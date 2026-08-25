@@ -148,6 +148,30 @@ describe('Runtime Gateway protocol', () => {
     ).toBeFalse()
   })
 
+  test('bounds and correlates retained command outcomes in the v1.3 reconnect hello', async () => {
+    const { golden } = await import('../fixtures/index.mjs')
+    const retained = {
+      commandId: ids.command,
+      payloadHash: `sha256:${'a'.repeat(64)}`,
+      status: 'running',
+      observedAt: '2026-08-25T12:00:00.000Z',
+    }
+    const hello = {
+      ...golden.hello,
+      protocolVersion: { major: 1, minor: 3 },
+      supportedVersions: [{ major: 1, minor: 3 }],
+      retainedCommandOutcomes: [retained],
+    }
+    expect(GatewayEnvelopeSchema.safeParse(hello).success).toBeTrue()
+    expect(
+      GatewayEnvelopeSchema.safeParse({ ...hello, retainedCommandOutcomes: [retained, retained] })
+        .success
+    ).toBeFalse()
+    expect(
+      GatewayEnvelopeSchema.safeParse({ ...hello, protocolVersion: { major: 1, minor: 2 } }).success
+    ).toBeFalse()
+  })
+
   test('passes the reusable protocol conformance suite against the reference node', () => {
     expect(runGatewayProtocolConformance()).toEqual({ scenarios: 9, passed: 9 })
   })

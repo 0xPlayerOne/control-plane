@@ -5,6 +5,7 @@ import {
   GatewayProtocolManifest,
   negotiateGatewayProtocolVersion,
   type GatewayEnvelope,
+  type GatewayHelloEnvelope,
   type GatewayProtocolVersion,
 } from '@control-plane/runtime-gateway-protocol'
 import type { RuntimeNodeChannel } from './authentication.js'
@@ -43,6 +44,10 @@ export interface RuntimeGatewayMessageHandler {
   handle(record: ActiveRuntimeNodeChannelRecord, envelope: GatewayEnvelope): Promise<void>
 }
 
+export interface RuntimeGatewayReconnectHandler {
+  reconcile(hello: GatewayHelloEnvelope, record: ActiveRuntimeNodeChannelRecord): Promise<unknown>
+}
+
 export interface RuntimeGatewayWebSocketLifecycleOptions {
   readonly instanceId: string
   readonly coordination: RuntimeNodeCoordinationPort
@@ -51,6 +56,7 @@ export interface RuntimeGatewayWebSocketLifecycleOptions {
   readonly limits: RuntimeGatewayWebSocketLimits
   readonly now?: () => Date
   readonly messages?: RuntimeGatewayMessageHandler
+  readonly reconnect?: RuntimeGatewayReconnectHandler
 }
 
 interface LocalConnection {
@@ -71,6 +77,7 @@ export class RuntimeGatewayWebSocketLifecycle {
   readonly #metrics: GatewayMetrics
   readonly #now: () => Date
   readonly #reachability: RuntimeNodeReachabilityPublisher
+  readonly #reconnect: RuntimeGatewayReconnectHandler | undefined
   readonly #unsubscribe: () => void
   #draining = false
 
@@ -82,6 +89,7 @@ export class RuntimeGatewayWebSocketLifecycle {
     this.#limits = validateLimits(options.limits)
     this.#now = options.now ?? (() => new Date())
     this.#messages = options.messages
+    this.#reconnect = options.reconnect
     this.#unsubscribe = this.#coordination.subscribeReplacements(
       this.#instanceId,
       async (record) => {
@@ -227,6 +235,11 @@ export class RuntimeGatewayWebSocketLifecycle {
     this.#updateActiveGauge()
     await this.#publishReachability(record, 'online', 'channel_established', this.#now())
     connection.socket.send(JSON.stringify(serverHello(record, hello.lastAcknowledgedSequence)))
+    try {
+      await this.#reconnect?.reconcile(hello, record)
+    } catch {
+      await this.#disconnect(connection, 1011, 'reconnect_reconciliation_failed')
+    }
   }
 
   async #handleActiveFrame(connection: LocalConnection, value: unknown): Promise<void> {
