@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
   createStructuredLogger,
+  createDeterministicSamplingPolicy,
+  createLangSmithTraceAdapter,
   createSentryErrorTracker,
   createTelemetry,
+  executionTraceSpans,
   extractTraceContext,
   injectTraceContext,
+  operationalMetrics,
   redactTelemetryValue,
   semanticAttributes,
 } from './index.ts'
@@ -18,6 +22,15 @@ const identifiers = {
   attemptId: 'attempt-1',
   workflowId: 'workflow-1',
   runtimeId: 'runtime-1',
+  runtimeNodeId: 'runtime-node-1',
+  profileVersion: 'profile:v4',
+  skillVersion: 'skill:v7',
+  graphVersion: 'graph:v3',
+  modelAlias: 'reasoning-standard',
+  toolId: 'tool.search/v2',
+  policyVersion: 'policy:v5',
+  sandboxId: 'sandbox-1',
+  delegationId: 'delegation-1',
 }
 
 describe('telemetry safety and correlation', () => {
@@ -76,6 +89,114 @@ describe('telemetry safety and correlation', () => {
       'execution.attempt.id': 'attempt-1',
       'workflow.id': 'workflow-1',
       'runtime.id': 'runtime-1',
+      'runtime.node.id': 'runtime-node-1',
+      'agent.profile.version': 'profile:v4',
+      'agent.skill.version': 'skill:v7',
+      'agent.graph.version': 'graph:v3',
+      'gen_ai.request.model': 'reasoning-standard',
+      'tool.id': 'tool.search/v2',
+      'policy.version': 'policy:v5',
+      'sandbox.id': 'sandbox-1',
+      'delegation.id': 'delegation-1',
+    })
+  })
+
+  test('defines the complete execution span and operational metric vocabulary', () => {
+    expect(executionTraceSpans).toEqual([
+      'execution.root',
+      'plan.compile',
+      'workflow.run',
+      'runtime.route',
+      'runtime.start',
+      'graph.run',
+      'graph.node',
+      'model.call',
+      'tool.authorize',
+      'tool.execute',
+      'sandbox.execute',
+      'approval.wait',
+      'artifact.promote',
+      'usage.settle',
+      'execution.cleanup',
+    ])
+    expect(operationalMetrics).toContain('control.api.request.duration')
+    expect(operationalMetrics).toContain('workflow.backlog.count')
+    expect(operationalMetrics).toContain('runtime.gateway.ack.duration')
+    expect(operationalMetrics).toContain('execution.reconciliation.count')
+    expect(operationalMetrics).toContain('usage.cost.usd')
+  })
+
+  test('keeps execution correct when every telemetry adapter fails', async () => {
+    const unavailable = () => {
+      throw new Error('TELEMETRY_UNAVAILABLE')
+    }
+    const telemetry = createTelemetry({
+      serviceName: 'workflow-worker',
+      traceAdapter: { startSpan: unavailable },
+      metricAdapter: { add: unavailable, record: unavailable },
+      logger: { write: unavailable },
+      errorTracker: { captureException: unavailable },
+    })
+
+    telemetry.increment('workflow.backlog.count', 1, identifiers)
+    telemetry.record('control.api.request.duration', 12, identifiers)
+    telemetry.log('info', 'execution.accepted', identifiers, { safe: true })
+    await expect(
+      telemetry.withServiceSpan('execution.run', identifiers, async () => 'completed')
+    ).resolves.toBe('completed')
+    await expect(
+      telemetry.withServiceSpan('execution.fail', identifiers, async () => {
+        throw new Error('DOMAIN_FAILURE')
+      })
+    ).rejects.toThrow('DOMAIN_FAILURE')
+  })
+
+  test('samples deterministically from stable execution identity', () => {
+    const policy = createDeterministicSamplingPolicy({ ratio: 0.25, salt: 'release-v1' })
+    const first = policy.shouldSample({ name: 'execution.root', identifiers })
+    const repeated = policy.shouldSample({ name: 'execution.root', identifiers })
+
+    expect(first).toBe(repeated)
+    expect(createDeterministicSamplingPolicy({ ratio: 0 }).shouldSample({
+      name: 'execution.root',
+      identifiers,
+    })).toBe(false)
+    expect(createDeterministicSamplingPolicy({ ratio: 1 }).shouldSample({
+      name: 'execution.root',
+      identifiers,
+    })).toBe(true)
+  })
+
+  test('keeps LangSmith traces metadata-only and redacted', () => {
+    const runs = []
+    const adapter = createLangSmithTraceAdapter({
+      enabled: true,
+      client: {
+        startRun(input) {
+          const record = { input, outcome: undefined }
+          runs.push(record)
+          return { end: (outcome) => (record.outcome = outcome) }
+        },
+      },
+    })
+    const span = adapter.startSpan({
+      name: 'model.call',
+      attributes: {
+        'execution.id': 'execution-1',
+        prompt: 'secret-canary',
+        diagnostic: 'token=secret-canary',
+      },
+    })
+    span.end({ status: 'ok' })
+
+    expect(JSON.stringify(runs)).not.toContain('secret-canary')
+    expect(runs[0].input).toEqual({
+      name: 'model.call',
+      metadata: {
+        'execution.id': 'execution-1',
+        prompt: '[REDACTED]',
+        diagnostic: 'token=[REDACTED]',
+      },
     })
   })
 

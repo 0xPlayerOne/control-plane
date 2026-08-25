@@ -5,6 +5,7 @@ import {
   trace,
   type Attributes,
   type Counter,
+  type Histogram,
   type Span,
   type SpanContext,
 } from '@opentelemetry/api'
@@ -46,6 +47,7 @@ export function createOpenTelemetryTraceAdapter(serviceName: string): TraceAdapt
 export function createOpenTelemetryMetricAdapter(serviceName: string): MetricAdapter {
   const meter = metrics.getMeter(serviceName)
   const counters = new Map<string, Counter>()
+  const histograms = new Map<string, Histogram>()
   return {
     add(name, value, attributes) {
       let counter = counters.get(name)
@@ -54,6 +56,14 @@ export function createOpenTelemetryMetricAdapter(serviceName: string): MetricAda
         counters.set(name, counter)
       }
       counter.add(value, attributes as Attributes)
+    },
+    record(name, value, attributes) {
+      let histogram = histograms.get(name)
+      if (!histogram) {
+        histogram = meter.createHistogram(name)
+        histograms.set(name, histogram)
+      }
+      histogram.record(value, attributes as Attributes)
     },
   }
 }

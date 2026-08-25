@@ -6,13 +6,14 @@ import type {
   StructuredLogger,
   TelemetryIdentifiers,
   TelemetrySpan,
+  TelemetrySamplingPolicy,
   TraceAdapter,
   TraceContext,
 } from './types.js'
 
 const noopSpan: TelemetrySpan = { end: () => undefined }
 const noopTraceAdapter: TraceAdapter = { startSpan: () => noopSpan }
-const noopMetricAdapter: MetricAdapter = { add: () => undefined }
+const noopMetricAdapter: MetricAdapter = { add: () => undefined, record: () => undefined }
 const noopErrorTracker: ErrorTracker = { captureException: () => undefined }
 
 export interface TelemetryOptions {
@@ -21,6 +22,7 @@ export interface TelemetryOptions {
   readonly traceAdapter?: TraceAdapter
   readonly metricAdapter?: MetricAdapter
   readonly errorTracker?: ErrorTracker
+  readonly samplingPolicy?: TelemetrySamplingPolicy
 }
 
 export class Telemetry {
@@ -29,6 +31,7 @@ export class Telemetry {
   readonly #traceAdapter: TraceAdapter
   readonly #metricAdapter: MetricAdapter
   readonly #errorTracker: ErrorTracker
+  readonly #samplingPolicy: TelemetrySamplingPolicy | undefined
 
   constructor(options: TelemetryOptions) {
     this.#serviceName = options.serviceName
@@ -36,6 +39,7 @@ export class Telemetry {
     this.#traceAdapter = options.traceAdapter ?? noopTraceAdapter
     this.#metricAdapter = options.metricAdapter ?? noopMetricAdapter
     this.#errorTracker = options.errorTracker ?? noopErrorTracker
+    this.#samplingPolicy = options.samplingPolicy
   }
 
   startSpan(
@@ -44,14 +48,23 @@ export class Telemetry {
     attributes: Readonly<Record<string, unknown>> = {},
     parent?: TraceContext
   ): TelemetrySpan {
-    return this.#traceAdapter.startSpan({
-      name,
-      attributes: {
-        ...semanticAttributes({ serviceName: this.#serviceName, ...identifiers }),
-        ...sanitizeAttributes(attributes),
-      },
-      ...(parent === undefined ? {} : { parent }),
-    })
+    if (this.#samplingPolicy && !safeShouldSample(this.#samplingPolicy, { name, identifiers })) {
+      return noopSpan
+    }
+    try {
+      return safeSpan(
+        this.#traceAdapter.startSpan({
+          name,
+          attributes: {
+            ...semanticAttributes({ serviceName: this.#serviceName, ...identifiers }),
+            ...sanitizeAttributes(attributes),
+          },
+          ...(parent === undefined ? {} : { parent }),
+        })
+      )
+    } catch {
+      return noopSpan
+    }
   }
 
   withServiceSpan<Result>(
@@ -71,11 +84,27 @@ export class Telemetry {
   }
 
   increment(name: string, value: number, identifiers: TelemetryIdentifiers = {}): void {
-    this.#metricAdapter.add(
-      name,
-      value,
-      semanticAttributes({ serviceName: this.#serviceName, ...identifiers })
-    )
+    try {
+      this.#metricAdapter.add(
+        name,
+        value,
+        semanticAttributes({ serviceName: this.#serviceName, ...identifiers })
+      )
+    } catch {
+      // Observability is deliberately non-authoritative and fail-open.
+    }
+  }
+
+  record(name: string, value: number, identifiers: TelemetryIdentifiers = {}): void {
+    try {
+      this.#metricAdapter.record(
+        name,
+        value,
+        semanticAttributes({ serviceName: this.#serviceName, ...identifiers })
+      )
+    } catch {
+      // Observability is deliberately non-authoritative and fail-open.
+    }
   }
 
   log(
@@ -84,12 +113,16 @@ export class Telemetry {
     identifiers: TelemetryIdentifiers,
     details?: unknown
   ): void {
-    this.#logger?.write({
-      level,
-      event,
-      metadata: semanticAttributes({ serviceName: this.#serviceName, ...identifiers }),
-      ...(details === undefined ? {} : { details: redactTelemetryValue(details) }),
-    })
+    try {
+      this.#logger?.write({
+        level,
+        event,
+        metadata: semanticAttributes({ serviceName: this.#serviceName, ...identifiers }),
+        ...(details === undefined ? {} : { details: redactTelemetryValue(details) }),
+      })
+    } catch {
+      // Logging outages cannot change execution results.
+    }
   }
 
   async #withSpan<Result>(
@@ -105,12 +138,40 @@ export class Telemetry {
     } catch (error) {
       const safeError = redactTelemetryValue(error)
       span.end({ status: 'error', error: safeError })
-      this.#errorTracker.captureException(
-        safeError,
-        semanticAttributes({ serviceName: this.#serviceName, ...identifiers })
-      )
+      try {
+        this.#errorTracker.captureException(
+          safeError,
+          semanticAttributes({ serviceName: this.#serviceName, ...identifiers })
+        )
+      } catch {
+        // Error reporting must preserve the original domain error.
+      }
       throw error
     }
+  }
+}
+
+function safeSpan(span: TelemetrySpan): TelemetrySpan {
+  return {
+    ...(span.context === undefined ? {} : { context: span.context }),
+    end(outcome) {
+      try {
+        span.end(outcome)
+      } catch {
+        // Span export is not part of the authoritative operation.
+      }
+    },
+  }
+}
+
+function safeShouldSample(
+  policy: TelemetrySamplingPolicy,
+  input: Parameters<TelemetrySamplingPolicy['shouldSample']>[0]
+): boolean {
+  try {
+    return policy.shouldSample(input)
+  } catch {
+    return false
   }
 }
 

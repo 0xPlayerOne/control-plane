@@ -17,6 +17,15 @@ export function semanticAttributes(
     ['execution.attempt.id', identifiers.attemptId],
     ['workflow.id', identifiers.workflowId],
     ['runtime.id', identifiers.runtimeId],
+    ['runtime.node.id', identifiers.runtimeNodeId],
+    ['agent.profile.version', identifiers.profileVersion],
+    ['agent.skill.version', identifiers.skillVersion],
+    ['agent.graph.version', identifiers.graphVersion],
+    ['gen_ai.request.model', identifiers.modelAlias],
+    ['tool.id', identifiers.toolId],
+    ['policy.version', identifiers.policyVersion],
+    ['sandbox.id', identifiers.sandboxId],
+    ['delegation.id', identifiers.delegationId],
   ] as const
   for (const [key, value] of mappings) if (value !== undefined) attributes[key] = value
   return attributes
