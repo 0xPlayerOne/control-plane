@@ -24,6 +24,8 @@ and prefer real implementations over mocks when the dependency is local and inex
   container builds.
 - `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
   Foundry's coverage upload step.
+- `bun run compatibility:check` validates exact runtime certifications, evidence sources, and the
+  generated matrix schema. The root `type-check` command includes this gate.
 - `bun run test:m3-acceptance` runs the durable execution and recovery scenario matrix.
 - `bun run test:m4-acceptance` runs the adapter-neutral Runtime Fabric scenario matrix used to
   qualify inventory, eligibility, routing, sessions, read models, and historical attempt references.

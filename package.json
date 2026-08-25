@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "type-check": "turbo run build openapi:check && bun run db:check",
+    "type-check": "turbo run build openapi:check && bun run db:check && bun run compatibility:check",
+    "compatibility:check": "bun --cwd=packages/runtime-sdk run compatibility:check",
     "lint": "turbo run lint && eslint eslint.config.js tests && bun run check:boundaries",
     "openapi:check": "turbo run openapi:check",
     "test": "bun run build && bun run --parallel 'test:group:*'",

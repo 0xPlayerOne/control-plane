@@ -1,0 +1,224 @@
+{
+  "$id": "https://schemas.control-plane.dev/runtime/runtime-certifications.v1.json",
+  "title": "Control Plane Runtime Compatibility Certifications v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "type": "number", "const": 1 },
+    "matrixVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+    },
+    "classifications": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "string", "const": "supported" },
+        { "type": "string", "const": "preview" },
+        { "type": "string", "const": "degraded" },
+        { "type": "string", "const": "incompatible" },
+        { "type": "string", "const": "revoked" },
+        { "type": "string", "const": "untested" }
+      ]
+    },
+    "minimumSupportedVersions": {
+      "minItems": 1,
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "runtimeFamily": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "adapter": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+          },
+          "driver": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+          },
+          "harness": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+          },
+          "protocol": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+          }
+        },
+        "required": ["runtimeFamily", "adapter", "driver", "harness", "protocol"],
+        "additionalProperties": false
+      }
+    },
+    "certifications": {
+      "minItems": 1,
+      "maxItems": 256,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "certificationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "runtimeFamily": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "connectionType": {
+            "type": "string",
+            "enum": ["managed_cloud", "managed_local", "external_local"]
+          },
+          "classification": {
+            "type": "string",
+            "enum": ["supported", "preview", "degraded", "incompatible", "revoked", "untested"]
+          },
+          "versions": {
+            "type": "object",
+            "properties": {
+              "adapter": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              },
+              "driver": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              },
+              "harness": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              },
+              "protocol": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+              }
+            },
+            "required": ["adapter", "driver", "harness", "protocol"],
+            "additionalProperties": false
+          },
+          "verifiedCapabilities": {
+            "minItems": 1,
+            "maxItems": 64,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "stream.output",
+                "stream.events",
+                "tool.call",
+                "tool.parallel",
+                "output.structured",
+                "filesystem.read",
+                "filesystem.write",
+                "project.read",
+                "project.write",
+                "execution.cancel",
+                "interaction.user-input",
+                "interaction.approval",
+                "session.create",
+                "session.list",
+                "session.resume",
+                "session.close",
+                "session.history",
+                "session.load",
+                "model.select",
+                "execution.child"
+              ]
+            }
+          },
+          "limitations": {
+            "maxItems": 64,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Z][A-Z0-9_]*$"
+            }
+          },
+          "testedPlatform": {
+            "type": "object",
+            "properties": {
+              "operatingSystem": {
+                "type": "string",
+                "enum": ["linux", "macos", "windows", "portable"]
+              },
+              "architecture": { "type": "string", "enum": ["x64", "arm64", "portable"] },
+              "location": { "type": "string", "enum": ["local_device", "managed_sandbox"] },
+              "environment": { "type": "string", "minLength": 1, "maxLength": 128 }
+            },
+            "required": ["operatingSystem", "architecture", "location", "environment"],
+            "additionalProperties": false
+          },
+          "certifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "evidence": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "suite": {
+                  "type": "string",
+                  "enum": [
+                    "runtime-adapter-conformance",
+                    "runtime-gateway-integration",
+                    "hosted-runtime-integration"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^(apps|packages|tests)\\/[A-Za-z0-9_./-]+$"
+                },
+                "command": { "type": "string", "minLength": 1, "maxLength": 512 }
+              },
+              "required": ["suite", "source", "command"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "certificationId",
+          "runtimeFamily",
+          "connectionType",
+          "classification",
+          "versions",
+          "verifiedCapabilities",
+          "limitations",
+          "testedPlatform",
+          "certifiedAt",
+          "evidence"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "matrixVersion",
+    "updatedAt",
+    "classifications",
+    "minimumSupportedVersions",
+    "certifications"
+  ],
+  "additionalProperties": false
+}
