@@ -46,5 +46,14 @@ export function toEvaluationRunRow(run: EvalRun): typeof evaluationRuns.$inferIn
 }
 
 export function fromEvaluationRunRow(row: EvaluationRunRow): EvalRun {
-  return EvalRunSchema.parse(row.evidence)
+  const run = EvalRunSchema.parse(row.evidence)
+  if (
+    row.evalRunId !== run.evalRunId ||
+    row.status !== run.status ||
+    row.startedAt.toISOString() !== run.startedAt ||
+    row.completedAt.toISOString() !== run.completedAt
+  ) {
+    throw new Error('EVALUATION_RUN_ROW_INCONSISTENT')
+  }
+  return run
 }
