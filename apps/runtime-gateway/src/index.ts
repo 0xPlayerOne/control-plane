@@ -17,7 +17,13 @@ export const start = ({ webSocketServer, ...options }: RuntimeGatewayStartOption
   bootstrapService({
     ...options,
     serviceName,
-    start: ({ markReady, registerResource }) => {
+    start: ({ markReady, metadata, registerResource }) => {
+      if (
+        webSocketServer === undefined &&
+        (metadata.environment === 'staging' || metadata.environment === 'production')
+      ) {
+        throw new Error('Runtime Gateway WebSocket server is required outside local environments')
+      }
       if (webSocketServer !== undefined) {
         webSocketServer.start()
         registerResource('runtime-gateway-websocket', () => webSocketServer.close())
