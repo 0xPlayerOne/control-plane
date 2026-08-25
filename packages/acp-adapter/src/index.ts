@@ -9,10 +9,14 @@ import {
   RuntimeExecutionProgressSchema,
   RuntimeExecutionStatusSchema,
   RuntimeInputRequestSchema,
+  RuntimeConnectionSchema,
   RuntimeSessionOperationSchema,
   RuntimeSessionResultSchema,
   RuntimeStartRequestSchema,
   inspectRuntimeCapabilities,
+  assessExternalSession,
+  type ExternalSession,
+  type ExternalSessionRegistry,
   type RuntimeAdapter,
   type RuntimeAdapterInspection,
   type RuntimeApprovalRequest,
@@ -23,6 +27,7 @@ import {
   type RuntimeExecutionProgress,
   type RuntimeExecutionStatus,
   type RuntimeInputRequest,
+  type RuntimeConnection,
   type RuntimeProgressOptions,
   type RuntimeSessionOperation,
   type RuntimeSessionResult,
@@ -192,6 +197,31 @@ export interface AcpTransport {
   updates(nativeSessionId: string, signal?: AbortSignal): AsyncIterable<AcpUpdate>
   snapshot(nativeSessionId: string): Promise<AcpSnapshot>
   cleanup(nativeSessionId: string): Promise<void>
+  replay?(
+    nativeSessionId: string,
+    options?: { readonly afterSequence?: number }
+  ): Promise<AcpSessionReplay>
+  replaySupport?(): boolean
+}
+
+export interface AcpSessionReplay {
+  readonly updates: readonly AcpUpdate[]
+  readonly completeness: 'complete' | 'partial' | 'unavailable'
+}
+
+export interface AcpExternalSessionsOptions {
+  readonly registry: ExternalSessionRegistry
+  readonly runtimeConnection: () => RuntimeConnection
+  readonly nodeStatus: () => 'online' | 'offline' | 'unknown' | 'revoked' | 'not_applicable'
+  readonly workspaceId: string
+  readonly projectId?: string
+  readonly opaqueNativeSessionId: (nativeSessionId: string) => string
+  readonly resolveNativeSessionId: (opaqueNativeSessionId: string) => Promise<string | undefined>
+  readonly capabilityTtlMs: number
+  readonly authorize: (
+    operation: RuntimeSessionOperation['operation'],
+    session?: ExternalSession
+  ) => Promise<boolean>
 }
 
 export interface AcpAdapterOptions {
@@ -201,6 +231,7 @@ export interface AcpAdapterOptions {
   readonly interactionId: (nativeRequestId: number) => string
   readonly now?: () => Date
   readonly protocolVersion?: number
+  readonly externalSessions?: AcpExternalSessionsOptions
 }
 
 interface AcpExecution {
@@ -220,9 +251,11 @@ export class AcpAdapter implements RuntimeAdapter {
   readonly #interactionId: (nativeRequestId: number) => string
   readonly #now: () => Date
   readonly #protocolVersion: number
+  readonly #externalSessions: AcpExternalSessionsOptions | undefined
   readonly #executions = new Map<string, AcpExecution>()
   readonly #starts = new Map<string, CachedValue<RuntimeExecutionHandle>>()
   readonly #actions = new Map<string, CachedValue<RuntimeExecutionStatus>>()
+  readonly #sessionActions = new Map<string, CachedValue<RuntimeSessionResult>>()
   readonly #interactions = new Map<
     string,
     {
@@ -242,6 +275,7 @@ export class AcpAdapter implements RuntimeAdapter {
     this.#interactionId = options.interactionId
     this.#now = options.now ?? (() => new Date())
     this.#protocolVersion = options.protocolVersion ?? 2
+    this.#externalSessions = options.externalSessions
   }
 
   async inspect(
@@ -258,7 +292,12 @@ export class AcpAdapter implements RuntimeAdapter {
     }
     const connected = this.#transport.connectionState() === 'connected'
     const versionSupported = initialize.protocolVersion === this.#protocolVersion
-    const capabilities = versionSupported ? mapAcpCapabilities(initialize) : []
+    const capabilities = versionSupported
+      ? mapAcpCapabilities(
+          initialize,
+          this.#transport.replay !== undefined && (this.#transport.replaySupport?.() ?? true)
+        )
+      : []
     const limitations = [
       ...(connected ? [] : ['ACP_DISCONNECTED']),
       ...(versionSupported
@@ -436,15 +475,39 @@ export class AcpAdapter implements RuntimeAdapter {
       fail('CAPABILITY_UNSUPPORTED', 'unsupported', false)
     }
     if (operation.operation === 'create') {
-      const result = z
-        .object({ sessionId: NativeSessionIdSchema })
-        .parse(await this.#request('session/new', {}))
-      return this.#sessionResult('create', result.sessionId)
+      return this.#idempotentSession(operation.idempotencyKey, operation, async () => {
+        await this.#authorizeSession('create')
+        const result = z
+          .object({ sessionId: NativeSessionIdSchema })
+          .parse(await this.#request('session/new', {}))
+        await this.#observeNativeSession(result.sessionId, 'created_through_control_plane')
+        return this.#sessionResult('create', result.sessionId)
+      })
     }
     if (operation.operation === 'list') {
+      await this.#authorizeSession('list')
       const result = z
-        .object({ sessions: z.array(z.object({ sessionId: NativeSessionIdSchema })) })
+        .object({
+          sessions: z.array(
+            z
+              .object({
+                sessionId: NativeSessionIdSchema,
+                title: z.string().min(1).max(512).optional(),
+              })
+              .passthrough()
+          ),
+        })
         .parse(await this.#request('session/list', {}))
+      const observed = new Set<string>()
+      for (const native of result.sessions) {
+        const session = await this.#observeNativeSession(
+          native.sessionId,
+          'native_discovery',
+          native.title
+        )
+        observed.add(session.sessionId)
+      }
+      await this.#markUnlistedSessionsRemoved(observed)
       return RuntimeSessionResultSchema.parse({
         operation: 'list',
         sessions: result.sessions.map(({ sessionId }) =>
@@ -452,23 +515,67 @@ export class AcpAdapter implements RuntimeAdapter {
         ),
       })
     }
-    if (operation.operation === 'history' || operation.operation === 'load') {
-      fail('CAPABILITY_UNSUPPORTED', 'unsupported', false)
-    }
-    const nativeSessionId = this.#nativeByExternalSession.get(operation.sessionId)
-    if (!nativeSessionId) fail('ACP_SESSION_REFERENCE_MISSING', 'validation', false)
-    if (operation.operation === 'resume') {
-      await this.#request('session/resume', { sessionId: nativeSessionId })
+    const { nativeSessionId } = await this.#authorizedSessionReference(
+      operation.sessionId,
+      operation.operation
+    )
+    if (operation.operation === 'history') {
+      const replay = await this.#replay(nativeSessionId, operation.afterSequence)
       return RuntimeSessionResultSchema.parse({
-        operation: 'resume',
+        operation: 'history',
         session: this.#normalizedSession(nativeSessionId, 'active'),
+        completeness: replay.completeness,
+        limitations:
+          replay.completeness === 'complete'
+            ? []
+            : [
+                replay.completeness === 'partial'
+                  ? 'ACP_HISTORY_PARTIAL'
+                  : 'ACP_HISTORY_UNAVAILABLE',
+              ],
+        entries: normalizeHistory(replay.updates, this.#now),
       })
     }
-    await this.#request('session/close', { sessionId: nativeSessionId })
-    return RuntimeSessionResultSchema.parse({
-      operation: 'close',
-      session: this.#normalizedSession(nativeSessionId, 'closed'),
-    })
+    if (operation.operation === 'load') {
+      return this.#idempotentSession(
+        operation.idempotencyKey ?? `load:${operation.sessionId}`,
+        operation,
+        async () => {
+          await this.#replay(nativeSessionId)
+          await this.#observeNativeSession(nativeSessionId, 'native_discovery')
+          return RuntimeSessionResultSchema.parse({
+            operation: 'load',
+            session: this.#normalizedSession(nativeSessionId, 'active'),
+          })
+        }
+      )
+    }
+    if (operation.operation === 'resume') {
+      return this.#idempotentSession(
+        operation.idempotencyKey ?? `resume:${operation.sessionId}`,
+        operation,
+        async () => {
+          await this.#request('session/resume', { sessionId: nativeSessionId })
+          await this.#observeNativeSession(nativeSessionId, 'native_discovery')
+          return RuntimeSessionResultSchema.parse({
+            operation: 'resume',
+            session: this.#normalizedSession(nativeSessionId, 'active'),
+          })
+        }
+      )
+    }
+    return this.#idempotentSession(
+      operation.idempotencyKey ?? `close:${operation.sessionId}`,
+      operation,
+      async () => {
+        await this.#request('session/close', { sessionId: nativeSessionId })
+        await this.#observeNativeSession(nativeSessionId, 'native_discovery', undefined, 'closed')
+        return RuntimeSessionResultSchema.parse({
+          operation: 'close',
+          session: this.#normalizedSession(nativeSessionId, 'closed'),
+        })
+      }
+    )
   }
 
   async cleanup(handleInput: RuntimeExecutionHandle): Promise<void> {
@@ -605,6 +712,172 @@ export class AcpAdapter implements RuntimeAdapter {
     return structuredClone(value)
   }
 
+  async #idempotentSession(
+    key: string,
+    input: unknown,
+    action: () => Promise<RuntimeSessionResult>
+  ): Promise<RuntimeSessionResult> {
+    const fingerprint = stable(input)
+    const replay = this.#sessionActions.get(key)
+    if (replay) {
+      if (replay.fingerprint !== fingerprint) fail('IDEMPOTENCY_CONFLICT', 'conflict', false)
+      return structuredClone(replay.value)
+    }
+    const value = RuntimeSessionResultSchema.parse(await action())
+    this.#sessionActions.set(key, { fingerprint, value })
+    return structuredClone(value)
+  }
+
+  async #authorizeSession(
+    operation: RuntimeSessionOperation['operation'],
+    session?: ExternalSession
+  ): Promise<void> {
+    if (!this.#externalSessions) return
+    if (!(await this.#externalSessions.authorize(operation, session))) {
+      fail('ACP_SESSION_UNAUTHORIZED', 'validation', false)
+    }
+    if (session !== undefined) return
+    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
+    const connected =
+      this.#externalSessions.nodeStatus() === 'online' &&
+      !['unavailable', 'disconnected', 'expired', 'revoked'].includes(connection.status) &&
+      !['offline', 'reconnecting', 'unknown', 'incompatible', 'revoked'].includes(
+        connection.availabilityState ?? 'unknown'
+      )
+    const advertised = connection.capabilities.some(
+      ({ name, support }) => name === `session.${operation}` && support !== 'unsupported'
+    )
+    if (!connected || !advertised) {
+      fail('ACP_SESSION_OPERATION_UNAVAILABLE', 'unavailable', advertised)
+    }
+  }
+
+  async #authorizedSessionReference(
+    externalSessionId: string,
+    operation: 'resume' | 'load' | 'close' | 'history'
+  ): Promise<{ readonly nativeSessionId: string; readonly session?: ExternalSession }> {
+    if (!this.#externalSessions) {
+      const nativeSessionId = this.#nativeByExternalSession.get(externalSessionId)
+      if (!nativeSessionId) fail('ACP_SESSION_REFERENCE_MISSING', 'validation', false)
+      return { nativeSessionId }
+    }
+    const session = await this.#externalSessions.registry.get(externalSessionId)
+    await this.#authorizeSession(operation, session)
+    const context = {
+      connection: RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection()),
+      nodeStatus: this.#externalSessions.nodeStatus(),
+      evaluatedAt: this.#now().toISOString(),
+    }
+    const availability = assessExternalSession(session, context).operations[operation]
+    if (!availability.available) {
+      const retryable = [
+        'RUNTIME_MISSING',
+        'RUNTIME_OFFLINE',
+        'SESSION_CAPABILITIES_STALE',
+        'CAPABILITY_NO_LONGER_ADVERTISED',
+      ].includes(availability.reason)
+      fail('ACP_SESSION_OPERATION_UNAVAILABLE', 'unavailable', retryable)
+    }
+    const nativeSessionId = await this.#externalSessions.resolveNativeSessionId(
+      session.opaqueNativeSessionId
+    )
+    if (!nativeSessionId) fail('ACP_SESSION_REFERENCE_STALE', 'unavailable', true)
+    this.#nativeByExternalSession.set(externalSessionId, nativeSessionId)
+    return { nativeSessionId, session }
+  }
+
+  async #observeNativeSession(
+    nativeSessionId: string,
+    origin: 'native_discovery' | 'created_through_control_plane',
+    displayName?: string,
+    state: 'active' | 'closed' = 'active'
+  ) {
+    const normalized = this.#normalizedSession(nativeSessionId, state)
+    if (!this.#externalSessions) return normalized
+    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
+    const observedAt = this.#now().toISOString()
+    const capabilitySnapshot = {
+      version: connection.capabilitySnapshotVersion ?? 1,
+      observedAt: connection.capabilitySnapshotObservedAt ?? observedAt,
+      expiresAt:
+        connection.capabilitySnapshotExpiresAt ??
+        new Date(this.#now().getTime() + this.#externalSessions.capabilityTtlMs).toISOString(),
+      operations: connection.capabilities
+        .filter(({ name, support }) => name.startsWith('session.') && support !== 'unsupported')
+        .map(({ name }) => name),
+    }
+    const existing = await this.#externalSessions.registry.repository.findByNativeIdentity(
+      connection.runtimeConnectionId,
+      this.#externalSessions.opaqueNativeSessionId(nativeSessionId)
+    )
+    const safeDisplayName = safeNativeDisplayName(displayName)
+    if (!existing) {
+      await this.#externalSessions.registry.register({
+        externalSessionId: normalized.sessionId,
+        runtimeConnectionId: connection.runtimeConnectionId,
+        opaqueNativeSessionId: this.#externalSessions.opaqueNativeSessionId(nativeSessionId),
+        workspaceId: this.#externalSessions.workspaceId,
+        ...(this.#externalSessions.projectId === undefined
+          ? {}
+          : { projectId: this.#externalSessions.projectId }),
+        state,
+        ownership: {
+          authority: 'external_runtime',
+          imported: false,
+          concurrentNativeUse: 'allowed',
+        },
+        capabilitySnapshot,
+        safeMetadata: {
+          origin,
+          ...(safeDisplayName === undefined ? {} : { displayName: safeDisplayName }),
+          limitations: [],
+        },
+        lastObservedAt: observedAt,
+      })
+      return normalized
+    }
+    await this.#externalSessions.registry.update({
+      externalSessionId: existing.externalSessionId,
+      expectedVersion: existing.version,
+      observedAt,
+      state,
+      capabilitySnapshot,
+      safeMetadata: {
+        ...existing.safeMetadata,
+        ...(safeDisplayName === undefined ? {} : { displayName: safeDisplayName }),
+      },
+    })
+    return normalized
+  }
+
+  async #markUnlistedSessionsRemoved(observed: ReadonlySet<string>): Promise<void> {
+    if (!this.#externalSessions) return
+    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
+    const sessions = await this.#externalSessions.registry.list({
+      workspaceId: this.#externalSessions.workspaceId,
+      ...(this.#externalSessions.projectId === undefined
+        ? {}
+        : { projectId: this.#externalSessions.projectId }),
+      runtimeConnectionId: connection.runtimeConnectionId,
+    })
+    for (const session of sessions) {
+      if (session.state !== 'active' || observed.has(session.externalSessionId)) continue
+      await this.#externalSessions.registry.update({
+        externalSessionId: session.externalSessionId,
+        expectedVersion: session.version,
+        observedAt: this.#now().toISOString(),
+        state: 'removed',
+      })
+    }
+  }
+
+  async #replay(nativeSessionId: string, afterSequence?: number): Promise<AcpSessionReplay> {
+    if (!this.#transport.replay) fail('CAPABILITY_UNSUPPORTED', 'unsupported', false)
+    return this.#transport.replay(nativeSessionId, {
+      ...(afterSequence === undefined ? {} : { afterSequence }),
+    })
+  }
+
   #normalizedSession(nativeSessionId: string, state: 'active' | 'closed') {
     const sessionId = this.#externalSessionId(nativeSessionId)
     this.#nativeByExternalSession.set(sessionId, nativeSessionId)
@@ -646,7 +919,10 @@ export class AcpAdapter implements RuntimeAdapter {
   }
 }
 
-function mapAcpCapabilities(initialize: z.output<typeof AcpInitializeResultSchema>) {
+function mapAcpCapabilities(
+  initialize: z.output<typeof AcpInitializeResultSchema>,
+  supportsReplay: boolean
+) {
   if (!initialize.capabilities.session) return []
   return RuntimeCapabilitySchema.array().parse(
     [
@@ -656,11 +932,49 @@ function mapAcpCapabilities(initialize: z.output<typeof AcpInitializeResultSchem
       'session.create',
       'session.list',
       'session.resume',
+      ...(supportsReplay ? ['session.history', 'session.load'] : []),
       'stream.events',
       'stream.output',
       'tool.call',
     ].map((name) => ({ name, support: 'supported' as const }))
   )
+}
+
+function safeNativeDisplayName(value: string | undefined): string | undefined {
+  if (
+    value === undefined ||
+    value.includes('/') ||
+    value.includes('\\') ||
+    value.includes('://') ||
+    [...value].some((character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127
+    })
+  ) {
+    return undefined
+  }
+  return value.slice(0, 128)
+}
+
+function normalizeHistory(
+  updates: readonly AcpUpdate[],
+  now: () => Date
+): Array<{ sequence: number; occurredAt: string; data: Record<string, z.util.JSONType> }> {
+  return updates.flatMap((update, index) => {
+    if (
+      update.sessionUpdate !== 'agent_message' &&
+      update.sessionUpdate !== 'agent_message_chunk'
+    ) {
+      return []
+    }
+    return [
+      {
+        sequence: index + 1,
+        occurredAt: now().toISOString(),
+        data: { type: 'output', text: update.text, messageId: update.messageId },
+      },
+    ]
+  })
 }
 
 function acpPrompt(attemptId: string, plan: RuntimeExecutionPlanSnapshot): string {
@@ -715,6 +1029,9 @@ export interface ReferenceAcpTransportOptions {
   readonly now?: () => string
   readonly protocolVersion?: number
   readonly scenario?: ReferenceAcpScenario
+  readonly nativeSessions?: readonly { readonly sessionId: string; readonly title?: string }[]
+  readonly historyCompleteness?: AcpSessionReplay['completeness']
+  readonly sessionReplay?: boolean
 }
 
 interface ReferenceSession {
@@ -727,16 +1044,28 @@ export class ReferenceAcpTransport implements AcpTransport {
   readonly #now: () => string
   readonly #protocolVersion: number
   readonly #scenario: ReferenceAcpScenario
+  readonly #historyCompleteness: AcpSessionReplay['completeness']
+  readonly #sessionReplay: boolean
   readonly #calls: AcpTransportCall[] = []
   readonly #responses: Array<{ requestId: number; result: Record<string, z.util.JSONType> }> = []
   readonly #sessions = new Map<string, ReferenceSession>()
+  readonly #nativeSessions = new Map<
+    string,
+    { readonly sessionId: string; readonly title?: string }
+  >()
   readonly #effects = new Map<string, number>()
+  #replays = 0
   #state: 'connected' | 'disconnected' = 'connected'
 
   constructor(options: ReferenceAcpTransportOptions = {}) {
     this.#now = options.now ?? (() => new Date().toISOString())
     this.#protocolVersion = options.protocolVersion ?? 2
     this.#scenario = options.scenario ?? 'complete'
+    this.#historyCompleteness = options.historyCompleteness ?? 'complete'
+    this.#sessionReplay = options.sessionReplay ?? false
+    for (const session of options.nativeSessions ?? []) {
+      this.#nativeSessions.set(session.sessionId, structuredClone(session))
+    }
   }
 
   connectionState(): 'connected' | 'disconnected' {
@@ -755,6 +1084,7 @@ export class ReferenceAcpTransport implements AcpTransport {
       }
     }
     if (method === 'session/new') {
+      this.#nativeSessions.set('native-session-1', { sessionId: 'native-session-1' })
       return { sessionId: 'native-session-1' }
     }
     if (method === 'session/prompt') {
@@ -769,6 +1099,7 @@ export class ReferenceAcpTransport implements AcpTransport {
         [...this.#effects.keys()][0] ??
         'att_01JABCDEF0123456789ABCDEFG'
       this.#sessions.set(prompt.sessionId, referenceSession(attemptId, this.#scenario, this.#now()))
+      this.#nativeSessions.set(prompt.sessionId, { sessionId: prompt.sessionId })
       this.#effects.set(attemptId, (this.#effects.get(attemptId) ?? 0) + 1)
       return {}
     }
@@ -779,9 +1110,20 @@ export class ReferenceAcpTransport implements AcpTransport {
       return {}
     }
     if (method === 'session/list') {
-      return { sessions: [...this.#sessions.keys()].map((sessionId) => ({ sessionId })) }
+      return { sessions: [...this.#nativeSessions.values()].map((session) => ({ ...session })) }
     }
-    if (method === 'session/resume' || method === 'session/close') return {}
+    if (method === 'session/resume' || method === 'session/close') {
+      const sessionId = NativeSessionIdSchema.parse(params['sessionId'])
+      if (!this.#nativeSessions.has(sessionId)) {
+        throw new RuntimeAdapterError({
+          code: 'ACP_SESSION_NOT_FOUND',
+          classification: 'unavailable',
+          message: 'ACP session was not found',
+          retryable: true,
+        })
+      }
+      return {}
+    }
     throw new Error('REFERENCE_ACP_METHOD_UNSUPPORTED')
   }
 
@@ -802,6 +1144,35 @@ export class ReferenceAcpTransport implements AcpTransport {
 
   async cleanup(nativeSessionId: string): Promise<void> {
     this.#session(nativeSessionId)
+  }
+
+  async replay(nativeSessionId: string): Promise<AcpSessionReplay> {
+    if (!this.#nativeSessions.has(nativeSessionId)) {
+      throw new RuntimeAdapterError({
+        code: 'ACP_SESSION_NOT_FOUND',
+        classification: 'unavailable',
+        message: 'ACP session was not found',
+        retryable: true,
+      })
+    }
+    this.#replays += 1
+    return {
+      completeness: this.#historyCompleteness,
+      updates:
+        this.#historyCompleteness === 'unavailable'
+          ? []
+          : [
+              {
+                sessionUpdate: 'agent_message',
+                messageId: 'native-history-message-1',
+                text: 'Earlier message',
+              },
+            ],
+    }
+  }
+
+  replaySupport(): boolean {
+    return this.#sessionReplay
   }
 
   disconnect(): void {
@@ -830,6 +1201,20 @@ export class ReferenceAcpTransport implements AcpTransport {
 
   effectCount(attemptId: string): number {
     return this.#effects.get(attemptId) ?? 0
+  }
+
+  replayCount(): number {
+    return this.#replays
+  }
+
+  setNativeSessionTitle(nativeSessionId: string, title: string): void {
+    const session = this.#nativeSessions.get(nativeSessionId)
+    if (!session) throw new Error('REFERENCE_ACP_SESSION_MISSING')
+    this.#nativeSessions.set(nativeSessionId, { ...session, title })
+  }
+
+  removeNativeSession(nativeSessionId: string): void {
+    this.#nativeSessions.delete(nativeSessionId)
   }
 
   #session(nativeSessionId: string): ReferenceSession {

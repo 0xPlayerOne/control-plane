@@ -237,6 +237,8 @@ export const RuntimeSessionResultSchema = z.discriminatedUnion('operation', [
     .object({
       operation: z.literal('history'),
       session: RuntimeSessionSchema,
+      completeness: z.enum(['complete', 'partial', 'unavailable']),
+      limitations: z.array(z.string().regex(/^[A-Z][A-Z0-9_]*$/)).max(32),
       entries: z.array(
         z
           .object({
