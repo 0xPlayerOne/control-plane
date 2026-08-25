@@ -77,7 +77,7 @@ try {
       'postgresql://control_plane_app:local-application-only@127.0.0.1:54329/control_plane',
     RUN_DATABASE_INTEGRATION: 'true',
   }
-  run('bun', ['x', 'turbo', 'run', 'test:integration'], {
+  run('bun', ['x', 'turbo', 'run', 'test:integration', '--concurrency=1'], {
     environment: integrationEnvironment,
   })
 } finally {
