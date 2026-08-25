@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.3.1...workspace-v1.4.0) (2026-08-25)
+
+
+### Features
+
+* **acp:** add protocol-normalizing runtime adapter ([#159](https://github.com/0xPlayerOne/control-plane/issues/159)) ([2d7a249](https://github.com/0xPlayerOne/control-plane/commit/2d7a24901b406e3e88a81567d82230adc268f08e)), closes [#47](https://github.com/0xPlayerOne/control-plane/issues/47)
+* **acp:** execute local runtimes through gateway ([#161](https://github.com/0xPlayerOne/control-plane/issues/161)) ([8225703](https://github.com/0xPlayerOne/control-plane/commit/8225703921364ced213a9c2d2cfb7fc2680178d9)), closes [#49](https://github.com/0xPlayerOne/control-plane/issues/49)
+* **acp:** manage external session references ([#160](https://github.com/0xPlayerOne/control-plane/issues/160)) ([46ecc7b](https://github.com/0xPlayerOne/control-plane/commit/46ecc7bbb46e8b20943b1688c72d37bdf2d05ae4)), closes [#48](https://github.com/0xPlayerOne/control-plane/issues/48)
+* **runtime:** add hosted managed Pi worker ([#158](https://github.com/0xPlayerOne/control-plane/issues/158)) ([39e3943](https://github.com/0xPlayerOne/control-plane/commit/39e39438dcc489b665a388cb918ee843bf2cd8bb))
+* **runtime:** add managed Pi adapter ([#155](https://github.com/0xPlayerOne/control-plane/issues/155)) ([60b30e2](https://github.com/0xPlayerOne/control-plane/commit/60b30e29dc88568fa89297807953c7370f41895e))
+* **runtime:** certify adapter compatibility ([#162](https://github.com/0xPlayerOne/control-plane/issues/162)) ([14403fd](https://github.com/0xPlayerOne/control-plane/commit/14403fdaa37a40d61f6e6bc7cd9e5a4f72de29bc)), closes [#50](https://github.com/0xPlayerOne/control-plane/issues/50)
+* **runtime:** execute managed Pi through gateway ([#157](https://github.com/0xPlayerOne/control-plane/issues/157)) ([c705a8d](https://github.com/0xPlayerOne/control-plane/commit/c705a8da0d7e35720fbd522f3057eba1c67711be))
+
+
+### Tests
+
+* **runtime:** add cross-adapter acceptance ([#163](https://github.com/0xPlayerOne/control-plane/issues/163)) ([59a6eaa](https://github.com/0xPlayerOne/control-plane/commit/59a6eaa40f96c2a81d0ebe07fb3df4fa4ba17daf)), closes [#51](https://github.com/0xPlayerOne/control-plane/issues/51)
+
 ## [1.3.1](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.3.0...workspace-v1.3.1) (2026-08-25)
 
 

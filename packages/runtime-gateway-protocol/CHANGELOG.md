@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-protocol-v1.1.1...runtime-gateway-protocol-v1.2.0) (2026-08-25)
+
+
+### Features
+
+* **acp:** execute local runtimes through gateway ([#161](https://github.com/0xPlayerOne/control-plane/issues/161)) ([8225703](https://github.com/0xPlayerOne/control-plane/commit/8225703921364ced213a9c2d2cfb7fc2680178d9)), closes [#49](https://github.com/0xPlayerOne/control-plane/issues/49)
+* **runtime:** execute managed Pi through gateway ([#157](https://github.com/0xPlayerOne/control-plane/issues/157)) ([c705a8d](https://github.com/0xPlayerOne/control-plane/commit/c705a8da0d7e35720fbd522f3057eba1c67711be))
+
 ## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-protocol-v1.1.0...runtime-gateway-protocol-v1.1.1) (2026-08-25)
 
 
