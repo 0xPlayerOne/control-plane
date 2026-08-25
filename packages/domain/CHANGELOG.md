@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.2.0...domain-v1.3.0) (2026-08-25)
+
+
+### Features
+
+* **gateway:** persist runtime command delivery ([#139](https://github.com/0xPlayerOne/control-plane/issues/139)) ([1874f27](https://github.com/0xPlayerOne/control-plane/commit/1874f27edbd925b7ba5f9f74d26cc53719758f8b))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.1.0...domain-v1.2.0) (2026-08-24)
 
 

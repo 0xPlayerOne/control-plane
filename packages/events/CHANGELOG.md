@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/events-v1.1.0...events-v1.2.0) (2026-08-25)
+
+
+### Features
+
+* **gateway:** ingest normalized runtime events ([#140](https://github.com/0xPlayerOne/control-plane/issues/140)) ([7542146](https://github.com/0xPlayerOne/control-plane/commit/7542146f8f84fc72061c17d4fc4bc7ec435ddc76))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/events-v1.0.0...events-v1.1.0) (2026-08-24)
 
 

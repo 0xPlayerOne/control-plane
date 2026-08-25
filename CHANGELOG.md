@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.2.1...workspace-v1.3.0) (2026-08-25)
+
+
+### Features
+
+* **gateway:** authenticate runtime node channels ([#137](https://github.com/0xPlayerOne/control-plane/issues/137)) ([ddb04b8](https://github.com/0xPlayerOne/control-plane/commit/ddb04b883ddcfaf84fe3b2521118113c267b55aa))
+* **gateway:** define runtime node protocol ([#135](https://github.com/0xPlayerOne/control-plane/issues/135)) ([13a008a](https://github.com/0xPlayerOne/control-plane/commit/13a008a6e18e8c1916cf1be1e82a3032c6ac7f6f))
+* **gateway:** ingest normalized runtime events ([#140](https://github.com/0xPlayerOne/control-plane/issues/140)) ([7542146](https://github.com/0xPlayerOne/control-plane/commit/7542146f8f84fc72061c17d4fc4bc7ec435ddc76))
+* **gateway:** manage scalable websocket channels ([#138](https://github.com/0xPlayerOne/control-plane/issues/138)) ([02a5d48](https://github.com/0xPlayerOne/control-plane/commit/02a5d48b7982097448dddda79d07a3bc6e799e89))
+* **gateway:** persist runtime command delivery ([#139](https://github.com/0xPlayerOne/control-plane/issues/139)) ([1874f27](https://github.com/0xPlayerOne/control-plane/commit/1874f27edbd925b7ba5f9f74d26cc53719758f8b))
+* **gateway:** reconcile reconnect command state ([#142](https://github.com/0xPlayerOne/control-plane/issues/142)) ([3f897aa](https://github.com/0xPlayerOne/control-plane/commit/3f897aa0b72c5b5e1930342aab7079bf8a12dbae))
+* **gateway:** synchronize runtime inventory health ([#141](https://github.com/0xPlayerOne/control-plane/issues/141)) ([656b580](https://github.com/0xPlayerOne/control-plane/commit/656b580e58986b460b10d109cdeed78ba620307f))
+
+
+### Bug Fixes
+
+* **test:** honor integration timeout budget ([#144](https://github.com/0xPlayerOne/control-plane/issues/144)) ([7b8cd53](https://github.com/0xPlayerOne/control-plane/commit/7b8cd5322149fea79a9c12bd41c8f596576faac9))
+* **test:** serialize integration projects ([#146](https://github.com/0xPlayerOne/control-plane/issues/146)) ([b5028c1](https://github.com/0xPlayerOne/control-plane/commit/b5028c107d1e026c98b688c4524abbe9ccbc0d87))
+
+
+### Documentation
+
+* **test:** document M1-M5 acceptance ([#145](https://github.com/0xPlayerOne/control-plane/issues/145)) ([c43b3bb](https://github.com/0xPlayerOne/control-plane/commit/c43b3bb9334209c81aa911646f589c0d3a2dada4))
+
+
+### Tests
+
+* **runtime-gateway:** add M5 acceptance suite ([#143](https://github.com/0xPlayerOne/control-plane/issues/143)) ([1784dfc](https://github.com/0xPlayerOne/control-plane/commit/1784dfc6a4339d0292dc438be23ec5cedd86a76e))
+
 ## [1.2.1](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.2.0...workspace-v1.2.1) (2026-08-24)
 
 

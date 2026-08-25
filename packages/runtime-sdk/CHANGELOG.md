@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.1.1...runtime-sdk-v1.2.0) (2026-08-25)
+
+
+### Features
+
+* **gateway:** synchronize runtime inventory health ([#141](https://github.com/0xPlayerOne/control-plane/issues/141)) ([656b580](https://github.com/0xPlayerOne/control-plane/commit/656b580e58986b460b10d109cdeed78ba620307f))
+
 ## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.1.0...runtime-sdk-v1.1.1) (2026-08-24)
 
 

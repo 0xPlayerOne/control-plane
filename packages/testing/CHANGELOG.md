@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/0xPlayerOne/control-plane/compare/testing-v1.1.1...testing-v1.1.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **test:** honor integration timeout budget ([#144](https://github.com/0xPlayerOne/control-plane/issues/144)) ([7b8cd53](https://github.com/0xPlayerOne/control-plane/commit/7b8cd5322149fea79a9c12bd41c8f596576faac9))
+
 ## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/testing-v1.1.0...testing-v1.1.1) (2026-08-24)
 
 
