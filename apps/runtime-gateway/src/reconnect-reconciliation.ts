@@ -8,6 +8,8 @@ import type { ActiveRuntimeNodeChannelRecord, GatewayMetrics } from './websocket
 
 export type ReconnectInvalidReason =
   'node_revoked' | 'grant_revoked' | 'runtime_incompatible' | 'capability_changed'
+export type ReconnectManualReason =
+  ReconnectInvalidReason | 'acknowledged_without_outcome' | 'unknown_retained_outcome'
 
 export interface ReconnectCommandValidator {
   validate(
@@ -23,6 +25,11 @@ export interface RetainedCommandOutcomeApplier {
 
 export interface ExecutionReconnectReconciler {
   reconcile(executionId: string): Promise<unknown>
+  requireManualIntervention(input: {
+    readonly executionId: string
+    readonly commandId: string
+    readonly reason: ReconnectManualReason
+  }): Promise<void>
 }
 
 export interface RuntimeReconnectReconciliationOptions {
@@ -117,9 +124,10 @@ export class RuntimeReconnectReconciliationService {
         result.reused++
         continue
       }
-      if (!(await this.#isValid(command))) {
+      const validation = await this.#validator.validate(command)
+      if (!validation.valid) {
         result.invalid++
-        await this.#manual(command, result)
+        await this.#manual(command, validation.reason, result)
         continue
       }
       if (['succeeded', 'failed', 'cancelled'].includes(outcome.status)) {
@@ -130,7 +138,7 @@ export class RuntimeReconnectReconciliationService {
         result.active++
         await this.#executions.reconcile(command.executionId)
       } else {
-        await this.#manual(command, result)
+        await this.#manual(command, 'unknown_retained_outcome', result)
       }
     }
 
@@ -150,9 +158,10 @@ export class RuntimeReconnectReconciliationService {
         result.expired++
         continue
       }
-      if (!(await this.#isValid(command))) {
+      const validation = await this.#validator.validate(command)
+      if (!validation.valid) {
         result.invalid++
-        await this.#manual(command, result)
+        await this.#manual(command, validation.reason, result)
         continue
       }
       const safelyUnacknowledged =
@@ -160,7 +169,7 @@ export class RuntimeReconnectReconciliationService {
         (command.lastSequence !== undefined &&
           command.lastSequence > hello.lastAcknowledgedSequence)
       if (!safelyUnacknowledged) {
-        await this.#manual(command, result)
+        await this.#manual(command, 'acknowledged_without_outcome', result)
         continue
       }
       await this.#delivery.deliver(command.commandId, {
@@ -177,17 +186,18 @@ export class RuntimeReconnectReconciliationService {
     return result
   }
 
-  async #isValid(command: RuntimeCommandRecord): Promise<boolean> {
-    return (await this.#validator.validate(command)).valid
-  }
-
   async #manual(
     command: RuntimeCommandRecord,
+    reason: ReconnectManualReason,
     result: { manualIntervention: number }
   ): Promise<void> {
     result.manualIntervention++
     this.#metrics.increment('runtime_gateway.recovery_manual_intervention')
-    await this.#executions.reconcile(command.executionId)
+    await this.#executions.requireManualIntervention({
+      executionId: command.executionId,
+      commandId: command.commandId,
+      reason,
+    })
   }
 
   #assertOutcome(
