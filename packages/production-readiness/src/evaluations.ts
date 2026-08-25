@@ -77,6 +77,16 @@ export const EvalSuiteSchema = z
     if (new Set(suite.cases.map(({ evalCaseId }) => evalCaseId)).size !== suite.cases.length) {
       context.addIssue({ code: 'custom', message: 'Evaluation case identifiers must be unique' })
     }
+    for (const [caseIndex, evaluationCase] of suite.cases.entries()) {
+      const metrics = evaluationCase.scorers.map(({ metric }) => metric)
+      if (new Set(metrics).size !== metrics.length) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Evaluation case scorer metrics must be unique',
+          path: ['cases', caseIndex, 'scorers'],
+        })
+      }
+    }
   })
 
 const MetricValuesSchema = z.partialRecord(
@@ -94,6 +104,15 @@ export const EvalResultSchema = z
     status: z.enum(['failed', 'passed']),
   })
   .strict()
+  .superRefine((result, context) => {
+    const expectedStatus = result.failedRequiredMetrics.length === 0 ? 'passed' : 'failed'
+    if (result.status !== expectedStatus) {
+      context.addIssue({ code: 'custom', message: 'Evaluation result status is inconsistent' })
+    }
+    if (new Set(result.failedRequiredMetrics).size !== result.failedRequiredMetrics.length) {
+      context.addIssue({ code: 'custom', message: 'Failed required metrics must be unique' })
+    }
+  })
 
 export const EvalRunSchema = z
   .object({
@@ -107,6 +126,75 @@ export const EvalRunSchema = z
     completedAt: TimestampSchema,
   })
   .strict()
+  .superRefine((run, context) => {
+    if (Date.parse(run.completedAt) < Date.parse(run.startedAt)) {
+      context.addIssue({ code: 'custom', message: 'Evaluation run completed before it started' })
+    }
+
+    const cases = new Map(
+      run.suite.cases.map((evaluationCase) => [evaluationCase.evalCaseId, evaluationCase])
+    )
+    const resultIds = run.results.map(({ evalCaseId }) => evalCaseId)
+    if (new Set(resultIds).size !== resultIds.length || resultIds.length !== cases.size) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Evaluation results must cover every case exactly once',
+      })
+    }
+
+    for (const [resultIndex, result] of run.results.entries()) {
+      const evaluationCase = cases.get(result.evalCaseId)
+      if (!evaluationCase) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Evaluation result references an unknown case',
+          path: ['results', resultIndex, 'evalCaseId'],
+        })
+        continue
+      }
+      if (!sameValue(result.dataset, run.suite.dataset)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Evaluation result dataset differs from its suite',
+          path: ['results', resultIndex, 'dataset'],
+        })
+      }
+      if (!sameValue(result.configuration, run.configuration)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Evaluation result configuration differs from its run',
+          path: ['results', resultIndex, 'configuration'],
+        })
+      }
+      const expectedFailures = evaluationCase.scorers
+        .filter(
+          ({ direction, metric, required, threshold }) =>
+            required && !passesThreshold(result.metrics[metric], direction, threshold)
+        )
+        .map(({ metric }) => metric)
+        .sort()
+      if (!sameValue([...result.failedRequiredMetrics].sort(), expectedFailures)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Failed required metrics do not match case thresholds',
+          path: ['results', resultIndex, 'failedRequiredMetrics'],
+        })
+      }
+    }
+
+    if (!sameMetrics(run.aggregateMetrics, aggregate(run.results.map(({ metrics }) => metrics)))) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Aggregate metrics do not match evaluation results',
+      })
+    }
+    const expectedStatus = run.results.every(({ status }) => status === 'passed')
+      ? 'passed'
+      : 'failed'
+    if (run.status !== expectedStatus) {
+      context.addIssue({ code: 'custom', message: 'Evaluation run status is inconsistent' })
+    }
+  })
 
 export type EvalSuite = z.output<typeof EvalSuiteSchema>
 export type EvalRun = z.output<typeof EvalRunSchema>
@@ -215,6 +303,15 @@ function aggregate(values: readonly EvaluationMetricValues[]): EvaluationMetricV
   return Object.fromEntries(
     [...totals].map(([metric, { count, total }]) => [metric, total / count])
   )
+}
+
+function sameMetrics(left: EvaluationMetricValues, right: EvaluationMetricValues): boolean {
+  const metrics = new Set([...Object.keys(left), ...Object.keys(right)] as EvaluationMetric[])
+  return [...metrics].every((metric) => left[metric] === right[metric])
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 function clone<Value>(value: Value): Value {

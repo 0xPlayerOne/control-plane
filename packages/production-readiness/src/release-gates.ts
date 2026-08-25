@@ -1,4 +1,9 @@
-import type { EvalRun, EvaluationMetric, EvaluationMetricValues } from './evaluations.js'
+import {
+  EvalRunSchema,
+  type EvalRun,
+  type EvaluationMetric,
+  type EvaluationMetricValues,
+} from './evaluations.js'
 
 export interface ReleaseGateDecision {
   readonly releaseGateId: string
@@ -43,34 +48,38 @@ export class ReleaseGateRegistry {
     readonly baseline: EvalRun
     readonly maximumRegressions: EvaluationMetricValues
   }): ReleaseGateDecision {
-    const reasons = input.candidate.results.flatMap(({ failedRequiredMetrics }) =>
+    const candidateRun = EvalRunSchema.parse(input.candidate)
+    const baselineRun = EvalRunSchema.parse(input.baseline)
+    const reasons = candidateRun.results.flatMap(({ failedRequiredMetrics }) =>
       failedRequiredMetrics.map((metric) => `REQUIRED_THRESHOLD_FAILED:${metric}`)
     )
+    if (JSON.stringify(candidateRun.suite) !== JSON.stringify(baselineRun.suite)) {
+      reasons.push('INCOMPARABLE_BASELINE:suite')
+    }
     for (const [metric, maximum] of Object.entries(input.maximumRegressions) as [
       EvaluationMetric,
       number,
     ][]) {
-      const candidate = input.candidate.aggregateMetrics[metric]
-      const baseline = input.baseline.aggregateMetrics[metric]
-      if (
-        candidate !== undefined &&
-        baseline !== undefined &&
-        relativeRegression(metric, candidate, baseline) > maximum
-      ) {
+      if (!Number.isFinite(maximum) || maximum < 0) throw new Error('INVALID_REGRESSION_BUDGET')
+      const candidate = candidateRun.aggregateMetrics[metric]
+      const baseline = baselineRun.aggregateMetrics[metric]
+      if (candidate === undefined || baseline === undefined) {
+        reasons.push(`MISSING_COMPARISON_METRIC:${metric}`)
+      } else if (relativeRegression(metric, candidate, baseline) > maximum) {
         reasons.push(`REGRESSION:${metric}`)
       }
     }
     const decision: ReleaseGateDecision = {
       releaseGateId: input.releaseGateId,
-      candidateRunId: input.candidate.evalRunId,
-      baselineRunId: input.baseline.evalRunId,
+      candidateRunId: candidateRun.evalRunId,
+      baselineRunId: baselineRun.evalRunId,
       status: reasons.length === 0 ? 'passed' : 'blocked',
       reasons: [...new Set(reasons)].sort(),
       evaluatedAt: this.#now(),
     }
     this.#gates.set(input.releaseGateId, {
-      candidate: clone(input.candidate),
-      baseline: clone(input.baseline),
+      candidate: clone(candidateRun),
+      baseline: clone(baselineRun),
       decision,
     })
     return clone(decision)

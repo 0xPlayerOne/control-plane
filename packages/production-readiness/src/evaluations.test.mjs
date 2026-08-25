@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { EvaluationService, InMemoryEvaluationRepository, ReleaseGateRegistry } from './index.ts'
+import {
+  EvalRunSchema,
+  EvalSuiteSchema,
+  EvaluationService,
+  InMemoryEvaluationRepository,
+  ReleaseGateRegistry,
+} from './index.ts'
 
 const configuration = {
   executionPlanDigest: `sha256:${'1'.repeat(64)}`,
@@ -152,5 +158,71 @@ describe('production evaluation and release gates', () => {
         execute: async () => ({ functional_correctness: 1, latency_ms: 100, cost_usd: 0.01 }),
       })
     ).rejects.toThrow('LIVE_EVALUATION_NOT_AUTHORIZED')
+  })
+
+  test('rejects contradictory or incomplete immutable evaluation evidence', async () => {
+    const service = new EvaluationService({ repository: new InMemoryEvaluationRepository() })
+    const run = await service.run({
+      evalRunId: 'eval-run-consistency',
+      suite,
+      configuration,
+      execute: async () => ({ functional_correctness: 1, latency_ms: 100, cost_usd: 0.01 }),
+    })
+
+    expect(() =>
+      EvalRunSchema.parse({
+        ...run,
+        results: [{ ...run.results[0], configuration: { ...configuration, tools: [] } }],
+      })
+    ).toThrow()
+    expect(() => EvalRunSchema.parse({ ...run, aggregateMetrics: {} })).toThrow()
+    expect(() => EvalRunSchema.parse({ ...run, status: 'failed' })).toThrow()
+  })
+
+  test('rejects duplicate scorers that make a case threshold ambiguous', () => {
+    expect(() =>
+      EvalSuiteSchema.parse({
+        ...suite,
+        cases: [
+          {
+            ...suite.cases[0],
+            scorers: [
+              ...suite.cases[0].scorers,
+              { metric: 'latency_ms', direction: 'max', threshold: 700, required: false },
+            ],
+          },
+        ],
+      })
+    ).toThrow()
+  })
+
+  test('blocks release comparisons against an unrelated or incomplete baseline', async () => {
+    const service = new EvaluationService({ repository: new InMemoryEvaluationRepository() })
+    const candidate = await service.run({
+      evalRunId: 'eval-run-comparable-candidate',
+      suite,
+      configuration,
+      execute: async () => ({ functional_correctness: 1, latency_ms: 100, cost_usd: 0.01 }),
+    })
+    const baseline = await service.run({
+      evalRunId: 'eval-run-unrelated-baseline',
+      suite: { ...suite, digest: `sha256:${'f'.repeat(64)}` },
+      configuration,
+      execute: async () => ({ functional_correctness: 1, latency_ms: 100 }),
+    })
+    const registry = new ReleaseGateRegistry()
+
+    const decision = registry.evaluate({
+      releaseGateId: 'gate-incomparable',
+      candidate,
+      baseline,
+      maximumRegressions: { latency_ms: 0.2, cost_usd: 0.2 },
+    })
+
+    expect(decision).toMatchObject({ status: 'blocked' })
+    expect(decision.reasons).toEqual([
+      'INCOMPARABLE_BASELINE:suite',
+      'MISSING_COMPARISON_METRIC:cost_usd',
+    ])
   })
 })
