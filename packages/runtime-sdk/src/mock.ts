@@ -227,7 +227,13 @@ export class MockRuntimeAdapter implements RuntimeAdapter {
     const session = this.#sessions.get(operation.sessionId)
     if (!session) fail('SESSION_NOT_FOUND', 'validation', false)
     if (operation.operation === 'history') {
-      return RuntimeSessionResultSchema.parse({ operation: 'history', session, entries: [] })
+      return RuntimeSessionResultSchema.parse({
+        operation: 'history',
+        session,
+        completeness: 'complete',
+        limitations: [],
+        entries: [],
+      })
     }
     if (operation.operation === 'close') session.state = 'closed'
     else if (session.state === 'closed') fail('SESSION_CLOSED', 'conflict', false)

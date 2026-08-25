@@ -14,9 +14,10 @@ support level before execution starts; missing optional capabilities remain expl
 evaluation and never become inferred behavior.
 
 ACP v2's baseline session surface maps to normalized create, list, resume, close, prompt, progress,
-approval, cancellation, and tool-call capabilities. Resume does not imply history replay or loading.
-Those operations remain unsupported until a peer exposes them independently and the adapter has a
-tested mapping. Unknown additive ACP capability fields are ignored so compatible peers can extend the
+approval, cancellation, and tool-call capabilities. Resume omits `replayFrom` and therefore does not
+imply history replay or loading. Normalized history and load become available only when the transport
+driver can explicitly capture ACP replay updates; partial and unavailable replay remain classified in
+the result. Unknown additive ACP capability fields are ignored so compatible peers can extend the
 protocol without changing the normalized contract.
 
 ## Translation and ownership
@@ -31,6 +32,21 @@ The adapter does not authenticate the native harness, install or configure it, a
 select its working directory, inject credentials, or assume ownership of its sessions. Native auth
 methods returned during initialization are intentionally retained at the protocol edge and are not
 exposed through `RuntimeAdapter`.
+
+## External session references
+
+When configured with an `ExternalSessionRegistry`, native list/create/resume/close observations create
+or update workspace-scoped references. The registry stores a supplied opaque native-session token,
+not the ACP session ID, along with runtime-connection provenance, a bounded capability snapshot,
+freshness, and safe display metadata. A separate resolver at the driver boundary converts that token
+back to a native identifier only for an authorized operation.
+
+Every resume, load, close, and history request is checked against the current RuntimeConnection and
+node state before native dispatch. Offline, stale, missing-runtime, removed, revoked, capability-change,
+authorization, and unresolvable-reference outcomes fail explicitly. Listing reconciles sessions that
+the native harness removed while preserving their Control Plane references. Native renames are observed
+without taking ownership; concurrent native use always remains allowed. Existing public SDK list/get
+operations consume the projected normalized read model and never expose either native identifier.
 
 ## Failure behavior and evidence
 
