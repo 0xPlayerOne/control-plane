@@ -1,11 +1,23 @@
 import { bootstrapService, type ServiceStartOptions } from '@control-plane/bootstrap'
+import type { RuntimeGatewayWebSocketServer } from './websocket-server.js'
 
 export * from './authentication.js'
+export * from './websocket-lifecycle.js'
 
 export const serviceName = 'runtime-gateway'
-export const start = (options: ServiceStartOptions = {}) =>
+export interface RuntimeGatewayStartOptions extends ServiceStartOptions {
+  readonly webSocketServer?: RuntimeGatewayWebSocketServer
+}
+
+export const start = ({ webSocketServer, ...options }: RuntimeGatewayStartOptions = {}) =>
   bootstrapService({
     ...options,
     serviceName,
-    start: ({ markReady }) => markReady(),
+    start: ({ markReady, registerResource }) => {
+      if (webSocketServer !== undefined) {
+        webSocketServer.start()
+        registerResource('runtime-gateway-websocket', () => webSocketServer.close())
+      }
+      markReady()
+    },
   })
