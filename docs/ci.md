@@ -1,6 +1,6 @@
 # Continuous integration
 
-Code Foundry v0.37.5 is the CI control plane for this repository. Its generated
+Code Foundry v0.38.0 is the CI control plane for this repository. Its generated
 callers are pinned under `.github/workflows/` and target `main` directly; there
 is no staging branch.
 
@@ -39,6 +39,15 @@ integration and is not part of the repository's credential-free baseline.
 Maintainers must treat a successful `Validation / Gate` as required and merge
 only through a pull request. Repository rules should require that stable gate
 without enumerating its internal parallel jobs.
+
+## Reversible billing pause
+
+`npx code-foundry ci pause` disables Code Foundry jobs through the
+`CI_BILLING_PAUSED` repository variable before a runner is allocated, while
+`npx code-foundry ci resume` restores the validation gate and resumes normal
+automation. A release may run during a pause only through an explicit manual
+dispatch with `release-while-paused=true`; that bypass does not enable
+validation, security, CodeQL, or draft-pull-request jobs.
 
 ## Foundation acceptance extension
 
