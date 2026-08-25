@@ -16,6 +16,7 @@ import {
   RuntimeHealthIngestionService,
 } from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
+import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
@@ -28,6 +29,7 @@ import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
 import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.ts'
 import {
   commandInbox,
+  delegations,
   executionEvents,
   executions,
   externalSessions,
@@ -72,6 +74,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(result.map(({ table_name: tableName }) => tableName)).toEqual(
       expect.arrayContaining([
         'execution_attempts',
+        'delegations',
         'executions',
         'external_sessions',
         'inbox_messages',
@@ -198,6 +201,58 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(await restarted.compareAndSet(1, second)).toBe(true)
     expect(await restarted.compareAndSet(1, { ...second, revision: 3 })).toBe(false)
     expect(await isolated.application.select().from(runtimeInventoryCheckpoints)).toHaveLength(1)
+  })
+
+  test('persists delegation lineage across service restart with compare-and-set', async () => {
+    await isolated.migrate()
+    const repository = new PostgresDelegationRepository(isolated.application)
+    const record = {
+      delegationId: 'dlg_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      delegationGroupId: 'dgr_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      parentExecutionId: 'exe_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      childExecutionId: 'exe_01MRZ3NDEKTSV4RRFFQ69G5FAW',
+      childAttemptId: 'att_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      parentExecutionPlanId: 'pln_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      parentExecutionPlanDigest: `sha256:${'a'.repeat(64)}`,
+      childExecutionPlanId: 'pln_01MRZ3NDEKTSV4RRFFQ69G5FAW',
+      childExecutionPlanDigest: `sha256:${'b'.repeat(64)}`,
+      contextPackageId: 'ctx_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      contextPackageDigest: `sha256:${'c'.repeat(64)}`,
+      role: 'researcher',
+      profileVersionId: 'pfv_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      objective: 'Durably research the bounded question',
+      policy: {
+        cancellation: 'cascade',
+        deadline: 'bounded_by_parent',
+        failure: 'retry',
+        maximumRetries: 2,
+      },
+      state: 'dispatched',
+      runtimeConnectionId: 'rtc_01MRZ3NDEKTSV4RRFFQ69G5FAV',
+      retryCount: 0,
+      inputDigest: `sha256:${'d'.repeat(64)}`,
+      revision: 1,
+      acceptedAt: '2026-08-25T18:00:00.000Z',
+      deadlineAt: '2026-08-25T18:10:00.000Z',
+      updatedAt: '2026-08-25T18:01:00.000Z',
+    }
+    expect(await repository.insert(record)).toBe(true)
+    expect(await repository.insert(record)).toBe(false)
+
+    const restarted = new PostgresDelegationRepository(isolated.application)
+    expect(await restarted.get(record.delegationId)).toEqual(record)
+    expect(await restarted.findByChild(record.childExecutionId)).toEqual(record)
+    expect(await restarted.listByParent(record.parentExecutionId)).toEqual([record])
+
+    const running = {
+      ...record,
+      state: 'running',
+      revision: 2,
+      updatedAt: '2026-08-25T18:02:00.000Z',
+    }
+    expect(await restarted.compareAndSet(1, running)).toBe(true)
+    expect(await restarted.compareAndSet(1, { ...running, revision: 3 })).toBe(false)
+    expect(await isolated.application.select().from(delegations)).toHaveLength(1)
   })
 
   test('persists runtime command delivery state across gateway repository restarts', async () => {

@@ -22,6 +22,8 @@ export const IdentifierSchemas = {
   skillId: opaqueIdentifier('skl', 'Skill ID'),
   skillVersionId: opaqueIdentifier('skv', 'skill-version ID'),
   executionId: opaqueIdentifier('exe', 'execution ID'),
+  delegationId: opaqueIdentifier('dlg', 'delegation ID'),
+  delegationGroupId: opaqueIdentifier('dgr', 'delegation-group ID'),
   attemptId: opaqueIdentifier('att', 'attempt ID'),
   workflowId: opaqueIdentifier('wfl', 'workflow ID'),
   interactionId: opaqueIdentifier('int', 'interaction ID'),
@@ -57,6 +59,8 @@ export type ProfileVersionId = z.output<(typeof IdentifierSchemas)['profileVersi
 export type SkillId = z.output<(typeof IdentifierSchemas)['skillId']>
 export type SkillVersionId = z.output<(typeof IdentifierSchemas)['skillVersionId']>
 export type ExecutionId = z.output<(typeof IdentifierSchemas)['executionId']>
+export type DelegationId = z.output<(typeof IdentifierSchemas)['delegationId']>
+export type DelegationGroupId = z.output<(typeof IdentifierSchemas)['delegationGroupId']>
 export type AttemptId = z.output<(typeof IdentifierSchemas)['attemptId']>
 export type WorkflowId = z.output<(typeof IdentifierSchemas)['workflowId']>
 export type InteractionId = z.output<(typeof IdentifierSchemas)['interactionId']>
