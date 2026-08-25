@@ -29,6 +29,7 @@
     "test:acceptance": "bun scripts/run-foundation-acceptance.mjs",
     "test:m3-acceptance": "bun test tests/m3-durable-execution.test.mjs",
     "test:m4-acceptance": "bun --cwd=apps/control-api run build && bun test tests/m4-runtime-fabric.test.mjs",
+    "test:m5-acceptance": "bun run build && bun test tests/m5-runtime-gateway.test.mjs",
     "test:coverage": "bun run test:unit",
     "test:shard": "bun run build && bun scripts/run-bun-test-group.mjs unit",
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path infrastructure/terraform/.gitignore",
