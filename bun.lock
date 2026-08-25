@@ -87,6 +87,15 @@
         "@temporalio/workflow": "1.22.0",
       },
     },
+    "packages/acp-adapter": {
+      "name": "@control-plane/acp-adapter",
+      "version": "1.0.0",
+      "dependencies": {
+        "@control-plane/domain": "workspace:*",
+        "@control-plane/runtime-sdk": "workspace:*",
+        "zod": "4.4.3",
+      },
+    },
     "packages/bootstrap": {
       "name": "@control-plane/bootstrap",
       "version": "1.1.0",
@@ -231,6 +240,8 @@
     "@apm-js-collab/tracing-hooks": ["@apm-js-collab/tracing-hooks@0.13.0", "", { "dependencies": { "@apm-js-collab/code-transformer": "^0.18.0", "debug": "^4.4.1", "module-details-from-path": "^1.0.4" } }, "sha512-mTvWz9rnQwx1U3h0XPTHaX7bgfkpipLLTQyjlC2cdhQpQEuoLT0AGzoydeoq2NxfEVv6fWOOETcSbb2nptleyw=="],
 
     "@borewit/text-codec": ["@borewit/text-codec@0.2.2", "", {}, "sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ=="],
+
+    "@control-plane/acp-adapter": ["@control-plane/acp-adapter@workspace:packages/acp-adapter"],
 
     "@control-plane/bootstrap": ["@control-plane/bootstrap@workspace:packages/bootstrap"],
 
