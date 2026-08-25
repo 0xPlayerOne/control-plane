@@ -36,6 +36,11 @@ const identifiers = {
 
 describe('telemetry safety and correlation', () => {
   test('redacts secret and prohibited payload fields without mutating input', () => {
+    const bearer = ['Bearer', 'private-bearer-value'].join(' ')
+    const githubToken = ['ghp', '_', 'A'.repeat(36)].join('')
+    const databaseUrl = ['postgresql://control:', 'private-database-value', '@db.invalid/app'].join(
+      ''
+    )
     const input = {
       authorization: 'Bearer private',
       nested: {
@@ -43,7 +48,9 @@ describe('telemetry safety and correlation', () => {
         prompt: 'private prompt',
         safe: 'visible',
       },
-      error: new Error('failed with token=private-token'),
+      error: new Error(
+        `failed with token=private-token, ${bearer}, ${githubToken}, ${databaseUrl}`
+      ),
     }
 
     const redacted = redactTelemetryValue(input)
@@ -52,7 +59,11 @@ describe('telemetry safety and correlation', () => {
     expect(redacted).toEqual({
       authorization: '[REDACTED]',
       nested: { apiKey: '[REDACTED]', prompt: '[REDACTED]', safe: 'visible' },
-      error: { name: 'Error', message: 'failed with token=[REDACTED]' },
+      error: {
+        name: 'Error',
+        message:
+          'failed with token=[REDACTED], Bearer [REDACTED], [REDACTED], postgresql://[REDACTED]@db.invalid/app',
+      },
     })
     expect(input.nested.safe).toBe('visible')
   })
