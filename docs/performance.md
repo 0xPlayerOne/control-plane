@@ -21,8 +21,8 @@ Every profile must satisfy all of these budgets:
 | attempts                  | exactly 1 (no retry amplification) |
 | telemetry median overhead |                       at most 2 ms |
 
-The harness counts only successful operations toward throughput and fails on invalid cost
-or attempt evidence. `BoundedAdmissionController` provides immediate overload rejection
+The harness counts only successful operations toward throughput and fails on invalid cost,
+attempt, clock, or memory evidence. `BoundedAdmissionController` provides immediate overload rejection
 with a retry delay instead of an unbounded in-memory queue. Candidate releases can also be
 compared with an explicit prior baseline for latency, throughput, memory, cost, and error-rate
 regressions. Invalid or non-finite operation and comparison evidence fails closed instead of being
