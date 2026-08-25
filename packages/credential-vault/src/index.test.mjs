@@ -172,7 +172,11 @@ describe('connector credential vault', () => {
         evaluatedAt: request.context.requestedAt,
       }),
     }
-    const deniedVault = new CredentialVault({ provider, decisionPoint: denying })
+    const deniedVault = new CredentialVault({
+      provider,
+      decisionPoint: denying,
+      now: () => '2026-08-25T09:00:30.000Z',
+    })
     await deniedVault.create({
       credentialId: ids.credential,
       workspaceId: ids.workspace,
