@@ -6,6 +6,7 @@ export * from './execution-lifecycle.js'
 export * from './execution-reconciliation.js'
 export * from './interactions.js'
 export * from './project-state.js'
+export * from './runtime-command.js'
 export * from './versioned-catalog.js'
 
 export const packageName = 'domain'

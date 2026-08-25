@@ -10,6 +10,7 @@ export { PostgresExecutionRepository } from './execution-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
+export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
 export type {
   ControlPlaneDatabase,
   PostgresConnection,
@@ -49,6 +50,8 @@ export {
   runtimeConnectionLocation,
   runtimeConnectionStatus,
   runtimeConnectionType,
+  runtimeCommands,
+  runtimeCommandStatus,
   softDeleteColumns,
   timestampColumns,
 } from './schema/index.js'

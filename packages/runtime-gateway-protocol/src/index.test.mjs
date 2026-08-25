@@ -72,6 +72,25 @@ describe('Runtime Gateway protocol', () => {
     )
   })
 
+  test('fails closed instead of evicting duplicate-effect protection when its ledger is full', () => {
+    const node = new ReferenceRuntimeNode({
+      maxLedgerEntries: 1,
+      now: () => new Date('2026-08-25T12:00:01.000Z'),
+    })
+    const first = runtimeCommand()
+    node.receive(first)
+
+    expect(() =>
+      node.receive({
+        ...first,
+        commandId: 'cmd_01JABCDEF0123456789ABCDEFH',
+        idempotencyKey: 'runtime-command:01JABCDEF0123456789ABCDEFH',
+        payloadHash: `sha256:${'b'.repeat(64)}`,
+      })
+    ).toThrow('COMMAND_LEDGER_CAPACITY_EXCEEDED')
+    expect(node.effectCount(first.commandId)).toBe(1)
+  })
+
   test('represents zero, compatible, and alternate context providers without changing envelopes', () => {
     for (const inventory of Object.values(inventoryFixtures)) {
       expect(GatewayEnvelopeSchema.parse(inventory).type).toBe('inventory')

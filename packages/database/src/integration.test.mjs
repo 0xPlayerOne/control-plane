@@ -22,6 +22,7 @@ import { PostgresExecutionRepository } from './execution-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
+import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import {
   commandInbox,
   executions,
@@ -30,6 +31,7 @@ import {
   interactionRequests,
   outboxEvents,
   reconciliationCheckpoints,
+  runtimeCommands,
   runtimeConnections,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
@@ -158,6 +160,91 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       runtime: { runtimeConnectionId: revoked.runtimeConnectionId },
     })
     expect(await isolated.application.select().from(runtimeConnections)).toHaveLength(1)
+  })
+
+  test('persists runtime command delivery state across gateway repository restarts', async () => {
+    await isolated.migrate()
+    const runtimeConnectionId = 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAM'
+    const nodeId = 'rnr_01ARZ3NDEKTSV4RRFFQ69G5FAM'
+    const workspaceId = 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAM'
+    const runtimeRegistry = new RuntimeConnectionRegistry(
+      new PostgresRuntimeConnectionRepository(isolated.application)
+    )
+    await runtimeRegistry.register({
+      runtimeConnectionId,
+      identityDigest: `sha256:${'8'.repeat(64)}`,
+      connectionType: 'managed_local',
+      runtimeNodeRefId: nodeId,
+      runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      location: 'local_device',
+      opaqueNativeRef: 'nref_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      adapterVersion: '1.0.0',
+      driverVersion: '1.0.0',
+      harnessVersion: '1.0.0',
+      status: 'connected',
+      health: 'healthy',
+      capabilities: [{ name: 'stream.output', support: 'supported' }],
+      compatibilityState: 'compatible',
+      limitations: [],
+      lastDiscoveredAt: '2026-08-24T23:00:00.000Z',
+      lastHeartbeatAt: '2026-08-24T23:00:00.000Z',
+      lastHealthCheckAt: '2026-08-24T23:00:00.000Z',
+    })
+    const executionService = new ExecutionLifecycleService(
+      new PostgresExecutionRepository(isolated.application)
+    )
+    const execution = await executionService.createExecution({
+      executionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      correlation: {
+        workspaceId,
+        projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+        taskId: 'tsk_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+        agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+        requestId: 'req_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+        contentDigest: `sha256:${'7'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      acceptedAt: '2026-08-24T23:00:00.000Z',
+    })
+    const attempt = await executionService.createAttempt({
+      executionId: execution.executionId,
+      attemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      expectedExecutionVersion: execution.version,
+      queuedAt: '2026-08-24T23:00:01.000Z',
+      runtime: { runtimeConnectionId },
+    })
+    const record = {
+      commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      executionId: execution.executionId,
+      attemptId: attempt.attemptId,
+      nodeId,
+      runtimeConnectionId,
+      workspaceId,
+      idempotencyKey: 'runtime-command:integration:1',
+      payloadHash: `sha256:${'6'.repeat(64)}`,
+      commandEnvelope: { type: 'command', payload: { operation: 'runtime.execute' } },
+      issuedAt: '2026-08-24T23:00:01.000Z',
+      expiresAt: '2026-08-24T23:05:01.000Z',
+      status: 'queued',
+      version: 1,
+      deliveryAttempts: 0,
+      createdAt: '2026-08-24T23:00:01.000Z',
+      updatedAt: '2026-08-24T23:00:01.000Z',
+    }
+    const repository = new PostgresRuntimeCommandRepository(isolated.application)
+    expect((await repository.create(record)).outcome).toBe('created')
+    expect((await repository.create(record)).outcome).toBe('duplicate')
+
+    const restarted = new PostgresRuntimeCommandRepository(isolated.application)
+    expect(await restarted.listDispatchable(nodeId, '2026-08-24T23:00:02.000Z', 10)).toEqual([
+      record,
+    ])
+    expect(await restarted.compareAndSet(1, { ...record, version: 2 })).toBe(true)
+    expect(await restarted.compareAndSet(1, { ...record, version: 3 })).toBe(false)
+    expect(await isolated.application.select().from(runtimeCommands)).toHaveLength(1)
   })
 
   test('persists versioned health ingestion and freshness across service restarts', async () => {

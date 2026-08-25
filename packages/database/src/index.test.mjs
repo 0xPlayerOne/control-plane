@@ -13,6 +13,7 @@ import {
   outboxEvents,
   persistenceConventions,
   reconciliationCheckpoints,
+  runtimeCommands,
   runtimeConnections,
   withDomainTransaction,
 } from './index.ts'
@@ -37,6 +38,7 @@ describe('persistence schema', () => {
     const interaction = getTableConfig(interactionRequests)
     const reconciliation = getTableConfig(reconciliationCheckpoints)
     const runtimeConnection = getTableConfig(runtimeConnections)
+    const runtimeCommand = getTableConfig(runtimeCommands)
     const externalSession = getTableConfig(externalSessions)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
@@ -46,7 +48,34 @@ describe('persistence schema', () => {
     expect(interaction.name).toBe('interaction_requests')
     expect(reconciliation.name).toBe('reconciliation_checkpoints')
     expect(runtimeConnection.name).toBe('runtime_connections')
+    expect(runtimeCommand.name).toBe('runtime_commands')
     expect(externalSession.name).toBe('external_sessions')
+    expect(runtimeCommand.columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'command_id',
+        'execution_id',
+        'attempt_id',
+        'runtime_node_ref_id',
+        'runtime_connection_id',
+        'workspace_id',
+        'payload_hash',
+        'command_envelope',
+        'status',
+        'delivery_attempts',
+        'last_channel_generation',
+        'last_sequence',
+        'acknowledgement_reference',
+        'result_reference',
+        'expires_at',
+      ])
+    )
+    expect(runtimeCommand.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'runtime_commands_node_status_issued_index',
+        'runtime_commands_expiry_index',
+        'runtime_commands_execution_attempt_index',
+      ])
+    )
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',
