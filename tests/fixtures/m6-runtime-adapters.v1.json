@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-25T12:00:00.000Z",
+  "profile": {
+    "version": 3,
+    "revision": 2,
+    "contentDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "skills": [
+    {
+      "semanticVersion": "2.1.0",
+      "revision": 4,
+      "contentDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "runtimes": [
+    {
+      "runtimeId": "managed-pi-local",
+      "family": "pi",
+      "deployment": "local",
+      "adapterVersion": "1.0.0",
+      "driverVersion": "1.0.0",
+      "harnessVersion": "0.52.1",
+      "protocolVersion": "1.5.0"
+    },
+    {
+      "runtimeId": "managed-pi-hosted",
+      "family": "pi",
+      "deployment": "managed",
+      "adapterVersion": "1.0.0",
+      "driverVersion": "1.0.0",
+      "harnessVersion": "0.52.1",
+      "protocolVersion": "1.0.0"
+    },
+    {
+      "runtimeId": "acp-local",
+      "family": "acp",
+      "deployment": "local",
+      "adapterVersion": "1.0.0",
+      "driverVersion": "1.0.0",
+      "harnessVersion": "2.4.0",
+      "protocolVersion": "1.5.0"
+    }
+  ]
+}

@@ -14,13 +14,13 @@ and prefer real implementations over mocks when the dependency is local and inex
   cold database creation and migration, and the runner allows PostgreSQL up to 60 seconds to
   checkpoint during shutdown. Before projects start, the runner waits for a successful SQL query
   instead of relying only on the container health transition.
-- `bun run test:e2e` runs the M2-M5 cross-package acceptance scenarios.
+- `bun run test:e2e` runs the M2-M6 cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
   checkout with one command.
 - `bun run test:acceptance` is the one-command acceptance gate. It checks dependency ancestry,
   installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
-  the full foundation and M2-M5 suites, Terraform validation, and all service plus migration
+  the full foundation and M2-M6 suites, Terraform validation, and all service plus migration
   container builds.
 - `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
   Foundry's coverage upload step.
@@ -31,6 +31,7 @@ and prefer real implementations over mocks when the dependency is local and inex
   qualify inventory, eligibility, routing, sessions, read models, and historical attempt references.
 - `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, inventory, and
   protocol-version scenario matrix.
+- `bun run test:m6-acceptance` runs the managed Pi and ACP cross-runtime acceptance matrix.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
   group. CI shards must use distinct output directories if they collect coverage.
 
@@ -58,7 +59,7 @@ workspace tests in one process, so that application remains part of the aggregat
   drift is checked separately through `bun run openapi:check`.
 - **Failure-injection** tests use recording or deliberately failing port adapters and assert state,
   not internal call order.
-- **End-to-end** tests cover the critical cross-package M2-M5 acceptance flows without external
+- **End-to-end** tests cover the critical cross-package M2-M6 acceptance flows without external
   credentials.
 
 Vendor adapters must expose stable ports and use fakes or recording adapters in ordinary CI. Unit
@@ -128,3 +129,15 @@ and oversized frames; backpressure; and bounded restart recovery.
 The suite records protocol versions 1.0 through 1.5 and runs inside Code Foundry's independent E2E
 job. Component tests remain colocated with the Runtime Gateway so the acceptance entrypoint reuses the
 same executable controls instead of maintaining divergent fixtures.
+
+## M6 Runtime Adapters acceptance
+
+Run `bun run test:m6-acceptance` to build the workspace and execute the repository-local
+cross-runtime suite. It drives one normalized ExecutionPlan through the managed Pi and ACP reference
+adapters, exercises a standalone hosted-Pi fixture, routing preferences, capability degradation,
+interactions, cancellation, reconnect reconciliation, grant revocation, version invalidation, and ACP
+session resume/history controls.
+
+The suite reads exact adapter, driver, harness, protocol, profile, and skill pins from
+`tests/fixtures/m6-runtime-adapters.v1.json`. It uses disposable drivers, synthetic grants, and a
+generic reference client; it neither clones nor starts Agent HQ.
