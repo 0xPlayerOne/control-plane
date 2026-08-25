@@ -5,6 +5,7 @@ import {
   ContextPackageSchema,
   InMemoryContextPackageRepository,
   contextPackageSerializationFixtures,
+  composeProviderContextPackage,
   deriveContextPackage,
 } from './index.ts'
 
@@ -144,6 +145,44 @@ describe('reproducible ContextPackage compilation', () => {
       expect(ContextPackageSchema.parse(fixture)).toBeDefined()
       expect(JSON.stringify(fixture)).not.toMatch(/credential|nativeSession|localPath/)
     }
+  })
+
+  test('composes provider contributions without mutating ProjectState authority', () => {
+    const package_ = compile(baseInput())
+    const composed = composeProviderContextPackage(package_, {
+      callerContextRefs: ['caller://request/1'],
+      localProjectGrantRefs: ['grant://local/1'],
+      contributions: [
+        {
+          providerId: 'ctp_01JABCDEF0123456789ABCDEFG',
+          connectionId: 'ctc_01JABCDEF0123456789ABCDEFG',
+          contractVersion: '1.0.0',
+          contributionId: 'evidence-1',
+          kind: 'evidence',
+          content: 'bounded provider evidence',
+          tokenCount: 4,
+          observedAt: now,
+          scopeDigest: `sha256:${'a'.repeat(64)}`,
+          revision: 'corpus-1',
+          contentDigest: `sha256:${'b'.repeat(64)}`,
+          degraded: false,
+          provenance: [
+            {
+              sourceRef: 'https://example.invalid/evidence/1',
+              citation: 'Evidence 1',
+              sourceKind: 'external_evidence',
+            },
+          ],
+        },
+      ],
+    })
+    expect(composed.projectState).toEqual(package_.projectState)
+    expect(composed.stateItems).toEqual(package_.stateItems)
+    expect(composed.providerComposition).toMatchObject({
+      callerContextRefs: ['caller://request/1'],
+      localProjectGrantRefs: ['grant://local/1'],
+    })
+    expect(composed.contentDigest).not.toBe(package_.contentDigest)
   })
 })
 
