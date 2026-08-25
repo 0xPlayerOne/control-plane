@@ -234,6 +234,7 @@ test('provides a documented isolated integration-test runner', async () => {
   assert.match(runner, /RUN_DATABASE_INTEGRATION/)
   assert.match(runner, /SELECT 1/)
   assert.match(runner, /database system is accepting SQL connections/)
+  assert.match(runner, /'test:integration', '--concurrency=1'/)
   assert.match(runner, /'stop', '--timeout', '60', 'postgres'/)
   assert.match(database.scripts['test:integration'], /--timeout 30000/)
   assert.match(testing.scripts['test:integration'], /--timeout 30000/)
