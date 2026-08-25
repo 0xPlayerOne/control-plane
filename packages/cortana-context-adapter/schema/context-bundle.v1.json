@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://control-plane.invalid/schemas/cortana-context-bundle.v1.json",
+  "title": "Cortana-compatible ContextBundle v1",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "bundleId",
+    "bundleDigest",
+    "scopeDigest",
+    "corpusRevision",
+    "retrievalVersion",
+    "createdAt",
+    "tokenCount",
+    "degraded",
+    "omittedCount",
+    "evidence",
+    "memories"
+  ],
+  "additionalProperties": false
+}

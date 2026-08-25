@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto'
-import { IdentifierSchemas } from '@control-plane/contracts'
+import {
+  ContextContributionSchema,
+  IdentifierSchemas,
+  type ContextContribution,
+} from '@control-plane/contracts'
 import { ProjectStateSchema, type ProjectStateItem } from '@control-plane/domain'
 import { z } from 'zod'
 
@@ -84,6 +88,13 @@ export const ContextPackageSchema = z
         })
       ),
     }),
+    providerComposition: z
+      .object({
+        callerContextRefs: z.array(z.string().min(1).max(512)).max(128),
+        localProjectGrantRefs: z.array(z.string().min(1).max(512)).max(128),
+        contributions: z.array(ContextContributionSchema).max(128),
+      })
+      .optional(),
     parentContextPackage: ContextPackageReferenceSchema.optional(),
   })
   .refine(
@@ -274,7 +285,10 @@ export function deriveContextPackage(parentInput: unknown, input: unknown): Cont
     if (item.provenance.artifactRefs.some((id) => !selectedArtifactIds.has(id)))
       fail('CHILD_SCOPE_EXPANSION', item.itemId)
   }
-  const usage = calculateUsage(stateItems, artifactRefs)
+  const usage = addProviderUsage(
+    calculateUsage(stateItems, artifactRefs),
+    parent.providerComposition?.contributions ?? []
+  )
   if (usage.bytes > parsed.budgets.maximumBytes || usage.tokens > parsed.budgets.maximumTokens)
     fail('REQUIRED_CONTEXT_EXCEEDS_BUDGET')
   return finalizePackage({
@@ -298,6 +312,50 @@ export function deriveContextPackage(parentInput: unknown, input: unknown): Cont
     parentContextPackage: {
       contextPackageId: parent.contextPackageId,
       contentDigest: parent.contentDigest,
+    },
+  })
+}
+
+export function composeProviderContextPackage(
+  packageInput: unknown,
+  input: {
+    callerContextRefs: string[]
+    localProjectGrantRefs: string[]
+    contributions: ContextContribution[]
+  }
+): ContextPackage {
+  const package_ = ContextPackageSchema.parse(packageInput)
+  assertPackageIntegrity(package_)
+  const composition = z
+    .object({
+      callerContextRefs: z.array(z.string().min(1).max(512)).max(128),
+      localProjectGrantRefs: z.array(z.string().min(1).max(512)).max(128),
+      contributions: z.array(ContextContributionSchema).max(128),
+    })
+    .parse(input)
+  if (
+    new Set(composition.contributions.map((entry) => entry.contributionId)).size !==
+    composition.contributions.length
+  )
+    fail('CONTRADICTORY_CONTEXT_REFERENCE', 'provider-contribution')
+  const contributions = [...composition.contributions].sort(
+    (left, right) =>
+      left.providerId.localeCompare(right.providerId) ||
+      left.kind.localeCompare(right.kind) ||
+      left.contributionId.localeCompare(right.contributionId)
+  )
+  const usage = addProviderUsage(package_.usage, contributions)
+  if (usage.bytes > package_.budgets.maximumBytes || usage.tokens > package_.budgets.maximumTokens)
+    fail('REQUIRED_CONTEXT_EXCEEDS_BUDGET', 'provider-contribution')
+  return finalizePackage({
+    ...package_,
+    contextPackageId: undefined,
+    contentDigest: undefined,
+    usage,
+    providerComposition: {
+      callerContextRefs: [...composition.callerContextRefs].sort(),
+      localProjectGrantRefs: [...composition.localProjectGrantRefs].sort(),
+      contributions,
     },
   })
 }
@@ -414,6 +472,18 @@ function calculateUsage(
     items.reduce((sum, item) => sum + item.usage.tokens, 0) +
     artifacts.reduce((sum, artifact) => sum + tokensFor(artifact.sizeBytes), 0)
   return { bytes, tokens }
+}
+function addProviderUsage(
+  usage: { bytes: number; tokens: number },
+  contributions: ContextContribution[]
+): { bytes: number; tokens: number } {
+  return {
+    bytes:
+      usage.bytes +
+      contributions.reduce((sum, contribution) => sum + Buffer.byteLength(contribution.content), 0),
+    tokens:
+      usage.tokens + contributions.reduce((sum, contribution) => sum + contribution.tokenCount, 0),
+  }
 }
 function normalizeConstraints(
   constraints: ContextPackage['constraints']

@@ -55,6 +55,7 @@ export interface ContextProviderPin {
   included: boolean
   omissionReason?: ContextProviderErrorCode | 'NO_ELIGIBLE_PROVIDER'
   provenance: Array<{ sourceRef: string; sourceKind: string; citation?: string }>
+  providerMetadata?: ContextContribution['providerMetadata']
 }
 
 export interface ContextProviderResolution {
@@ -107,6 +108,9 @@ export class ContextProviderResolver {
               sourceKind,
               ...(citation === undefined ? {} : { citation }),
             })),
+            ...(entry.providerMetadata === undefined
+              ? {}
+              : { providerMetadata: entry.providerMetadata }),
           })),
         }
       } catch (error) {

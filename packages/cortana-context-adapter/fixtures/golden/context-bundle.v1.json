@@ -1,0 +1,33 @@
+{
+  "contractVersion": "1.0.0",
+  "bundleId": "bundle-golden-1",
+  "bundleDigest": "sha256:b5986140c31dcec43e9c6caaae7cec9e50808afc1b17ec830526203ed36208f7",
+  "scopeDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "corpusRevision": "corpus-42",
+  "memoryRevision": "memory-9",
+  "embeddingVersion": "embed-3",
+  "retrievalVersion": "retrieve-2",
+  "createdAt": "2026-08-25T11:59:00.000Z",
+  "tokenCount": 8,
+  "degraded": false,
+  "omittedCount": 0,
+  "evidence": [
+    {
+      "sliceId": "evidence-1",
+      "content": "bounded evidence",
+      "tokenCount": 4,
+      "contentDigest": "sha256:30093e91ea5f5bf22aeff70004c2b7f29608ce396d42817d76803104fa0a40e7",
+      "sourceRef": "https://example.invalid/evidence/1",
+      "citation": "Evidence fixture 1"
+    }
+  ],
+  "memories": [
+    {
+      "sliceId": "memory-1",
+      "content": "bounded memory",
+      "tokenCount": 4,
+      "contentDigest": "sha256:d770b00ff4ffced952aece9ab241eb6a946a5a934e48eafe0d48dc13b4cfc655",
+      "sourceRef": "memory://fixture/1"
+    }
+  ]
+}

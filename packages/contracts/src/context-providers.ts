@@ -66,6 +66,17 @@ export const ContextContributionSchema = z.object({
       sourceKind: z.enum(['external_evidence', 'provider_memory', 'provider_context']),
     })
   ),
+  providerMetadata: z
+    .object({
+      bundleId: z.string().min(1).max(256),
+      bundleDigest: DigestSchema,
+      corpusRevision: z.string().min(1).max(256),
+      memoryRevision: z.string().min(1).max(256).optional(),
+      embeddingVersion: z.string().min(1).max(128).optional(),
+      retrievalVersion: z.string().min(1).max(128),
+      omittedCount: z.number().int().nonnegative(),
+    })
+    .optional(),
 })
 
 export const ContextProviderReadModelSchema = z.object({
