@@ -33,6 +33,12 @@ const deployment = {
   credentialRef: 'lease://model/openai',
   adapterRef: 'litellm-primary',
   enabled: true,
+  fundingSource: 'hq_managed',
+  maxContextTokens: 128_000,
+  maxOutputTokens: 16_384,
+  costClass: 'premium',
+  priority: 10,
+  requiredEntitlements: ['models.managed'],
 }
 const request = (overrides = {}) => ({
   modelCallId: ids.call,
@@ -48,6 +54,11 @@ const request = (overrides = {}) => ({
   policySnapshot: snapshot,
   traceId: ids.trace,
   fundingSource: 'hq_managed',
+  routing: {
+    entitlements: ['models.managed'],
+    maxCostClass: 'premium',
+    estimatedInputTokens: 128,
+  },
   ...overrides,
 })
 const allowPdp = {
@@ -188,5 +199,91 @@ describe('managed model gateway', () => {
       code: 'PROVIDER_FAILED',
       message: 'PROVIDER_FAILED',
     })
+  })
+
+  test('routes deterministically and explains only eligible ranked candidates', async () => {
+    const { gateway, registry } = await fixture()
+    registry.register({
+      ...deployment,
+      deploymentId: 'managed.reasoning.backup',
+      provider: 'anthropic',
+      providerModel: 'claude-sonnet',
+      credentialRef: 'lease://model/anthropic',
+      priority: 20,
+    })
+    const first = await gateway.complete(request())
+    const second = await gateway.complete(
+      request({ modelCallId: 'mdc_01JABCDEF0123456789ABCDEFH' })
+    )
+    expect(first.route).toEqual(second.route)
+    expect(first.route).toMatchObject({
+      deploymentId: 'managed.reasoning.us',
+      routerVersion: 'model-router/v1',
+      eligibleCandidateIds: ['managed.reasoning.us', 'managed.reasoning.backup'],
+    })
+    expect(JSON.stringify(first.route)).not.toContain('lease://')
+  })
+
+  test('falls back on transient outage only to an allowed healthy compatible route', async () => {
+    const adapter = new FakeModelAdapter()
+    const { gateway, registry } = await fixture(adapter)
+    registry.register({
+      ...deployment,
+      deploymentId: 'managed.reasoning.backup',
+      provider: 'anthropic',
+      providerModel: 'claude-sonnet',
+      credentialRef: 'lease://model/anthropic',
+      priority: 20,
+      costClass: 'standard',
+    })
+    adapter.errorsByDeployment.set('managed.reasoning.us', {
+      code: 'PROVIDER_OVERLOADED',
+      retryable: true,
+    })
+    const result = await gateway.complete(request())
+    expect(result.route).toMatchObject({
+      deploymentId: 'managed.reasoning.backup',
+      fallbackFrom: 'managed.reasoning.us',
+    })
+    expect(adapter.requests.map((entry) => entry.deploymentId)).toEqual([
+      'managed.reasoning.us',
+      'managed.reasoning.backup',
+    ])
+
+    registry.setHealth('managed.reasoning.backup', 'unhealthy')
+    await expect(
+      gateway.complete(request({ modelCallId: 'mdc_01JABCDEF0123456789ABCDEFH' }))
+    ).rejects.toMatchObject({ code: 'PROVIDER_FAILED' })
+  })
+
+  test('never admits fallback candidates that violate budget, entitlement, or data policy', async () => {
+    const adapter = new FakeModelAdapter()
+    const { gateway, registry } = await fixture(adapter)
+    registry.register({
+      ...deployment,
+      deploymentId: 'managed.reasoning.eu-premium',
+      provider: 'anthropic',
+      providerModel: 'claude-opus',
+      credentialRef: 'lease://model/anthropic',
+      dataResidency: 'eu',
+      requiredEntitlements: ['models.enterprise'],
+      priority: 20,
+    })
+    adapter.errorsByDeployment.set('managed.reasoning.us', {
+      code: 'PROVIDER_OVERLOADED',
+      retryable: true,
+    })
+    await expect(
+      gateway.complete(
+        request({
+          routing: {
+            entitlements: ['models.managed'],
+            maxCostClass: 'standard',
+            estimatedInputTokens: 128,
+          },
+        })
+      )
+    ).rejects.toMatchObject({ code: 'MODEL_UNAVAILABLE' })
+    expect(adapter.requests).toHaveLength(0)
   })
 })
