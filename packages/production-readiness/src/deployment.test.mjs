@@ -71,6 +71,25 @@ describe('production deployment compatibility gate', () => {
     expect(result).toEqual({ decision: 'rollback', reasons: ['canary_unhealthy'] })
   })
 
+  test('rejects a deployment manifest that contains no service images', () => {
+    const manifest = {
+      releaseId: 'release-empty',
+      commitSha: 'a'.repeat(40),
+      images: {},
+      contracts: { api: 1, database: 18, runtimeGateway: 1 },
+    }
+
+    expect(() =>
+      assessDeployment({
+        current: manifest,
+        candidate: { ...manifest, releaseId: 'release-empty-candidate' },
+        compatibility: { api: [1], database: [18], runtimeGateway: [1] },
+        canary: { healthy: true, errorRate: 0, p95LatencyMs: 1 },
+        budgets: { maximumErrorRate: 0, maximumP95LatencyMs: 100 },
+      })
+    ).toThrow()
+  })
+
   test('blocks image-set drift and database downgrades even with migration evidence', () => {
     const result = assessDeployment({
       current: {

@@ -12,7 +12,9 @@ const DeploymentManifestSchema = z
   .object({
     releaseId: z.string().min(1).max(128),
     commitSha: z.string().regex(/^[0-9a-f]{40}$/),
-    images: z.record(z.string().min(1), z.string().min(1)),
+    images: z
+      .record(z.string().min(1), z.string().min(1))
+      .refine((images) => Object.keys(images).length > 0, 'At least one service image is required'),
     contracts: ContractVersionsSchema,
   })
   .strict()

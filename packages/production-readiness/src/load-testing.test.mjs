@@ -142,6 +142,29 @@ describe('load, capacity, and cost baselines', () => {
     expect(result.failedBudgets).toContain('invalid_evidence')
   })
 
+  test('fails closed on invalid clock or memory measurements', async () => {
+    const result = await runLoadProfile(
+      {
+        profileId: 'invalid-measurements',
+        iterations: 1,
+        concurrency: 1,
+        budgets: {
+          p95LatencyMs: 100,
+          minimumThroughputPerSecond: 0,
+          maximumErrorRate: 1,
+          maximumMemoryDeltaBytes: 1024,
+          maximumCostPerOperationUsd: 1,
+          maximumAttemptsPerOperation: 2,
+        },
+      },
+      async () => ({ costUsd: 0, attempts: 1 }),
+      { now: () => Number.NaN, memoryUsage: () => Number.POSITIVE_INFINITY }
+    )
+
+    expect(result.status).toBe('failed')
+    expect(result.failedBudgets).toContain('invalid_evidence')
+  })
+
   test('rejects non-finite or negative baseline comparison inputs', () => {
     const baseline = {
       p95LatencyMs: 100,

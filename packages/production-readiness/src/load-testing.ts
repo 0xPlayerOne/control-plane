@@ -59,6 +59,8 @@ export async function runLoadProfile(
   const memoryUsage = adapters.memoryUsage ?? (() => process.memoryUsage.rss())
   const startedAt = now()
   const memoryBefore = memoryUsage()
+  let invalidMeasurement =
+    !Number.isFinite(startedAt) || !Number.isSafeInteger(memoryBefore) || memoryBefore < 0
   const latencies: number[] = []
   let nextSequence = 0
   let completed = 0
@@ -90,13 +92,36 @@ export async function runLoadProfile(
         } catch {
           failed += 1
         } finally {
-          latencies.push(Math.max(0, now() - operationStartedAt))
+          const operationCompletedAt = now()
+          const latency = operationCompletedAt - operationStartedAt
+          if (
+            !Number.isFinite(operationStartedAt) ||
+            !Number.isFinite(operationCompletedAt) ||
+            !Number.isFinite(latency) ||
+            latency < 0
+          ) {
+            invalidMeasurement = true
+          }
+          latencies.push(Number.isFinite(latency) && latency >= 0 ? latency : 0)
         }
       }
     })
   )
 
-  const durationMs = Math.max(1, now() - startedAt)
+  const completedAt = now()
+  const memoryAfter = memoryUsage()
+  const duration = completedAt - startedAt
+  if (
+    !Number.isFinite(completedAt) ||
+    !Number.isFinite(duration) ||
+    duration < 0 ||
+    !Number.isSafeInteger(memoryAfter) ||
+    memoryAfter < 0
+  ) {
+    invalidMeasurement = true
+  }
+  if (invalidMeasurement) invalidEvidence += 1
+  const durationMs = Number.isFinite(duration) && duration >= 0 ? Math.max(1, duration) : 1
   const result = {
     profileId: profile.profileId,
     completed,
@@ -106,7 +131,10 @@ export async function runLoadProfile(
     p99LatencyMs: percentile(latencies, 0.99),
     throughputPerSecond: (completed / durationMs) * 1000,
     errorRate: failed / profile.iterations,
-    memoryDeltaBytes: Math.max(0, memoryUsage() - memoryBefore),
+    memoryDeltaBytes:
+      Number.isSafeInteger(memoryBefore) && Number.isSafeInteger(memoryAfter)
+        ? Math.max(0, memoryAfter - memoryBefore)
+        : 0,
     costPerOperationUsd: totalCostUsd / profile.iterations,
     maximumAttempts,
     invalidEvidence,
