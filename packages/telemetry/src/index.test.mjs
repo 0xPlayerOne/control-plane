@@ -293,4 +293,37 @@ describe('telemetry safety and correlation', () => {
       'private'
     )
   })
+
+  test('does not initialize disabled Sentry and fails open when its SDK cannot initialize', async () => {
+    let initializationAttempts = 0
+    const unavailableSdk = {
+      captureException() {},
+      async flush() {
+        return false
+      },
+      init() {
+        initializationAttempts += 1
+        throw new Error('SENTRY_UNAVAILABLE')
+      },
+      withScope() {},
+    }
+
+    const disabled = await createSentryErrorTracker({
+      enabled: false,
+      environment: 'test',
+      release: '1.0.0',
+      sdk: unavailableSdk,
+    })
+    expect(initializationAttempts).toBe(0)
+    expect(() => disabled.captureException(new Error('domain'))).not.toThrow()
+
+    const unavailable = await createSentryErrorTracker({
+      dsn: 'https://public@example.invalid/1',
+      environment: 'test',
+      release: '1.0.0',
+      sdk: unavailableSdk,
+    })
+    expect(initializationAttempts).toBe(1)
+    expect(() => unavailable.captureException(new Error('domain'))).not.toThrow()
+  })
 })
