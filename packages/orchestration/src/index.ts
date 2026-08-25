@@ -1,0 +1,164 @@
+import { IdentifierSchemas } from '@control-plane/contracts'
+import { z } from 'zod'
+
+const DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+const TimestampSchema = z.iso.datetime()
+const SafeReferenceSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/)
+const JsonObjectSchema = z.record(z.string(), z.json())
+
+export const GraphReferenceSchema = z
+  .object({
+    graphDefinitionId: SafeReferenceSchema,
+    graphVersion: z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/),
+    contentDigest: DigestSchema,
+  })
+  .strict()
+
+const GraphCorrelationSchema = z
+  .object({
+    executionId: IdentifierSchemas.executionId,
+    attemptId: IdentifierSchemas.attemptId,
+    workspaceId: IdentifierSchemas.workspaceId,
+    workflowId: IdentifierSchemas.workflowId,
+  })
+  .strict()
+
+export const GraphExecutionRequestSchema = GraphCorrelationSchema.extend({
+  graph: GraphReferenceSchema,
+  threadId: SafeReferenceSchema,
+  input: JsonObjectSchema,
+  idempotencyKey: SafeReferenceSchema,
+}).strict()
+
+export const GraphResumeRequestSchema = GraphCorrelationSchema.extend({
+  graph: GraphReferenceSchema,
+  threadId: SafeReferenceSchema,
+  checkpointId: SafeReferenceSchema,
+  response: z.json(),
+  idempotencyKey: SafeReferenceSchema,
+}).strict()
+
+export const GraphCancellationRequestSchema = GraphCorrelationSchema.extend({
+  graph: GraphReferenceSchema,
+  threadId: SafeReferenceSchema,
+  reason: z.enum(['user_request', 'parent_cancelled', 'deadline', 'policy', 'shutdown']),
+}).strict()
+
+export const GraphEventSchema = GraphCorrelationSchema.extend({
+  threadId: SafeReferenceSchema,
+  checkpointId: SafeReferenceSchema.optional(),
+  sequence: z.number().int().positive(),
+  type: z.enum([
+    'graph.started',
+    'graph.node.started',
+    'graph.node.completed',
+    'graph.interrupted',
+    'graph.resumed',
+    'graph.completed',
+    'graph.failed',
+    'graph.cancelled',
+  ]),
+  node: SafeReferenceSchema.optional(),
+  occurredAt: TimestampSchema,
+  details: JsonObjectSchema.default({}),
+}).strict()
+
+const SegmentBaseSchema = z.object({
+  state: JsonObjectSchema,
+  checkpointId: SafeReferenceSchema.optional(),
+  events: z.array(GraphEventSchema).max(10_000),
+})
+
+export const GraphSegmentResultSchema = z.discriminatedUnion('status', [
+  SegmentBaseSchema.extend({
+    status: z.literal('completed'),
+    output: JsonObjectSchema,
+  }).strict(),
+  SegmentBaseSchema.extend({
+    status: z.literal('continue'),
+    checkpointId: SafeReferenceSchema,
+  }).strict(),
+  SegmentBaseSchema.extend({
+    status: z.literal('awaiting_input'),
+    checkpointId: SafeReferenceSchema,
+    interrupt: z
+      .object({
+        interactionKey: SafeReferenceSchema,
+        kind: z.enum(['input', 'approval', 'grant', 'runtime']),
+        payload: z.json(),
+      })
+      .strict(),
+  }).strict(),
+  SegmentBaseSchema.extend({
+    status: z.literal('failed'),
+    failure: z
+      .object({
+        code: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+        retryable: z.boolean(),
+      })
+      .strict(),
+  }).strict(),
+  SegmentBaseSchema.extend({ status: z.literal('cancelled') }).strict(),
+])
+
+export const GraphNodeOperationSchema = GraphCorrelationSchema.extend({
+  threadId: SafeReferenceSchema,
+  node: SafeReferenceSchema,
+  kind: z.enum(['runtime', 'model', 'tool', 'delegation']),
+  name: SafeReferenceSchema,
+  input: JsonObjectSchema,
+  idempotencyKey: SafeReferenceSchema,
+}).strict()
+
+export type GraphReference = z.output<typeof GraphReferenceSchema>
+export type GraphExecutionRequest = z.output<typeof GraphExecutionRequestSchema>
+export type GraphResumeRequest = z.output<typeof GraphResumeRequestSchema>
+export type GraphCancellationRequest = z.output<typeof GraphCancellationRequestSchema>
+export type GraphEvent = z.output<typeof GraphEventSchema>
+export type GraphSegmentResult = z.output<typeof GraphSegmentResultSchema>
+export type GraphNodeOperation = z.output<typeof GraphNodeOperationSchema>
+
+export interface GraphNodeOperationPort {
+  invoke(operation: GraphNodeOperation): Promise<Readonly<Record<string, unknown>>>
+  cancel(executionId: string, threadId: string): Promise<boolean>
+}
+
+export interface GraphEventPublisher {
+  publish(event: GraphEvent): Promise<void>
+}
+
+export interface OrchestrationPort {
+  run(request: GraphExecutionRequest): Promise<GraphSegmentResult>
+  resume(request: GraphResumeRequest): Promise<GraphSegmentResult>
+  cancel(request: GraphCancellationRequest): Promise<boolean>
+}
+
+export type OrchestrationErrorCode =
+  | 'INVALID_GRAPH_REQUEST'
+  | 'GRAPH_NOT_FOUND'
+  | 'GRAPH_VERSION_MISMATCH'
+  | 'GRAPH_FAILED'
+  | 'GRAPH_CANCELLED'
+  | 'CHECKPOINT_MISSING'
+  | 'RESUME_FAILED'
+
+export class OrchestrationError extends Error {
+  constructor(
+    readonly code: OrchestrationErrorCode,
+    readonly retryable: boolean,
+    override readonly cause?: unknown
+  ) {
+    super(code)
+    this.name = 'OrchestrationError'
+  }
+}
+
+export function createGraphEvent(input: unknown): GraphEvent {
+  return GraphEventSchema.parse(input)
+}
+
+export const packageName = 'orchestration'
