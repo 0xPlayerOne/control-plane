@@ -12,6 +12,7 @@ export { PostgresReconciliationCheckpointRepository } from './reconciliation-che
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
 export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
 export { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.js'
+export { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.js'
 export type {
   ControlPlaneDatabase,
   PostgresConnection,
@@ -56,6 +57,7 @@ export {
   runtimeEventMessageKind,
   runtimeEventReceiptOutcome,
   runtimeEventReceipts,
+  runtimeInventoryCheckpoints,
   softDeleteColumns,
   timestampColumns,
 } from './schema/index.js'

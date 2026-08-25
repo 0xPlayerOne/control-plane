@@ -4,6 +4,7 @@ import type { RuntimeGatewayWebSocketServer } from './websocket-server.js'
 export * from './authentication.js'
 export * from './runtime-command-delivery.js'
 export * from './runtime-event-ingestion.js'
+export * from './runtime-inventory-ingestion.js'
 export * from './websocket-lifecycle.js'
 
 export const serviceName = 'runtime-gateway'

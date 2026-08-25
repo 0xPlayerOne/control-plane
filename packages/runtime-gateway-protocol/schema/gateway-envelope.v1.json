@@ -548,11 +548,13 @@
           "maximum": 9007199254740991
         },
         "type": { "type": "string", "const": "inventory" },
+        "mode": { "type": "string", "enum": ["snapshot", "delta"] },
         "snapshotVersion": {
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
         },
+        "baseSnapshotVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
         "observedAt": {
           "type": "string",
           "format": "date-time",
@@ -566,6 +568,10 @@
             "properties": {
               "opaqueRef": { "type": "string", "pattern": "^(?:nref|pvr)_[0-9A-HJKMNP-TV-Z]{26}$" },
               "driverFamily": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+              "adapterVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+              },
               "driverVersion": {
                 "type": "string",
                 "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
@@ -619,6 +625,10 @@
             "properties": {
               "opaqueRef": { "type": "string", "pattern": "^(?:nref|pvr)_[0-9A-HJKMNP-TV-Z]{26}$" },
               "driverFamily": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+              "adapterVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+              },
               "driverVersion": {
                 "type": "string",
                 "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
@@ -663,6 +673,11 @@
             ],
             "additionalProperties": false
           }
+        },
+        "removedRuntimeRefs": {
+          "maxItems": 128,
+          "type": "array",
+          "items": { "type": "string", "pattern": "^nref_[0-9A-HJKMNP-TV-Z]{26}$" }
         }
       },
       "required": [

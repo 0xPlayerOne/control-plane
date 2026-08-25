@@ -28,10 +28,11 @@ export type GatewayProtocolVersion = z.output<typeof GatewayProtocolVersionSchem
 
 export const GatewayProtocolManifest = Object.freeze({
   name: 'control-plane-runtime-gateway',
-  current: { major: 1, minor: 1 },
+  current: { major: 1, minor: 2 },
   supported: [
     { major: 1, minor: 0 },
     { major: 1, minor: 1 },
+    { major: 1, minor: 2 },
   ],
 })
 
@@ -265,6 +266,7 @@ const DriverInventorySchema = z
   .object({
     opaqueRef: z.string().regex(/^(?:nref|pvr)_[0-9A-HJKMNP-TV-Z]{26}$/),
     driverFamily: DriverFamilySchema,
+    adapterVersion: VersionStringSchema.optional(),
     driverVersion: VersionStringSchema,
     harnessVersion: VersionStringSchema.optional(),
     protocolVersion: GatewayProtocolVersionSchema,
@@ -276,11 +278,74 @@ const DriverInventorySchema = z
 
 export const GatewayInventoryEnvelopeSchema = CommonEnvelopeSchema.extend({
   type: z.literal('inventory'),
-  snapshotVersion: z.number().int().positive(),
+  mode: z.enum(['snapshot', 'delta']).optional(),
+  snapshotVersion: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  baseSnapshotVersion: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   observedAt: TimestampSchema,
   runtimeDrivers: z.array(DriverInventorySchema).max(128),
   contextProviders: z.array(DriverInventorySchema).max(32),
-}).strict()
+  removedRuntimeRefs: z
+    .array(z.string().regex(/^nref_[0-9A-HJKMNP-TV-Z]{26}$/))
+    .max(128)
+    .optional(),
+})
+  .strict()
+  .superRefine((inventory, context) => {
+    const mode = inventory.mode ?? 'snapshot'
+    if (mode === 'delta' && inventory.protocolVersion.minor < 2) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mode'],
+        message: 'Inventory deltas require protocol v1.2',
+      })
+    }
+    if (mode === 'delta' && inventory.baseSnapshotVersion === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['baseSnapshotVersion'],
+        message: 'Inventory deltas require a base snapshot version',
+      })
+    }
+    if (mode === 'snapshot' && inventory.baseSnapshotVersion !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['baseSnapshotVersion'],
+        message: 'Inventory snapshots cannot declare a base version',
+      })
+    }
+    const runtimeRefs = inventory.runtimeDrivers.map(({ opaqueRef }) => opaqueRef)
+    const removedRefs = inventory.removedRuntimeRefs ?? []
+    if (
+      new Set(runtimeRefs).size !== runtimeRefs.length ||
+      new Set(removedRefs).size !== removedRefs.length
+    ) {
+      context.addIssue({ code: 'custom', message: 'Inventory runtime references must be unique' })
+    }
+    if (runtimeRefs.some((runtimeRef) => removedRefs.includes(runtimeRef))) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Inventory cannot update and remove the same runtime',
+      })
+    }
+    if (inventory.protocolVersion.minor >= 2) {
+      inventory.runtimeDrivers.forEach((driver, index) => {
+        if (driver.adapterVersion === undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: ['runtimeDrivers', index, 'adapterVersion'],
+            message: 'Protocol v1.2 runtime inventory requires an adapter version',
+          })
+        }
+        if (driver.harnessVersion === undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: ['runtimeDrivers', index, 'harnessVersion'],
+            message: 'Protocol v1.2 runtime inventory requires a harness version',
+          })
+        }
+      })
+    }
+  })
 
 export const GatewayErrorEnvelopeSchema = CommonEnvelopeSchema.extend({
   type: z.literal('error'),
@@ -310,6 +375,7 @@ export type GatewayAcknowledgementEnvelope = z.output<typeof GatewayAcknowledgem
 export type GatewayResultEnvelope = z.output<typeof GatewayResultEnvelopeSchema>
 export type GatewayProgressEnvelope = z.output<typeof GatewayProgressEnvelopeSchema>
 export type GatewayErrorEnvelope = z.output<typeof GatewayErrorEnvelopeSchema>
+export type GatewayInventoryEnvelope = z.output<typeof GatewayInventoryEnvelopeSchema>
 
 function highestMinor(values: readonly GatewayProtocolVersion[]): Map<number, number> {
   const result = new Map<number, number>()

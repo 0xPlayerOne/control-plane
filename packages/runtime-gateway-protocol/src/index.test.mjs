@@ -121,6 +121,33 @@ describe('Runtime Gateway protocol', () => {
     )
   })
 
+  test('supports additive v1.2 inventory deltas with correlated runtime versions', () => {
+    const runtime = {
+      ...inventoryFixtures.noProvider.runtimeDrivers[0],
+      adapterVersion: '1.0.0',
+      protocolVersion: { major: 1, minor: 2 },
+    }
+    const delta = {
+      ...inventoryFixtures.noProvider,
+      protocolVersion: { major: 1, minor: 2 },
+      mode: 'delta',
+      snapshotVersion: 2,
+      baseSnapshotVersion: 1,
+      runtimeDrivers: [runtime],
+      removedRuntimeRefs: [],
+    }
+    expect(GatewayEnvelopeSchema.safeParse(delta).success).toBeTrue()
+    expect(
+      GatewayEnvelopeSchema.safeParse({ ...delta, baseSnapshotVersion: undefined }).success
+    ).toBeFalse()
+    expect(
+      GatewayEnvelopeSchema.safeParse({
+        ...delta,
+        runtimeDrivers: [{ ...runtime, adapterVersion: undefined }],
+      }).success
+    ).toBeFalse()
+  })
+
   test('passes the reusable protocol conformance suite against the reference node', () => {
     expect(runGatewayProtocolConformance()).toEqual({ scenarios: 9, passed: 9 })
   })
