@@ -21,6 +21,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@control-plane/contracts": "workspace:*",
+    "zod": "4.4.3"
   }
 }

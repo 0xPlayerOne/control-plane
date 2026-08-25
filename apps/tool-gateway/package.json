@@ -12,9 +12,12 @@
     "build": "tsc -p tsconfig.json",
     "start": "bun src/start.ts",
     "lint": "eslint src",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun test src"
   },
   "dependencies": {
-    "@control-plane/bootstrap": "workspace:*"
+    "@control-plane/bootstrap": "workspace:*",
+    "@control-plane/contracts": "workspace:*",
+    "@control-plane/tool-sdk": "workspace:*",
+    "ajv": "8.20.0"
   }
 }
