@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-v1.1.0...runtime-gateway-v1.1.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **gateway:** reject frames after channel revocation ([#147](https://github.com/0xPlayerOne/control-plane/issues/147)) ([1c9ce81](https://github.com/0xPlayerOne/control-plane/commit/1c9ce8155313196e47f3925fbdcda622475cf026))
+* **runtime-gateway:** fail closed without production server ([#154](https://github.com/0xPlayerOne/control-plane/issues/154)) ([e6309d7](https://github.com/0xPlayerOne/control-plane/commit/e6309d76a262fae79ee388aebdb22632dd7fdbe6))
+* **runtime-gateway:** require explicit reconnect recovery ([#150](https://github.com/0xPlayerOne/control-plane/issues/150)) ([1072dd9](https://github.com/0xPlayerOne/control-plane/commit/1072dd9f991d5d9693e7d4475cc9471cf0e42136))
+
+
+### Maintenance
+
+* **runtime-gateway:** unify event context types ([#153](https://github.com/0xPlayerOne/control-plane/issues/153)) ([a012e71](https://github.com/0xPlayerOne/control-plane/commit/a012e7156c88354156745dc6fcdb983091c33346))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-v1.0.0...runtime-gateway-v1.1.0) (2026-08-25)
 
 

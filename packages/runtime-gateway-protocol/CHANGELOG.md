@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-protocol-v1.1.0...runtime-gateway-protocol-v1.1.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **runtime-gateway:** reject privileged selector aliases ([#149](https://github.com/0xPlayerOne/control-plane/issues/149)) ([cb524e5](https://github.com/0xPlayerOne/control-plane/commit/cb524e5870798da8de0bd89cd95a3ae89cb59a23))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-protocol-v1.0.0...runtime-gateway-protocol-v1.1.0) (2026-08-25)
 
 
