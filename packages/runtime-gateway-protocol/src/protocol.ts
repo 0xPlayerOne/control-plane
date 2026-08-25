@@ -28,11 +28,12 @@ export type GatewayProtocolVersion = z.output<typeof GatewayProtocolVersionSchem
 
 export const GatewayProtocolManifest = Object.freeze({
   name: 'control-plane-runtime-gateway',
-  current: { major: 1, minor: 2 },
+  current: { major: 1, minor: 3 },
   supported: [
     { major: 1, minor: 0 },
     { major: 1, minor: 1 },
     { major: 1, minor: 2 },
+    { major: 1, minor: 3 },
   ],
 })
 
@@ -112,11 +113,62 @@ const CommandPayloadSchema = z.union([
     .strict(),
 ])
 
+export const GatewayRetainedCommandOutcomeSchema = z
+  .object({
+    commandId: canonicalId('cmd', 'command ID'),
+    payloadHash: DigestSchema,
+    status: z.enum([
+      'accepted',
+      'running',
+      'cancelling',
+      'succeeded',
+      'failed',
+      'cancelled',
+      'unknown',
+    ]),
+    observedAt: TimestampSchema,
+    result: z
+      .union([
+        z.object({ data: z.record(z.string(), z.json()) }).strict(),
+        z.object({ artifact: GatewayArtifactReferenceSchema }).strict(),
+      ])
+      .optional(),
+  })
+  .strict()
+  .superRefine((outcome, context) => {
+    if (outcome.status === 'succeeded' && outcome.result === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['result'],
+        message: 'Successful retained outcomes require a result',
+      })
+    }
+  })
+
 export const GatewayHelloEnvelopeSchema = CommonEnvelopeSchema.extend({
   type: z.literal('hello'),
   supportedVersions: z.array(GatewayProtocolVersionSchema).min(1).max(16),
   lastAcknowledgedSequence: z.number().int().nonnegative(),
-}).strict()
+  retainedCommandOutcomes: z.array(GatewayRetainedCommandOutcomeSchema).max(256).optional(),
+})
+  .strict()
+  .superRefine((hello, context) => {
+    const outcomes = hello.retainedCommandOutcomes ?? []
+    if (new Set(outcomes.map(({ commandId }) => commandId)).size !== outcomes.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['retainedCommandOutcomes'],
+        message: 'Retained command outcomes must be unique',
+      })
+    }
+    if (outcomes.length > 0 && hello.protocolVersion.minor < 3) {
+      context.addIssue({
+        code: 'custom',
+        path: ['retainedCommandOutcomes'],
+        message: 'Retained outcomes require protocol v1.3',
+      })
+    }
+  })
 
 const GatewayCommandBaseSchema = CommonEnvelopeSchema.extend({
   type: z.literal('command'),
@@ -376,6 +428,8 @@ export type GatewayResultEnvelope = z.output<typeof GatewayResultEnvelopeSchema>
 export type GatewayProgressEnvelope = z.output<typeof GatewayProgressEnvelopeSchema>
 export type GatewayErrorEnvelope = z.output<typeof GatewayErrorEnvelopeSchema>
 export type GatewayInventoryEnvelope = z.output<typeof GatewayInventoryEnvelopeSchema>
+export type GatewayHelloEnvelope = z.output<typeof GatewayHelloEnvelopeSchema>
+export type GatewayRetainedCommandOutcome = z.output<typeof GatewayRetainedCommandOutcomeSchema>
 
 function highestMinor(values: readonly GatewayProtocolVersion[]): Map<number, number> {
   const result = new Map<number, number>()

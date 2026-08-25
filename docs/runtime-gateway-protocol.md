@@ -46,6 +46,12 @@ The durable per-node checkpoint records only the accepted version, canonical dig
 
 RuntimeNode reachability remains separate from individual runtime health. Inventory ingestion calls the ordinary M4 health and availability-change ports, so Agent HQ read models observe Control Plane API/event changes rather than gateway-specific client pushes. Context-provider inventory remains a distinct protocol family and is not registered as an executable RuntimeConnection.
 
+## Reconnect reconciliation
+
+Protocol v1.3 lets the RuntimeNode hello carry a bounded, unique set of retained command outcomes alongside its last acknowledged transport sequence. The gateway correlates every retained outcome to the durable command's node, workspace, command ID, and payload hash. Cloud-terminal results are reused; node-terminal results flow through the same normalized terminal ingestion path; active retained work is reconciled with M3 execution state.
+
+Queued commands and commands whose prior sequence is provably beyond the node's acknowledged watermark may be redelivered with the same semantic command ID. An acknowledged command missing from the retained ledger, an explicit unknown outcome, an unknown command, or a state conflict is never guessed: M3 reconciliation is invoked and manual-intervention telemetry is emitted. Expired commands are expired without send, while revoked nodes or grants and changed/incompatible runtime capabilities prevent resume. Recovery duration, redelivery, unknown outcome, and manual-intervention metrics describe the reconnect path.
+
 Concrete runtime adapters implement `RuntimeAdapterEventNormalizer`; provider or harness event types never enter execution state or the `ExecutionEvent` log. Normalized progress becomes bounded attempt, interaction, usage, or Artifact events. A stable event ID and the PostgreSQL `runtime_event_receipts` inbox make duplicate delivery identifiable across gateway restarts, reject conflicting reuse, and safely classify out-of-order progress.
 
 Terminal state, result reference or normalized failure, the required execution event, and its ingestion receipt commit through one effect sink. The first committed terminal outcome wins, so completion before cancellation remains complete and cancellation before a late result remains cancelled. Runtime cancellation, input, and approval use ordinary durable runtime commands; the gateway does not dispatch a new control command after the execution or attempt is already terminal.
