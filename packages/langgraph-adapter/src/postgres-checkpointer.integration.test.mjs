@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import process from 'node:process'
+import { LangGraphOrchestrationAdapter, deterministicInterruptGraph } from './index.ts'
 import { LangGraphPostgresCheckpointProvider } from './postgres-checkpointer.ts'
 
 const enabled = process.env.RUN_DATABASE_INTEGRATION === 'true'
@@ -8,6 +9,9 @@ const connectionString = process.env.DATABASE_MIGRATION_URL
 describe.skipIf(!enabled)('LangGraph PostgreSQL checkpointer', () => {
   let provider
   const threadId = `m8-checkpoint-${process.pid}`
+  const executionThreadId = `m8-interrupt-${process.pid}`
+  const workspaceId = 'wsp_01JABCDEF0123456789ABCDEFG'
+  const executionId = 'exe_01JABCDEF0123456789ABCDEFG'
 
   beforeAll(async () => {
     if (!connectionString) throw new Error('DATABASE_MIGRATION_URL_REQUIRED')
@@ -17,6 +21,7 @@ describe.skipIf(!enabled)('LangGraph PostgreSQL checkpointer', () => {
 
   afterAll(async () => {
     await provider?.deleteThread(threadId)
+    await provider?.deleteThread(`${workspaceId}:${executionId}:${executionThreadId}`)
     await provider?.close()
   })
 
@@ -52,5 +57,56 @@ describe.skipIf(!enabled)('LangGraph PostgreSQL checkpointer', () => {
       metadata: { graphDefinitionId: 'manager-graph', graphVersion: '1.0.0' },
     })
     expect(recovered.state).toEqual({ state: { phase: 'approval' } })
+  })
+
+  test('resumes a real interrupted graph after PostgreSQL-backed worker restart', async () => {
+    const graph = {
+      graphDefinitionId: 'durable-interrupt',
+      graphVersion: '1.0.0',
+      contentDigest: `sha256:${'c'.repeat(64)}`,
+    }
+    const request = {
+      executionId,
+      attemptId: 'att_01JABCDEF0123456789ABCDEFG',
+      workspaceId,
+      workflowId: 'wfl_01JABCDEF0123456789ABCDEFG',
+      graph,
+      threadId: executionThreadId,
+      input: { objective: 'survive restart' },
+      idempotencyKey: 'postgres:segment:1',
+    }
+    const effects = []
+    const adapterOptions = () => ({
+      graphs: [deterministicInterruptGraph(graph)],
+      checkpointer: provider.checkpointer,
+      operations: {
+        async invoke(operation) {
+          effects.push(operation.idempotencyKey)
+          return { value: operation.name }
+        },
+        async cancel() {
+          return true
+        },
+      },
+      events: { async publish() {} },
+    })
+    const interrupted = await new LangGraphOrchestrationAdapter(adapterOptions()).run(request)
+    expect(interrupted.status).toBe('awaiting_input')
+    await provider.close()
+
+    provider = LangGraphPostgresCheckpointProvider.fromConnectionString(connectionString)
+    const resumed = await new LangGraphOrchestrationAdapter(adapterOptions()).resume({
+      executionId: request.executionId,
+      attemptId: request.attemptId,
+      workspaceId: request.workspaceId,
+      workflowId: request.workflowId,
+      graph,
+      threadId: request.threadId,
+      checkpointId: interrupted.checkpointId,
+      response: { action: 'approve' },
+      idempotencyKey: 'postgres:segment:resume',
+    })
+    expect(resumed).toMatchObject({ status: 'completed', output: { decision: 'approve' } })
+    expect(effects).toEqual(['postgres:segment:1:prepare', 'postgres:segment:resume:finalize'])
   })
 })

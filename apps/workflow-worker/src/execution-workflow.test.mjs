@@ -118,11 +118,63 @@ describe('Temporal execution lifecycle', () => {
 
   test('pins workflow versioning and bounded activity policies', () => {
     expect(workflowPolicies.version).toBe('execution-lifecycle-v1')
+    expect(workflowPolicies.graphSegmentVersion).toBe('execution-graph-segments-v1')
     expect(workflowPolicies.activities).toMatchObject({
       retry: { maximumAttempts: 5 },
       startToCloseTimeout: '2 minutes',
       heartbeatTimeout: '20 seconds',
     })
     expect(workflowPolicies.progressPersistence).toBe('postgres-execution-events')
+  })
+
+  test('waits at a graph checkpoint and resumes without placing graph events in workflow state', async () => {
+    const fake = fakeActivities()
+    const graphCalls = []
+    fake.activities.runGraphSegment = async (segment) => {
+      graphCalls.push(segment)
+      return {
+        outcome: 'awaiting_input',
+        interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        checkpointId: 'checkpoint-1',
+      }
+    }
+    fake.activities.resumeGraphSegment = async (segment) => {
+      graphCalls.push(segment)
+      return {
+        outcome: 'completed',
+        resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        checkpointId: 'checkpoint-2',
+      }
+    }
+    const graphInput = {
+      ...input,
+      graph: {
+        workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        reference: {
+          graphDefinitionId: 'manager-graph',
+          graphVersion: '1.0.0',
+          contentDigest: `sha256:${'b'.repeat(64)}`,
+        },
+        threadId: 'thread-manager-1',
+        input: { objective: 'coordinate' },
+      },
+    }
+    const result = await runExecutionLifecycle(graphInput, fake.activities, {
+      waitForInteraction: async (interactionId) => ({
+        interactionId,
+        responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        action: 'approve',
+      }),
+    })
+    expect(result).toMatchObject({
+      status: 'completed',
+      resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    })
+    expect(graphCalls).toHaveLength(2)
+    expect(graphCalls[1]).toMatchObject({
+      checkpointId: 'checkpoint-1',
+      response: { action: 'approve' },
+    })
+    expect(JSON.stringify(result)).not.toContain('events')
   })
 })

@@ -7,9 +7,12 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow'
+import type { GraphReference } from '@control-plane/orchestration'
+import type { GraphActivityOutcome, GraphSegmentActivityPort } from './graph-segment-activity.js'
 
 export const workflowPolicies = {
   version: 'execution-lifecycle-v1',
+  graphSegmentVersion: 'execution-graph-segments-v1',
   taskQueue: 'control-plane.execution.v1',
   progressPersistence: 'postgres-execution-events',
   activities: {
@@ -28,6 +31,12 @@ export interface ExecutionWorkflowInput {
     readonly schemaVersion: number
   }
   readonly deadlineAt: string
+  readonly graph?: {
+    readonly workspaceId: string
+    readonly reference: GraphReference
+    readonly threadId: string
+    readonly input: Readonly<Record<string, unknown>>
+  }
 }
 
 export interface ExecutionWorkflowResult {
@@ -35,6 +44,7 @@ export interface ExecutionWorkflowResult {
   readonly attemptId?: string
   readonly status: 'completed' | 'failed' | 'cancelled' | 'timed_out'
   readonly resultReference?: string
+  readonly graphCheckpointId?: string
 }
 
 export interface ExecutionLifecycleActivities {
@@ -62,6 +72,9 @@ export interface ExecutionLifecycleActivities {
       effectKey: string
     }
   ): Promise<WorkflowRuntimeOutcome>
+  runGraphSegment: GraphSegmentActivityPort['runGraphSegment']
+  resumeGraphSegment: GraphSegmentActivityPort['resumeGraphSegment']
+  continueGraphSegment: GraphSegmentActivityPort['continueGraphSegment']
   cleanup(input: { executionId: string; attemptId?: string; effectKey: string }): Promise<void>
 }
 
@@ -80,6 +93,7 @@ export interface WorkflowInteractionResponse {
 export type WorkflowRuntimeOutcome =
   | { readonly outcome: 'completed' | 'failed' | 'cancelled'; readonly resultReference?: string }
   | { readonly outcome: 'awaiting_input'; readonly interactionId: string }
+  | GraphActivityOutcome
 
 export async function runExecutionLifecycle(
   input: ExecutionWorkflowInput,
@@ -127,13 +141,41 @@ export async function runExecutionLifecycle(
     state: 'running',
     effectKey: key('running'),
   })
-  let runtimeOutcome = await activities.dispatch({
-    executionId: input.executionId,
-    attemptId,
-    executionPlan: input.executionPlan,
-    effectKey: key('dispatch'),
-  })
-  while (runtimeOutcome.outcome === 'awaiting_input') {
+  let runtimeOutcome: WorkflowRuntimeOutcome
+  if (input.graph) {
+    runtimeOutcome = await activities.runGraphSegment({
+      executionId: input.executionId,
+      attemptId,
+      workspaceId: input.graph.workspaceId,
+      workflowId: input.workflowId,
+      graph: input.graph.reference,
+      threadId: input.graph.threadId,
+      input: input.graph.input,
+      idempotencyKey: key('graph:run'),
+    })
+  } else {
+    runtimeOutcome = await activities.dispatch({
+      executionId: input.executionId,
+      attemptId,
+      executionPlan: input.executionPlan,
+      effectKey: key('dispatch'),
+    })
+  }
+  while (runtimeOutcome.outcome === 'awaiting_input' || runtimeOutcome.outcome === 'continue') {
+    if (runtimeOutcome.outcome === 'continue') {
+      if (!input.graph) throw new Error('GRAPH_INPUT_REQUIRED')
+      runtimeOutcome = await activities.continueGraphSegment({
+        executionId: input.executionId,
+        attemptId,
+        workspaceId: input.graph.workspaceId,
+        workflowId: input.workflowId,
+        graph: input.graph.reference,
+        threadId: input.graph.threadId,
+        checkpointId: runtimeOutcome.checkpointId,
+        idempotencyKey: key(`graph:continue:${runtimeOutcome.checkpointId}`),
+      })
+      continue
+    }
     const interactionId = runtimeOutcome.interactionId
     await activities.persistStatus({
       executionId: input.executionId,
@@ -144,12 +186,29 @@ export async function runExecutionLifecycle(
     if (!control.waitForInteraction) throw new Error('INTERACTION_WAITER_REQUIRED')
     const response = await control.waitForInteraction(interactionId)
     if (response.interactionId !== interactionId) throw new Error('INTERACTION_SIGNAL_MISMATCH')
-    runtimeOutcome = await activities.applyInteraction({
-      executionId: input.executionId,
-      attemptId,
-      ...response,
-      effectKey: key(`interaction:${interactionId}:${response.responseId}`),
-    })
+    if (input.graph) {
+      if (!('checkpointId' in runtimeOutcome)) {
+        throw new Error('GRAPH_RESUME_ACTIVITY_REQUIRED')
+      }
+      runtimeOutcome = await activities.resumeGraphSegment({
+        executionId: input.executionId,
+        attemptId,
+        workspaceId: input.graph.workspaceId,
+        workflowId: input.workflowId,
+        graph: input.graph.reference,
+        threadId: input.graph.threadId,
+        checkpointId: runtimeOutcome.checkpointId,
+        response: { action: response.action, responseId: response.responseId },
+        idempotencyKey: key(`graph:resume:${interactionId}:${response.responseId}`),
+      })
+    } else {
+      runtimeOutcome = await activities.applyInteraction({
+        executionId: input.executionId,
+        attemptId,
+        ...response,
+        effectKey: key(`interaction:${interactionId}:${response.responseId}`),
+      })
+    }
   }
   const status = runtimeOutcome.outcome
   await activities.persistStatus({
@@ -163,7 +222,12 @@ export async function runExecutionLifecycle(
     executionId: input.executionId,
     attemptId,
     status,
-    ...(runtimeOutcome.resultReference ? { resultReference: runtimeOutcome.resultReference } : {}),
+    ...('resultReference' in runtimeOutcome && runtimeOutcome.resultReference
+      ? { resultReference: runtimeOutcome.resultReference }
+      : {}),
+    ...('checkpointId' in runtimeOutcome && runtimeOutcome.checkpointId
+      ? { graphCheckpointId: runtimeOutcome.checkpointId }
+      : {}),
   }
 }
 
@@ -178,6 +242,7 @@ export async function executionLifecycleWorkflow(
   input: ExecutionWorkflowInput
 ): Promise<ExecutionWorkflowResult> {
   patched(workflowPolicies.version)
+  patched(workflowPolicies.graphSegmentVersion)
   let cancelled = false
   const interactionResponses: WorkflowInteractionResponse[] = []
   setHandler(cancelSignal, () => {

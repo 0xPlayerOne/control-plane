@@ -1,6 +1,16 @@
-import { Annotation, END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/langgraph'
+import {
+  Annotation,
+  Command,
+  END,
+  INTERRUPT,
+  START,
+  StateGraph,
+  interrupt,
+  type BaseCheckpointSaver,
+} from '@langchain/langgraph'
 import {
   GraphCancellationRequestSchema,
+  GraphContinueRequestSchema,
   GraphExecutionRequestSchema,
   GraphResumeRequestSchema,
   GraphSegmentResultSchema,
@@ -8,8 +18,11 @@ import {
   createGraphEvent,
   type GraphEvent,
   type GraphEventPublisher,
+  type GraphContinueRequest,
+  type GraphExecutionRequest,
   type GraphNodeOperationPort,
   type GraphReference,
+  type GraphResumeRequest,
   type GraphSegmentResult,
   type OrchestrationPort,
 } from '@control-plane/orchestration'
@@ -32,9 +45,6 @@ const ManagedState = Annotation.Root({
 
 interface GraphRunnable {
   invoke(input: unknown, config: Record<string, unknown>): Promise<JsonRecord>
-  getState(config: Record<string, unknown>): Promise<{
-    readonly config?: { readonly configurable?: Record<string, unknown> }
-  }>
 }
 
 interface GraphBuildContext {
@@ -88,13 +98,24 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
   async run(input: unknown): Promise<GraphSegmentResult> {
     const parsed = GraphExecutionRequestSchema.safeParse(input)
     if (!parsed.success) throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
-    return this.#invoke(parsed.data, parsed.data.input, 'graph.started')
+    return this.#invoke(parsed.data, parsed.data.input, 'graph.started', 'GRAPH_FAILED')
   }
 
   async resume(input: unknown): Promise<GraphSegmentResult> {
     const parsed = GraphResumeRequestSchema.safeParse(input)
     if (!parsed.success) throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
-    throw new OrchestrationError('RESUME_FAILED', false)
+    return this.#invoke(
+      parsed.data,
+      new Command({ resume: parsed.data.response }),
+      'graph.resumed',
+      'RESUME_FAILED'
+    )
+  }
+
+  async continue(input: unknown): Promise<GraphSegmentResult> {
+    const parsed = GraphContinueRequestSchema.safeParse(input)
+    if (!parsed.success) throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
+    return this.#invoke(parsed.data, null, 'graph.resumed', 'RESUME_FAILED')
   }
 
   async cancel(input: unknown): Promise<boolean> {
@@ -116,9 +137,10 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
   }
 
   async #invoke(
-    request: ReturnType<typeof GraphExecutionRequestSchema.parse>,
-    graphInput: JsonRecord,
-    initialEvent: GraphEvent['type']
+    request: GraphExecutionRequest | GraphResumeRequest | GraphContinueRequest,
+    graphInput: unknown,
+    initialEvent: GraphEvent['type'],
+    failureCode: 'GRAPH_FAILED' | 'RESUME_FAILED'
   ): Promise<GraphSegmentResult> {
     const registration = this.#graphs.get(graphKey(request.graph))
     if (!registration) throw new OrchestrationError('GRAPH_NOT_FOUND', false)
@@ -169,8 +191,8 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
       })
       const config = {
         configurable: {
-          thread_id: request.threadId,
-          checkpoint_ns: `${request.workspaceId}:${request.executionId}`,
+          thread_id: storageThreadId(request),
+          ...('checkpointId' in request ? { checkpoint_id: request.checkpointId } : {}),
         },
         metadata: {
           graphDefinitionId: request.graph.graphDefinitionId,
@@ -184,9 +206,26 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         },
         signal: controller.signal,
       }
-      const state = await graph.invoke({ input: graphInput, values: {}, output: {} }, config)
-      const snapshot = await graph.getState(config)
-      const checkpointId = snapshot.config?.configurable?.['checkpoint_id']
+      const invocationInput =
+        graphInput instanceof Command ? graphInput : { input: graphInput, values: {}, output: {} }
+      const state = await graph.invoke(invocationInput, config)
+      const checkpoint = await this.#checkpointer.getTuple(config)
+      const checkpointId = checkpoint?.checkpoint.id
+      const interruptions = state[INTERRUPT]
+      if (Array.isArray(interruptions) && interruptions.length > 0) {
+        if (typeof checkpointId !== 'string') {
+          throw new OrchestrationError('CHECKPOINT_MISSING', false)
+        }
+        const normalized = normalizeInterrupt(interruptions[0])
+        await emit('graph.interrupted', undefined, { interactionKey: normalized.interactionKey })
+        return GraphSegmentResultSchema.parse({
+          status: 'awaiting_input',
+          state,
+          checkpointId,
+          interrupt: normalized,
+          events: emitted,
+        })
+      }
       await emit('graph.completed')
       return GraphSegmentResultSchema.parse({
         status: 'completed',
@@ -200,14 +239,14 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         return GraphSegmentResultSchema.parse({ status: 'cancelled', state: {}, events: emitted })
       }
       try {
-        await emit('graph.failed', undefined, { code: 'GRAPH_FAILED' })
+        await emit('graph.failed', undefined, { code: failureCode })
       } catch {
         // The original sanitized orchestration failure remains authoritative.
       }
       return GraphSegmentResultSchema.parse({
         status: 'failed',
         state: {},
-        failure: { code: 'GRAPH_FAILED', retryable: true },
+        failure: { code: failureCode, retryable: true },
         events: emitted,
       })
     } finally {
@@ -243,6 +282,75 @@ export function deterministicTestGraph(reference: GraphReference): LangGraphRegi
   }
 }
 
+export function deterministicInterruptGraph(reference: GraphReference): LangGraphRegistration {
+  return {
+    reference,
+    build(context) {
+      return new StateGraph(ManagedState)
+        .addNode('prepare', async (state) => {
+          const result = await context.invokeOperation('prepare', 'runtime', 'prepare', state.input)
+          return { values: { prepared: result['value'] } }
+        })
+        .addNode('approval', () => {
+          const response = interrupt({
+            interactionKey: 'approval-1',
+            kind: 'approval',
+            payload: { question: 'Approve deterministic test action?' },
+          })
+          return { values: { response } }
+        })
+        .addNode('finalize', async (state) => {
+          await context.invokeOperation('finalize', 'tool', 'finalize', state.values)
+          const response = state.values['response']
+          const decision =
+            response !== null && typeof response === 'object' && 'action' in response
+              ? String(response['action'])
+              : 'unknown'
+          return { output: { decision } }
+        })
+        .addEdge(START, 'prepare')
+        .addEdge('prepare', 'approval')
+        .addEdge('approval', 'finalize')
+        .addEdge('finalize', END)
+        .compile({ checkpointer: context.checkpointer })
+    },
+  }
+}
+
+function normalizeInterrupt(input: unknown): {
+  interactionKey: string
+  kind: 'input' | 'approval' | 'grant' | 'runtime'
+  payload: unknown
+} {
+  if (input !== null && typeof input === 'object') {
+    const interruptRecord = input as Record<string, unknown>
+    const value = interruptRecord['value']
+    if (value !== null && typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      const interactionKey = record['interactionKey']
+      const kind = record['kind']
+      if (
+        typeof interactionKey === 'string' &&
+        ['input', 'approval', 'grant', 'runtime'].includes(String(kind))
+      ) {
+        return {
+          interactionKey,
+          kind: kind as 'input' | 'approval' | 'grant' | 'runtime',
+          payload: record['payload'] ?? null,
+        }
+      }
+    }
+    if (typeof interruptRecord['id'] === 'string') {
+      return {
+        interactionKey: interruptRecord['id'],
+        kind: 'input',
+        payload: interruptRecord['value'] ?? null,
+      }
+    }
+  }
+  throw new OrchestrationError('GRAPH_FAILED', false)
+}
+
 function correlation(input: {
   readonly executionId: string
   readonly attemptId: string
@@ -263,6 +371,14 @@ function graphKey(reference: GraphReference): string {
 
 function activeKey(executionId: string, threadId: string): string {
   return `${executionId}:${threadId}`
+}
+
+function storageThreadId(input: {
+  readonly workspaceId: string
+  readonly executionId: string
+  readonly threadId: string
+}): string {
+  return `${input.workspaceId}:${input.executionId}:${input.threadId}`
 }
 
 export const packageName = 'langgraph-adapter'
