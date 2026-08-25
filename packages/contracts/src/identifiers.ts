@@ -40,6 +40,7 @@ export const IdentifierSchemas = {
   toolCallId: opaqueIdentifier('tlc', 'tool-call ID'),
   credentialId: opaqueIdentifier('crd', 'credential ID'),
   credentialLeaseId: opaqueIdentifier('crl', 'credential-lease ID'),
+  modelCallId: opaqueIdentifier('mdc', 'model-call ID'),
   eventId: opaqueIdentifier('evt', 'event ID'),
   traceId: opaqueIdentifier('trc', 'trace ID'),
 } as const
@@ -75,5 +76,6 @@ export type ToolVersionId = z.output<(typeof IdentifierSchemas)['toolVersionId']
 export type ToolCallId = z.output<(typeof IdentifierSchemas)['toolCallId']>
 export type CredentialId = z.output<(typeof IdentifierSchemas)['credentialId']>
 export type CredentialLeaseId = z.output<(typeof IdentifierSchemas)['credentialLeaseId']>
+export type ModelCallId = z.output<(typeof IdentifierSchemas)['modelCallId']>
 export type EventId = z.output<(typeof IdentifierSchemas)['eventId']>
 export type TraceId = z.output<(typeof IdentifierSchemas)['traceId']>

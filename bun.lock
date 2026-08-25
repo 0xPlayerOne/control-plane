@@ -206,6 +206,16 @@
         "zod": "4.4.3",
       },
     },
+    "packages/model-gateway": {
+      "name": "@control-plane/model-gateway",
+      "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "@control-plane/domain": "workspace:*",
+        "@control-plane/policy": "workspace:*",
+        "zod": "4.4.3",
+      },
+    },
     "packages/policy": {
       "name": "@control-plane/policy",
       "version": "1.1.0",
@@ -295,6 +305,8 @@
     "@control-plane/execution-plan": ["@control-plane/execution-plan@workspace:packages/execution-plan"],
 
     "@control-plane/managed-pi-adapter": ["@control-plane/managed-pi-adapter@workspace:packages/managed-pi-adapter"],
+
+    "@control-plane/model-gateway": ["@control-plane/model-gateway@workspace:packages/model-gateway"],
 
     "@control-plane/policy": ["@control-plane/policy@workspace:packages/policy"],
 
