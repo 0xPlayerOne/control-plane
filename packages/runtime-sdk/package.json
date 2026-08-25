@@ -20,11 +20,16 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "compatibility:check": "bun scripts/compatibility.mjs --check",
+    "compatibility:generate": "bun scripts/compatibility.mjs",
     "lint": "eslint src",
     "test": "bun test src"
   },
   "dependencies": {
     "@control-plane/contracts": "workspace:*",
     "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
   }
 }

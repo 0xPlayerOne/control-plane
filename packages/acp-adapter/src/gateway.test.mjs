@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
+import { RuntimeCompatibilityMatrixSchema } from '@control-plane/runtime-sdk'
+import { readFile } from 'node:fs/promises'
+import { URL } from 'node:url'
 import { AcpAdapter } from './index.ts'
 import { AcpGatewayClient, ReferenceAcpDriver, ReferenceAcpGatewayTransport } from './gateway.ts'
 
@@ -14,6 +17,10 @@ const ids = {
   traceId: 'trc_01JABCDEF0123456789ABCDEFG',
   runtimeOpaqueRef: 'nref_01JABCDEF0123456789ABCDEFG',
 }
+const matrixUrl = new URL(
+  '../../../docs/runtime-compatibility/runtime-certifications.v1.json',
+  import.meta.url
+)
 
 function plan() {
   return {
@@ -96,6 +103,31 @@ function fixture(options = {}) {
 }
 
 describe('local ACP through Runtime Gateway', () => {
+  test('matches the exact supported compatibility certification capability claim', async () => {
+    const { adapter, transport } = fixture()
+    const inspection = await adapter.inspect()
+    const inventory = await transport.inventory()
+    const matrix = RuntimeCompatibilityMatrixSchema.parse(
+      JSON.parse(await readFile(matrixUrl, 'utf8'))
+    )
+    const certification = matrix.certifications.find(
+      ({ certificationId }) => certificationId === 'acp-reference-1-0-0'
+    )
+
+    expect(certification).toMatchObject({
+      classification: 'supported',
+      versions: {
+        adapter: inspection.metadata.adapterVersion,
+        driver: inspection.metadata.driverVersion,
+        harness: inspection.metadata.harnessVersion,
+        protocol: `${inventory.protocolVersion.major}.${inventory.protocolVersion.minor}.0`,
+      },
+    })
+    expect(certification.verifiedCapabilities).toEqual(
+      inspection.capabilities.map(({ name }) => name).sort()
+    )
+  })
+
   test('executes a disposable ACP harness through the generic RuntimeAdapter path', async () => {
     const { adapter, driver, transport } = fixture()
     const nativeBefore = driver.nativeState()

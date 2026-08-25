@@ -1,8 +1,10 @@
 # Machine-readable companion to the canonical Runtime Compatibility Matrix.
 schema_version: 1
-updated_at: '2026-08-23'
+updated_at: '2026-08-25'
 owner: Control Plane runtime architecture
-status: planned_partially_verified
+status: reference_certified
+exact_certification_registry: runtime-certifications.v1.json
+generated_certification_schema: runtime-certifications.schema.json
 canonical_for:
   - runtime and harness compatibility
   - adapter and driver path
@@ -32,7 +34,7 @@ runtimes:
   - id: managed-pi
     display_name: Managed Pi
     kind: managed_harness
-    support_state: partially_verified
+    support_state: verified
     integration_path:
       Managed local Pi through Runtime Gateway and ManagedPiDriver; hosted managed Pi is a separate RuntimeConnection
       and location.
@@ -69,12 +71,12 @@ runtimes:
       Must not be assumed to reproduce native harness-specific subscription or session behavior. Claude Pro
       or Max authentication through Pi does not currently consume native Claude plan limits in the same way as Claude Code.
     tested_versions:
-      adapter: null
-      driver: null
-      runtime: null
-      protocol: null
-    last_verified: '2026-08-19'
-    verification_notes: Provider and authentication capability assumptions verified; adapter implementation not yet tested.
+      adapter: 1.0.0
+      driver: 1.0.0
+      runtime: 0.52.1
+      protocol: 1.5.0
+    last_verified: '2026-08-25'
+    verification_notes: Disposable managed Pi and Runtime Gateway reference path certified; production Agent HQ remains a separate gate.
   - id: claude-code
     display_name: Claude Code
     kind: external_harness
@@ -247,11 +249,7 @@ production_readiness_checks:
 open_items:
   - Exact ACP support matrix for Claude Code, Codex, OpenCode, and user-managed Pi.
   - Concrete Runtime Gateway deployment, autoscaling, secure-storage adapters, and operational thresholds.
-  - Generated schema and package representation for RuntimeAdapter and RuntimeDriver contracts.
-  - Automated adapter, driver, and protocol compatibility and failure-injection suites.
-  - Version pinning and upgrade policy.
   - Provider entitlement verification strategy.
-  - Support and deprecation policy for runtime versions.
 runtime_location_semantics:
   Compatibility is evaluated with RuntimeNode location. The same harness is not interchangeable
   across local_device, future agent_hq_cloud, or remote_host locations merely because its name matches.
