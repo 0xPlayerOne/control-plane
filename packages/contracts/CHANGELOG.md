@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.2.0...contracts-v1.3.0) (2026-08-25)
+
+
+### Features
+
+* **context:** add Cortana-compatible adapter ([#176](https://github.com/0xPlayerOne/control-plane/issues/176)) ([27409c1](https://github.com/0xPlayerOne/control-plane/commit/27409c1b80fdfa45dd644b797f4449e2942e8aef))
+* **context:** add optional provider framework ([#175](https://github.com/0xPlayerOne/control-plane/issues/175)) ([efa12ce](https://github.com/0xPlayerOne/control-plane/commit/efa12ce6cb43796809e2df58bf3c04fcb024a53a))
+* **credentials:** add scoped credential vault ([#169](https://github.com/0xPlayerOne/control-plane/issues/169)) ([1e613a8](https://github.com/0xPlayerOne/control-plane/commit/1e613a8860f3f133ee66971300d278f03bbf30e0))
+* **memory:** add approved provider writeback ([#177](https://github.com/0xPlayerOne/control-plane/issues/177)) ([001a545](https://github.com/0xPlayerOne/control-plane/commit/001a545acb3335599307e510c92429e7cb7bf498))
+* **models:** add managed model gateway ([#170](https://github.com/0xPlayerOne/control-plane/issues/170)) ([b73fce3](https://github.com/0xPlayerOne/control-plane/commit/b73fce3f48bceaf18ea8e08d2bf17eda152aeabd))
+* **tools:** add canonical tool registry ([#164](https://github.com/0xPlayerOne/control-plane/issues/164)) ([3d4e162](https://github.com/0xPlayerOne/control-plane/commit/3d4e162b2f85769374f011f91c200e6d36d90fd1))
+* **tools:** enforce durable tool execution policy ([#166](https://github.com/0xPlayerOne/control-plane/issues/166)) ([b11ff94](https://github.com/0xPlayerOne/control-plane/commit/b11ff941e1067dfc0515bda7f509160a561966f4))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.1.0...contracts-v1.2.0) (2026-08-24)
 
 

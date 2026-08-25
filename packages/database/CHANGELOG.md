@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.3.0...database-v1.4.0) (2026-08-25)
+
+
+### Features
+
+* **memory:** add approved provider writeback ([#177](https://github.com/0xPlayerOne/control-plane/issues/177)) ([001a545](https://github.com/0xPlayerOne/control-plane/commit/001a545acb3335599307e510c92429e7cb7bf498))
+* **usage:** add authoritative usage ledger ([#173](https://github.com/0xPlayerOne/control-plane/issues/173)) ([851eda4](https://github.com/0xPlayerOne/control-plane/commit/851eda4d809a0bd8f6c451c316e830e2db5e87a1))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.2.0...database-v1.3.0) (2026-08-25)
 
 

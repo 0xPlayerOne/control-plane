@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/context-v1.1.0...context-v1.2.0) (2026-08-25)
+
+
+### Features
+
+* **context:** add Cortana-compatible adapter ([#176](https://github.com/0xPlayerOne/control-plane/issues/176)) ([27409c1](https://github.com/0xPlayerOne/control-plane/commit/27409c1b80fdfa45dd644b797f4449e2942e8aef))
+* **context:** add optional provider framework ([#175](https://github.com/0xPlayerOne/control-plane/issues/175)) ([efa12ce](https://github.com/0xPlayerOne/control-plane/commit/efa12ce6cb43796809e2df58bf3c04fcb024a53a))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/context-v1.0.0...context-v1.1.0) (2026-08-25)
 
 

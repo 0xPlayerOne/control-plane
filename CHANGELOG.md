@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.4.0...workspace-v1.5.0) (2026-08-25)
+
+
+### Features
+
+* **context:** add Cortana-compatible adapter ([#176](https://github.com/0xPlayerOne/control-plane/issues/176)) ([27409c1](https://github.com/0xPlayerOne/control-plane/commit/27409c1b80fdfa45dd644b797f4449e2942e8aef))
+* **context:** add optional provider framework ([#175](https://github.com/0xPlayerOne/control-plane/issues/175)) ([efa12ce](https://github.com/0xPlayerOne/control-plane/commit/efa12ce6cb43796809e2df58bf3c04fcb024a53a))
+* **credentials:** add scoped credential vault ([#169](https://github.com/0xPlayerOne/control-plane/issues/169)) ([1e613a8](https://github.com/0xPlayerOne/control-plane/commit/1e613a8860f3f133ee66971300d278f03bbf30e0))
+* **memory:** add approved provider writeback ([#177](https://github.com/0xPlayerOne/control-plane/issues/177)) ([001a545](https://github.com/0xPlayerOne/control-plane/commit/001a545acb3335599307e510c92429e7cb7bf498))
+* **models:** add deterministic routing ([#171](https://github.com/0xPlayerOne/control-plane/issues/171)) ([8488549](https://github.com/0xPlayerOne/control-plane/commit/84885491de46ba990cff8e8a5ebaf0bb70c68c33))
+* **models:** add managed model gateway ([#170](https://github.com/0xPlayerOne/control-plane/issues/170)) ([b73fce3](https://github.com/0xPlayerOne/control-plane/commit/b73fce3f48bceaf18ea8e08d2bf17eda152aeabd))
+* **policy:** add Cedar decision point ([#168](https://github.com/0xPlayerOne/control-plane/issues/168)) ([5198c9b](https://github.com/0xPlayerOne/control-plane/commit/5198c9b62363edaa4ce7399ebfe14890778e640b))
+* **sandbox:** add isolated execution provider ([#172](https://github.com/0xPlayerOne/control-plane/issues/172)) ([25d27db](https://github.com/0xPlayerOne/control-plane/commit/25d27db878f76d8184beb275e533cd84a83a0894))
+* **tools:** add canonical tool registry ([#164](https://github.com/0xPlayerOne/control-plane/issues/164)) ([3d4e162](https://github.com/0xPlayerOne/control-plane/commit/3d4e162b2f85769374f011f91c200e6d36d90fd1))
+* **tools:** add MCP adapter ([#167](https://github.com/0xPlayerOne/control-plane/issues/167)) ([2f71a95](https://github.com/0xPlayerOne/control-plane/commit/2f71a951bb936d6f2ed3397352e1afedc29d7c03))
+* **tools:** enforce durable tool execution policy ([#166](https://github.com/0xPlayerOne/control-plane/issues/166)) ([b11ff94](https://github.com/0xPlayerOne/control-plane/commit/b11ff941e1067dfc0515bda7f509160a561966f4))
+* **usage:** add authoritative usage ledger ([#173](https://github.com/0xPlayerOne/control-plane/issues/173)) ([851eda4](https://github.com/0xPlayerOne/control-plane/commit/851eda4d809a0bd8f6c451c316e830e2db5e87a1))
+
+
+### Tests
+
+* **m7:** add managed capabilities acceptance ([#174](https://github.com/0xPlayerOne/control-plane/issues/174)) ([613bf40](https://github.com/0xPlayerOne/control-plane/commit/613bf40252ebfbf29f53dee1f0b2b86fc0327d17))
+
 ## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.3.1...workspace-v1.4.0) (2026-08-25)
 
 
