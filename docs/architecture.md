@@ -23,7 +23,7 @@ the harness is a replaceable way to host it.
 
 - `apps/control-api` owns synchronous API composition and health endpoints.
 - `apps/workflow-worker` owns durable orchestration composition.
-- `apps/runtime-worker` owns queued runtime execution composition.
+- `apps/runtime-worker` owns queued runtime execution composition and the provider-neutral hosted managed Pi boundary described in [Hosted managed Pi](hosted-managed-pi.md).
 - `apps/runtime-gateway` owns runtime-facing transport composition.
 - `apps/tool-gateway` owns tool-facing transport composition.
 - `packages/domain`, `contracts`, `events`, `execution-plan`, `policy`, `context`, `runtime-sdk`, and
