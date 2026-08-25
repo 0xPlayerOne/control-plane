@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.1.0...workflow-worker-v1.2.0) (2026-08-25)
+
+
+### Features
+
+* **workflows:** bridge Temporal graph segments ([#181](https://github.com/0xPlayerOne/control-plane/issues/181)) ([c590671](https://github.com/0xPlayerOne/control-plane/commit/c590671e5b3cde696e3fc2a2e5d39b4210b55206))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.0.0...workflow-worker-v1.1.0) (2026-08-24)
 
 

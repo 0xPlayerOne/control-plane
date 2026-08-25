@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.3.0...contracts-v1.4.0) (2026-08-25)
+
+
+### Features
+
+* **orchestration:** add durable delegated executions ([#182](https://github.com/0xPlayerOne/control-plane/issues/182)) ([a060e43](https://github.com/0xPlayerOne/control-plane/commit/a060e4374f85dcbb50c2c4be9de1d71c28858839))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/contracts-v1.2.0...contracts-v1.3.0) (2026-08-25)
 
 

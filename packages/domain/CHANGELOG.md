@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.3.0...domain-v1.4.0) (2026-08-25)
+
+
+### Features
+
+* **orchestration:** coordinate parallel delegation ([#183](https://github.com/0xPlayerOne/control-plane/issues/183)) ([21e383b](https://github.com/0xPlayerOne/control-plane/commit/21e383ba2492cbd92f72c96adcc1f5ab89c4a2d7))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.2.0...domain-v1.3.0) (2026-08-25)
 
 
