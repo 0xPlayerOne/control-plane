@@ -38,6 +38,14 @@ The RuntimeNode owns a separate bounded local result ledger for duplicate-effect
 
 Authenticated progress, result, and command-bound error frames are correlated through the durable command to the exact execution, attempt, node, workspace, and RuntimeConnection. The gateway separately verifies the active source channel, frame generation and sequence, payload hash, inline payload bound, and Artifact reference. Rejected frames are quarantined by normalized reason and digest without retaining their raw payload.
 
+## Runtime inventory synchronization
+
+Protocol v1.2 adds additive RuntimeNode inventory deltas and explicit adapter-version correlation. Older v1.0 and v1.1 inventory frames remain full snapshots. Every authenticated inventory report is bound again to its node, workspace, channel generation, and negotiated protocol before a runtime-specific normalizer may translate it into the M4 RuntimeConnection and health contracts.
+
+The durable per-node checkpoint records only the accepted version, canonical digest, observation time, and stable opaque runtime references. Exact replays are idempotent, version reuse with different content fails closed, stale reports cannot revive disappeared runtimes, and deltas must name the exact preceding version. Full snapshots make omitted runtimes unavailable; deltas do so only for explicit removals. A bounded disappearance TTL then moves still-missing connections to expired, while RuntimeConnection rows and historical execution references are retained.
+
+RuntimeNode reachability remains separate from individual runtime health. Inventory ingestion calls the ordinary M4 health and availability-change ports, so Agent HQ read models observe Control Plane API/event changes rather than gateway-specific client pushes. Context-provider inventory remains a distinct protocol family and is not registered as an executable RuntimeConnection.
+
 Concrete runtime adapters implement `RuntimeAdapterEventNormalizer`; provider or harness event types never enter execution state or the `ExecutionEvent` log. Normalized progress becomes bounded attempt, interaction, usage, or Artifact events. A stable event ID and the PostgreSQL `runtime_event_receipts` inbox make duplicate delivery identifiable across gateway restarts, reject conflicting reuse, and safely classify out-of-order progress.
 
 Terminal state, result reference or normalized failure, the required execution event, and its ingestion receipt commit through one effect sink. The first committed terminal outcome wins, so completion before cancellation remains complete and cancellation before a late result remains cancelled. Runtime cancellation, input, and approval use ordinary durable runtime commands; the gateway does not dispatch a new control command after the execution or attempt is already terminal.

@@ -24,6 +24,7 @@ import { PostgresReconciliationCheckpointRepository } from './reconciliation-che
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
+import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.ts'
 import {
   commandInbox,
   executionEvents,
@@ -35,6 +36,7 @@ import {
   reconciliationCheckpoints,
   runtimeCommands,
   runtimeEventReceipts,
+  runtimeInventoryCheckpoints,
   runtimeConnections,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
@@ -75,6 +77,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'outbox_events',
         'reconciliation_checkpoints',
         'runtime_connections',
+        'runtime_inventory_checkpoints',
       ])
     )
   })
@@ -163,6 +166,36 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       runtime: { runtimeConnectionId: revoked.runtimeConnectionId },
     })
     expect(await isolated.application.select().from(runtimeConnections)).toHaveLength(1)
+  })
+
+  test('persists inventory checkpoints across gateway restart with compare-and-set', async () => {
+    await isolated.migrate()
+    const repository = new PostgresRuntimeInventoryCheckpointRepository(isolated.application)
+    const first = {
+      runtimeNodeRefId: 'rnr_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      workspaceId: 'wsp_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+      snapshotVersion: 1,
+      snapshotDigest: `sha256:${'a'.repeat(64)}`,
+      observedAt: '2026-08-25T12:00:00.000Z',
+      activeRuntimeRefs: ['nref_01CRZ3NDEKTSV4RRFFQ69G5FAV'],
+      revision: 1,
+    }
+    expect(await repository.compareAndSet(undefined, first)).toBe(true)
+    expect(await repository.compareAndSet(undefined, first)).toBe(false)
+
+    const restarted = new PostgresRuntimeInventoryCheckpointRepository(isolated.application)
+    expect(await restarted.get(first.runtimeNodeRefId)).toEqual(first)
+    const second = {
+      ...first,
+      snapshotVersion: 2,
+      snapshotDigest: `sha256:${'b'.repeat(64)}`,
+      observedAt: '2026-08-25T12:01:00.000Z',
+      activeRuntimeRefs: [],
+      revision: 2,
+    }
+    expect(await restarted.compareAndSet(1, second)).toBe(true)
+    expect(await restarted.compareAndSet(1, { ...second, revision: 3 })).toBe(false)
+    expect(await isolated.application.select().from(runtimeInventoryCheckpoints)).toHaveLength(1)
   })
 
   test('persists runtime command delivery state across gateway repository restarts', async () => {

@@ -15,6 +15,7 @@ import {
   reconciliationCheckpoints,
   runtimeCommands,
   runtimeEventReceipts,
+  runtimeInventoryCheckpoints,
   runtimeConnections,
   withDomainTransaction,
 } from './index.ts'
@@ -41,6 +42,7 @@ describe('persistence schema', () => {
     const runtimeConnection = getTableConfig(runtimeConnections)
     const runtimeCommand = getTableConfig(runtimeCommands)
     const runtimeEventReceipt = getTableConfig(runtimeEventReceipts)
+    const runtimeInventoryCheckpoint = getTableConfig(runtimeInventoryCheckpoints)
     const externalSession = getTableConfig(externalSessions)
     expect(inbox.name).toBe('inbox_messages')
     expect(command.name).toBe('command_inbox')
@@ -52,6 +54,7 @@ describe('persistence schema', () => {
     expect(runtimeConnection.name).toBe('runtime_connections')
     expect(runtimeCommand.name).toBe('runtime_commands')
     expect(runtimeEventReceipt.name).toBe('runtime_event_receipts')
+    expect(runtimeInventoryCheckpoint.name).toBe('runtime_inventory_checkpoints')
     expect(externalSession.name).toBe('external_sessions')
     expect(runtimeCommand.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
@@ -96,6 +99,15 @@ describe('persistence schema', () => {
         'runtime_event_receipts_event_index',
       ])
     )
+    expect(runtimeInventoryCheckpoint.columns.map(({ name }) => name)).toEqual([
+      'runtime_node_ref_id',
+      'workspace_id',
+      'snapshot_version',
+      'snapshot_digest',
+      'observed_at',
+      'active_runtime_refs',
+      'revision',
+    ])
     expect(inbox.columns.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'id',

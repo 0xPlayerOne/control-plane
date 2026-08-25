@@ -34,6 +34,7 @@ export {
   runtimeEventReceiptOutcome,
   runtimeEventReceipts,
 } from './runtime-event-receipts.js'
+export { runtimeInventoryCheckpoints } from './runtime-inventory-checkpoints.js'
 export {
   reconciliationAction,
   reconciliationCheckpoints,
