@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.1](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.3.0...workspace-v1.3.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **gateway:** reject frames after channel revocation ([#147](https://github.com/0xPlayerOne/control-plane/issues/147)) ([1c9ce81](https://github.com/0xPlayerOne/control-plane/commit/1c9ce8155313196e47f3925fbdcda622475cf026))
+* **runtime-gateway:** fail closed without production server ([#154](https://github.com/0xPlayerOne/control-plane/issues/154)) ([e6309d7](https://github.com/0xPlayerOne/control-plane/commit/e6309d76a262fae79ee388aebdb22632dd7fdbe6))
+* **runtime-gateway:** reject privileged selector aliases ([#149](https://github.com/0xPlayerOne/control-plane/issues/149)) ([cb524e5](https://github.com/0xPlayerOne/control-plane/commit/cb524e5870798da8de0bd89cd95a3ae89cb59a23))
+* **runtime-gateway:** require explicit reconnect recovery ([#150](https://github.com/0xPlayerOne/control-plane/issues/150)) ([1072dd9](https://github.com/0xPlayerOne/control-plane/commit/1072dd9f991d5d9693e7d4475cc9471cf0e42136))
+
+
+### CI
+
+* **code-foundry:** adopt reversible billing guards ([#152](https://github.com/0xPlayerOne/control-plane/issues/152)) ([1eccc21](https://github.com/0xPlayerOne/control-plane/commit/1eccc219b3c03eb12e10a73ff18c65100adc9019))
+
+
+### Maintenance
+
+* **runtime-gateway:** unify event context types ([#153](https://github.com/0xPlayerOne/control-plane/issues/153)) ([a012e71](https://github.com/0xPlayerOne/control-plane/commit/a012e7156c88354156745dc6fcdb983091c33346))
+* **typescript:** strengthen compiler checks ([#151](https://github.com/0xPlayerOne/control-plane/issues/151)) ([b58dfba](https://github.com/0xPlayerOne/control-plane/commit/b58dfba7d2aa6f4eaf783d89cb8899eb6cffc636))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.2.1...workspace-v1.3.0) (2026-08-25)
 
 

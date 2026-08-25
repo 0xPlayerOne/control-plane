@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/config-v1.1.0...config-v1.1.1) (2026-08-25)
+
+
+### Maintenance
+
+* **typescript:** strengthen compiler checks ([#151](https://github.com/0xPlayerOne/control-plane/issues/151)) ([b58dfba](https://github.com/0xPlayerOne/control-plane/commit/b58dfba7d2aa6f4eaf783d89cb8899eb6cffc636))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/config-v1.0.0...config-v1.1.0) (2026-08-25)
 
 
