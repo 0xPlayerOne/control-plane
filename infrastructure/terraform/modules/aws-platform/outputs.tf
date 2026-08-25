@@ -27,6 +27,10 @@ output "log_group_name" {
   value = aws_cloudwatch_log_group.services.name
 }
 
+output "operations_alarm_topic_arn" {
+  value = aws_sns_topic.operations.arn
+}
+
 output "object_store_bucket" {
   value = aws_s3_bucket.object_store.id
 }
@@ -50,4 +54,12 @@ output "secret_arns_by_service" {
 
 output "service_security_group_id" {
   value = aws_security_group.services.id
+}
+
+output "database_client_security_group_id" {
+  value = aws_security_group.database_clients.id
+}
+
+output "cache_client_security_group_id" {
+  value = aws_security_group.cache_clients.id
 }

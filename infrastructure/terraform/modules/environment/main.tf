@@ -9,34 +9,49 @@ locals {
 
   service_configuration = {
     control-api = {
-      cpu            = 512
-      memory         = 1024
-      container_port = 3000
-      health_check   = ["CMD-SHELL", "bun -e 'await fetch(\"http://127.0.0.1:3000/health\").then(r=>{if(!r.ok)process.exit(1)})'"]
+      cpu                  = 512
+      memory               = 1024
+      container_port       = 3000
+      health_check         = ["CMD-SHELL", "bun -e 'await fetch(\"http://127.0.0.1:3000/health\").then(r=>{if(!r.ok)process.exit(1)})'"]
+      object_store_actions = ["s3:GetObject", "s3:ListBucket", "s3:PutObject"]
+      database_access      = true
+      cache_access         = true
     }
     workflow-worker = {
-      cpu            = 512
-      memory         = 1024
-      container_port = null
-      health_check   = null
+      cpu                  = 512
+      memory               = 1024
+      container_port       = null
+      health_check         = null
+      object_store_actions = ["s3:GetObject", "s3:ListBucket", "s3:PutObject"]
+      database_access      = true
+      cache_access         = true
     }
     runtime-worker = {
-      cpu            = 1024
-      memory         = 2048
-      container_port = null
-      health_check   = null
+      cpu                  = 1024
+      memory               = 2048
+      container_port       = null
+      health_check         = null
+      object_store_actions = ["s3:GetObject", "s3:ListBucket", "s3:PutObject"]
+      database_access      = true
+      cache_access         = true
     }
     runtime-gateway = {
-      cpu            = 512
-      memory         = 1024
-      container_port = null
-      health_check   = null
+      cpu                  = 512
+      memory               = 1024
+      container_port       = null
+      health_check         = null
+      object_store_actions = []
+      database_access      = false
+      cache_access         = false
     }
     tool-gateway = {
-      cpu            = 512
-      memory         = 1024
-      container_port = null
-      health_check   = null
+      cpu                  = 512
+      memory               = 1024
+      container_port       = null
+      health_check         = null
+      object_store_actions = []
+      database_access      = false
+      cache_access         = false
     }
   }
 
@@ -53,18 +68,19 @@ locals {
 module "platform" {
   source = "../aws-platform"
 
-  aws_region                   = var.aws_region
-  environment                  = var.environment
-  vpc_cidr                     = var.vpc_cidr
-  public_subnet_cidrs          = var.public_subnet_cidrs
-  private_subnet_cidrs         = var.private_subnet_cidrs
-  services                     = local.service_names
-  secret_names_by_service      = local.secret_names_by_service
-  database_instance_class      = var.database_instance_class
-  database_multi_az            = var.database_multi_az
-  database_deletion_protection = var.database_deletion_protection
-  cache_node_type              = var.cache_node_type
-  cache_nodes                  = var.cache_nodes
+  aws_region                     = var.aws_region
+  environment                    = var.environment
+  vpc_cidr                       = var.vpc_cidr
+  public_subnet_cidrs            = var.public_subnet_cidrs
+  private_subnet_cidrs           = var.private_subnet_cidrs
+  services                       = local.service_names
+  secret_names_by_service        = local.secret_names_by_service
+  database_instance_class        = var.database_instance_class
+  database_multi_az              = var.database_multi_az
+  database_deletion_protection   = var.database_deletion_protection
+  database_backup_retention_days = var.database_backup_retention_days
+  cache_node_type                = var.cache_node_type
+  cache_nodes                    = var.cache_nodes
 }
 
 module "services" {
@@ -78,6 +94,8 @@ module "services" {
   cpu                  = each.value.cpu
   memory               = each.value.memory
   desired_count        = var.desired_counts[each.key]
+  minimum_capacity     = var.desired_counts[each.key] == 0 ? 0 : var.desired_counts[each.key]
+  maximum_capacity     = var.desired_counts[each.key] == 0 ? 0 : var.desired_counts[each.key] * 3
   container_port       = each.value.container_port
   health_check_command = each.value.health_check
 
@@ -92,10 +110,16 @@ module "services" {
   secret_arns             = module.platform.secret_arns_by_service[each.key]
   kms_key_arn             = module.platform.kms_key_arn
   object_store_bucket_arn = module.platform.object_store_bucket_arn
+  object_store_actions    = each.value.object_store_actions
+  alarm_topic_arn         = module.platform.operations_alarm_topic_arn
   log_group_name          = module.platform.log_group_name
   aws_region              = var.aws_region
   private_subnet_ids      = module.platform.private_subnet_ids
-  security_group_id       = module.platform.service_security_group_id
+  security_group_ids = concat(
+    [module.platform.service_security_group_id],
+    each.value.database_access ? [module.platform.database_client_security_group_id] : [],
+    each.value.cache_access ? [module.platform.cache_client_security_group_id] : [],
+  )
 }
 
 module "database_migration" {
@@ -112,8 +136,26 @@ module "database_migration" {
   secret_arns             = module.platform.secret_arns_by_service["database-migrate"]
   kms_key_arn             = module.platform.kms_key_arn
   object_store_bucket_arn = module.platform.object_store_bucket_arn
+  object_store_actions    = []
+  alarm_topic_arn         = module.platform.operations_alarm_topic_arn
   log_group_name          = module.platform.log_group_name
   aws_region              = var.aws_region
   private_subnet_ids      = module.platform.private_subnet_ids
-  security_group_id       = module.platform.service_security_group_id
+  security_group_ids = [
+    module.platform.service_security_group_id,
+    module.platform.database_client_security_group_id,
+  ]
+}
+
+check "production_resilience" {
+  assert {
+    condition = var.environment != "production" || (
+      var.database_multi_az &&
+      var.database_deletion_protection &&
+      var.database_backup_retention_days == 35 &&
+      var.cache_nodes >= 2 &&
+      var.desired_counts["control-api"] >= 2
+    )
+    error_message = "Production requires Multi-AZ protected PostgreSQL with 35-day PITR, redundant cache, and at least two API replicas."
+  }
 }

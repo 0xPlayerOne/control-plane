@@ -69,6 +69,16 @@ variable "database_deletion_protection" {
   type        = bool
 }
 
+variable "database_backup_retention_days" {
+  description = "Automated PostgreSQL backup and point-in-time recovery window."
+  type        = number
+
+  validation {
+    condition     = var.database_backup_retention_days >= 1 && var.database_backup_retention_days <= 35
+    error_message = "database_backup_retention_days must be between 1 and 35."
+  }
+}
+
 variable "cache_node_type" {
   description = "ElastiCache node type."
   type        = string

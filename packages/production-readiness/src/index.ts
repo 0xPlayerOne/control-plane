@@ -37,3 +37,5 @@ export {
   runLoadProfile,
 } from './load-testing.js'
 export type { LoadProfile, LoadResult } from './load-testing.js'
+export { assessDeployment } from './deployment.js'
+export type { DeploymentAssessment } from './deployment.js'

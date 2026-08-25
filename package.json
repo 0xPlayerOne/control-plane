@@ -26,6 +26,7 @@
     "test:integration": "bun scripts/run-integration-tests.mjs",
     "test:recovery": "bun scripts/run-postgres-restore-drill.mjs",
     "test:load": "bun scripts/run-m9-load.mjs",
+    "test:m9-acceptance": "bun run build && bun test tests/m9-production-hardening.test.mjs && bun run security:scan && bun run test:load",
     "test:e2e": "bun run build && bun scripts/run-bun-test-group.mjs e2e",
     "test:smoke": "bun run build && bun scripts/run-bun-test-group.mjs smoke",
     "test:foundation": "bun run test && bun run test:integration",

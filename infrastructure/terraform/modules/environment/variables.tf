@@ -79,6 +79,12 @@ variable "database_deletion_protection" {
   type        = bool
 }
 
+variable "database_backup_retention_days" {
+  description = "Automated PostgreSQL backup and point-in-time recovery window."
+  type        = number
+  default     = 3
+}
+
 variable "cache_node_type" {
   description = "ElastiCache node type."
   type        = string

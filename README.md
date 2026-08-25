@@ -44,6 +44,10 @@ The publishable Agent HQ client, deterministic stub harness, OpenAPI compatibili
 versioning policy are documented in [`docs/sdk.md`](docs/sdk.md).
 Container, Terraform, environment, migration, rollout, and rollback conventions are documented in
 [`docs/infrastructure.md`](docs/infrastructure.md).
+Production observability, security, recovery, capacity, release, and incident procedures are
+documented in [`docs/telemetry.md`](docs/telemetry.md),
+[`docs/security-hardening.md`](docs/security-hardening.md), [`docs/recovery.md`](docs/recovery.md),
+[`docs/performance.md`](docs/performance.md), and [`docs/operations.md`](docs/operations.md).
 System boundaries, technology decisions, and service ownership are documented in
 [`docs/architecture.md`](docs/architecture.md).
 
@@ -56,19 +60,20 @@ System boundaries, technology decisions, and service ownership are documented in
 
 ## Workspace commands
 
-| Command                    | Purpose                                                                    |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `bun run build`            | Build every app and package through Turborepo                              |
-| `bun run lint`             | Lint source, lint repository configuration, and enforce package boundaries |
-| `bun test`                 | Run every package's Bun tests and the repository acceptance tests          |
-| `bun run test:acceptance`  | Validate the M1 foundation and M2 core-domain acceptance baseline          |
-| `bun run check:boundaries` | Reject undeclared dependencies and cross-package source imports            |
-| `bun run format`           | Format the repository with Prettier                                        |
-| `bun run format:check`     | Check formatting without modifying files                                   |
-| `bun run containers:print` | Print the five-service Buildx Bake plan without building images            |
-| `bun run containers:build` | Build the five production-shaped service images                            |
-| `bun run infra:fmt:check`  | Check Terraform formatting using Terraform or Docker                       |
-| `bun run infra:validate`   | Initialize and validate all three isolated Terraform roots                 |
+| Command                      | Purpose                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| `bun run build`              | Build every app and package through Turborepo                              |
+| `bun run lint`               | Lint source, lint repository configuration, and enforce package boundaries |
+| `bun test`                   | Run every package's Bun tests and the repository acceptance tests          |
+| `bun run test:acceptance`    | Validate the M1 foundation and M2 core-domain acceptance baseline          |
+| `bun run check:boundaries`   | Reject undeclared dependencies and cross-package source imports            |
+| `bun run format`             | Format the repository with Prettier                                        |
+| `bun run format:check`       | Check formatting without modifying files                                   |
+| `bun run containers:print`   | Print the five-service Buildx Bake plan without building images            |
+| `bun run containers:build`   | Build the five production-shaped service images                            |
+| `bun run infra:fmt:check`    | Check Terraform formatting using Terraform or Docker                       |
+| `bun run infra:validate`     | Initialize and validate all three isolated Terraform roots                 |
+| `bun run test:m9-acceptance` | Run the production hardening, secret scan, and load release gate           |
 
 ## Architecture map
 

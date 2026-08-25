@@ -167,7 +167,7 @@ resource "aws_security_group" "database" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.services.id]
+    security_groups = [aws_security_group.database_clients.id]
   }
 }
 
@@ -180,7 +180,33 @@ resource "aws_security_group" "cache" {
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
-    security_groups = [aws_security_group.services.id]
+    security_groups = [aws_security_group.cache_clients.id]
+  }
+}
+
+resource "aws_security_group" "database_clients" {
+  name        = "${local.name_prefix}-database-clients"
+  description = "Identity boundary for services authorized to reach PostgreSQL"
+  vpc_id      = aws_vpc.this.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "cache_clients" {
+  name        = "${local.name_prefix}-cache-clients"
+  description = "Identity boundary for services authorized to reach Valkey"
+  vpc_id      = aws_vpc.this.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -228,6 +254,20 @@ resource "aws_s3_bucket_versioning" "object_store" {
   versioning_configuration { status = "Enabled" }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "object_store" {
+  bucket = aws_s3_bucket.object_store.id
+
+  rule {
+    id     = "retire-noncurrent-objects"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+    noncurrent_version_expiration { noncurrent_days = 90 }
+  }
+}
+
 resource "aws_db_subnet_group" "postgres" {
   name       = local.name_prefix
   subnet_ids = values(aws_subnet.private)[*].id
@@ -237,7 +277,7 @@ resource "aws_db_instance" "postgres" {
   identifier = local.name_prefix
 
   allocated_storage                   = 20
-  backup_retention_period             = var.environment == "production" ? 14 : 3
+  backup_retention_period             = var.database_backup_retention_days
   db_name                             = "control_plane"
   db_subnet_group_name                = aws_db_subnet_group.postgres.name
   deletion_protection                 = var.database_deletion_protection
@@ -251,6 +291,11 @@ resource "aws_db_instance" "postgres" {
   performance_insights_enabled        = true
   performance_insights_kms_key_id     = aws_kms_key.platform.arn
   publicly_accessible                 = false
+  copy_tags_to_snapshot               = true
+  auto_minor_version_upgrade          = false
+  maintenance_window                  = "sun:05:00-sun:06:00"
+  backup_window                       = "03:00-04:00"
+  storage_type                        = "gp3"
   final_snapshot_identifier           = var.environment == "production" ? "${local.name_prefix}-final" : null
   skip_final_snapshot                 = var.environment != "production"
   storage_encrypted                   = true
@@ -293,6 +338,59 @@ resource "aws_cloudwatch_log_group" "services" {
   name              = "/${var.project_name}/${var.environment}/services"
   kms_key_id        = aws_kms_key.platform.arn
   retention_in_days = var.environment == "production" ? 90 : 14
+}
+
+resource "aws_sns_topic" "operations" {
+  name              = "${local.name_prefix}-operations"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+resource "aws_cloudwatch_metric_alarm" "database_cpu_high" {
+  alarm_name          = "${local.name_prefix}-database-cpu-high"
+  alarm_description   = "PostgreSQL sustained CPU pressure"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/RDS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 80
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
+  dimensions          = { DBInstanceIdentifier = aws_db_instance.postgres.id }
+}
+
+resource "aws_cloudwatch_metric_alarm" "database_storage_low" {
+  alarm_name          = "${local.name_prefix}-database-storage-low"
+  alarm_description   = "PostgreSQL free storage below 5 GiB"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "FreeStorageSpace"
+  namespace           = "AWS/RDS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 5368709120
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
+  dimensions          = { DBInstanceIdentifier = aws_db_instance.postgres.id }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cache_cpu_high" {
+  alarm_name          = "${local.name_prefix}-cache-cpu-high"
+  alarm_description   = "Valkey sustained CPU pressure"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "EngineCPUUtilization"
+  namespace           = "AWS/ElastiCache"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 80
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
+  dimensions          = { ReplicationGroupId = aws_elasticache_replication_group.cache.id }
 }
 
 resource "aws_ecr_repository" "services" {

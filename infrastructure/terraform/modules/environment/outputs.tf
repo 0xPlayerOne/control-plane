@@ -18,6 +18,16 @@ output "service_security_group_id" {
   value       = module.platform.service_security_group_id
 }
 
+output "database_client_security_group_id" {
+  description = "Additional network identity required by database migration tasks."
+  value       = module.platform.database_client_security_group_id
+}
+
+output "operations_alarm_topic_arn" {
+  description = "SNS topic to which operators must attach an incident notification subscription."
+  value       = module.platform.operations_alarm_topic_arn
+}
+
 output "image_repository_urls" {
   description = "Authoritative immutable image repositories."
   value       = module.platform.image_repository_urls

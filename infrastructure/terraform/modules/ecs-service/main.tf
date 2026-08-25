@@ -45,24 +45,28 @@ resource "aws_iam_role" "task" {
 }
 
 data "aws_iam_policy_document" "task_access" {
-  statement {
-    actions = [
-      "s3:AbortMultipartUpload",
-      "s3:DeleteObject",
-      "s3:GetObject",
-      "s3:ListBucket",
-      "s3:PutObject",
-    ]
-    resources = [var.object_store_bucket_arn, "${var.object_store_bucket_arn}/*"]
+  dynamic "statement" {
+    for_each = length(var.object_store_actions) > 0 ? [1] : []
+
+    content {
+      actions   = var.object_store_actions
+      resources = [var.object_store_bucket_arn, "${var.object_store_bucket_arn}/*"]
+    }
   }
 
-  statement {
-    actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
-    resources = [var.kms_key_arn]
+  dynamic "statement" {
+    for_each = length(var.object_store_actions) > 0 ? [1] : []
+
+    content {
+      actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
+      resources = [var.kms_key_arn]
+    }
   }
 }
 
 resource "aws_iam_role_policy" "task_access" {
+  count = length(var.object_store_actions) > 0 ? 1 : 0
+
   name   = "platform-data-access"
   policy = data.aws_iam_policy_document.task_access.json
   role   = aws_iam_role.task.id
@@ -137,6 +141,9 @@ resource "aws_ecs_service" "this" {
   launch_type     = "FARGATE"
   task_definition = aws_ecs_task_definition.this.arn
 
+  deployment_minimum_healthy_percent = var.environment == "production" ? 100 : 50
+  deployment_maximum_percent         = 200
+
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -144,10 +151,62 @@ resource "aws_ecs_service" "this" {
 
   network_configuration {
     assign_public_ip = false
-    security_groups  = [var.security_group_id]
+    security_groups  = var.security_group_ids
     subnets          = var.private_subnet_ids
   }
 
   enable_execute_command = false
   propagate_tags         = "SERVICE"
+}
+
+resource "aws_appautoscaling_target" "this" {
+  count = var.create_service && var.maximum_capacity > 0 ? 1 : 0
+
+  max_capacity       = var.maximum_capacity
+  min_capacity       = var.minimum_capacity
+  resource_id        = "service/${element(reverse(split("/", var.cluster_arn)), 0)}/${aws_ecs_service.this[0].name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "cpu" {
+  count = length(aws_appautoscaling_target.this)
+
+  name               = "${var.name}-cpu-target"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.this[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.this[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.this[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+    target_value       = var.autoscaling_cpu_target
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  count = var.create_service ? 1 : 0
+
+  alarm_name          = "control-plane-${var.environment}-${var.name}-cpu-high"
+  alarm_description   = "${var.name} sustained CPU pressure"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  treat_missing_data  = "breaching"
+  alarm_actions       = [var.alarm_topic_arn]
+  ok_actions          = [var.alarm_topic_arn]
+
+  dimensions = {
+    ClusterName = element(reverse(split("/", var.cluster_arn)), 0)
+    ServiceName = aws_ecs_service.this[0].name
+  }
 }

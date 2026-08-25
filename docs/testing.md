@@ -14,7 +14,7 @@ and prefer real implementations over mocks when the dependency is local and inex
   cold database creation and migration, and the runner allows PostgreSQL up to 60 seconds to
   checkpoint during shutdown. Before projects start, the runner waits for a successful SQL query
   instead of relying only on the container health transition.
-- `bun run test:e2e` runs the M2-M7 cross-package acceptance scenarios.
+- `bun run test:e2e` runs the M2-M9 cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
   checkout with one command.
@@ -34,6 +34,9 @@ and prefer real implementations over mocks when the dependency is local and inex
 - `bun run test:m6-acceptance` runs the managed Pi and ACP cross-runtime acceptance matrix.
 - `bun run test:m7-acceptance` runs the policy-controlled tools, models, credentials, sandbox, and
   budget acceptance matrix with deterministic provider fakes.
+- `bun run test:m9-acceptance` builds the workspace, runs the production trace/security/deployment
+  acceptance flow, scans tracked and untracked source for credential formats, and enforces the
+  repeatable latency, throughput, memory, cost, retry, and telemetry-overhead budgets.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
   group. CI shards must use distinct output directories if they collect coverage.
 
@@ -61,7 +64,7 @@ workspace tests in one process, so that application remains part of the aggregat
   drift is checked separately through `bun run openapi:check`.
 - **Failure-injection** tests use recording or deliberately failing port adapters and assert state,
   not internal call order.
-- **End-to-end** tests cover the critical cross-package M2-M7 acceptance flows without external
+- **End-to-end** tests cover the critical cross-package M2-M9 acceptance flows without external
   credentials.
   The established M2-M6 acceptance flows remain included unchanged alongside M7.
 

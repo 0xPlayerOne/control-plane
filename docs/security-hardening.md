@@ -7,6 +7,9 @@ Natural-language content is data and cannot grant authority.
 
 ## Trust boundaries and assets
 
+This threat model applies STRIDE categories at every boundary: spoofing, tampering, repudiation,
+information disclosure, denial of service, and elevation of privilege.
+
 | Boundary                                   | Primary threats                                                           | Required controls                                                                                   |
 | ------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Agent HQ to Control API                    | spoofing, cross-workspace access, replay                                  | purpose-bound service credentials, audience and scope checks, generic not-found denial              |
