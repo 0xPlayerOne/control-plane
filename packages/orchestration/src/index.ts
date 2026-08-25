@@ -161,4 +161,6 @@ export function createGraphEvent(input: unknown): GraphEvent {
   return GraphEventSchema.parse(input)
 }
 
+export * from './graph-catalog.js'
+
 export const packageName = 'orchestration'
