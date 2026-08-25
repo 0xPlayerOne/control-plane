@@ -59,6 +59,8 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
   readonly #events: GraphEventPublisher
   readonly #checkpointer: BaseCheckpointSaver
   readonly #now: () => string
+  readonly #compilerVersion: string
+  readonly #adapterVersion: string
   readonly #active = new Map<string, AbortController>()
 
   constructor(options: {
@@ -67,11 +69,15 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
     readonly events: GraphEventPublisher
     readonly checkpointer: BaseCheckpointSaver
     readonly now?: () => string
+    readonly compilerVersion?: string
+    readonly adapterVersion?: string
   }) {
     this.#operations = options.operations
     this.#events = options.events
     this.#checkpointer = options.checkpointer
     this.#now = options.now ?? (() => new Date().toISOString())
+    this.#compilerVersion = options.compilerVersion ?? '1.0.0'
+    this.#adapterVersion = options.adapterVersion ?? '1.4.12'
     for (const graph of options.graphs) {
       const key = graphKey(graph.reference)
       if (this.#graphs.has(key)) throw new OrchestrationError('GRAPH_VERSION_MISMATCH', false)
@@ -162,7 +168,20 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         },
       })
       const config = {
-        configurable: { thread_id: request.threadId },
+        configurable: {
+          thread_id: request.threadId,
+          checkpoint_ns: `${request.workspaceId}:${request.executionId}`,
+        },
+        metadata: {
+          graphDefinitionId: request.graph.graphDefinitionId,
+          graphVersion: request.graph.graphVersion,
+          contentDigest: request.graph.contentDigest,
+          executionId: request.executionId,
+          workflowId: request.workflowId,
+          workspaceId: request.workspaceId,
+          compilerVersion: this.#compilerVersion,
+          adapterVersion: this.#adapterVersion,
+        },
         signal: controller.signal,
       }
       const state = await graph.invoke({ input: graphInput, values: {}, output: {} }, config)
@@ -247,3 +266,5 @@ function activeKey(executionId: string, threadId: string): string {
 }
 
 export const packageName = 'langgraph-adapter'
+
+export * from './postgres-checkpointer.js'
