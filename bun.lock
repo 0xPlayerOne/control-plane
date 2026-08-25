@@ -74,6 +74,7 @@
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
         "@control-plane/contracts": "workspace:*",
+        "@control-plane/domain": "workspace:*",
         "@control-plane/tool-sdk": "workspace:*",
         "ajv": "8.20.0",
       },

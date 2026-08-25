@@ -28,3 +28,27 @@ unauthorized operations, missing executors, schema violations, and limit violati
 Executor adapters implement the provider-neutral `ToolExecutor` port from `@control-plane/tool-sdk`.
 Provider credentials and transport configuration remain behind those adapters and are not part of
 canonical definitions, runtime requests, or public results.
+
+## Durable policy-controlled calls
+
+Privileged execution uses `PolicyControlledToolExecutionService`, which prepares and validates the
+canonical request before recording a `ToolCall`. The record stores an input digest rather than raw
+input, the exact policy decision/version, approval and executor references, a stable idempotency key,
+bounded results or Artifact references, and an append-only status history.
+
+The service follows this order:
+
+1. Validate the exact grant, version, operation, input schema, and input size.
+2. Claim the workspace-scoped idempotency key and persist the request digest.
+3. Evaluate the provider-neutral policy port; denial or evaluator failure cannot reach an executor.
+4. Create or inspect a durable M3 approval interaction when policy/tool risk requires it.
+5. Enforce the principal/tool/operation rate window immediately before the effect.
+6. Invoke the executor with the pinned timeout and retry only errors explicitly classified by the
+   tool version when its idempotency model supports retry.
+7. Validate and bound output, then persist the result and terminal audit transition.
+
+Concurrent and redelivered requests with the same digest converge on one supported effect. Reusing
+an idempotency key with a different request fails closed. An unknown or committed effect that cannot
+be safely replayed enters `reconciliation_required` instead of being reported as an ordinary failure.
+Executor errors are normalized to bounded codes; raw error messages and raw tool input are not kept
+in the durable call record.
