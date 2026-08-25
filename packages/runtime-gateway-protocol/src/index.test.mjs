@@ -40,6 +40,32 @@ describe('Runtime Gateway protocol', () => {
     }
   })
 
+  test('rejects privileged selector aliases at every payload depth', () => {
+    for (const parameters of [
+      { host: '127.0.0.1' },
+      { nested: { file: '/tmp/runtime.sock' } },
+      { options: [{ cwd: '/workspace' }] },
+      { command: '/usr/local/bin/runtime' },
+    ]) {
+      expect(
+        GatewayEnvelopeSchema.safeParse({
+          ...runtimeCommand(),
+          payload: { version: 1, parameters },
+        }).success
+      ).toBeFalse()
+    }
+
+    expect(
+      GatewayEnvelopeSchema.safeParse({
+        ...runtimeCommand(),
+        payload: {
+          version: 1,
+          parameters: { prompt: 'summarize the selected document', maxOutputBytes: 512 },
+        },
+      }).success
+    ).toBeTrue()
+  })
+
   test('negotiates compatible versions and fails closed when no major version overlaps', () => {
     expect(
       negotiateGatewayProtocolVersion(GatewayProtocolManifest.supported, [{ major: 1, minor: 0 }])
