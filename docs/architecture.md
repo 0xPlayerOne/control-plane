@@ -49,7 +49,7 @@ required forbidden-import regression test.
 | ACP        | adapter-bound | External agent protocol implemented at a gateway boundary when required.                                              |
 | MCP        | adapter-bound | Tool protocol implemented at the tool gateway boundary.                                                               |
 | LiteLLM    | adapter-bound | Model-routing provider behind a model gateway port.                                                                   |
-| E2B        | adapter-bound | Concrete remote sandbox harness; adoption is deferred until runtime work.                                             |
+| E2B        | adapter-bound | Initial remote sandbox adapter behind the provider-neutral isolated-compute port.                                     |
 
 “Accepted” means the foundation may depend on the technology at its stated boundary. “Adapter-bound”
 means the domain cannot depend on it and a replaceable adapter is mandatory. “Deferred” means no
