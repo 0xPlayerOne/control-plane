@@ -4,6 +4,8 @@ import {
   GatewayProtocolDeprecationSchema,
   GatewayProtocolManifest,
   ReferenceRuntimeNode,
+  RuntimeNodeAuthenticationAttemptSchema,
+  RuntimeNodeCredentialClaimsSchema,
   inventoryFixtures,
   negotiateGatewayProtocolVersion,
   runGatewayProtocolConformance,
@@ -86,6 +88,35 @@ describe('Runtime Gateway protocol', () => {
 
   test('passes the reusable protocol conformance suite against the reference node', () => {
     expect(runGatewayProtocolConformance()).toEqual({ scenarios: 9, passed: 9 })
+  })
+
+  test('publishes strict provider-independent RuntimeNode identity contracts', () => {
+    const claims = {
+      schemaVersion: 1,
+      credentialKind: 'runtime_node',
+      credentialId: 'rgc_0000000000000001',
+      issuer: 'https://identity.test.example',
+      audience: 'control-plane-runtime-gateway',
+      nodeId: ids.node,
+      workspaceId: ids.workspace,
+      keyId: 'rgk_000000000001',
+      proofKeyThumbprint: `sha256:${'a'.repeat(64)}`,
+      revocationVersion: 1,
+      channelGeneration: 1,
+      issuedAt: '2026-08-25T12:00:00.000Z',
+      expiresAt: '2026-08-25T12:05:00.000Z',
+    }
+    expect(RuntimeNodeCredentialClaimsSchema.parse(claims)).toEqual(claims)
+    expect(
+      RuntimeNodeCredentialClaimsSchema.safeParse({ ...claims, credentialKind: 'browser_session' })
+        .success
+    ).toBeFalse()
+    expect(
+      RuntimeNodeAuthenticationAttemptSchema.safeParse({
+        credential: 'signed_header.signed_credential_payload.signed_credential_signature',
+        proof: { challenge: 'challenge-contract-0001', signature: 'signature_value' },
+      }).success
+    ).toBeTrue()
   })
 
   test('publishes a language-neutral JSON schema without server package dependencies', async () => {
