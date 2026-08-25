@@ -1,5 +1,5 @@
 const sensitiveKeyPattern =
-  /(?:api[_-]?key|authorization|cookie|credential|file[_-]?contents?|model[_-]?input|passw(?:or)?d|prompt|secret|token|tool[_-]?input)/i
+  /^(?:access[_-]?token|api[_-]?key|authorization|client[_-]?secret|cookie|credential|file[_-]?contents?|id[_-]?token|model[_-]?input|passw(?:or)?d|prompt|refresh[_-]?token|secret|(?:aws[_-]?)?secret[_-]?access[_-]?key|token|tool[_-]?input)$/i
 const secretsInText = [
   {
     pattern:

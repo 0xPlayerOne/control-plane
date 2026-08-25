@@ -45,6 +45,10 @@ describe('telemetry safety and correlation', () => {
       authorization: 'Bearer private',
       nested: {
         apiKey: 'api-key',
+        accessToken: 'private-access-token',
+        aws_secret_access_key: 'private-aws-secret',
+        clientSecret: 'private-client-secret',
+        outputTokens: 2,
         prompt: 'private prompt',
         safe: 'visible',
       },
@@ -58,7 +62,15 @@ describe('telemetry safety and correlation', () => {
     expect(JSON.stringify(redacted)).not.toContain('private')
     expect(redacted).toEqual({
       authorization: '[REDACTED]',
-      nested: { apiKey: '[REDACTED]', prompt: '[REDACTED]', safe: 'visible' },
+      nested: {
+        apiKey: '[REDACTED]',
+        accessToken: '[REDACTED]',
+        aws_secret_access_key: '[REDACTED]',
+        clientSecret: '[REDACTED]',
+        outputTokens: 2,
+        prompt: '[REDACTED]',
+        safe: 'visible',
+      },
       error: {
         name: 'Error',
         message:
