@@ -155,7 +155,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
   test('persists immutable release decisions across repository restart', async () => {
     await isolated.migrate()
     const record = {
-      releaseAuditId: '018f6f64-8d3a-7c11-b043-001122334455',
+      releaseAuditId: 'f18f6f64-8d3a-7c11-b043-001122334455',
       releaseGateId: 'gate-profile-default',
       action: 'promote',
       actor: 'operator://release',
@@ -166,10 +166,20 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
 
     await repository.append(record)
     await repository.append(record)
+    const rollback = {
+      ...record,
+      releaseAuditId: '018f6f64-8d3a-7c11-b043-001122334456',
+      action: 'rollback',
+      actor: 'operator://incident',
+      fromRunId: record.toRunId,
+      toRunId: 'eval-run-baseline',
+      reason: 'latency',
+    }
+    await repository.append(rollback)
 
     const restarted = new PostgresReleaseAuditRepository(isolated.application)
-    expect(await restarted.list('gate-profile-default')).toEqual([record])
-    expect(await isolated.application.select().from(releaseAuditRecords)).toHaveLength(1)
+    expect(await restarted.list('gate-profile-default')).toEqual([record, rollback])
+    expect(await isolated.application.select().from(releaseAuditRecords)).toHaveLength(2)
     await expect(restarted.append({ ...record, actor: 'operator://conflict' })).rejects.toThrow(
       'RELEASE_AUDIT_CONFLICT'
     )

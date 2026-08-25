@@ -1,5 +1,5 @@
 import type { EvalRun, ReleaseAuditRecord } from '@control-plane/production-readiness'
-import { index, jsonb, pgEnum, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core'
+import { bigserial, index, jsonb, pgEnum, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core'
 
 export const evaluationRunStatus = pgEnum('evaluation_run_status', ['failed', 'passed'])
 export const releaseAuditAction = pgEnum('release_audit_action', ['promote', 'rollback'])
@@ -19,6 +19,7 @@ export const evaluationRuns = pgTable(
 export const releaseAuditRecords = pgTable(
   'release_audit_records',
   {
+    sequence: bigserial('sequence', { mode: 'number' }).notNull().unique(),
     releaseAuditId: varchar('release_audit_id', { length: 36 }).primaryKey(),
     releaseGateId: varchar('release_gate_id', { length: 256 }).notNull(),
     action: releaseAuditAction('action').notNull(),
@@ -26,10 +27,6 @@ export const releaseAuditRecords = pgTable(
     createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull(),
   },
   (table) => [
-    index('release_audit_records_gate_created_index').on(
-      table.releaseGateId,
-      table.createdAt,
-      table.releaseAuditId
-    ),
+    index('release_audit_records_gate_sequence_index').on(table.releaseGateId, table.sequence),
   ]
 )

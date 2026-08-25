@@ -32,7 +32,7 @@ export class PostgresReleaseAuditRepository implements ReleaseAuditRepository {
     const query = this.database
       .select()
       .from(releaseAuditRecords)
-      .orderBy(asc(releaseAuditRecords.createdAt), asc(releaseAuditRecords.releaseAuditId))
+      .orderBy(asc(releaseAuditRecords.sequence))
     const rows =
       releaseGateId === undefined
         ? await query

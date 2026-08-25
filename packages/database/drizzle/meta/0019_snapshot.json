@@ -1,5 +1,5 @@
 {
-  "id": "1d956c50-ad37-4c34-b6d5-88c3d5c26ea1",
+  "id": "d746b066-dde7-416f-9093-4f6d021fb42b",
   "prevId": "674f1661-8a60-40ca-bbb1-1d382bc3e9b4",
   "version": "7",
   "dialect": "postgresql",
@@ -2188,6 +2188,12 @@
       "name": "release_audit_records",
       "schema": "",
       "columns": {
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
         "release_audit_id": {
           "name": "release_audit_id",
           "type": "varchar(36)",
@@ -2221,8 +2227,8 @@
         }
       },
       "indexes": {
-        "release_audit_records_gate_created_index": {
-          "name": "release_audit_records_gate_created_index",
+        "release_audit_records_gate_sequence_index": {
+          "name": "release_audit_records_gate_sequence_index",
           "columns": [
             {
               "expression": "release_gate_id",
@@ -2231,13 +2237,7 @@
               "nulls": "last"
             },
             {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "release_audit_id",
+              "expression": "sequence",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2251,7 +2251,15 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "release_audit_records_sequence_unique": {
+          "name": "release_audit_records_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sequence"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
