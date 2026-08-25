@@ -82,9 +82,15 @@ describe('production security audit controls', () => {
 
   test('detects production credential formats without flagging placeholders', () => {
     const githubToken = ['ghp', '_', 'A'.repeat(36)].join('')
+    const fineGrainedGithubToken = ['github', '_pat_', 'A'.repeat(82)].join('')
     const privateKey = ['-----BEGIN ', 'PRIVATE KEY-----'].join('')
 
-    expect(findCredentialLeaks('config.ts', `token=${githubToken}\n${privateKey}`)).toEqual([
+    expect(
+      findCredentialLeaks(
+        'config.ts',
+        `example_endpoint=token:${githubToken}\ntoken=${fineGrainedGithubToken}\n${privateKey}`
+      )
+    ).toEqual([
       { path: 'config.ts', rule: 'github-token' },
       { path: 'config.ts', rule: 'private-key' },
     ])

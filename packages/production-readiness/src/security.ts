@@ -14,14 +14,16 @@ export type CredentialKind = z.output<typeof CredentialKindSchema>
 export type CredentialEnvelope = z.output<typeof CredentialEnvelopeSchema>
 
 const credentialRules = [
-  { rule: 'github-token', pattern: /\bgh[pousr]_[A-Za-z0-9]{36,255}\b/ },
+  {
+    rule: 'github-token',
+    pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{82})\b/,
+  },
   { rule: 'aws-access-key', pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/ },
   { rule: 'private-key', pattern: /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/ },
   { rule: 'slack-token', pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/ },
   { rule: 'stripe-live-key', pattern: /\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b/ },
   { rule: 'google-api-key', pattern: /\bAIza[A-Za-z0-9_-]{35}\b/ },
 ] as const
-const placeholderPattern = /(?:example|placeholder|replace[-_ ]?me|your[-_ ]|x{8,})/i
 
 export class SecretCanaryGuard {
   readonly #canaries: readonly string[]
@@ -50,7 +52,6 @@ export function findCredentialLeaks(
 ): readonly { readonly path: string; readonly rule: string }[] {
   const findings = []
   for (const line of contents.split(/\r?\n/)) {
-    if (placeholderPattern.test(line)) continue
     for (const { pattern, rule } of credentialRules) {
       if (pattern.test(line)) findings.push({ path, rule })
     }
