@@ -49,15 +49,7 @@ describe('production security audit controls', () => {
 
   test('proves every cross-scope read and mutation denies without existence leakage', async () => {
     const matrix = await runAuthorizationIsolationMatrix({
-      dimensions: [
-        'workspace',
-        'project',
-        'profile',
-        'context',
-        'runtime',
-        'tool',
-        'usage',
-      ],
+      dimensions: ['workspace', 'project', 'profile', 'context', 'runtime', 'tool', 'usage'],
       operations: ['read', 'mutate'],
       probe: async ({ sameScope }) =>
         sameScope
@@ -67,8 +59,9 @@ describe('production security audit controls', () => {
 
     expect(matrix).toHaveLength(28)
     expect(matrix.filter(({ sameScope }) => !sameScope).every(({ passed }) => passed)).toBe(true)
-    expect(new Set(matrix.filter(({ sameScope }) => !sameScope).map(({ publicCode }) => publicCode)))
-      .toEqual(new Set(['RESOURCE_NOT_FOUND']))
+    expect(
+      new Set(matrix.filter(({ sameScope }) => !sameScope).map(({ publicCode }) => publicCode))
+    ).toEqual(new Set(['RESOURCE_NOT_FOUND']))
   })
 
   test('fails the isolation audit if a cross-scope probe leaks existence or grants access', async () => {
@@ -92,8 +85,8 @@ describe('production security audit controls', () => {
       { path: 'config.ts', rule: 'github-token' },
       { path: 'config.ts', rule: 'private-key' },
     ])
-    expect(
-      findCredentialLeaks('.env.example', 'API_KEY=replace-me\nTOKEN=example-token')
-    ).toEqual([])
+    expect(findCredentialLeaks('.env.example', 'API_KEY=replace-me\nTOKEN=example-token')).toEqual(
+      []
+    )
   })
 })

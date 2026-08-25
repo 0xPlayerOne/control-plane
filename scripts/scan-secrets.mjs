@@ -5,10 +5,14 @@ import { fileURLToPath } from 'node:url'
 import { findCredentialLeaks } from '../packages/production-readiness/src/index.ts'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
-const tracked = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
-  cwd: repositoryRoot,
-  encoding: 'utf8',
-})
+const tracked = execFileSync(
+  'git',
+  ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+  {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+  }
+)
   .split('\0')
   .filter(Boolean)
 

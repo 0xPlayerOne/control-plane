@@ -128,11 +128,7 @@ export class ReleaseGateRegistry {
   }
 }
 
-function relativeRegression(
-  metric: EvaluationMetric,
-  candidate: number,
-  baseline: number
-): number {
+function relativeRegression(metric: EvaluationMetric, candidate: number, baseline: number): number {
   const denominator = Math.max(Math.abs(baseline), Number.EPSILON)
   return lowerIsBetter.has(metric)
     ? Math.max(0, (candidate - baseline) / denominator)

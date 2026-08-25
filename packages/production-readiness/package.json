@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "browser": false,
-  "engines": { "node": ">=24 <25" },
-  "files": ["dist"],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "files": [
+    "dist"
+  ],
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -19,5 +23,7 @@
     "lint": "eslint src",
     "test": "bun test src"
   },
-  "dependencies": { "zod": "4.3.6" }
+  "dependencies": {
+    "zod": "4.3.6"
+  }
 }

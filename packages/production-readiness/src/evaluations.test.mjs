@@ -1,16 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  EvaluationService,
-  InMemoryEvaluationRepository,
-  ReleaseGateRegistry,
-} from './index.ts'
+import { EvaluationService, InMemoryEvaluationRepository, ReleaseGateRegistry } from './index.ts'
 
 const configuration = {
   executionPlanDigest: `sha256:${'1'.repeat(64)}`,
   profile: { id: 'profile-research', version: '4.2.0', digest: `sha256:${'2'.repeat(64)}` },
-  skills: [
-    { id: 'skill-search', version: '3.1.0', digest: `sha256:${'3'.repeat(64)}` },
-  ],
+  skills: [{ id: 'skill-search', version: '3.1.0', digest: `sha256:${'3'.repeat(64)}` }],
   graph: { id: 'graph-research', version: '2.0.0', digest: `sha256:${'4'.repeat(64)}` },
   runtime: {
     id: 'runtime-managed-pi',

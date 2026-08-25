@@ -7,13 +7,13 @@ Natural-language content is data and cannot grant authority.
 
 ## Trust boundaries and assets
 
-| Boundary | Primary threats | Required controls |
-| --- | --- | --- |
-| Agent HQ to Control API | spoofing, cross-workspace access, replay | purpose-bound service credentials, audience and scope checks, generic not-found denial |
-| RuntimeNode to Runtime Gateway | node/workspace substitution, replay, stale ownership | device proof, generation claim, revocation, payload hash, durable duplicate-effect ledger |
-| Model, tool, MCP, and connector adapters | prompt injection, confused deputy, secret egress | policy decision before execution, exact tool/model pins, scoped leases, output validation |
-| Sandbox | path traversal, metadata access, ambient credentials, resource exhaustion | absolute bounded paths, deny-all/allowlist network, ephemeral leases, CPU/memory/time/output limits |
-| PostgreSQL, events, checkpoints, telemetry | tenant leakage, tampering, repudiation | workspace-scoped repositories, immutable evidence, idempotency keys, redaction, audit records |
+| Boundary                                   | Primary threats                                                           | Required controls                                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Agent HQ to Control API                    | spoofing, cross-workspace access, replay                                  | purpose-bound service credentials, audience and scope checks, generic not-found denial              |
+| RuntimeNode to Runtime Gateway             | node/workspace substitution, replay, stale ownership                      | device proof, generation claim, revocation, payload hash, durable duplicate-effect ledger           |
+| Model, tool, MCP, and connector adapters   | prompt injection, confused deputy, secret egress                          | policy decision before execution, exact tool/model pins, scoped leases, output validation           |
+| Sandbox                                    | path traversal, metadata access, ambient credentials, resource exhaustion | absolute bounded paths, deny-all/allowlist network, ephemeral leases, CPU/memory/time/output limits |
+| PostgreSQL, events, checkpoints, telemetry | tenant leakage, tampering, repudiation                                    | workspace-scoped repositories, immutable evidence, idempotency keys, redaction, audit records       |
 
 The protected assets are workspace data, execution authority, connector/provider credentials,
 runtime identity, immutable plans and version pins, authoritative usage/cost records, artifacts, and

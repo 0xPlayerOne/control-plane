@@ -157,14 +157,18 @@ describe('telemetry safety and correlation', () => {
     const repeated = policy.shouldSample({ name: 'execution.root', identifiers })
 
     expect(first).toBe(repeated)
-    expect(createDeterministicSamplingPolicy({ ratio: 0 }).shouldSample({
-      name: 'execution.root',
-      identifiers,
-    })).toBe(false)
-    expect(createDeterministicSamplingPolicy({ ratio: 1 }).shouldSample({
-      name: 'execution.root',
-      identifiers,
-    })).toBe(true)
+    expect(
+      createDeterministicSamplingPolicy({ ratio: 0 }).shouldSample({
+        name: 'execution.root',
+        identifiers,
+      })
+    ).toBe(false)
+    expect(
+      createDeterministicSamplingPolicy({ ratio: 1 }).shouldSample({
+        name: 'execution.root',
+        identifiers,
+      })
+    ).toBe(true)
   })
 
   test('keeps LangSmith traces metadata-only and redacted', () => {
