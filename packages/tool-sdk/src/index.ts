@@ -270,6 +270,7 @@ export const ToolCallSchema = z
 
 export const ToolAuthorizationRequestSchema = z
   .object({
+    requestId: IdentifierSchemas.requestId,
     toolCallId: IdentifierSchemas.toolCallId,
     executionId: IdentifierSchemas.executionId,
     attemptId: IdentifierSchemas.attemptId,
