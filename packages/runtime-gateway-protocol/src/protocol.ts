@@ -26,6 +26,7 @@ const forbiddenPayloadKeys = [
   'token',
   'url',
 ] as const
+const safePayloadKeys = new Set(['profile', 'profileid', 'profileversionid'])
 
 export const GatewayProtocolVersionSchema = z
   .object({ major: z.number().int().positive(), minor: z.number().int().nonnegative() })
@@ -462,7 +463,10 @@ function rejectPrivilegedPayload(
   if (typeof value !== 'object' || value === null) return
   for (const [key, entry] of Object.entries(value)) {
     const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase()
-    if (forbiddenPayloadKeys.some((forbidden) => forbiddenKeyMatches(normalizedKey, forbidden))) {
+    if (
+      !safePayloadKeys.has(normalizedKey) &&
+      forbiddenPayloadKeys.some((forbidden) => forbiddenKeyMatches(normalizedKey, forbidden))
+    ) {
       context.addIssue({
         code: 'custom',
         path: [...path, key],

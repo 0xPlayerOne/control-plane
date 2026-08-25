@@ -62,6 +62,7 @@ describe('Runtime Gateway protocol', () => {
           version: 1,
           parameters: {
             prompt: 'summarize the selected document',
+            profile: { profileId: 'prf_01JABCDEF0123456789ABCDEFG' },
             maxOutputBytes: 512,
             limits: { maximumTokens: 4096 },
           },

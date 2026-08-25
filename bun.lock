@@ -171,6 +171,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@control-plane/domain": "workspace:*",
+        "@control-plane/runtime-gateway-protocol": "workspace:*",
         "@control-plane/runtime-sdk": "workspace:*",
         "zod": "4.4.3",
       },
