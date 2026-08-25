@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { type InteractionRepository, type InteractionService } from '@control-plane/domain'
+import { type PolicyDecisionPoint, type PolicySnapshotReference } from '@control-plane/policy'
 import {
   DurableToolCallRequestSchema,
   ToolAuthorizationRequestSchema,
@@ -88,6 +89,70 @@ export class StaticToolPolicyAuthorizer implements ToolPolicyAuthorizer {
   async authorize(input: ToolAuthorizationRequest): Promise<ToolPolicyDecision> {
     this.requests.push(clone(ToolAuthorizationRequestSchema.parse(input)))
     return clone(ToolPolicyDecisionSchema.parse(this.decision))
+  }
+}
+
+export class PolicyDecisionPointToolAuthorizer implements ToolPolicyAuthorizer {
+  constructor(
+    readonly decisionPoint: PolicyDecisionPoint,
+    readonly resolveSnapshot: (
+      reference: string
+    ) => PolicySnapshotReference | undefined | Promise<PolicySnapshotReference | undefined>
+  ) {}
+
+  async authorize(input: ToolAuthorizationRequest): Promise<ToolPolicyDecision> {
+    const request = ToolAuthorizationRequestSchema.parse(input)
+    const snapshot = await this.resolveSnapshot(request.policySnapshotRef)
+    if (!snapshot) {
+      return ToolPolicyDecisionSchema.parse({
+        effect: 'deny',
+        decisionId: `policy-missing-${request.toolCallId}`,
+        policyVersion: request.policySnapshotRef,
+        reasonCode: 'POLICY_MISSING',
+        requiresApproval: false,
+        evaluatedAt: request.requestedAt,
+      })
+    }
+    const decision = await this.decisionPoint.authorize({
+      requestId: request.requestId,
+      principal: {
+        type: 'service',
+        id: request.principalRef,
+        workspaceId: request.workspaceId,
+      },
+      action: 'tool:invoke',
+      resource: {
+        type: 'tool',
+        id: request.toolVersionId,
+        workspaceId: request.workspaceId,
+        attributes: {
+          toolDefinitionId: request.toolDefinitionId,
+          operation: request.operation,
+          riskClass: request.riskClass,
+          requiredCapabilities: request.requiredCapabilities,
+          inputDigest: request.inputDigest,
+        },
+      },
+      context: {
+        workspaceId: request.workspaceId,
+        requestedAt: request.requestedAt,
+        attributes: {
+          executionId: request.executionId,
+          attemptId: request.attemptId,
+          profileId: request.profileId,
+          toolCallId: request.toolCallId,
+        },
+      },
+      policySnapshot: snapshot,
+    })
+    return ToolPolicyDecisionSchema.parse({
+      effect: decision.effect,
+      decisionId: decision.decisionId,
+      policyVersion: `${decision.policySnapshot.policyId}@${decision.policySnapshot.version}:${decision.policySnapshot.digest}`,
+      reasonCode: decision.reasonCode,
+      requiresApproval: false,
+      evaluatedAt: decision.evaluatedAt,
+    })
   }
 }
 
@@ -389,6 +454,7 @@ function authorizationRequest(
   call: ToolCall
 ): ToolAuthorizationRequest {
   return ToolAuthorizationRequestSchema.parse({
+    requestId: request.requestId,
     toolCallId: call.toolCallId,
     executionId: call.executionId,
     attemptId: call.attemptId,

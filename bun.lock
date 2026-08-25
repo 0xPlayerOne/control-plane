@@ -75,6 +75,7 @@
         "@control-plane/bootstrap": "workspace:*",
         "@control-plane/contracts": "workspace:*",
         "@control-plane/domain": "workspace:*",
+        "@control-plane/policy": "workspace:*",
         "@control-plane/tool-sdk": "workspace:*",
         "ajv": "8.20.0",
       },
@@ -199,6 +200,10 @@
     "packages/policy": {
       "name": "@control-plane/policy",
       "version": "1.1.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "zod": "4.4.3",
+      },
     },
     "packages/runtime-gateway-protocol": {
       "name": "@control-plane/runtime-gateway-protocol",

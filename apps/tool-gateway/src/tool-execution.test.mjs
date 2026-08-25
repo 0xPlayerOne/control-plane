@@ -7,6 +7,7 @@ import {
   InMemoryToolRegistryRepository,
   InteractionToolApprovalCoordinator,
   PolicyControlledToolExecutionService,
+  PolicyDecisionPointToolAuthorizer,
   StaticToolPolicyAuthorizer,
   ToolGateway,
   ToolRegistry,
@@ -109,7 +110,12 @@ function request(overrides = {}) {
   }
 }
 
-async function fixture({ decision = 'allow', executorResponse, versionOverrides } = {}) {
+async function fixture({
+  decision = 'allow',
+  executorResponse,
+  versionOverrides,
+  authorizerOverride,
+} = {}) {
   const registry = new ToolRegistry(new InMemoryToolRegistryRepository())
   await registry.createDefinition(definition)
   await registry.publishVersion(version(versionOverrides))
@@ -122,14 +128,16 @@ async function fixture({ decision = 'allow', executorResponse, versionOverrides 
     new InteractionService(interactions),
     interactions
   )
-  const authorizer = new StaticToolPolicyAuthorizer({
-    effect: decision,
-    decisionId: 'policy-decision-0001',
-    policyVersion: 'workspace-v7',
-    reasonCode: decision === 'allow' ? 'GRANTED' : 'POLICY_DENIED',
-    requiresApproval: false,
-    evaluatedAt: '2026-08-25T09:00:00.000Z',
-  })
+  const authorizer =
+    authorizerOverride ??
+    new StaticToolPolicyAuthorizer({
+      effect: decision,
+      decisionId: 'policy-decision-0001',
+      policyVersion: 'workspace-v7',
+      reasonCode: decision === 'allow' ? 'GRANTED' : 'POLICY_DENIED',
+      requiresApproval: false,
+      evaluatedAt: '2026-08-25T09:00:00.000Z',
+    })
   const service = new PolicyControlledToolExecutionService({
     gateway,
     calls,
@@ -141,6 +149,46 @@ async function fixture({ decision = 'allow', executorResponse, versionOverrides 
 }
 
 describe('policy-controlled durable tool execution', () => {
+  test('adapts the replaceable PolicyDecisionPoint and audits its exact snapshot', async () => {
+    const requests = []
+    const snapshot = {
+      policyId: 'workspace-standard',
+      version: 7,
+      digest: `sha256:${'c'.repeat(64)}`,
+    }
+    const authorizer = new PolicyDecisionPointToolAuthorizer(
+      {
+        authorize: async (input) => {
+          requests.push(input)
+          return {
+            effect: 'allow',
+            decisionId: `sha256:${'d'.repeat(64)}`,
+            reasonCode: 'CEDAR_PERMIT',
+            policySnapshot: snapshot,
+            evaluatedAt: '2026-08-25T09:00:00.000Z',
+          }
+        },
+      },
+      async (reference) => (reference === 'policy://workspace/v7' ? snapshot : undefined)
+    )
+    const { service } = await fixture({ authorizerOverride: authorizer })
+
+    const outcome = await service.execute(request())
+
+    expect(outcome.call.policyDecision).toMatchObject({
+      effect: 'allow',
+      policyVersion: `workspace-standard@7:${snapshot.digest}`,
+      reasonCode: 'CEDAR_PERMIT',
+    })
+    expect(requests).toMatchObject([
+      {
+        action: 'tool:invoke',
+        resource: { type: 'tool', workspaceId: ids.workspace },
+        policySnapshot: snapshot,
+      },
+    ])
+  })
+
   test('records policy denial without invoking the executor', async () => {
     const { service, calls, executor } = await fixture({ decision: 'deny' })
 
