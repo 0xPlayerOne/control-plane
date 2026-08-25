@@ -24,8 +24,9 @@ Every profile must satisfy all of these budgets:
 The harness counts only successful operations toward throughput and fails on invalid cost
 or attempt evidence. `BoundedAdmissionController` provides immediate overload rejection
 with a retry delay instead of an unbounded in-memory queue. Candidate releases can also be
-compared with an explicit prior baseline for latency, throughput, memory, and cost
-regressions.
+compared with an explicit prior baseline for latency, throughput, memory, cost, and error-rate
+regressions. Invalid or non-finite operation and comparison evidence fails closed instead of being
+absorbed by a permitted error budget.
 
 ## Measured local baseline
 

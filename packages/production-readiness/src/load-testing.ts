@@ -39,6 +39,7 @@ export interface LoadResult {
   readonly memoryDeltaBytes: number
   readonly costPerOperationUsd: number
   readonly maximumAttempts: number
+  readonly invalidEvidence: number
   readonly failedBudgets: readonly string[]
   readonly status: 'failed' | 'passed'
 }
@@ -64,6 +65,7 @@ export async function runLoadProfile(
   let failed = 0
   let totalCostUsd = 0
   let maximumAttempts = 0
+  let invalidEvidence = 0
 
   await Promise.all(
     Array.from({ length: profile.concurrency }, async () => {
@@ -72,11 +74,15 @@ export async function runLoadProfile(
         const operationStartedAt = now()
         try {
           const outcome = await operation({ sequence })
-          if (!Number.isFinite(outcome.costUsd) || outcome.costUsd < 0) {
-            throw new Error('INVALID_OPERATION_COST')
-          }
-          if (!Number.isSafeInteger(outcome.attempts) || outcome.attempts < 1) {
-            throw new Error('INVALID_OPERATION_ATTEMPTS')
+          if (
+            !Number.isFinite(outcome.costUsd) ||
+            outcome.costUsd < 0 ||
+            !Number.isSafeInteger(outcome.attempts) ||
+            outcome.attempts < 1
+          ) {
+            invalidEvidence += 1
+            failed += 1
+            continue
           }
           totalCostUsd += outcome.costUsd
           maximumAttempts = Math.max(maximumAttempts, outcome.attempts)
@@ -103,6 +109,7 @@ export async function runLoadProfile(
     memoryDeltaBytes: Math.max(0, memoryUsage() - memoryBefore),
     costPerOperationUsd: totalCostUsd / profile.iterations,
     maximumAttempts,
+    invalidEvidence,
   }
   const failedBudgets = [
     ...(result.p95LatencyMs > profile.budgets.p95LatencyMs ? ['p95_latency'] : []),
@@ -117,6 +124,7 @@ export async function runLoadProfile(
     ...(result.maximumAttempts > profile.budgets.maximumAttemptsPerOperation
       ? ['attempt_amplification']
       : []),
+    ...(result.invalidEvidence > 0 ? ['invalid_evidence'] : []),
   ]
   return {
     ...result,
@@ -174,6 +182,7 @@ export function compareLoadBaselines(input: {
     readonly errorRate: number
   }
 }): readonly string[] {
+  assertValidBaseline(input)
   const regressions = []
   if (
     increase(input.candidate.p95LatencyMs, input.baseline.p95LatencyMs) >
@@ -206,6 +215,24 @@ export function compareLoadBaselines(input: {
     regressions.push('error_rate')
   }
   return regressions.sort()
+}
+
+function assertValidBaseline(input: {
+  readonly baseline: BaselineMetrics
+  readonly candidate: BaselineMetrics
+  readonly maximumRegressions: Readonly<Record<string, number>>
+}): void {
+  const measurements = [
+    ...Object.values(input.baseline),
+    ...Object.values(input.candidate),
+    ...Object.values(input.maximumRegressions),
+  ]
+  if (measurements.some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new Error('INVALID_LOAD_BASELINE')
+  }
+  if (input.baseline.errorRate > 1 || input.candidate.errorRate > 1) {
+    throw new Error('INVALID_LOAD_BASELINE')
+  }
 }
 
 interface BaselineMetrics {

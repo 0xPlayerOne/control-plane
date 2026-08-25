@@ -118,4 +118,50 @@ describe('load, capacity, and cost baselines', () => {
       })
     ).toEqual(['cost', 'error_rate', 'latency', 'throughput'])
   })
+
+  test('fails closed on invalid accounting evidence even when errors are budgeted', async () => {
+    const result = await runLoadProfile(
+      {
+        profileId: 'invalid-accounting',
+        iterations: 1,
+        concurrency: 1,
+        budgets: {
+          p95LatencyMs: 100,
+          minimumThroughputPerSecond: 0,
+          maximumErrorRate: 1,
+          maximumMemoryDeltaBytes: 1024,
+          maximumCostPerOperationUsd: 1,
+          maximumAttemptsPerOperation: 2,
+        },
+      },
+      async () => ({ costUsd: Number.NaN, attempts: 1 }),
+      { now: () => 1, memoryUsage: () => 1000 }
+    )
+
+    expect(result).toMatchObject({ status: 'failed', invalidEvidence: 1 })
+    expect(result.failedBudgets).toContain('invalid_evidence')
+  })
+
+  test('rejects non-finite or negative baseline comparison inputs', () => {
+    const baseline = {
+      p95LatencyMs: 100,
+      throughputPerSecond: 1000,
+      costPerOperationUsd: 0.01,
+      memoryDeltaBytes: 1000,
+      errorRate: 0,
+    }
+    expect(() =>
+      compareLoadBaselines({
+        baseline,
+        candidate: { ...baseline, p95LatencyMs: Number.NaN },
+        maximumRegressions: {
+          latency: 0.2,
+          throughput: 0.2,
+          cost: 0.2,
+          memory: 0.2,
+          errorRate: 0,
+        },
+      })
+    ).toThrow('INVALID_LOAD_BASELINE')
+  })
 })
