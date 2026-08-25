@@ -55,6 +55,14 @@ export type ExecutionEventDraft = Omit<
   'sequence' | 'payloadBytes' | 'payloadHash' | 'publication' | 'archivedAt'
 >
 
+export const ExecutionEventDraftSchema = ExecutionEventSchema.omit({
+  sequence: true,
+  payloadBytes: true,
+  payloadHash: true,
+  publication: true,
+  archivedAt: true,
+})
+
 export interface ExecutionEventRepository {
   append(draft: ExecutionEventDraft): Promise<ExecutionEvent | undefined>
   get(eventId: string): Promise<ExecutionEvent | undefined>
@@ -157,13 +165,7 @@ export class ExecutionEventService {
     const payload = redactTelemetryValue(candidate.payload)
     const payloadBytes = Buffer.byteLength(JSON.stringify(payload))
     if (payloadBytes > 16_384) fail('EVENT_PAYLOAD_TOO_LARGE')
-    const result = ExecutionEventSchema.omit({
-      sequence: true,
-      payloadBytes: true,
-      payloadHash: true,
-      publication: true,
-      archivedAt: true,
-    }).safeParse({ ...candidate, payload })
+    const result = ExecutionEventDraftSchema.safeParse({ ...candidate, payload })
     if (!result.success) fail('INVALID_EVENT')
     const draft = result.data
     if (Date.parse(draft.retentionExpiresAt) <= Date.parse(draft.recordedAt)) fail('INVALID_EVENT')
@@ -304,6 +306,8 @@ function cloneOptional<Value>(value: Value | undefined): Value | undefined {
 export function hashExecutionEventPayload(payload: Readonly<Record<string, unknown>>): string {
   return createHash('sha256').update(canonicalJson(payload)).digest('hex')
 }
+
+export * from './runtime-ingestion.js'
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {

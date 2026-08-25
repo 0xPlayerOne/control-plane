@@ -138,7 +138,7 @@
   "error": {
     "type": "error",
     "schemaVersion": 1,
-    "protocolVersion": { "major": 1, "minor": 0 },
+    "protocolVersion": { "major": 1, "minor": 1 },
     "sequence": 7,
     "nodeId": "rnr_01JABCDEF0123456789ABCDEFG",
     "workspaceId": "wsp_01JABCDEF0123456789ABCDEFG",
@@ -146,6 +146,7 @@
     "sentAt": "2026-08-25T12:00:07.000Z",
     "channelGeneration": 1,
     "commandId": "cmd_01JABCDEF0123456789ABCDEFG",
+    "payloadHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "code": "RUNTIME_UNAVAILABLE",
     "retryable": true
   }

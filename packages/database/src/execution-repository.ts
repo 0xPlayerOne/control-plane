@@ -211,7 +211,7 @@ function toAttemptRow(attempt: ExecutionAttempt): typeof executionAttempts.$infe
   }
 }
 
-function toAttemptUpdate(
+export function toAttemptUpdate(
   attempt: ExecutionAttempt
 ): Partial<typeof executionAttempts.$inferInsert> {
   return {
@@ -224,7 +224,7 @@ function toAttemptUpdate(
   }
 }
 
-function fromAttemptRow(row: AttemptRow): ExecutionAttempt {
+export function fromAttemptRow(row: AttemptRow): ExecutionAttempt {
   const runtime = {
     ...(row.runtimeDefinitionId ? { runtimeDefinitionId: row.runtimeDefinitionId } : {}),
     ...(row.runtimeNodeRefId ? { runtimeNodeRefId: row.runtimeNodeRefId } : {}),

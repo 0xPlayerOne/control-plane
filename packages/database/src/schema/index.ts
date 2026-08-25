@@ -30,6 +30,11 @@ export {
 } from './runtime-connections.js'
 export { runtimeCommands, runtimeCommandStatus } from './runtime-commands.js'
 export {
+  runtimeEventMessageKind,
+  runtimeEventReceiptOutcome,
+  runtimeEventReceipts,
+} from './runtime-event-receipts.js'
+export {
   reconciliationAction,
   reconciliationCheckpoints,
   reconciliationCheckpointState,

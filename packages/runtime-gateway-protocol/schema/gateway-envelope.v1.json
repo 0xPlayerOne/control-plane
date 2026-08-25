@@ -16,7 +16,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -75,7 +75,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -113,6 +113,7 @@
           "type": "string",
           "enum": [
             "runtime.execute",
+            "runtime.cancel",
             "runtime.input",
             "runtime.approval",
             "context.status",
@@ -226,7 +227,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -274,7 +275,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -291,7 +292,7 @@
         "type": { "type": "string", "const": "progress" },
         "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
         "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-        "eventSequence": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+        "eventSequence": { "type": "integer", "exclusiveMinimum": 0, "maximum": 2147483647 },
         "event": {
           "type": "object",
           "properties": {
@@ -336,7 +337,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -425,7 +426,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -482,7 +483,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -532,7 +533,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -694,7 +695,7 @@
           "required": ["major", "minor"],
           "additionalProperties": false
         },
-        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "nodeId": { "type": "string", "pattern": "^rnr_[0-9A-HJKMNP-TV-Z]{26}$" },
         "workspaceId": { "type": "string", "pattern": "^wsp_[0-9A-HJKMNP-TV-Z]{26}$" },
         "traceId": { "type": "string", "pattern": "^trc_[0-9A-HJKMNP-TV-Z]{26}$" },
@@ -710,6 +711,7 @@
         },
         "type": { "type": "string", "const": "error" },
         "commandId": { "type": "string", "pattern": "^cmd_[0-9A-HJKMNP-TV-Z]{26}$" },
+        "payloadHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "code": { "type": "string", "maxLength": 96, "pattern": "^[A-Z][A-Z0-9_]*$" },
         "retryable": { "type": "boolean" }
       },
