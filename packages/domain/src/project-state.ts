@@ -16,6 +16,18 @@ export const StateItemProvenanceSchema = z
     sourcePrincipalRef: PrincipalRefSchema.optional(),
     sourceExecutionId: IdentifierSchemas.executionId.optional(),
     artifactRefs: z.array(IdentifierSchemas.artifactId).max(128),
+    executionPlan: z
+      .object({
+        executionPlanId: IdentifierSchemas.executionPlanId,
+        contentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      })
+      .optional(),
+    contextPackage: z
+      .object({
+        contextPackageId: IdentifierSchemas.contextPackageId,
+        contentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      })
+      .optional(),
     capturedAt: TimestampSchema,
   })
   .superRefine((value, context) => {

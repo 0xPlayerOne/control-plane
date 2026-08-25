@@ -277,6 +277,10 @@ export class DelegationService {
     this.#events = options.events
   }
 
+  deriveChildPlan(parentPlan: unknown, childPlan: unknown): ExecutionPlan {
+    return deriveExecutionPlan(ExecutionPlanSchema.parse(parentPlan), childPlan)
+  }
+
   async delegate(input: unknown): Promise<{
     readonly record: DelegationRecord
     readonly execution: Execution
@@ -312,7 +316,7 @@ export class DelegationService {
       throw new DelegationError('DELEGATION_DEPTH_EXCEEDED')
     }
 
-    const plan = deriveExecutionPlan(parsed.parentPlan, parsed.childPlan)
+    const plan = this.deriveChildPlan(parsed.parentPlan, parsed.childPlan)
     assertDeadline(parent, plan, parsed.acceptedAt, parsed.deadlineAt, parsed.policy.deadline)
     await this.#plans.put(plan)
     const execution = await this.#createOrRecoverChild(parsed, plan)
