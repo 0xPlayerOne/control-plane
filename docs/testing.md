@@ -12,18 +12,21 @@ and prefer real implementations over mocks when the dependency is local and inex
   30-second per-test budget for cold database creation and migration, and the runner allows PostgreSQL
   up to 60 seconds to checkpoint during shutdown. Before parallel workers start, the runner waits for
   a successful SQL query instead of relying only on the container health transition.
-- `bun run test:e2e` runs the M2, M3, and M4 cross-package acceptance scenarios.
+- `bun run test:e2e` runs the M2-M5 cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
   checkout with one command.
 - `bun run test:acceptance` is the one-command acceptance gate. It checks dependency ancestry,
   installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
-  the full foundation and M2 core-domain suites, Terraform validation, and all service plus migration
+  the full foundation and M2-M5 suites, Terraform validation, and all service plus migration
   container builds.
 - `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
   Foundry's coverage upload step.
+- `bun run test:m3-acceptance` runs the durable execution and recovery scenario matrix.
 - `bun run test:m4-acceptance` runs the adapter-neutral Runtime Fabric scenario matrix used to
   qualify inventory, eligibility, routing, sessions, read models, and historical attempt references.
+- `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, inventory, and
+  protocol-version scenario matrix.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
   group. CI shards must use distinct output directories if they collect coverage.
 
@@ -51,7 +54,7 @@ workspace tests in one process, so that application remains part of the aggregat
   drift is checked separately through `bun run openapi:check`.
 - **Failure-injection** tests use recording or deliberately failing port adapters and assert state,
   not internal call order.
-- **End-to-end** tests cover the critical cross-package M2-M4 acceptance flows without external
+- **End-to-end** tests cover the critical cross-package M2-M5 acceptance flows without external
   credentials.
 
 Vendor adapters must expose stable ports and use fakes or recording adapters in ordinary CI. Unit
@@ -87,7 +90,14 @@ The same suite fails closed for invalid, expired, revoked, and cross-scope crede
 deprecated, revoked, or incompatible catalog versions; stale, unauthorized, and over-budget context;
 contradictory runtime, model, policy, or tool requirements; persisted-plan mutation; and public SDK
 contract-major drift. It deliberately does not execute Pi, ACP, LangGraph, LiteLLM, MCP, E2B, or
-Temporal, so M3 runtime work and M4 durable-execution work can start from the same pinned seam.
+Temporal, so M3 durable-execution and M4 runtime work can start from the same pinned seam.
+
+## M3 durable execution acceptance
+
+Run `bun run test:m3-acceptance` to exercise authenticated execution acceptance, stable effect keys,
+workflow restart, activity retry, duplicate and out-of-order progress, durable interactions,
+cancellation races, Agent HQ outage replay, and explicit reconciliation of stale work. The suite uses
+the mock runtime boundary and requires no production runtime or external credentials.
 
 ## M4 Runtime Fabric acceptance
 
@@ -101,3 +111,16 @@ The suite uses only the normalized Runtime Fabric and domain ports. It imports n
 gateway, Pi SDK, or ACP implementation, so M6 adapters can reuse the harness as a conformance target.
 Fixtures are deterministic and contain only opaque native identifiers; public projections are asserted
 not to expose those identifiers or unrestricted native state.
+
+## M5 Runtime Gateway acceptance
+
+Run `bun run test:m5-acceptance` to execute the Runtime Gateway's provider-neutral protocol,
+device-bound authentication, WebSocket lifecycle, durable command delivery, normalized event and
+inventory ingestion, and reconnect reconciliation scenarios as one suite. It covers wrong-scope,
+expired, replayed, and revoked credentials; lost acknowledgements and terminal outcomes; duplicate
+delivery; command expiry; cancellation races; stale inventory; cross-instance replacement; malformed
+and oversized frames; backpressure; and bounded restart recovery.
+
+The suite records protocol versions 1.0 through 1.3 and runs inside Code Foundry's independent E2E
+job. Component tests remain colocated with the Runtime Gateway so the acceptance entrypoint reuses the
+same executable controls instead of maintaining divergent fixtures.

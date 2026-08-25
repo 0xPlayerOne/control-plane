@@ -85,6 +85,10 @@ describe('M5 runtime gateway acceptance manifest', () => {
       new URL('../.github/code-foundry.yml', import.meta.url),
       'utf8'
     )
+    const testingDocumentation = await readFile(
+      new URL('../docs/testing.md', import.meta.url),
+      'utf8'
+    )
 
     expect(manifest.scripts['test:m5-acceptance']).toBe(
       'bun run build && bun test tests/m5-runtime-gateway.test.mjs'
@@ -92,5 +96,7 @@ describe('M5 runtime gateway acceptance manifest', () => {
     expect(groups).toContain("'tests/m5-runtime-gateway.test.mjs'")
     expect(codeFoundry).toContain('features: all')
     expect(codeFoundry).toContain('coverage_minimum: 80')
+    expect(testingDocumentation).toContain('`bun run test:m5-acceptance`')
+    expect(testingDocumentation).toContain('M2-M5 acceptance flows')
   })
 })
