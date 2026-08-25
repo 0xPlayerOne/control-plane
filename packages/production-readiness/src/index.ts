@@ -30,3 +30,10 @@ export {
   failureScenarios,
   productionRecoveryObjectives,
 } from './failure-injection.js'
+export {
+  BoundedAdmissionController,
+  compareLoadBaselines,
+  LoadProfileSchema,
+  runLoadProfile,
+} from './load-testing.js'
+export type { LoadProfile, LoadResult } from './load-testing.js'
