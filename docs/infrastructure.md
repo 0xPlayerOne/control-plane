@@ -21,7 +21,7 @@ reproducible container build. There is no Kubernetes layer.
 
 Worker and gateway targets default to zero replicas. `control-api` is the only enabled target;
 networking remains private until an authenticated ingress design is approved. A disabled target
-still has an immutable task definition, least-privilege role, alarm, and bounded scaling path, but
+still has an immutable task definition, least-privilege role, and bounded alarm/scaling path, but
 must not be enabled until its dependency adapter and readiness contract pass staging.
 
 ## Reproducible containers

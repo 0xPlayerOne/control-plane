@@ -17,9 +17,17 @@ const tracked = execFileSync(
   .filter(Boolean)
 
 const findings = []
+let scanned = 0
 for (const path of tracked) {
-  const buffer = await readFile(resolve(repositoryRoot, path))
+  let buffer
+  try {
+    buffer = await readFile(resolve(repositoryRoot, path))
+  } catch (error) {
+    if (error?.code === 'ENOENT') continue
+    throw error
+  }
   if (buffer.byteLength > 5_242_880 || buffer.includes(0)) continue
+  scanned += 1
   findings.push(...findCredentialLeaks(path, buffer.toString('utf8')))
 }
 
@@ -28,4 +36,4 @@ if (findings.length > 0) {
   throw new Error(`Credential scan found ${findings.length} prohibited pattern(s).`)
 }
 
-console.log(`Credential scan passed across ${tracked.length} repository files.`)
+console.log(`Credential scan passed across ${scanned} repository files.`)

@@ -24,6 +24,9 @@ describe('production security audit controls', () => {
     expect(() => guard.assertSafe({ ...safeSinks, traces: { authorization: canary } })).toThrow(
       'SECRET_CANARY_LEAK:traces'
     )
+    expect(() =>
+      guard.assertSafe({ errors: new Error('outer', { cause: new Error(canary) }) })
+    ).toThrow('SECRET_CANARY_LEAK:errors')
     try {
       guard.assertSafe({ logs: canary })
     } catch (error) {

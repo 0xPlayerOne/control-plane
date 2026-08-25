@@ -157,6 +157,8 @@ resource "aws_ecs_service" "this" {
 
   enable_execute_command = false
   propagate_tags         = "SERVICE"
+
+  lifecycle { ignore_changes = [desired_count] }
 }
 
 resource "aws_appautoscaling_target" "this" {
@@ -190,7 +192,7 @@ resource "aws_appautoscaling_policy" "cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu_high" {
-  count = var.create_service ? 1 : 0
+  count = var.create_service && var.maximum_capacity > 0 ? 1 : 0
 
   alarm_name          = "control-plane-${var.environment}-${var.name}-cpu-high"
   alarm_description   = "${var.name} sustained CPU pressure"

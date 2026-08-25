@@ -106,9 +106,16 @@ describe('load, capacity, and cost baselines', () => {
           p95LatencyMs: 130,
           throughputPerSecond: 750,
           costPerOperationUsd: 0.013,
+          errorRate: 0.01,
         },
-        maximumRegressions: { latency: 0.2, throughput: 0.2, cost: 0.2, memory: 0.2 },
+        maximumRegressions: {
+          latency: 0.2,
+          throughput: 0.2,
+          cost: 0.2,
+          memory: 0.2,
+          errorRate: 0,
+        },
       })
-    ).toEqual(['cost', 'latency', 'throughput'])
+    ).toEqual(['cost', 'error_rate', 'latency', 'throughput'])
   })
 })

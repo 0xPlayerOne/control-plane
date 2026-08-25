@@ -257,6 +257,8 @@ resource "aws_s3_bucket_versioning" "object_store" {
 resource "aws_s3_bucket_lifecycle_configuration" "object_store" {
   bucket = aws_s3_bucket.object_store.id
 
+  depends_on = [aws_s3_bucket_versioning.object_store]
+
   rule {
     id     = "retire-noncurrent-objects"
     status = "Enabled"

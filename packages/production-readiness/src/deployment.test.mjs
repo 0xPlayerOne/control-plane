@@ -70,4 +70,31 @@ describe('production deployment compatibility gate', () => {
 
     expect(result).toEqual({ decision: 'rollback', reasons: ['canary_unhealthy'] })
   })
+
+  test('blocks image-set drift and database downgrades even with migration evidence', () => {
+    const result = assessDeployment({
+      current: {
+        ...current,
+        images: {
+          ...current.images,
+          'runtime-worker': `registry/runtime-worker@sha256:${'4'.repeat(64)}`,
+        },
+      },
+      candidate: {
+        ...current,
+        releaseId: 'release-downgrade',
+        commitSha: 'e'.repeat(40),
+        contracts: { ...current.contracts, database: 17 },
+      },
+      compatibility: { api: [1], database: [17, 18], runtimeGateway: [1] },
+      migration: { from: 18, to: 17, applied: true, rollbackRestoreVerified: true },
+      canary: { healthy: true, errorRate: 0, p95LatencyMs: 1 },
+      budgets: { maximumErrorRate: 0, maximumP95LatencyMs: 100 },
+    })
+
+    expect(result).toEqual({
+      decision: 'block',
+      reasons: ['database_downgrade', 'image_set_mismatch'],
+    })
+  })
 })

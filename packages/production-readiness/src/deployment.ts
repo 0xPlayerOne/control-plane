@@ -78,8 +78,17 @@ export function assessDeployment(input: DeploymentAssessment): {
   ) {
     compatibilityReasons.add('mutable_image')
   }
+  if (
+    JSON.stringify(Object.keys(assessment.candidate.images).sort()) !==
+    JSON.stringify(Object.keys(assessment.current.images).sort())
+  ) {
+    compatibilityReasons.add('image_set_mismatch')
+  }
 
   if (assessment.candidate.contracts.database !== assessment.current.contracts.database) {
+    if (assessment.candidate.contracts.database < assessment.current.contracts.database) {
+      compatibilityReasons.add('database_downgrade')
+    }
     const migration = assessment.migration
     if (
       migration === undefined ||

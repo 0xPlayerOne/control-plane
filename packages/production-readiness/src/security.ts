@@ -120,7 +120,7 @@ function containsCanary(root: unknown, canaries: readonly string[]): boolean {
     if (value === null || typeof value !== 'object' || seen.has(value)) continue
     seen.add(value)
     if (value instanceof Error) {
-      pending.push(value.name, value.message)
+      pending.push(value.name, value.message, value.stack, value.cause)
       continue
     }
     if (Array.isArray(value)) pending.push(...value)

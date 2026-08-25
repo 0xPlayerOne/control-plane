@@ -171,6 +171,7 @@ export function compareLoadBaselines(input: {
     readonly throughput: number
     readonly cost: number
     readonly memory: number
+    readonly errorRate: number
   }
 }): readonly string[] {
   const regressions = []
@@ -197,6 +198,12 @@ export function compareLoadBaselines(input: {
     input.maximumRegressions.memory
   ) {
     regressions.push('memory')
+  }
+  if (
+    increase(input.candidate.errorRate, input.baseline.errorRate) >
+    input.maximumRegressions.errorRate
+  ) {
+    regressions.push('error_rate')
   }
   return regressions.sort()
 }
