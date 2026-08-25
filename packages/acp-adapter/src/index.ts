@@ -65,6 +65,12 @@ const AcpSessionCapabilitiesSchema = z
     additionalDirectories: z.object({}).strict().optional(),
   })
   .passthrough()
+const AcpControlPlaneMetadataSchema = z
+  .object({
+    capabilities: z.array(RuntimeCapabilitySchema.shape.name).max(64),
+    driverVersion: SemanticVersionSchema,
+  })
+  .strict()
 const AcpInitializeResultSchema = z
   .object({
     protocolVersion: z.number().int().positive(),
@@ -72,6 +78,10 @@ const AcpInitializeResultSchema = z
       .object({
         session: AcpSessionCapabilitiesSchema.optional(),
         auth: z.record(z.string(), z.json()).optional(),
+        _meta: z
+          .object({ controlPlane: AcpControlPlaneMetadataSchema.optional() })
+          .passthrough()
+          .optional(),
       })
       .passthrough(),
     info: AcpInfoSchema,
@@ -97,7 +107,7 @@ const AcpErrorSchema = z
   })
   .strict()
 
-const AcpUpdateSchema = z.union([
+export const AcpUpdateSchema = z.union([
   z.object({ sessionUpdate: z.literal('state_update'), state: z.literal('running') }).strict(),
   z
     .object({
@@ -155,7 +165,7 @@ const AcpUpdateSchema = z.union([
     .strict(),
 ])
 
-const AcpSnapshotSchema = z.discriminatedUnion('state', [
+export const AcpSnapshotSchema = z.discriminatedUnion('state', [
   z.object({ state: z.enum(['starting', 'running']), observedAt: TimestampSchema }).strict(),
   z
     .object({
@@ -311,7 +321,7 @@ export class AcpAdapter implements RuntimeAdapter {
         adapterName: 'acp',
         adapterVersion: this.#adapterVersion,
         runtimeFamily: 'acp',
-        driverVersion: '1.0.0',
+        driverVersion: initialize.capabilities._meta?.controlPlane?.driverVersion ?? '1.0.0',
         harnessVersion: initialize.info.version,
       },
       health:
@@ -924,6 +934,7 @@ function mapAcpCapabilities(
   supportsReplay: boolean
 ) {
   if (!initialize.capabilities.session) return []
+  const reported = initialize.capabilities._meta?.controlPlane?.capabilities
   return RuntimeCapabilitySchema.array().parse(
     [
       'execution.cancel',
@@ -936,7 +947,11 @@ function mapAcpCapabilities(
       'stream.events',
       'stream.output',
       'tool.call',
-    ].map((name) => ({ name, support: 'supported' as const }))
+    ]
+      .filter(
+        (name) => reported === undefined || reported.includes(name as RuntimeCapability['name'])
+      )
+      .map((name) => ({ name, support: 'supported' as const }))
   )
 }
 
@@ -1032,6 +1047,7 @@ export interface ReferenceAcpTransportOptions {
   readonly nativeSessions?: readonly { readonly sessionId: string; readonly title?: string }[]
   readonly historyCompleteness?: AcpSessionReplay['completeness']
   readonly sessionReplay?: boolean
+  readonly harnessVersion?: string
 }
 
 interface ReferenceSession {
@@ -1046,6 +1062,7 @@ export class ReferenceAcpTransport implements AcpTransport {
   readonly #scenario: ReferenceAcpScenario
   readonly #historyCompleteness: AcpSessionReplay['completeness']
   readonly #sessionReplay: boolean
+  readonly #harnessVersion: string
   readonly #calls: AcpTransportCall[] = []
   readonly #responses: Array<{ requestId: number; result: Record<string, z.util.JSONType> }> = []
   readonly #sessions = new Map<string, ReferenceSession>()
@@ -1063,6 +1080,7 @@ export class ReferenceAcpTransport implements AcpTransport {
     this.#scenario = options.scenario ?? 'complete'
     this.#historyCompleteness = options.historyCompleteness ?? 'complete'
     this.#sessionReplay = options.sessionReplay ?? false
+    this.#harnessVersion = SemanticVersionSchema.parse(options.harnessVersion ?? '2.4.0')
     for (const session of options.nativeSessions ?? []) {
       this.#nativeSessions.set(session.sessionId, structuredClone(session))
     }
@@ -1079,7 +1097,11 @@ export class ReferenceAcpTransport implements AcpTransport {
       return {
         protocolVersion: this.#protocolVersion,
         capabilities: { session: {} },
-        info: { name: 'reference-acp-agent', title: 'Reference ACP Agent', version: '2.4.0' },
+        info: {
+          name: 'reference-acp-agent',
+          title: 'Reference ACP Agent',
+          version: this.#harnessVersion,
+        },
         authMethods: [{ id: 'native-owned' }],
       }
     }
@@ -1146,7 +1168,10 @@ export class ReferenceAcpTransport implements AcpTransport {
     this.#session(nativeSessionId)
   }
 
-  async replay(nativeSessionId: string): Promise<AcpSessionReplay> {
+  async replay(
+    nativeSessionId: string,
+    options: { readonly afterSequence?: number } = {}
+  ): Promise<AcpSessionReplay> {
     if (!this.#nativeSessions.has(nativeSessionId)) {
       throw new RuntimeAdapterError({
         code: 'ACP_SESSION_NOT_FOUND',
@@ -1156,18 +1181,19 @@ export class ReferenceAcpTransport implements AcpTransport {
       })
     }
     this.#replays += 1
+    const updates: AcpUpdate[] =
+      this.#historyCompleteness === 'unavailable'
+        ? []
+        : [
+            {
+              sessionUpdate: 'agent_message',
+              messageId: 'native-history-message-1',
+              text: 'Earlier message',
+            },
+          ]
     return {
       completeness: this.#historyCompleteness,
-      updates:
-        this.#historyCompleteness === 'unavailable'
-          ? []
-          : [
-              {
-                sessionUpdate: 'agent_message',
-                messageId: 'native-history-message-1',
-                text: 'Earlier message',
-              },
-            ],
+      updates: updates.slice(options.afterSequence ?? 0),
     }
   }
 
@@ -1312,3 +1338,5 @@ function fail(
 function stable(value: unknown): string {
   return JSON.stringify(value)
 }
+
+export * from './gateway.js'

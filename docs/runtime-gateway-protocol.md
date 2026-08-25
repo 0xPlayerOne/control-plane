@@ -60,6 +60,11 @@ Protocol v1.3 lets the RuntimeNode hello carry a bounded, unique set of retained
 
 Protocol v1.4 adds an explicit `runtime.status` command for adapter reconciliation. Status commands require the normalized `stream.events` capability and remain bound to the same node, workspace, runtime connection, execution, attempt, and payload identity as execution controls. Bounded token-limit fields are allowed as policy data, while credential-bearing token aliases remain prohibited at every payload depth.
 
+Protocol v1.5 adds `runtime.session` for independently capability-gated external-session operations.
+Each command must require at least one normalized `session.*` capability and remains scoped to the
+same node, workspace, RuntimeConnection, execution, attempt, command, and payload identities. Native
+session identifiers and local paths are resolved by the node-side driver and never cross the gateway.
+
 Queued commands and commands whose prior sequence is provably beyond the node's acknowledged watermark may be redelivered with the same semantic command ID. An acknowledged command missing from the retained ledger, an explicit unknown outcome, an unknown command, or a state conflict is never guessed: M3 reconciliation is invoked and manual-intervention telemetry is emitted. Expired commands are expired without send, while revoked nodes or grants and changed/incompatible runtime capabilities prevent resume. Recovery duration, redelivery, unknown outcome, and manual-intervention metrics describe the reconnect path.
 
 Concrete runtime adapters implement `RuntimeAdapterEventNormalizer`; provider or harness event types never enter execution state or the `ExecutionEvent` log. Normalized progress becomes bounded attempt, interaction, usage, or Artifact events. A stable event ID and the PostgreSQL `runtime_event_receipts` inbox make duplicate delivery identifiable across gateway restarts, reject conflicting reuse, and safely classify out-of-order progress.

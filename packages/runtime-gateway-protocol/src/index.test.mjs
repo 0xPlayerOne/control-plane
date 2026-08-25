@@ -140,7 +140,16 @@ describe('Runtime Gateway protocol', () => {
         payload: { version: 1, parameters: { reconcile: true } },
       }).success
     ).toBeTrue()
-    expect(GatewayProtocolManifest.current).toEqual({ major: 1, minor: 4 })
+    expect(
+      GatewayEnvelopeSchema.safeParse({
+        ...runtimeCommand(),
+        protocolVersion: { major: 1, minor: 5 },
+        operation: 'runtime.session',
+        requiredCapabilities: ['session.resume'],
+        payload: { version: 1, parameters: { action: 'resume', sessionRef: 'opaque-session' } },
+      }).success
+    ).toBeTrue()
+    expect(GatewayProtocolManifest.current).toEqual({ major: 1, minor: 5 })
   })
 
   test('fails closed instead of evicting duplicate-effect protection when its ledger is full', () => {
