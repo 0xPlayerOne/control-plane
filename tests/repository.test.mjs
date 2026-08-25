@@ -26,6 +26,7 @@ const packages = [
   'tool-sdk',
   'policy',
   'context',
+  'production-readiness',
 ]
 const publicPackages = new Set(['contracts', 'control-sdk'])
 
