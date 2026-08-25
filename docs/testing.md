@@ -22,6 +22,9 @@ and prefer real implementations over mocks when the dependency is local and inex
   installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
   the full foundation and M2-M7 suites, Terraform validation, and all service plus migration
   container builds.
+- Terraform validation shares one ignored provider-plugin cache across the three isolated roots so
+  environment isolation does not triple local provider storage. State and module working directories
+  remain separate.
 - `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
   Foundry's coverage upload step.
 - `bun run compatibility:check` validates exact runtime certifications, evidence sources, and the

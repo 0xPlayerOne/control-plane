@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process'
-import { accessSync, constants } from 'node:fs'
+import { accessSync, constants, mkdirSync } from 'node:fs'
 import process from 'node:process'
+import { URL } from 'node:url'
 
 const repositoryRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
+const pluginCache = `${repositoryRoot}/infrastructure/terraform/.terraform/plugin-cache`
 const environments = ['development', 'staging', 'production']
 const formatOnly = process.argv.includes('--format-only')
 
@@ -12,6 +14,7 @@ const executableOnPath = (name) => {
 }
 
 const terraform = executableOnPath('terraform')
+mkdirSync(pluginCache, { recursive: true })
 
 const run = (workingDirectory, args) => {
   let command
@@ -32,6 +35,8 @@ const run = (workingDirectory, args) => {
       `${repositoryRoot}:/workspace`,
       '--workdir',
       `/workspace/${workingDirectory}`,
+      '--env',
+      'TF_PLUGIN_CACHE_DIR=/workspace/infrastructure/terraform/.terraform/plugin-cache',
       'hashicorp/terraform:1.13.5',
       ...args,
     ]
@@ -40,6 +45,7 @@ const run = (workingDirectory, args) => {
   const result = spawnSync(command, commandArgs, {
     cwd: `${repositoryRoot}/${workingDirectory}`,
     encoding: 'utf8',
+    env: { ...process.env, TF_PLUGIN_CACHE_DIR: pluginCache },
     stdio: 'inherit',
   })
   if (result.status !== 0) process.exit(result.status ?? 1)

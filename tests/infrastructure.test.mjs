@@ -46,6 +46,7 @@ test('defines reproducible non-root container builds for every deployable servic
 test('separates Terraform state and service configuration by environment', async () => {
   const manifest = JSON.parse(await readRepositoryFile('package.json'))
   const gitignore = await readRepositoryFile('infrastructure/terraform/.gitignore')
+  const validator = await readRepositoryFile('scripts/validate-terraform.mjs')
 
   for (const environment of ['development', 'staging', 'production']) {
     const root = `infrastructure/terraform/environments/${environment}`
@@ -75,6 +76,8 @@ test('separates Terraform state and service configuration by environment', async
   )
   assert.match(gitignore, /^\*\.tfvars$/m)
   assert.match(gitignore, /^!\*\.tfvars\.example$/m)
+  assert.match(validator, /TF_PLUGIN_CACHE_DIR/)
+  assert.match(validator, /infrastructure\/terraform\/\.terraform\/plugin-cache/)
 })
 
 test('models AWS dependencies without leaking secrets or Kubernetes into service images', async () => {
