@@ -225,4 +225,40 @@ describe('production evaluation and release gates', () => {
       'MISSING_COMPARISON_METRIC:cost_usd',
     ])
   })
+
+  test('preserves the promoted release across subsequent gate evaluations', async () => {
+    const service = new EvaluationService({ repository: new InMemoryEvaluationRepository() })
+    const baseline = await service.run({
+      evalRunId: 'eval-run-promoted-baseline',
+      suite,
+      configuration,
+      execute: async () => ({ functional_correctness: 1, latency_ms: 100, cost_usd: 0.01 }),
+    })
+    const candidate = await service.run({
+      evalRunId: 'eval-run-next-candidate',
+      suite,
+      configuration,
+      execute: async () => ({ functional_correctness: 1, latency_ms: 90, cost_usd: 0.01 }),
+    })
+    const registry = new ReleaseGateRegistry()
+    registry.evaluate({
+      releaseGateId: 'gate-repeat',
+      candidate: baseline,
+      baseline,
+      maximumRegressions: { latency_ms: 0.2 },
+    })
+    registry.promote('gate-repeat', 'operator://first')
+
+    registry.evaluate({
+      releaseGateId: 'gate-repeat',
+      candidate,
+      baseline,
+      maximumRegressions: { latency_ms: 0.2 },
+    })
+    expect(registry.promoted('gate-repeat')).toEqual(baseline)
+    expect(registry.promote('gate-repeat', 'operator://second')).toMatchObject({
+      fromRunId: baseline.evalRunId,
+      toRunId: candidate.evalRunId,
+    })
+  })
 })

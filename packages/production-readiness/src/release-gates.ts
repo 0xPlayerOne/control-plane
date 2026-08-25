@@ -77,10 +77,12 @@ export class ReleaseGateRegistry {
       reasons: [...new Set(reasons)].sort(),
       evaluatedAt: this.#now(),
     }
+    const promoted = this.#gates.get(input.releaseGateId)?.promoted
     this.#gates.set(input.releaseGateId, {
       candidate: clone(candidateRun),
       baseline: clone(baselineRun),
       decision,
+      ...(promoted === undefined ? {} : { promoted: clone(promoted) }),
     })
     return clone(decision)
   }
