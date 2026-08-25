@@ -8,12 +8,18 @@ const CapabilitySchema = z.string().regex(/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)
 const DriverFamilySchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)
 const VersionStringSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
 const forbiddenPayloadKeys = [
+  'command',
   'credential',
+  'cwd',
   'databaseid',
+  'directory',
   'endpoint',
   'executable',
+  'file',
+  'host',
   'localpath',
   'password',
+  'path',
   'privatekey',
   'projectid',
   'sourcescope',
