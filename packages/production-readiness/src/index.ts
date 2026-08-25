@@ -16,8 +16,16 @@ export type {
   EvaluationMetricValues,
   EvaluationRepository,
 } from './evaluations.js'
-export { ReleaseGateRegistry } from './release-gates.js'
-export type { ReleaseAuditRecord, ReleaseGateDecision } from './release-gates.js'
+export {
+  InMemoryReleaseAuditRepository,
+  ReleaseAuditRecordSchema,
+  ReleaseGateRegistry,
+} from './release-gates.js'
+export type {
+  ReleaseAuditRecord,
+  ReleaseAuditRepository,
+  ReleaseGateDecision,
+} from './release-gates.js'
 export {
   assertCredentialPurpose,
   findCredentialLeaks,

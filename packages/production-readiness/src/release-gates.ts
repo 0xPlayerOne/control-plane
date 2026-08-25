@@ -4,6 +4,7 @@ import {
   type EvaluationMetric,
   type EvaluationMetricValues,
 } from './evaluations.js'
+import { z } from 'zod'
 
 export interface ReleaseGateDecision {
   readonly releaseGateId: string
@@ -15,13 +16,60 @@ export interface ReleaseGateDecision {
 }
 
 export interface ReleaseAuditRecord {
+  readonly releaseAuditId: string
   readonly releaseGateId: string
   readonly action: 'promote' | 'rollback'
   readonly actor: string
-  readonly fromRunId?: string
+  readonly fromRunId?: string | undefined
   readonly toRunId: string
-  readonly reason?: string
+  readonly reason?: string | undefined
   readonly at: string
+}
+
+export const ReleaseAuditRecordSchema = z
+  .object({
+    releaseAuditId: z.string().uuid(),
+    releaseGateId: z.string().min(1).max(256),
+    action: z.enum(['promote', 'rollback']),
+    actor: z.string().min(1).max(256),
+    fromRunId: z.string().min(1).max(256).optional(),
+    toRunId: z.string().min(1).max(256),
+    reason: z.string().min(1).max(256).optional(),
+    at: z.iso.datetime(),
+  })
+  .strict()
+  .superRefine((record, context) => {
+    if (record.action === 'promote' && record.reason !== undefined) {
+      context.addIssue({ code: 'custom', message: 'Promotion records cannot include a reason' })
+    }
+    if (record.action === 'rollback' && record.reason === undefined) {
+      context.addIssue({ code: 'custom', message: 'Rollback records require a reason' })
+    }
+  })
+
+export interface ReleaseAuditRepository {
+  append(record: ReleaseAuditRecord): Promise<void>
+  list(releaseGateId?: string): Promise<readonly ReleaseAuditRecord[]>
+}
+
+export class InMemoryReleaseAuditRepository implements ReleaseAuditRepository {
+  readonly #records: ReleaseAuditRecord[] = []
+
+  async append(value: ReleaseAuditRecord): Promise<void> {
+    const record = ReleaseAuditRecordSchema.parse(value)
+    if (this.#records.some(({ releaseAuditId }) => releaseAuditId === record.releaseAuditId)) {
+      throw new Error('RELEASE_AUDIT_CONFLICT')
+    }
+    this.#records.push(clone(record))
+  }
+
+  async list(releaseGateId?: string): Promise<readonly ReleaseAuditRecord[]> {
+    return clone(
+      releaseGateId === undefined
+        ? this.#records
+        : this.#records.filter((record) => record.releaseGateId === releaseGateId)
+    )
+  }
 }
 
 interface GateState {
@@ -35,11 +83,20 @@ const lowerIsBetter = new Set<EvaluationMetric>(['latency_ms', 'cost_usd'])
 
 export class ReleaseGateRegistry {
   readonly #now: () => string
+  readonly #createId: () => string
+  readonly #auditRepository: ReleaseAuditRepository
   readonly #gates = new Map<string, GateState>()
-  readonly #audit: ReleaseAuditRecord[] = []
 
-  constructor(options: { readonly now?: () => string } = {}) {
+  constructor(
+    options: {
+      readonly now?: () => string
+      readonly createId?: () => string
+      readonly auditRepository?: ReleaseAuditRepository
+    } = {}
+  ) {
     this.#now = options.now ?? (() => new Date().toISOString())
+    this.#createId = options.createId ?? (() => crypto.randomUUID())
+    this.#auditRepository = options.auditRepository ?? new InMemoryReleaseAuditRepository()
   }
 
   evaluate(input: {
@@ -87,10 +144,11 @@ export class ReleaseGateRegistry {
     return clone(decision)
   }
 
-  promote(releaseGateId: string, actor: string): ReleaseAuditRecord {
+  async promote(releaseGateId: string, actor: string): Promise<ReleaseAuditRecord> {
     const gate = this.#gate(releaseGateId)
     if (gate.decision.status !== 'passed') throw new Error('RELEASE_GATE_BLOCKED')
     const record: ReleaseAuditRecord = {
+      releaseAuditId: this.#createId(),
       releaseGateId,
       action: 'promote',
       actor,
@@ -98,14 +156,20 @@ export class ReleaseGateRegistry {
       toRunId: gate.candidate.evalRunId,
       at: this.#now(),
     }
+    const parsed = ReleaseAuditRecordSchema.parse(record)
+    await this.#auditRepository.append(parsed)
     gate.promoted = clone(gate.candidate)
-    this.#audit.push(record)
-    return clone(record)
+    return clone(parsed)
   }
 
-  rollback(releaseGateId: string, actor: string, reason: string): ReleaseAuditRecord {
+  async rollback(
+    releaseGateId: string,
+    actor: string,
+    reason: string
+  ): Promise<ReleaseAuditRecord> {
     const gate = this.#gate(releaseGateId)
     const record: ReleaseAuditRecord = {
+      releaseAuditId: this.#createId(),
       releaseGateId,
       action: 'rollback',
       actor,
@@ -114,9 +178,10 @@ export class ReleaseGateRegistry {
       reason: reason.slice(0, 256),
       at: this.#now(),
     }
+    const parsed = ReleaseAuditRecordSchema.parse(record)
+    await this.#auditRepository.append(parsed)
     gate.promoted = clone(gate.baseline)
-    this.#audit.push(record)
-    return clone(record)
+    return clone(parsed)
   }
 
   candidate(releaseGateId: string): EvalRun {
@@ -128,8 +193,8 @@ export class ReleaseGateRegistry {
     return promoted === undefined ? undefined : clone(promoted)
   }
 
-  auditLog(): readonly ReleaseAuditRecord[] {
-    return clone(this.#audit)
+  async auditLog(releaseGateId?: string): Promise<readonly ReleaseAuditRecord[]> {
+    return clone(await this.#auditRepository.list(releaseGateId))
   }
 
   #gate(releaseGateId: string): GateState {

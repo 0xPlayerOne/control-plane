@@ -24,6 +24,7 @@ import { PostgresEvaluationRepository } from './evaluation-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
+import { PostgresReleaseAuditRepository } from './release-audit-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
@@ -39,6 +40,7 @@ import {
   interactionRequests,
   outboxEvents,
   reconciliationCheckpoints,
+  releaseAuditRecords,
   runtimeCommands,
   runtimeEventReceipts,
   runtimeInventoryCheckpoints,
@@ -84,6 +86,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'memory_write_proposals',
         'outbox_events',
         'reconciliation_checkpoints',
+        'release_audit_records',
         'runtime_connections',
         'runtime_inventory_checkpoints',
       ])
@@ -147,6 +150,29 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     const restarted = new PostgresEvaluationRepository(isolated.application)
     expect(await restarted.getRun(run.evalRunId)).toEqual(run)
     expect(await isolated.application.select().from(evaluationRuns)).toHaveLength(1)
+  })
+
+  test('persists immutable release decisions across repository restart', async () => {
+    await isolated.migrate()
+    const record = {
+      releaseAuditId: '018f6f64-8d3a-7c11-b043-001122334455',
+      releaseGateId: 'gate-profile-default',
+      action: 'promote',
+      actor: 'operator://release',
+      toRunId: 'eval-run-integration',
+      at: '2026-08-25T12:01:00.000Z',
+    }
+    const repository = new PostgresReleaseAuditRepository(isolated.application)
+
+    await repository.append(record)
+    await repository.append(record)
+
+    const restarted = new PostgresReleaseAuditRepository(isolated.application)
+    expect(await restarted.list('gate-profile-default')).toEqual([record])
+    expect(await isolated.application.select().from(releaseAuditRecords)).toHaveLength(1)
+    await expect(restarted.append({ ...record, actor: 'operator://conflict' })).rejects.toThrow(
+      'RELEASE_AUDIT_CONFLICT'
+    )
   })
 
   test('persists idempotent runtime inventory and optimistic lifecycle updates', async () => {

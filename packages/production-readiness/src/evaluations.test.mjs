@@ -3,6 +3,7 @@ import {
   EvalRunSchema,
   EvalSuiteSchema,
   EvaluationService,
+  InMemoryReleaseAuditRepository,
   InMemoryEvaluationRepository,
   ReleaseGateRegistry,
 } from './index.ts'
@@ -108,7 +109,7 @@ describe('production evaluation and release gates', () => {
       ])
     )
     expect(registry.candidate('gate-profile-default')).toEqual(candidate)
-    expect(() => registry.promote('gate-profile-default', 'operator://release')).toThrow(
+    await expect(registry.promote('gate-profile-default', 'operator://release')).rejects.toThrow(
       'RELEASE_GATE_BLOCKED'
     )
   })
@@ -128,7 +129,11 @@ describe('production evaluation and release gates', () => {
       configuration,
       execute: async () => ({ functional_correctness: 0.99, latency_ms: 180, cost_usd: 0.02 }),
     })
-    const registry = new ReleaseGateRegistry({ now: () => '2026-08-25T12:01:00.000Z' })
+    const auditRepository = new InMemoryReleaseAuditRepository()
+    const registry = new ReleaseGateRegistry({
+      auditRepository,
+      now: () => '2026-08-25T12:01:00.000Z',
+    })
     expect(
       registry.evaluate({
         releaseGateId: 'gate-profile-default',
@@ -139,13 +144,56 @@ describe('production evaluation and release gates', () => {
     ).toBe('passed')
     expect(registry.promoted('gate-profile-default')).toBeUndefined()
 
-    const promotion = registry.promote('gate-profile-default', 'operator://release')
-    const rollback = registry.rollback('gate-profile-default', 'operator://incident', 'latency')
+    const promotion = await registry.promote('gate-profile-default', 'operator://release')
+    const rollback = await registry.rollback(
+      'gate-profile-default',
+      'operator://incident',
+      'latency'
+    )
 
     expect(promotion.action).toBe('promote')
     expect(rollback.action).toBe('rollback')
-    expect(registry.auditLog()).toEqual([promotion, rollback])
+    expect(await registry.auditLog()).toEqual([promotion, rollback])
+    expect(
+      await new ReleaseGateRegistry({ auditRepository }).auditLog('gate-profile-default')
+    ).toEqual([promotion, rollback])
     expect(registry.promoted('gate-profile-default')).toEqual(baseline)
+  })
+
+  test('does not mutate promoted state when durable audit storage fails', async () => {
+    const repository = new InMemoryEvaluationRepository()
+    const service = new EvaluationService({ repository })
+    const baseline = await service.run({
+      evalRunId: 'eval-run-baseline-storage-failure',
+      suite,
+      configuration,
+      execute: async () => ({ functional_correctness: 0.96, latency_ms: 200, cost_usd: 0.03 }),
+    })
+    const candidate = await service.run({
+      evalRunId: 'eval-run-candidate-storage-failure',
+      suite,
+      configuration,
+      execute: async () => ({ functional_correctness: 0.99, latency_ms: 180, cost_usd: 0.02 }),
+    })
+    const registry = new ReleaseGateRegistry({
+      auditRepository: {
+        append: async () => {
+          throw new Error('AUDIT_STORAGE_UNAVAILABLE')
+        },
+        list: async () => [],
+      },
+    })
+    registry.evaluate({
+      releaseGateId: 'gate-storage-failure',
+      candidate,
+      baseline,
+      maximumRegressions: {},
+    })
+
+    await expect(registry.promote('gate-storage-failure', 'operator://release')).rejects.toThrow(
+      'AUDIT_STORAGE_UNAVAILABLE'
+    )
+    expect(registry.promoted('gate-storage-failure')).toBeUndefined()
   })
 
   test('fails closed when a live-provider suite is not explicitly enabled', async () => {
@@ -247,7 +295,7 @@ describe('production evaluation and release gates', () => {
       baseline,
       maximumRegressions: { latency_ms: 0.2 },
     })
-    registry.promote('gate-repeat', 'operator://first')
+    await registry.promote('gate-repeat', 'operator://first')
 
     registry.evaluate({
       releaseGateId: 'gate-repeat',
@@ -256,7 +304,7 @@ describe('production evaluation and release gates', () => {
       maximumRegressions: { latency_ms: 0.2 },
     })
     expect(registry.promoted('gate-repeat')).toEqual(baseline)
-    expect(registry.promote('gate-repeat', 'operator://second')).toMatchObject({
+    expect(await registry.promote('gate-repeat', 'operator://second')).toMatchObject({
       fromRunId: baseline.evalRunId,
       toRunId: candidate.evalRunId,
     })

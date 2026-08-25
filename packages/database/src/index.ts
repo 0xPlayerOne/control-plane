@@ -12,6 +12,7 @@ export { PostgresEvaluationRepository } from './evaluation-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
 export { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.js'
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
+export { PostgresReleaseAuditRepository } from './release-audit-repository.js'
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
 export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
 export { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.js'
@@ -30,6 +31,8 @@ export {
   eventPublicationStatus,
   evaluationRuns,
   evaluationRunStatus,
+  releaseAuditAction,
+  releaseAuditRecords,
   executionEvents,
   executionAttempts,
   executionAttemptState,
