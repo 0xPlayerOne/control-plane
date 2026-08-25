@@ -49,7 +49,9 @@
       "dependencies": {
         "@control-plane/bootstrap": "workspace:*",
         "@control-plane/domain": "workspace:*",
+        "@control-plane/events": "workspace:*",
         "@control-plane/runtime-gateway-protocol": "workspace:*",
+        "@control-plane/runtime-sdk": "workspace:*",
       },
     },
     "apps/runtime-worker": {
@@ -147,6 +149,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@control-plane/contracts": "workspace:*",
+        "@control-plane/domain": "workspace:*",
         "@control-plane/telemetry": "workspace:*",
         "zod": "4.4.3",
       },

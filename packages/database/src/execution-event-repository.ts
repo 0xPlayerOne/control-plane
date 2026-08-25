@@ -16,7 +16,9 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
   constructor(readonly database: ControlPlaneDatabase) {}
 
   append(draft: ExecutionEventDraft): Promise<ExecutionEvent | undefined> {
-    return this.database.transaction((transaction) => appendInTransaction(transaction, draft))
+    return this.database.transaction((transaction) =>
+      appendExecutionEventInTransaction(transaction, draft)
+    )
   }
 
   async transitionExecution(
@@ -38,7 +40,7 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
           )
           .returning({ executionId: executions.executionId })
         if (updated.length !== 1) return undefined
-        const event = await appendInTransaction(transaction, draft)
+        const event = await appendExecutionEventInTransaction(transaction, draft)
         if (!event) throw new EventInsertConflict()
         return event
       })
@@ -54,7 +56,7 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
       .from(executionEvents)
       .where(eq(executionEvents.eventId, eventId))
       .limit(1)
-    return row ? fromRow(row) : undefined
+    return row ? fromExecutionEventRow(row) : undefined
   }
 
   async queryAfter(executionId: string, afterSequence: number, limit: number) {
@@ -70,7 +72,7 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
       )
       .orderBy(asc(executionEvents.sequence))
       .limit(limit)
-    return rows.map(fromRow)
+    return rows.map(fromExecutionEventRow)
   }
 
   async queryPending(limit: number, dueAt?: string) {
@@ -93,7 +95,7 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
       )
       .orderBy(asc(executionEvents.recordedAt))
       .limit(limit)
-    return rows.map(fromRow)
+    return rows.map(fromExecutionEventRow)
   }
 
   async compareAndSetPublication(expectedVersion: number, event: ExecutionEvent): Promise<boolean> {
@@ -126,16 +128,19 @@ export class PostgresExecutionEventRepository implements ExecutionEventRepositor
       .set({ archivedAt: new Date(archivedAt) })
       .where(eq(executionEvents.eventId, eventId))
       .returning()
-    return row ? fromRow(row) : undefined
+    return row ? fromExecutionEventRow(row) : undefined
   }
 }
 
 class EventInsertConflict extends Error {}
 
-type Transaction = Parameters<Parameters<ControlPlaneDatabase['transaction']>[0]>[0]
+export type DatabaseTransaction = Parameters<Parameters<ControlPlaneDatabase['transaction']>[0]>[0]
 type EventRow = typeof executionEvents.$inferSelect
 
-async function appendInTransaction(transaction: Transaction, draft: ExecutionEventDraft) {
+export async function appendExecutionEventInTransaction(
+  transaction: DatabaseTransaction,
+  draft: ExecutionEventDraft
+) {
   await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${draft.executionId}))`)
   const [latest] = await transaction
     .select({ sequence: executionEvents.sequence })
@@ -155,7 +160,7 @@ async function appendInTransaction(transaction: Transaction, draft: ExecutionEve
     .values(toRow(event))
     .onConflictDoNothing()
     .returning()
-  return inserted ? fromRow(inserted) : undefined
+  return inserted ? fromExecutionEventRow(inserted) : undefined
 }
 
 function toRow(event: ExecutionEvent): typeof executionEvents.$inferInsert {
@@ -192,7 +197,7 @@ function toRow(event: ExecutionEvent): typeof executionEvents.$inferInsert {
   }
 }
 
-function fromRow(row: EventRow): ExecutionEvent {
+export function fromExecutionEventRow(row: EventRow): ExecutionEvent {
   return ExecutionEventSchema.parse({
     eventId: row.eventId,
     executionId: row.executionId,

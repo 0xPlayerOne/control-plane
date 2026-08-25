@@ -23,8 +23,10 @@ import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
+import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
 import {
   commandInbox,
+  executionEvents,
   executions,
   externalSessions,
   inboxMessages,
@@ -32,6 +34,7 @@ import {
   outboxEvents,
   reconciliationCheckpoints,
   runtimeCommands,
+  runtimeEventReceipts,
   runtimeConnections,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
@@ -245,6 +248,157 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(await restarted.compareAndSet(1, { ...record, version: 2 })).toBe(true)
     expect(await restarted.compareAndSet(1, { ...record, version: 3 })).toBe(false)
     expect(await isolated.application.select().from(runtimeCommands)).toHaveLength(1)
+
+    let currentExecution = await executionService.getExecution(execution.executionId)
+    currentExecution = await executionService.transitionExecution({
+      executionId: currentExecution.executionId,
+      expectedVersion: currentExecution.version,
+      to: 'queued',
+      transitionedAt: '2026-08-24T23:00:01.000Z',
+    })
+    currentExecution = await executionService.transitionExecution({
+      executionId: currentExecution.executionId,
+      expectedVersion: currentExecution.version,
+      to: 'running',
+      transitionedAt: '2026-08-24T23:00:02.000Z',
+    })
+    let currentAttempt = await new PostgresExecutionRepository(isolated.application).getAttempt(
+      attempt.attemptId
+    )
+    currentAttempt = await executionService.transitionAttempt({
+      attemptId: currentAttempt.attemptId,
+      expectedVersion: currentAttempt.version,
+      to: 'running',
+      transitionedAt: '2026-08-24T23:00:02.000Z',
+    })
+    const correlation = {
+      ...currentExecution.correlation,
+      commandId: record.commandId,
+      traceId: 'trc_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+    }
+    const sink = new PostgresRuntimeEventEffectSink(isolated.application)
+    const progress = {
+      commandId: record.commandId,
+      eventSequence: 1,
+      frameHash: `sha256:${'5'.repeat(64)}`,
+      draft: {
+        eventId: 'evt_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+        executionId: execution.executionId,
+        attemptId: attempt.attemptId,
+        type: 'attempt.progressed',
+        schemaVersion: 1,
+        correlation,
+        payload: { state: 'running' },
+        occurredAt: '2026-08-24T23:00:02.000Z',
+        recordedAt: '2026-08-24T23:00:03.000Z',
+        retentionExpiresAt: '2026-11-22T23:00:03.000Z',
+      },
+    }
+    expect(await sink.applyProgress(progress)).toMatchObject({ outcome: 'applied' })
+    expect(
+      await new PostgresRuntimeEventEffectSink(isolated.application).applyProgress(progress)
+    ).toMatchObject({ outcome: 'duplicate' })
+    const laterProgress = {
+      ...progress,
+      eventSequence: 3,
+      frameHash: `sha256:${'3'.repeat(64)}`,
+      draft: {
+        ...progress.draft,
+        eventId: 'evt_01CRZ3NDEKTSV4RRFFQ69G5FAM',
+        payload: { state: 'running', checkpoint: 3 },
+      },
+    }
+    expect(await sink.applyProgress(laterProgress)).toMatchObject({ outcome: 'applied' })
+    expect(
+      await sink.applyProgress({
+        ...progress,
+        eventSequence: 2,
+        frameHash: `sha256:${'2'.repeat(64)}`,
+        draft: { ...progress.draft, eventId: 'evt_01DRZ3NDEKTSV4RRFFQ69G5FAM' },
+      })
+    ).toEqual({ outcome: 'out_of_order' })
+    expect(
+      await sink.applyProgress({ ...progress, frameHash: `sha256:${'1'.repeat(64)}` })
+    ).toEqual({ outcome: 'conflict' })
+    const terminal = {
+      commandId: record.commandId,
+      messageSequence: 2,
+      frameHash: `sha256:${'4'.repeat(64)}`,
+      execution: currentExecution,
+      attempt: currentAttempt,
+      state: 'completed',
+      resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAM',
+      draft: {
+        eventId: 'evt_01BRZ3NDEKTSV4RRFFQ69G5FAM',
+        executionId: execution.executionId,
+        attemptId: attempt.attemptId,
+        type: 'execution.completed',
+        schemaVersion: 1,
+        correlation,
+        payload: { usage: { outputTokens: 2 } },
+        occurredAt: '2026-08-24T23:00:04.000Z',
+        recordedAt: '2026-08-24T23:00:04.000Z',
+        retentionExpiresAt: '2026-11-22T23:00:04.000Z',
+      },
+    }
+    const cancelRecord = {
+      ...record,
+      commandId: 'cmd_01BRZ3NDEKTSV4RRFFQ69G5FAM',
+      idempotencyKey: 'runtime-command:integration:cancel',
+      payloadHash: `sha256:${'9'.repeat(64)}`,
+      commandEnvelope: { type: 'command', payload: { operation: 'runtime.cancel' } },
+      status: 'dispatched',
+      deliveryAttempts: 1,
+      lastChannelGeneration: 1,
+      lastSequence: 10,
+      firstDispatchedAt: '2026-08-24T23:00:03.000Z',
+      lastDispatchedAt: '2026-08-24T23:00:03.000Z',
+      updatedAt: '2026-08-24T23:00:03.000Z',
+    }
+    expect((await repository.create(cancelRecord)).outcome).toBe('created')
+    const cancelledTerminal = {
+      ...terminal,
+      commandId: cancelRecord.commandId,
+      messageSequence: 11,
+      frameHash: `sha256:${'8'.repeat(64)}`,
+      state: 'cancelled',
+      resultReference: undefined,
+      draft: {
+        ...terminal.draft,
+        eventId: 'evt_01ERZ3NDEKTSV4RRFFQ69G5FAM',
+        type: 'execution.cancelled',
+        correlation: { ...correlation, commandId: cancelRecord.commandId },
+        payload: { reason: 'user_requested' },
+      },
+    }
+    const effects = [terminal, cancelledTerminal]
+    const terminalOutcomes = await Promise.all(effects.map((effect) => sink.applyTerminal(effect)))
+    expect(terminalOutcomes.map(({ outcome }) => outcome).sort()).toEqual([
+      'applied',
+      'terminal_conflict',
+    ])
+    const winner = effects[terminalOutcomes.findIndex(({ outcome }) => outcome === 'applied')]
+    expect(
+      await new PostgresRuntimeEventEffectSink(isolated.application).applyTerminal(winner)
+    ).toMatchObject({ outcome: 'duplicate' })
+    expect(await isolated.application.select().from(runtimeCommands)).toHaveLength(2)
+    expect(await isolated.application.select().from(runtimeEventReceipts)).toHaveLength(5)
+    expect(await isolated.application.select().from(executionEvents)).toHaveLength(3)
+    expect(await executionService.getExecution(execution.executionId)).toMatchObject({
+      state: winner.state,
+      ...(winner.resultReference ? { terminalResultRef: winner.resultReference } : {}),
+    })
+    const eventService = new ExecutionEventService(
+      new PostgresExecutionEventRepository(isolated.application)
+    )
+    for (const event of await isolated.application.select().from(executionEvents)) {
+      if (event.executionId !== execution.executionId) continue
+      await eventService.markPublished({
+        eventId: event.eventId,
+        expectedPublicationVersion: event.publicationVersion,
+        publishedAt: '2026-08-24T23:00:05.000Z',
+      })
+    }
   })
 
   test('persists versioned health ingestion and freshness across service restarts', async () => {

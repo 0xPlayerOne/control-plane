@@ -28,8 +28,11 @@ export type GatewayProtocolVersion = z.output<typeof GatewayProtocolVersionSchem
 
 export const GatewayProtocolManifest = Object.freeze({
   name: 'control-plane-runtime-gateway',
-  current: { major: 1, minor: 0 },
-  supported: [{ major: 1, minor: 0 }],
+  current: { major: 1, minor: 1 },
+  supported: [
+    { major: 1, minor: 0 },
+    { major: 1, minor: 1 },
+  ],
 })
 
 export const GatewayProtocolDeprecationSchema = z
@@ -71,7 +74,7 @@ const CommonEnvelopeSchema = z
   .object({
     schemaVersion: z.literal(1),
     protocolVersion: GatewayProtocolVersionSchema,
-    sequence: z.number().int().nonnegative(),
+    sequence: z.number().int().nonnegative().max(2_147_483_647),
     nodeId: canonicalId('rnr', 'RuntimeNode ID'),
     workspaceId: canonicalId('wsp', 'workspace ID'),
     traceId: canonicalId('trc', 'trace ID'),
@@ -128,6 +131,7 @@ const GatewayCommandBaseSchema = CommonEnvelopeSchema.extend({
   family: z.enum(['runtime', 'context_provider']),
   operation: z.enum([
     'runtime.execute',
+    'runtime.cancel',
     'runtime.input',
     'runtime.approval',
     'context.status',
@@ -175,6 +179,21 @@ export const GatewayCommandEnvelopeSchema = GatewayCommandBaseSchema.strict().su
           message: 'Runtime command operation mismatch',
         })
       }
+      const controlCapability =
+        command.operation === 'runtime.cancel'
+          ? 'execution.cancel'
+          : command.operation === 'runtime.input'
+            ? 'interaction.user-input'
+            : command.operation === 'runtime.approval'
+              ? 'interaction.approval'
+              : undefined
+      if (controlCapability && !command.requiredCapabilities.includes(controlCapability)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['requiredCapabilities'],
+          message: 'Runtime control command requires its operation capability',
+        })
+      }
     } else {
       if (command.providerRef === undefined) {
         context.addIssue({
@@ -212,7 +231,7 @@ export const GatewayProgressEnvelopeSchema = CommonEnvelopeSchema.extend({
   type: z.literal('progress'),
   commandId: canonicalId('cmd', 'command ID'),
   payloadHash: DigestSchema,
-  eventSequence: z.number().int().positive(),
+  eventSequence: z.number().int().positive().max(2_147_483_647),
   event: z.object({ kind: CapabilitySchema, data: z.record(z.string(), z.json()) }).strict(),
 }).strict()
 
@@ -266,6 +285,7 @@ export const GatewayInventoryEnvelopeSchema = CommonEnvelopeSchema.extend({
 export const GatewayErrorEnvelopeSchema = CommonEnvelopeSchema.extend({
   type: z.literal('error'),
   commandId: canonicalId('cmd', 'command ID').optional(),
+  payloadHash: DigestSchema.optional(),
   code: z
     .string()
     .regex(/^[A-Z][A-Z0-9_]*$/)
@@ -288,6 +308,8 @@ export type GatewayEnvelope = z.output<typeof GatewayEnvelopeSchema>
 export type GatewayCommandEnvelope = z.output<typeof GatewayCommandEnvelopeSchema>
 export type GatewayAcknowledgementEnvelope = z.output<typeof GatewayAcknowledgementEnvelopeSchema>
 export type GatewayResultEnvelope = z.output<typeof GatewayResultEnvelopeSchema>
+export type GatewayProgressEnvelope = z.output<typeof GatewayProgressEnvelopeSchema>
+export type GatewayErrorEnvelope = z.output<typeof GatewayErrorEnvelopeSchema>
 
 function highestMinor(values: readonly GatewayProtocolVersion[]): Map<number, number> {
   const result = new Map<number, number>()

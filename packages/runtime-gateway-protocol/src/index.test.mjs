@@ -72,6 +72,22 @@ describe('Runtime Gateway protocol', () => {
     )
   })
 
+  test('supports durable runtime control commands and command-bound error correlation', async () => {
+    const { golden } = await import('../fixtures/index.mjs')
+    expect(
+      GatewayEnvelopeSchema.safeParse({
+        ...runtimeCommand(),
+        protocolVersion: { major: 1, minor: 1 },
+        operation: 'runtime.cancel',
+        requiredCapabilities: ['execution.cancel'],
+      }).success
+    ).toBeTrue()
+    expect(GatewayEnvelopeSchema.safeParse(golden.error).success).toBeTrue()
+    expect(
+      GatewayEnvelopeSchema.safeParse({ ...golden.error, payloadHash: undefined }).success
+    ).toBeTrue()
+  })
+
   test('fails closed instead of evicting duplicate-effect protection when its ledger is full', () => {
     const node = new ReferenceRuntimeNode({
       maxLedgerEntries: 1,

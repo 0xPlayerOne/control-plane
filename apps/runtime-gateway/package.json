@@ -17,6 +17,8 @@
   "dependencies": {
     "@control-plane/bootstrap": "workspace:*",
     "@control-plane/domain": "workspace:*",
+    "@control-plane/events": "workspace:*",
+    "@control-plane/runtime-sdk": "workspace:*",
     "@control-plane/runtime-gateway-protocol": "workspace:*"
   }
 }
