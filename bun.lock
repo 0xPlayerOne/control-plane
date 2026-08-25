@@ -143,6 +143,15 @@
         "zod": "4.4.3",
       },
     },
+    "packages/credential-vault": {
+      "name": "@control-plane/credential-vault",
+      "version": "0.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "@control-plane/policy": "workspace:*",
+        "zod": "4.4.3",
+      },
+    },
     "packages/database": {
       "name": "@control-plane/database",
       "version": "1.3.0",
@@ -274,6 +283,8 @@
     "@control-plane/contracts": ["@control-plane/contracts@workspace:packages/contracts"],
 
     "@control-plane/control-api": ["@control-plane/control-api@workspace:apps/control-api"],
+
+    "@control-plane/credential-vault": ["@control-plane/credential-vault@workspace:packages/credential-vault"],
 
     "@control-plane/database": ["@control-plane/database@workspace:packages/database"],
 
