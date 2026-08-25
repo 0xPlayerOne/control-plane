@@ -150,5 +150,6 @@ describe('M9 production hardening acceptance', () => {
     assert.match(recovery, /RPO/i)
     assert.match(security, /STRIDE/i)
     assert.match(workflow, /M9 Production Readiness \/ Gate/)
+    assert.match(workflow, /schedule:\s*\n\s*- cron:/)
   })
 })
