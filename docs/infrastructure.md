@@ -8,7 +8,7 @@ reproducible container build. There is no Kubernetes layer.
 
 | Capability                                                        | Classification                     | Contract                                                                                                 |
 | ----------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| VPC, private service subnets, managed egress, and security groups | Authoritative                      | Terraform module `aws-platform`; one isolated VPC per environment                                        |
+| VPC, private service subnets, managed egress, and security groups | Authoritative                      | Terraform module `aws-platform`; isolated VPCs and one production NAT gateway per AZ                     |
 | PostgreSQL                                                        | Authoritative durable state        | Encrypted RDS, private access, backups, deletion controls, and an AWS-managed master secret              |
 | Object storage                                                    | Authoritative durable state        | Private, versioned, KMS-encrypted S3 bucket; application data is not disposable                          |
 | Service secrets and KMS                                           | Authoritative interface            | Terraform creates KMS keys and empty Secrets Manager shells; operators populate values outside Terraform |
@@ -110,6 +110,8 @@ and retained longer in production, ECS container insights is enabled, and RDS, V
 alarms route through the operations SNS topic. Production RDS is Multi-AZ and deletion-protected
 with a 35-day point-in-time recovery window. The incident, provider, policy, budget, backlog,
 restore, canary, and access procedures are in `docs/operations.md`.
+PostgreSQL and Valkey engine versions are pinned to compatibility-certified major/minor releases;
+upgrades require an explicit variable change and the same migration, canary, and rollback review.
 
 Terraform validation proves configuration shape, not cloud readiness. An actual environment still
 requires reviewed backend bootstrap, credentials, a plan, an apply, migration execution, service

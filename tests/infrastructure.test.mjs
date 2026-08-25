@@ -123,6 +123,14 @@ test('models AWS dependencies without leaking secrets or Kubernetes into service
   assert.match(platform, /backup_retention_period\s*=\s*var\.database_backup_retention_days/)
   assert.match(platform, /aws_s3_bucket_lifecycle_configuration/)
   assert.match(platform, /depends_on\s*=\s*\[aws_s3_bucket_versioning\.object_store\]/)
+  assert.match(platform, /nat_subnets\s*=\s*var\.environment == "production"/)
+  assert.match(platform, /resource "aws_eip" "nat"\s*{\s*for_each\s*=\s*local\.nat_subnets/s)
+  assert.match(
+    platform,
+    /resource "aws_route_table" "private"\s*{\s*for_each\s*=\s*aws_subnet\.private/s
+  )
+  assert.match(platform, /engine_version\s*=\s*var\.database_engine_version/)
+  assert.match(platform, /engine_version\s*=\s*var\.cache_engine_version/)
   assert.match(environment, /module "database_migration"/)
   assert.match(environment, /create_service\s*=\s*false/)
   assert.match(environment, /DATABASE_MIGRATION_URL/)

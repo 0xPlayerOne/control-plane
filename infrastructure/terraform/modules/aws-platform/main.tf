@@ -59,6 +59,9 @@ locals {
     ]
   ])
   secrets = { for binding in local.secret_bindings : binding.key => binding }
+  nat_subnets = var.environment == "production" ? {
+    for index, cidr in var.public_subnet_cidrs : tostring(index) => cidr
+  } : { "0" = var.public_subnet_cidrs[0] }
 }
 
 resource "aws_vpc" "this" {
@@ -96,17 +99,21 @@ resource "aws_subnet" "private" {
 }
 
 resource "aws_eip" "nat" {
+  for_each = local.nat_subnets
+
   domain = "vpc"
 
   depends_on = [aws_internet_gateway.this]
-  tags       = { Name = "${local.name_prefix}-nat" }
+  tags       = { Name = "${local.name_prefix}-nat-${each.key}" }
 }
 
 resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public["0"].id
+  for_each = local.nat_subnets
 
-  tags = { Name = local.name_prefix }
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = aws_subnet.public[each.key].id
+
+  tags = { Name = "${local.name_prefix}-${each.key}" }
 }
 
 resource "aws_route_table" "public" {
@@ -128,20 +135,22 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_route_table" "private" {
+  for_each = aws_subnet.private
+
   vpc_id = aws_vpc.this.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this.id
+    nat_gateway_id = aws_nat_gateway.this[var.environment == "production" ? each.key : "0"].id
   }
 
-  tags = { Name = "${local.name_prefix}-private" }
+  tags = { Name = "${local.name_prefix}-private-${each.key}" }
 }
 
 resource "aws_route_table_association" "private" {
   for_each = aws_subnet.private
 
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[each.key].id
   subnet_id      = each.value.id
 }
 
@@ -284,6 +293,7 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name                = aws_db_subnet_group.postgres.name
   deletion_protection                 = var.database_deletion_protection
   engine                              = "postgres"
+  engine_version                      = var.database_engine_version
   instance_class                      = var.database_instance_class
   kms_key_id                          = aws_kms_key.platform.arn
   manage_master_user_password         = true
@@ -318,6 +328,7 @@ resource "aws_elasticache_replication_group" "cache" {
   at_rest_encryption_enabled = true
   automatic_failover_enabled = var.cache_nodes > 1
   engine                     = "valkey"
+  engine_version             = var.cache_engine_version
   kms_key_id                 = aws_kms_key.platform.arn
   node_type                  = var.cache_node_type
   num_cache_clusters         = var.cache_nodes
