@@ -87,7 +87,7 @@ function isApiError(value: unknown): value is {
 } {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Record<string, unknown>
-  return typeof candidate.code === 'string' && typeof candidate.message === 'string'
+  return typeof candidate['code'] === 'string' && typeof candidate['message'] === 'string'
 }
 
 function flattenValidationErrors(errors: ValidationError[], parent = ''): ValidationDetail[] {

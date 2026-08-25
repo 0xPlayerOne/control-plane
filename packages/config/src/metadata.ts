@@ -23,12 +23,12 @@ export function parseApplicationMetadata<Service extends string>(
   const productionLike =
     applicationEnvironment === 'staging' || applicationEnvironment === 'production'
   const missing = [
-    ...(productionLike && !environment.SERVICE_VERSION ? ['SERVICE_VERSION'] : []),
-    ...(productionLike && !environment.COMMIT_SHA ? ['COMMIT_SHA'] : []),
+    ...(productionLike && !environment['SERVICE_VERSION'] ? ['SERVICE_VERSION'] : []),
+    ...(productionLike && !environment['COMMIT_SHA'] ? ['COMMIT_SHA'] : []),
   ]
-  const version = environment.SERVICE_VERSION ?? defaultVersion(applicationEnvironment)
-  const commitSha = environment.COMMIT_SHA ?? defaultCommit(applicationEnvironment)
-  const instanceId = environment.INSTANCE_ID ?? randomUUID()
+  const version = environment['SERVICE_VERSION'] ?? defaultVersion(applicationEnvironment)
+  const commitSha = environment['COMMIT_SHA'] ?? defaultCommit(applicationEnvironment)
+  const instanceId = environment['INSTANCE_ID'] ?? randomUUID()
   const invalid = [
     ...(!isMetadataValue(version) ? ['SERVICE_VERSION'] : []),
     ...(!isMetadataValue(commitSha) ? ['COMMIT_SHA'] : []),

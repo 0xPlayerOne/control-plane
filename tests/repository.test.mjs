@@ -333,6 +333,11 @@ test('configures strict TypeScript and dependency-boundary checks', async () => 
   const eslintConfig = await readFile(new URL('../eslint.config.js', import.meta.url), 'utf8')
 
   assert.equal(tsconfig.compilerOptions.strict, true)
+  assert.equal(tsconfig.compilerOptions.noImplicitReturns, true)
+  assert.equal(tsconfig.compilerOptions.noPropertyAccessFromIndexSignature, true)
+  assert.equal(tsconfig.compilerOptions.noUncheckedSideEffectImports, true)
+  assert.equal(tsconfig.compilerOptions.allowUnreachableCode, false)
+  assert.equal(tsconfig.compilerOptions.allowUnusedLabels, false)
   assert.match(manifest.scripts['check:boundaries'], /turbo boundaries/)
   for (const prohibited of [
     '@langchain/langgraph',
