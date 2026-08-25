@@ -1,0 +1,42 @@
+{
+  "name": "@control-plane/runtime-gateway-protocol",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "browser": false,
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "files": [
+    "dist",
+    "fixtures",
+    "schema"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./fixtures": "./fixtures/index.mjs",
+    "./schema/gateway-envelope.v1.json": "./schema/gateway-envelope.v1.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "schema:check": "bun scripts/schema.mjs --check",
+    "schema:generate": "bun scripts/schema.mjs",
+    "test": "bun scripts/schema.mjs --check && bun test src"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  }
+}

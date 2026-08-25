@@ -15,6 +15,7 @@
   "packages/events": "1.1.0",
   "packages/execution-plan": "1.1.0",
   "packages/policy": "1.0.0",
+  "packages/runtime-gateway-protocol": "1.0.0",
   "packages/runtime-sdk": "1.1.1",
   "packages/telemetry": "1.0.0",
   "packages/testing": "1.1.1",

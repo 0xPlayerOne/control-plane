@@ -1,0 +1,127 @@
+import { describe, expect, test } from 'bun:test'
+import {
+  GatewayEnvelopeSchema,
+  GatewayProtocolDeprecationSchema,
+  GatewayProtocolManifest,
+  ReferenceRuntimeNode,
+  inventoryFixtures,
+  negotiateGatewayProtocolVersion,
+  runGatewayProtocolConformance,
+} from './index.ts'
+
+const ids = {
+  command: 'cmd_01JABCDEF0123456789ABCDEFG',
+  workspace: 'wsp_01JABCDEF0123456789ABCDEFG',
+  node: 'rnr_01JABCDEF0123456789ABCDEFG',
+  connection: 'rtc_01JABCDEF0123456789ABCDEFG',
+  execution: 'exe_01JABCDEF0123456789ABCDEFG',
+  attempt: 'att_01JABCDEF0123456789ABCDEFG',
+  trace: 'trc_01JABCDEF0123456789ABCDEFG',
+}
+
+describe('Runtime Gateway protocol', () => {
+  test('validates every golden envelope and rejects provider-native or privileged local payloads', async () => {
+    const { golden, malformed } = await import('../fixtures/index.mjs')
+    const node = new ReferenceRuntimeNode()
+
+    for (const envelope of Object.values(golden)) {
+      expect(GatewayEnvelopeSchema.parse(envelope)).toEqual(envelope)
+      expect(node.observe(envelope)).toBe(envelope.type)
+    }
+    for (const envelope of Object.values(malformed)) {
+      expect(GatewayEnvelopeSchema.safeParse(envelope).success).toBeFalse()
+    }
+
+    const serialized = JSON.stringify(golden)
+    for (const concreteType of ['pi.command', 'acp.command', 'cortana.command']) {
+      expect(serialized).not.toContain(concreteType)
+    }
+  })
+
+  test('negotiates compatible versions and fails closed when no major version overlaps', () => {
+    expect(
+      negotiateGatewayProtocolVersion(GatewayProtocolManifest.supported, [{ major: 1, minor: 0 }])
+    ).toEqual({ major: 1, minor: 0 })
+    expect(
+      negotiateGatewayProtocolVersion(GatewayProtocolManifest.supported, [{ major: 2, minor: 0 }])
+    ).toBeUndefined()
+    expect(
+      GatewayProtocolDeprecationSchema.safeParse({
+        version: { major: 1, minor: 0 },
+        deprecatedAt: '2026-09-01T00:00:00.000Z',
+        sunsetAt: '2026-08-31T00:00:00.000Z',
+      }).success
+    ).toBeFalse()
+  })
+
+  test('recognizes redelivery without payload ambiguity and never re-executes an effect', () => {
+    const node = new ReferenceRuntimeNode({ now: () => new Date('2026-08-25T12:00:01.000Z') })
+    const command = runtimeCommand()
+
+    const first = node.receive(command)
+    const replay = node.receive(command)
+
+    expect(first.ack.disposition).toBe('accepted')
+    expect(replay.ack.disposition).toBe('replayed')
+    expect(replay.result).toEqual(first.result)
+    expect(node.effectCount(command.commandId)).toBe(1)
+    expect(() => node.receive({ ...command, payloadHash: `sha256:${'b'.repeat(64)}` })).toThrow(
+      'COMMAND_PAYLOAD_MISMATCH'
+    )
+  })
+
+  test('represents zero, compatible, and alternate context providers without changing envelopes', () => {
+    for (const inventory of Object.values(inventoryFixtures)) {
+      expect(GatewayEnvelopeSchema.parse(inventory).type).toBe('inventory')
+    }
+    expect(inventoryFixtures.noProvider.contextProviders).toEqual([])
+    expect(inventoryFixtures.cortanaCompatible.contextProviders[0]).toMatchObject({
+      driverFamily: 'local-context',
+      capabilities: ['context.status', 'context.read'],
+    })
+    expect(inventoryFixtures.alternateProvider.contextProviders[0].driverFamily).toBe(
+      'alternate-context'
+    )
+  })
+
+  test('passes the reusable protocol conformance suite against the reference node', () => {
+    expect(runGatewayProtocolConformance()).toEqual({ scenarios: 9, passed: 9 })
+  })
+
+  test('publishes a language-neutral JSON schema without server package dependencies', async () => {
+    const schema = await import('../schema/gateway-envelope.v1.json', { with: { type: 'json' } })
+    const manifest = await import('../package.json', { with: { type: 'json' } })
+
+    expect(schema.default.$schema).toBe('https://json-schema.org/draft/2020-12/schema')
+    expect(schema.default.oneOf).toHaveLength(9)
+    expect(Object.keys(manifest.default.dependencies)).toEqual(['zod'])
+    expect(Object.keys(manifest.default.devDependencies)).toEqual(['prettier'])
+  })
+})
+
+function runtimeCommand() {
+  return {
+    type: 'command',
+    schemaVersion: 1,
+    protocolVersion: { major: 1, minor: 0 },
+    sequence: 1,
+    nodeId: ids.node,
+    workspaceId: ids.workspace,
+    traceId: ids.trace,
+    sentAt: '2026-08-25T12:00:00.000Z',
+    channelGeneration: 1,
+    commandId: ids.command,
+    idempotencyKey: 'runtime-command:01JABCDEF0123456789ABCDEFG',
+    payloadHash: `sha256:${'a'.repeat(64)}`,
+    issuedAt: '2026-08-25T12:00:00.000Z',
+    expiresAt: '2026-08-25T12:01:00.000Z',
+    family: 'runtime',
+    operation: 'runtime.execute',
+    driver: { family: 'reference-runtime', version: '1.0.0' },
+    runtimeConnectionId: ids.connection,
+    executionId: ids.execution,
+    attemptId: ids.attempt,
+    requiredCapabilities: ['runtime.execute'],
+    payload: { version: 1, parameters: { prompt: 'deterministic fixture' } },
+  }
+}

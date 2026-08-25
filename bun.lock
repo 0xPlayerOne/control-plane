@@ -164,6 +164,16 @@
       "name": "@control-plane/policy",
       "version": "1.0.0",
     },
+    "packages/runtime-gateway-protocol": {
+      "name": "@control-plane/runtime-gateway-protocol",
+      "version": "1.0.0",
+      "dependencies": {
+        "zod": "4.4.3",
+      },
+      "devDependencies": {
+        "prettier": "3.9.6",
+      },
+    },
     "packages/runtime-sdk": {
       "name": "@control-plane/runtime-sdk",
       "version": "1.0.0",
@@ -223,6 +233,8 @@
     "@control-plane/policy": ["@control-plane/policy@workspace:packages/policy"],
 
     "@control-plane/runtime-gateway": ["@control-plane/runtime-gateway@workspace:apps/runtime-gateway"],
+
+    "@control-plane/runtime-gateway-protocol": ["@control-plane/runtime-gateway-protocol@workspace:packages/runtime-gateway-protocol"],
 
     "@control-plane/runtime-sdk": ["@control-plane/runtime-sdk@workspace:packages/runtime-sdk"],
 
