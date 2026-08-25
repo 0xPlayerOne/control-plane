@@ -528,3 +528,4 @@ export const contextPackageSerializationFixtures = {
 } as const
 
 export const packageName = 'context'
+export * from './provider.js'
