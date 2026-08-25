@@ -5,6 +5,7 @@ import {
   createLangSmithTraceAdapter,
   createSentryErrorTracker,
   createTelemetry,
+  diagnosticQueries,
   executionTraceSpans,
   extractTraceContext,
   injectTraceContext,
@@ -124,6 +125,15 @@ describe('telemetry safety and correlation', () => {
     expect(operationalMetrics).toContain('runtime.gateway.ack.duration')
     expect(operationalMetrics).toContain('execution.reconciliation.count')
     expect(operationalMetrics).toContain('usage.cost.usd')
+    expect(diagnosticQueries.map(({ failureClass }) => failureClass)).toEqual([
+      'application',
+      'workflow',
+      'gateway',
+      'runtime',
+      'provider',
+      'policy',
+    ])
+    expect(diagnosticQueries.every(({ signals }) => signals.length > 0)).toBe(true)
   })
 
   test('keeps execution correct when every telemetry adapter fails', async () => {

@@ -18,7 +18,9 @@ the immutable evaluation and deployment records.
 ## Release and rollback
 
 1. Require the M9 security, evaluation, recovery, load, Terraform, container, and compatibility
-   gates. Record exact commit, configuration, migration, and image digests.
+   gates. Record exact commit, configuration, migration, and image digests. Promotion and rollback
+   must use the PostgreSQL-backed release-audit repository; an unavailable audit store blocks the
+   state change.
 2. Review `terraform plan` for one environment. Reject mutable images, unexpected deletes,
    widened IAM/network rules, reduced alarms, or weakened backup settings.
 3. Confirm a recent PostgreSQL recovery point and successful restore drill. Apply infrastructure
@@ -63,6 +65,26 @@ because its image builds.
 - Runtime Gateway remains disabled in production until a concrete authenticated WebSocket server
   adapter is injected and its lifecycle passes the staging canary. The application intentionally
   refuses a placeholder production startup.
+
+## Diagnostic views and correlation queries
+
+Start every investigation with the stable identifiers in the execution trace, then narrow by the
+failure-class signals below. The machine-readable source of truth is `diagnosticQueries` in
+`@control-plane/telemetry`; dashboards and alert links must preserve these fields rather than
+embedding provider-specific identifiers.
+
+| Failure class | Signals                                                                                             | Required correlation                                     |
+| ------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Application   | `control.api.error.count`, `control.api.request.duration`, `service.name=control-api`               | `control.correlation_id`, `workspace.id`, `execution.id` |
+| Workflow      | `workflow.backlog.count`, `workflow.replay.count`, `span.name=workflow.run`                         | `workflow.id`, `execution.id`, `execution.attempt.id`    |
+| Gateway       | `runtime.gateway.connection.count`, `runtime.gateway.ack.duration`, `service.name=runtime-gateway`  | `runtime.node.id`, `runtime.id`, `execution.id`          |
+| Runtime       | `runtime.available.count`, `span.name=runtime.route`, `span.name=runtime.start`                     | `runtime.id`, `runtime.node.id`, `execution.id`          |
+| Provider      | `model.call.error.count`, `tool.call.error.count`, `span.name=model.call OR span.name=tool.execute` | `gen_ai.request.model`, `tool.id`, `execution.id`        |
+| Policy        | `span.name=tool.authorize`, `event=policy.denied`, `event=approval.waiting`                         | `policy.version`, `tool.id`, `execution.id`              |
+
+Join only on sanitized correlation attributes. If a trace is missing, query the authoritative
+execution/event records by `execution.id`; telemetry gaps never authorize guessing state or
+replaying a side effect.
 
 ## Policy, budget, and security incidents
 
