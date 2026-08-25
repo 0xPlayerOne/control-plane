@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-worker-v1.1.0...runtime-worker-v1.2.0) (2026-08-25)
+
+
+### Features
+
+* **runtime:** add hosted managed Pi worker ([#158](https://github.com/0xPlayerOne/control-plane/issues/158)) ([39e3943](https://github.com/0xPlayerOne/control-plane/commit/39e39438dcc489b665a388cb918ee843bf2cd8bb))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-worker-v1.0.0...runtime-worker-v1.1.0) (2026-08-25)
 
 

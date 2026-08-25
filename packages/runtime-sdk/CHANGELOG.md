@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.2.0...runtime-sdk-v1.3.0) (2026-08-25)
+
+
+### Features
+
+* **acp:** manage external session references ([#160](https://github.com/0xPlayerOne/control-plane/issues/160)) ([46ecc7b](https://github.com/0xPlayerOne/control-plane/commit/46ecc7bbb46e8b20943b1688c72d37bdf2d05ae4)), closes [#48](https://github.com/0xPlayerOne/control-plane/issues/48)
+* **runtime:** certify adapter compatibility ([#162](https://github.com/0xPlayerOne/control-plane/issues/162)) ([14403fd](https://github.com/0xPlayerOne/control-plane/commit/14403fdaa37a40d61f6e6bc7cd9e5a4f72de29bc)), closes [#50](https://github.com/0xPlayerOne/control-plane/issues/50)
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.1.1...runtime-sdk-v1.2.0) (2026-08-25)
 
 
