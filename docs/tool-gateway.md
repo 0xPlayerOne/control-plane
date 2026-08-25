@@ -52,3 +52,17 @@ an idempotency key with a different request fails closed. An unknown or committe
 be safely replayed enters `reconciliation_required` instead of being reported as an ordinary failure.
 Executor errors are normalized to bounded codes; raw error messages and raw tool input are not kept
 in the durable call record.
+
+## MCP servers
+
+`McpAdapter` discovers a registered server through a provider-neutral client port and imports each
+remote tool as a workspace-scoped canonical definition. Every imported version records the source
+server, remote tool name/version, schema digest, and discovery time. A changed schema publishes a
+new immutable version; an execution already pinned to the previous digest fails closed instead of
+silently using the changed remote contract.
+
+MCP calls use the same policy-controlled Tool Gateway path as every other executor. Disconnects,
+removed tools, protocol errors, timeouts, invalid output, and oversized output are exposed as
+bounded error codes. The server's vault or lease reference stays inside the adapter and is supplied
+only to the server-side MCP client; it is excluded from registry records, runtime requests, durable
+tool calls, audit results, and public APIs.

@@ -89,6 +89,17 @@ export const ToolLimitsSchema = z
   })
   .strict()
 
+export const ToolSourceSchema = z
+  .object({
+    kind: z.literal('mcp'),
+    serverId: CanonicalNameSchema,
+    sourceToolName: z.string().min(1).max(256),
+    sourceToolVersion: z.string().min(1).max(128).optional(),
+    schemaDigest: DigestSchema,
+    discoveredAt: TimestampSchema,
+  })
+  .strict()
+
 const ToolVersionFieldsSchema = z
   .object({
     toolVersionId: IdentifierSchemas.toolVersionId,
@@ -102,6 +113,7 @@ const ToolVersionFieldsSchema = z
       .max(64)
       .refine((operations) => unique(operations.map(({ name }) => name))),
     executor: ToolExecutorReferenceSchema,
+    source: ToolSourceSchema.optional(),
     limits: ToolLimitsSchema,
     createdAt: TimestampSchema,
     publishedAt: TimestampSchema,
