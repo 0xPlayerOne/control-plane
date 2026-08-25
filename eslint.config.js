@@ -13,6 +13,7 @@ const coreFiles = [
   'packages/tool-sdk/**/*.ts',
   'packages/policy/**/*.ts',
   'packages/context/**/*.ts',
+  'packages/orchestration/**/*.ts',
 ]
 
 const prohibitedAdapters = [

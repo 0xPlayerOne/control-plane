@@ -171,5 +171,6 @@ export function createGraphEvent(input: unknown): GraphEvent {
 }
 
 export * from './graph-catalog.js'
+export * from './delegation.js'
 
 export const packageName = 'orchestration'

@@ -4,6 +4,7 @@ export {
   DatabaseConnectionError,
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
+export { PostgresDelegationRepository } from './delegation-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
 export { PostgresExternalSessionRepository } from './external-session-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
@@ -23,6 +24,8 @@ export type {
 export {
   commandInbox,
   commandInboxStatus,
+  delegations,
+  delegationState,
   eventPublicationStatus,
   executionEvents,
   executionAttempts,
