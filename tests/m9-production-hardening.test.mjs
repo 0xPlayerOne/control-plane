@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { URL } from 'node:url'
 import { describe, expect, test } from 'bun:test'
 import { assessDeployment, SecretCanaryGuard } from '../packages/production-readiness/src/index.ts'
 import {

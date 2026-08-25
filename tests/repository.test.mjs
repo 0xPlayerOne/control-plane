@@ -105,6 +105,8 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
 
   assert.ok(unit.includes('apps/control-api/src/application.test.mjs'))
   assert.ok(unit.includes('packages/database/src/index.test.mjs'))
+  assert.ok(unit.includes('packages/production-readiness/src/deployment.test.mjs'))
+  assert.ok(unit.includes('packages/production-readiness/src/load-testing.test.mjs'))
   assert.ok(!unit.includes('packages/database/src/integration.test.mjs'))
   assert.ok(!unit.includes('packages/testing/src/postgres.integration.test.mjs'))
   assert.deepEqual(e2e, [
@@ -115,6 +117,7 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
     'tests/m6-runtime-adapters.test.mjs',
     'tests/m7-tools-models-sandboxes.test.mjs',
     'tests/m8-multi-agent-orchestration.test.mjs',
+    'tests/m9-production-hardening.test.mjs',
   ])
   assert.deepEqual(smoke, [
     'tests/foundation.test.mjs',
