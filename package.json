@@ -31,6 +31,7 @@
     "test:m3-acceptance": "bun test tests/m3-durable-execution.test.mjs",
     "test:m4-acceptance": "bun --cwd=apps/control-api run build && bun test tests/m4-runtime-fabric.test.mjs",
     "test:m5-acceptance": "bun run build && bun test tests/m5-runtime-gateway.test.mjs",
+    "test:m6-acceptance": "bun run build && bun test tests/m6-runtime-adapters.test.mjs",
     "test:coverage": "bun run test:unit",
     "test:shard": "bun run build && bun scripts/run-bun-test-group.mjs unit",
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path infrastructure/terraform/.gitignore",
@@ -45,11 +46,13 @@
     "db:stop": "docker compose stop postgres"
   },
   "devDependencies": {
+    "@control-plane/acp-adapter": "workspace:*",
     "@control-plane/context": "workspace:*",
     "@control-plane/contracts": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/events": "workspace:*",
     "@control-plane/execution-plan": "workspace:*",
+    "@control-plane/managed-pi-adapter": "workspace:*",
     "@control-plane/runtime-sdk": "workspace:*",
     "@control-plane/sdk": "workspace:*",
     "@eslint/js": "10.0.1",

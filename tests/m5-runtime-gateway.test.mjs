@@ -99,6 +99,6 @@ describe('M5 runtime gateway acceptance manifest', () => {
     expect(codeFoundry).toContain('features: all')
     expect(codeFoundry).toContain('coverage_minimum: 80')
     expect(testingDocumentation).toContain('`bun run test:m5-acceptance`')
-    expect(testingDocumentation).toContain('M2-M5 acceptance flows')
+    expect(testingDocumentation).toContain('M2-M6 acceptance flows')
   })
 })
