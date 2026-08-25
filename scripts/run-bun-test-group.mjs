@@ -11,6 +11,7 @@ const repositoryGroups = {
     'tests/m2-core-domain.test.mjs',
     'tests/m3-durable-execution.test.mjs',
     'tests/m4-runtime-fabric.test.mjs',
+    'tests/m5-runtime-gateway.test.mjs',
   ],
   smoke: [
     'tests/foundation.test.mjs',
