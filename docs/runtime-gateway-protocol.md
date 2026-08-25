@@ -26,6 +26,14 @@ An authenticated socket becomes active only after its hello negotiates a support
 
 Heartbeats refresh shared ownership and publish normalized online/degraded/offline changes through `RuntimeNodeReachabilityPublisher`. A stale heartbeat degrades the node; the idle deadline releases ownership and marks it offline. Graceful shutdown stops admission, closes and releases each active channel, and then stops the native server. Metrics record per-instance active nodes, reconnects, heartbeat lag, negotiated protocol versions, and normalized disconnect reasons.
 
+## Durable command delivery
+
+The gateway writes every runtime command to the PostgreSQL `runtime_commands` ledger before sending it. The record retains the semantic command, execution, attempt, node, connection, scope, payload hash, expiry, delivery generations and sequences, ACK, result reference, and compare-and-set version. Reconnect and gateway restart query this ledger and redeliver the same command ID; a new ID denotes a new semantic attempt. Queue age, ACK latency, redelivery, and expiry are recorded as gateway metrics.
+
+ACKs must match the latest dispatched channel generation and sequence. Previously recorded RuntimeNode results may come from an earlier generation after a lost connection, but they must match the command node, workspace, and payload hash. Duplicate ACKs or results return the persisted outcome only when their references and dispositions match; ambiguity and command-ID hash reuse fail closed. Commands are marked expired before send and are never revived on reconnect.
+
+The RuntimeNode owns a separate bounded local result ledger for duplicate-effect protection. The reference implementation returns its recorded result on redelivery and fails closed at capacity rather than evicting an entry that could allow an old command to execute twice. Production nodes must persist this bounded ledger across their own restart according to their retention policy.
+
 ## Compatibility and deprecation
 
 Peers negotiate the highest common major version and the lower supported minor within that major. No common major fails negotiation. Additive fields and envelope variants require a minor version; changed meanings, required-field removal, or incompatible validation require a new major. Deprecation must name the affected version and timestamp; an optional sunset must be later than deprecation and should name a supported replacement. A command already past expiry is never made valid by protocol negotiation or reconnect.

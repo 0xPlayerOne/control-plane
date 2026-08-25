@@ -28,6 +28,7 @@ export {
   runtimeConnectionStatus,
   runtimeConnectionType,
 } from './runtime-connections.js'
+export { runtimeCommands, runtimeCommandStatus } from './runtime-commands.js'
 export {
   reconciliationAction,
   reconciliationCheckpoints,

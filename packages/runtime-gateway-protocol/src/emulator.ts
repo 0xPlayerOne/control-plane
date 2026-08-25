@@ -15,6 +15,7 @@ interface RecordedOutcome {
 }
 
 export interface ReferenceRuntimeNodeOptions {
+  readonly maxLedgerEntries?: number
   readonly now?: () => Date
 }
 
@@ -28,10 +29,16 @@ export class GatewayProtocolError extends Error {
 export class ReferenceRuntimeNode {
   readonly #effects = new Map<string, number>()
   readonly #ledger = new Map<string, RecordedOutcome>()
+  readonly #maxLedgerEntries: number
   readonly #now: () => Date
   #lastObservedSequence = 0
 
   constructor(options: ReferenceRuntimeNodeOptions = {}) {
+    const maxLedgerEntries = options.maxLedgerEntries ?? 10_000
+    if (!Number.isSafeInteger(maxLedgerEntries) || maxLedgerEntries <= 0) {
+      throw new GatewayProtocolError('INVALID_LEDGER_CAPACITY')
+    }
+    this.#maxLedgerEntries = maxLedgerEntries
     this.#now = options.now ?? (() => new Date())
   }
 
@@ -59,6 +66,9 @@ export class ReferenceRuntimeNode {
     }
     if (Date.parse(command.expiresAt) <= this.#now().getTime()) {
       return { ack: this.#ack(command, 'expired') }
+    }
+    if (this.#ledger.size >= this.#maxLedgerEntries) {
+      throw new GatewayProtocolError('COMMAND_LEDGER_CAPACITY_EXCEEDED')
     }
 
     const result = this.#result(command)
