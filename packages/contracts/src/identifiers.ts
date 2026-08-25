@@ -41,6 +41,7 @@ export const IdentifierSchemas = {
   credentialId: opaqueIdentifier('crd', 'credential ID'),
   credentialLeaseId: opaqueIdentifier('crl', 'credential-lease ID'),
   modelCallId: opaqueIdentifier('mdc', 'model-call ID'),
+  memoryWriteProposalId: opaqueIdentifier('mwp', 'memory-write-proposal ID'),
   eventId: opaqueIdentifier('evt', 'event ID'),
   traceId: opaqueIdentifier('trc', 'trace ID'),
 } as const
@@ -77,5 +78,6 @@ export type ToolCallId = z.output<(typeof IdentifierSchemas)['toolCallId']>
 export type CredentialId = z.output<(typeof IdentifierSchemas)['credentialId']>
 export type CredentialLeaseId = z.output<(typeof IdentifierSchemas)['credentialLeaseId']>
 export type ModelCallId = z.output<(typeof IdentifierSchemas)['modelCallId']>
+export type MemoryWriteProposalId = z.output<(typeof IdentifierSchemas)['memoryWriteProposalId']>
 export type EventId = z.output<(typeof IdentifierSchemas)['eventId']>
 export type TraceId = z.output<(typeof IdentifierSchemas)['traceId']>
