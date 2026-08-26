@@ -48,7 +48,7 @@ because its image builds.
   blind retries; they amplify an outage.
 - For corruption or accidental deletion, freeze writes, select a recovery time before the event,
   restore into a new instance, run integrity/reconciliation checks, and switch only after approval.
-  RPO is 15 minutes and RTO is 60 minutes; record actual timings.
+  RPO is 5 minutes and RTO is 60 minutes; record actual timings.
 - The S3 object store is private, KMS-encrypted, and versioned. Incomplete uploads expire after seven
   days and noncurrent versions after 90 days. Restore a prior version rather than overwriting
   evidence. Tasks receive only their declared object actions.
