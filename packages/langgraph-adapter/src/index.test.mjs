@@ -5,6 +5,7 @@ import {
   deterministicInterruptGraph,
   deterministicTestGraph,
 } from './index.ts'
+import { createTelemetry } from '@control-plane/telemetry'
 
 const request = {
   executionId: 'exe_01JABCDEF0123456789ABCDEFG',
@@ -48,6 +49,57 @@ describe('LangGraph orchestration adapter', () => {
     expect(result).toMatchObject({ status: 'completed', output: { summary: 'tool:lookup' } })
     expect(calls.map(({ kind }) => kind)).toEqual(['runtime', 'model', 'tool'])
     expect(events.map(({ type }) => type)).toContain('graph.node.completed')
+  })
+
+  test('emits correlated spans from real graph and node execution paths', async () => {
+    const spans = []
+    const telemetry = createTelemetry({
+      serviceName: 'workflow-worker',
+      traceAdapter: {
+        startSpan(input) {
+          const record = { input, outcome: undefined }
+          spans.push(record)
+          return { end: (outcome) => (record.outcome = outcome) }
+        },
+      },
+    })
+    const adapter = new LangGraphOrchestrationAdapter({
+      graphs: [deterministicTestGraph(request.graph)],
+      checkpointer: new MemorySaver(),
+      operations: {
+        async invoke(operation) {
+          return { value: `${operation.kind}:${operation.name}` }
+        },
+        async cancel() {
+          return true
+        },
+      },
+      events: { async publish() {} },
+      telemetry,
+    })
+
+    await expect(
+      adapter.run({ ...request, input: { authorization: 'Bearer private-graph-secret' } })
+    ).resolves.toMatchObject({ status: 'completed' })
+
+    expect(spans.map(({ input }) => input.name)).toEqual([
+      'graph.run',
+      'graph.node',
+      'runtime.start',
+      'graph.node',
+      'model.call',
+      'graph.node',
+      'tool.execute',
+    ])
+    expect(
+      spans.every(
+        ({ input }) =>
+          input.attributes['execution.id'] === request.executionId &&
+          input.attributes['workflow.id'] === request.workflowId
+      )
+    ).toBe(true)
+    expect(spans.every(({ outcome }) => outcome.status === 'ok')).toBe(true)
+    expect(JSON.stringify(spans)).not.toContain('private-graph-secret')
   })
 
   test('normalizes graph failures and cancellation without exposing input', async () => {

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@control-plane/orchestration": "workspace:*",
+    "@control-plane/telemetry": "workspace:*",
     "@langchain/langgraph": "1.4.12",
     "@langchain/langgraph-checkpoint-postgres": "1.0.5",
     "zod": "4.4.3"

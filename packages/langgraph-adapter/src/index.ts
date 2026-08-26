@@ -26,6 +26,7 @@ import {
   type GraphSegmentResult,
   type OrchestrationPort,
 } from '@control-plane/orchestration'
+import type { Telemetry, TelemetryIdentifiers, TelemetrySpan } from '@control-plane/telemetry'
 import { z } from 'zod'
 
 const JsonRecordSchema = z.record(z.string(), z.json())
@@ -71,6 +72,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
   readonly #now: () => string
   readonly #compilerVersion: string
   readonly #adapterVersion: string
+  readonly #telemetry: Pick<Telemetry, 'startSpan'> | undefined
   readonly #active = new Map<string, AbortController>()
 
   constructor(options: {
@@ -81,6 +83,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
     readonly now?: () => string
     readonly compilerVersion?: string
     readonly adapterVersion?: string
+    readonly telemetry?: Pick<Telemetry, 'startSpan'>
   }) {
     this.#operations = options.operations
     this.#events = options.events
@@ -88,6 +91,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
     this.#now = options.now ?? (() => new Date().toISOString())
     this.#compilerVersion = options.compilerVersion ?? '1.0.0'
     this.#adapterVersion = options.adapterVersion ?? '1.4.12'
+    this.#telemetry = options.telemetry
     for (const graph of options.graphs) {
       const key = graphKey(graph.reference)
       if (this.#graphs.has(key)) throw new OrchestrationError('GRAPH_VERSION_MISMATCH', false)
@@ -148,6 +152,14 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
     const key = activeKey(request.executionId, request.threadId)
     if (this.#active.has(key)) throw new OrchestrationError('GRAPH_FAILED', true)
     this.#active.set(key, controller)
+    const identifiers = telemetryIdentifiers(request)
+    const graphSpan = this.#telemetry?.startSpan('graph.run', identifiers, {
+      'graph.definition.id': request.graph.graphDefinitionId,
+    })
+    let graphOutcome: Parameters<TelemetrySpan['end']>[0] = {
+      status: 'error',
+      error: new Error(failureCode),
+    }
     const emitted: GraphEvent[] = []
     let sequence = 0
     const emit = async (type: GraphEvent['type'], node?: string, details: JsonRecord = {}) => {
@@ -171,22 +183,29 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         invokeOperation: async (node, kind, name, state) => {
           if (controller.signal.aborted) throw new OrchestrationError('GRAPH_CANCELLED', false)
           await emit('graph.node.started', node, { kind, operation: name })
-          const result = JsonRecordSchema.parse(
-            await this.#operations.invoke({
-              executionId: request.executionId,
-              attemptId: request.attemptId,
-              workspaceId: request.workspaceId,
-              workflowId: request.workflowId,
-              threadId: request.threadId,
-              node,
-              kind,
-              name,
-              input: state,
-              idempotencyKey: `${request.idempotencyKey}:${node}`,
-            })
-          )
-          await emit('graph.node.completed', node, { kind, operation: name })
-          return result
+          const spans = this.#operationSpans(request, node, kind, name)
+          try {
+            const result = JsonRecordSchema.parse(
+              await this.#operations.invoke({
+                executionId: request.executionId,
+                attemptId: request.attemptId,
+                workspaceId: request.workspaceId,
+                workflowId: request.workflowId,
+                threadId: request.threadId,
+                node,
+                kind,
+                name,
+                input: state,
+                idempotencyKey: `${request.idempotencyKey}:${node}`,
+              })
+            )
+            for (const span of spans) span.end({ status: 'ok' })
+            await emit('graph.node.completed', node, { kind, operation: name })
+            return result
+          } catch (error) {
+            for (const span of spans) span.end({ status: 'error', error })
+            throw error
+          }
         },
       })
       const config = {
@@ -218,6 +237,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         }
         const normalized = normalizeInterrupt(interruptions[0])
         await emit('graph.interrupted', undefined, { interactionKey: normalized.interactionKey })
+        graphOutcome = { status: 'ok' }
         return GraphSegmentResultSchema.parse({
           status: 'awaiting_input',
           state,
@@ -227,6 +247,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         })
       }
       await emit('graph.completed')
+      graphOutcome = { status: 'ok' }
       return GraphSegmentResultSchema.parse({
         status: 'completed',
         state,
@@ -236,6 +257,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
       })
     } catch (error) {
       if (error instanceof OrchestrationError && error.code === 'GRAPH_CANCELLED') {
+        graphOutcome = { status: 'ok' }
         return GraphSegmentResultSchema.parse({ status: 'cancelled', state: {}, events: emitted })
       }
       try {
@@ -250,8 +272,32 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         events: emitted,
       })
     } finally {
+      graphSpan?.end(graphOutcome)
       this.#active.delete(key)
     }
+  }
+
+  #operationSpans(
+    request: GraphExecutionRequest | GraphResumeRequest | GraphContinueRequest,
+    node: string,
+    kind: 'delegation' | 'model' | 'runtime' | 'tool',
+    name: string
+  ): readonly TelemetrySpan[] {
+    if (!this.#telemetry) return []
+    const identifiers = telemetryIdentifiers(request)
+    const attributes = { 'graph.node.kind': kind, 'graph.node.name': node, 'operation.name': name }
+    const nodeSpan = this.#telemetry.startSpan('graph.node', identifiers, attributes)
+    const operationName =
+      kind === 'runtime'
+        ? 'runtime.start'
+        : kind === 'model'
+          ? 'model.call'
+          : kind === 'tool'
+            ? 'tool.execute'
+            : undefined
+    return operationName
+      ? [nodeSpan, this.#telemetry.startSpan(operationName, identifiers, attributes)]
+      : [nodeSpan]
   }
 }
 
@@ -362,6 +408,22 @@ function correlation(input: {
     attemptId: input.attemptId,
     workspaceId: input.workspaceId,
     workflowId: input.workflowId,
+  }
+}
+
+function telemetryIdentifiers(input: {
+  readonly executionId: string
+  readonly attemptId: string
+  readonly workspaceId: string
+  readonly workflowId: string
+  readonly graph: GraphReference
+}): TelemetryIdentifiers {
+  return {
+    executionId: input.executionId,
+    attemptId: input.attemptId,
+    workspaceId: input.workspaceId,
+    workflowId: input.workflowId,
+    graphVersion: input.graph.graphVersion,
   }
 }
 
