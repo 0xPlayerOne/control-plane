@@ -181,6 +181,7 @@ describe('M8 multi-agent orchestration acceptance', () => {
         },
       })
       ledger.settle({
+        workspaceId: ids.workspaceId,
         executionId: ids.parentExecutionId,
         reservationKey: `child:${childExecutionId}`,
         source: {
@@ -189,7 +190,7 @@ describe('M8 multi-agent orchestration acceptance', () => {
         },
       })
     }
-    expect(ledger.summary(ids.parentExecutionId)).toMatchObject({
+    expect(ledger.summary(ids.workspaceId, ids.parentExecutionId)).toMatchObject({
       reservedMicrounits: 0,
       settled: true,
     })

@@ -181,6 +181,33 @@ describe('revisioned ProjectState and promotion proposals', () => {
     })
   })
 
+  test('fails closed for cross-workspace project reads and mutations without existence leakage', async () => {
+    const { service, events } = setup()
+    const otherWorkspaceId = 'wsp_01JBBCDEF0123456789ABCDEFG'
+    await service.initialize({ workspaceId, projectId, at: now })
+
+    await expect(
+      service.getAtRevision({ workspaceId: otherWorkspaceId, projectId, revision: 0 })
+    ).rejects.toMatchObject({ code: 'REVISION_MISSING' })
+    await expect(
+      service.getAtRevision({
+        workspaceId: otherWorkspaceId,
+        projectId: 'prj_01JBBCDEF0123456789ABCDEFG',
+        revision: 0,
+      })
+    ).rejects.toMatchObject({ code: 'REVISION_MISSING' })
+    await expect(
+      service.applyMutation({
+        ...mutation('stm_01JZBCDEF0123456789ABCDEFG', 0, [
+          appendItem('psi_01JZBCDEF0123456789ABCDEFG', 'forbidden', 'cross-workspace'),
+        ]),
+        workspaceId: otherWorkspaceId,
+      })
+    ).rejects.toMatchObject({ code: 'PROJECT_STATE_MISSING' })
+    expect(await service.getHistory({ workspaceId, projectId })).toHaveLength(1)
+    expect(events.events).toHaveLength(0)
+  })
+
   test('supports rejection, supersession, expiry, and history reconstruction', async () => {
     const { service } = setup()
     await service.initialize({ workspaceId, projectId, at: now })

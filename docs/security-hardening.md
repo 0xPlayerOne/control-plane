@@ -45,8 +45,9 @@ gate; forced audit remediation is prohibited.
 
 ## Automated boundary evidence
 
-The M9 gate runs `bun run test:unit`, which exercises production implementations rather than only
-the reusable audit harness. The boundary evidence includes:
+The M9 gate runs `bun run test:isolation-matrix`. That command fails closed unless every required
+workspace, project, profile, context, runtime, tool, and usage read/mutation cell names an existing
+production test, then executes every referenced test file. The boundary evidence includes:
 
 - `apps/control-api/src/application.test.mjs` for service credential class, audience, operation, and
   workspace enforcement plus scoped runtime-discovery responses;
@@ -63,6 +64,11 @@ the reusable audit harness. The boundary evidence includes:
 `packages/production-readiness/src/security.test.mjs` separately verifies that the generic matrix
 runner rejects any supplied probe that grants cross-scope access or leaks resource existence; it is
 not treated as proof of the production repositories above.
+
+The gate also runs `bun run test:secret-canaries`. It exercises the production redaction paths for
+structured logs, traces, persisted events, normalized errors, LangGraph checkpoints and node
+inputs, credential-to-model boundaries, and public API responses. The command fails if any named
+sink lacks executable evidence or if its canary reaches the observed output.
 
 ## Incident evidence
 

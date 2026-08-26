@@ -33,6 +33,8 @@ jobs:
       - run: bun run lint
       - run: bun run type-check
       - run: bun run test:unit
+      - run: bun run test:isolation-matrix
+      - run: bun run test:secret-canaries
       - run: bun run test:m9-acceptance
       - run: bun audit
 
@@ -50,7 +52,7 @@ jobs:
       - run: npm install --global bun@1.3.14
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: bun run test:integration
+      - run: bun run test:recovery-matrix
 
   terraform:
     name: Terraform (${{ matrix.environment }})
@@ -87,7 +89,7 @@ jobs:
           persist-credentials: false
       - run: >-
           docker buildx bake -f infrastructure/containers/docker-bake.hcl
-          default database-migrate --set '*.platform=linux/amd64'
+          default database-migrate
 
   # Stable required check: M9 Production Readiness / Gate
   gate:

@@ -1,10 +1,18 @@
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
-import { PostgresEvaluationRepository } from '../packages/database/src/index.ts'
+import {
+  executionEvents,
+  executions,
+  PostgresEvaluationRepository,
+  usageLedgerEntries,
+} from '../packages/database/src/index.ts'
 import { createIsolatedPostgres } from '../packages/testing/src/postgres.ts'
 
 const expectedRunId = 'eval-run-restore-drill'
 const expectedDigest = `sha256:${'d'.repeat(64)}`
+const executionDigest = `sha256:${'e'.repeat(64)}`
+const eventPayloadHash = 'f'.repeat(64)
+const usageIdempotencyKey = 'restore-drill:usage:1'
 
 function dockerPostgres(arguments_, options = {}) {
   const result = spawnSync('docker', ['compose', 'exec', '-T', 'postgres', ...arguments_], {
@@ -31,6 +39,60 @@ const target = await createIsolatedPostgres({ migrate: false })
 try {
   const repository = new PostgresEvaluationRepository(source.application)
   await repository.saveRun(recoveryEvidence())
+  await source.application.insert(executions).values({
+    executionId: 'exe_restore_drill',
+    state: 'accepted',
+    version: 1,
+    workspaceId: 'wsp_restore_drill',
+    projectId: 'prj_restore_drill',
+    taskId: 'tsk_restore_drill',
+    agentId: 'agt_restore_drill',
+    requestId: 'req_restore_drill',
+    executionPlanId: 'plan_restore_drill',
+    executionPlanDigest: executionDigest,
+    executionPlanSchemaVersion: 1,
+    attemptCount: 0,
+    acceptedAt: new Date('2026-08-25T12:00:00.000Z'),
+    createdAt: new Date('2026-08-25T12:00:00.000Z'),
+    updatedAt: new Date('2026-08-25T12:00:00.000Z'),
+  })
+  await source.application.insert(executionEvents).values({
+    eventId: 'evt_restore_drill',
+    executionId: 'exe_restore_drill',
+    sequence: 1,
+    eventType: 'execution.accepted',
+    schemaVersion: 1,
+    requestId: 'req_restore_drill',
+    workspaceId: 'wsp_restore_drill',
+    projectId: 'prj_restore_drill',
+    taskId: 'tsk_restore_drill',
+    agentId: 'agt_restore_drill',
+    traceId: 'trc_restore_drill',
+    payload: { state: 'accepted' },
+    payloadBytes: 20,
+    payloadHash: eventPayloadHash,
+    occurredAt: new Date('2026-08-25T12:00:00.000Z'),
+    recordedAt: new Date('2026-08-25T12:00:01.000Z'),
+    retentionExpiresAt: new Date('2026-11-25T12:00:00.000Z'),
+    publicationStatus: 'pending',
+    publicationAttempts: 0,
+    publicationVersion: 1,
+  })
+  await source.application.insert(usageLedgerEntries).values({
+    entryId: 'usg_restore_drill',
+    sequence: 1,
+    workspaceId: 'wsp_restore_drill',
+    executionId: 'exe_restore_drill',
+    kind: 'model_usage',
+    sourceId: 'restore-drill',
+    idempotencyKey: usageIdempotencyKey,
+    fundingSource: 'hq_managed',
+    quantity: { unit: 'tokens', value: 42 },
+    currency: 'USD',
+    costMicrounits: 42,
+    costExact: true,
+    recordedAt: new Date('2026-08-25T12:00:02.000Z'),
+  })
   const backup = dockerPostgres(
     [
       'pg_dump',
@@ -67,13 +129,31 @@ try {
       '--tuples-only',
       '--no-align',
       '--command',
-      `SELECT eval_run_id || ':' || (evidence->'configuration'->>'executionPlanDigest') FROM evaluation_runs`,
+      `SELECT
+        evaluation_runs.eval_run_id || ':' ||
+        (evaluation_runs.evidence->'configuration'->>'executionPlanDigest') || ':' ||
+        executions.execution_plan_digest || ':' ||
+        execution_events.payload_hash || ':' ||
+        usage_ledger_entries.idempotency_key
+      FROM executions
+      JOIN execution_events USING (execution_id)
+      JOIN usage_ledger_entries USING (execution_id)
+      CROSS JOIN evaluation_runs
+      WHERE executions.execution_id = 'exe_restore_drill'
+        AND execution_events.event_id = 'evt_restore_drill'
+        AND usage_ledger_entries.entry_id = 'usg_restore_drill'
+        AND evaluation_runs.eval_run_id = 'eval-run-restore-drill'`,
     ])
   ).trim()
-  if (restored !== `${expectedRunId}:${expectedDigest}`) {
+  if (
+    restored !==
+    `${expectedRunId}:${expectedDigest}:${executionDigest}:${eventPayloadHash}:${usageIdempotencyKey}`
+  ) {
     throw new Error('PostgreSQL restore drill lost immutable recovery evidence')
   }
-  console.log('PostgreSQL backup and restore drill preserved immutable evidence.')
+  console.log(
+    'PostgreSQL backup and restore drill preserved immutable evaluation, execution, event, and usage evidence.'
+  )
 } finally {
   await Promise.allSettled([source.dispose(), target.dispose()])
 }

@@ -10,6 +10,11 @@ import {
   InMemoryPolicyStore,
 } from '../packages/policy/src/index.ts'
 import { createTelemetry } from '../packages/telemetry/src/index.ts'
+import {
+  CommandInboxService,
+  InMemoryCommandAcceptanceRepository,
+} from '../packages/domain/src/index.ts'
+import { ScenarioFailureInjector } from '../packages/production-readiness/src/index.ts'
 
 const workspace = 'wsp_01JABCDEF0123456789ABCDEFG'
 const otherWorkspace = 'wsp_01JABCDEF0123456789ABCDEFH'
@@ -121,6 +126,60 @@ describe('M9 production hardening acceptance', () => {
     ).toBe('block')
   })
 
+  test('injects failures at the durable command acceptance boundary and recovers exactly once', async () => {
+    const command = {
+      callerPrincipalId: 'svc_agent-hq',
+      operation: 'execution.accept',
+      commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      requestId: 'req_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      idempotencyKey: 'm9-command-acceptance-0001',
+      payloadHash: 'a'.repeat(64),
+      correlation: {
+        workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        taskId: 'tsk_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      },
+      executionPlan: {
+        executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        contentDigest: `sha256:${'b'.repeat(64)}`,
+        schemaVersion: 1,
+      },
+      receivedAt: '2026-08-25T12:00:00.000Z',
+      retentionExpiresAt: '2026-09-25T12:00:00.000Z',
+    }
+    const scope = {
+      callerPrincipalId: command.callerPrincipalId,
+      operation: command.operation,
+      workspaceId: command.correlation.workspaceId,
+      projectId: command.correlation.projectId,
+      idempotencyKey: command.idempotencyKey,
+    }
+    const injector = new ScenarioFailureInjector()
+    const repository = new InMemoryCommandAcceptanceRepository()
+    const service = new CommandInboxService({
+      repository,
+      executionIdFactory: () => 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      executionPlanValidator: { validate: async () => true },
+      now: () => command.receivedAt,
+      failureInjector: injector,
+    })
+
+    injector.arm('control_api.before_accept')
+    await expect(service.acceptExecution(command)).rejects.toThrow(
+      'INJECTED_FAILURE:control_api.before_accept'
+    )
+    expect(await repository.get(scope)).toBeUndefined()
+
+    injector.arm('control_api.after_accept')
+    await expect(service.acceptExecution(command)).rejects.toThrow(
+      'INJECTED_FAILURE:control_api.after_accept'
+    )
+    expect(repository.executionCount).toBe(1)
+    await expect(service.acceptExecution(command)).resolves.toMatchObject({ replayed: true })
+    expect(repository.executionCount).toBe(1)
+  })
+
   test('keeps production runbooks and release gates wired into the repository', async () => {
     const [manifest, operations, performance, recovery, security, workflow] = await Promise.all([
       readFile(new URL('../package.json', import.meta.url), 'utf8'),
@@ -137,9 +196,12 @@ describe('M9 production hardening acceptance', () => {
 
     for (const command of [
       'security:scan',
+      'test:isolation-matrix',
+      'test:secret-canaries',
       'test:integration',
       'test:load',
       'test:m9-acceptance',
+      'test:recovery-matrix',
     ]) {
       assert.equal(typeof scripts[command], 'string')
     }
@@ -157,6 +219,9 @@ describe('M9 production hardening acceptance', () => {
     assert.match(workflow, /M9 Production Readiness \/ Gate/)
     assert.match(workflow, /schedule:\s*\n\s*- cron:/)
     assert.match(workflow, /- run: bun run test:unit/)
+    assert.match(workflow, /- run: bun run test:isolation-matrix/)
+    assert.match(workflow, /- run: bun run test:secret-canaries/)
+    assert.match(workflow, /- run: bun run test:recovery-matrix/)
     assert.match(workflow, /concurrency:[\s\S]*group:.*github\.event_name/)
     assert.match(operations, /RPO is 5 minutes and RTO is 60 minutes/)
     assert.match(recovery, /PostgreSQL service\s+\|\s+5 minutes\s+\|\s+60 minutes/)

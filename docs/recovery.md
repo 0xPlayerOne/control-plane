@@ -16,21 +16,26 @@ Recovery must never infer an uncertain external side effect: ambiguous provider/
 
 ## Automated drill
 
-`bun run test:integration` now runs the complete database/LangGraph integration suite and a real
-custom-format `pg_dump`/`pg_restore` drill between two isolated non-production databases. The drill
-inserts immutable eval/execution-plan evidence, restores it, verifies the exact digest, and disposes
-both databases through the shared isolated-database lifecycle. `bun run test:recovery` runs only the
-restore portion when the local PostgreSQL service is already healthy and the three scoped database
-URLs are present.
+`bun run test:integration` runs the complete database/LangGraph integration suite, stops the local
+PostgreSQL service to prove active connection loss is detected, restarts it to prove committed
+evidence survives, and runs a custom-format `pg_dump`/`pg_restore` drill between two isolated
+non-production databases. The restore drill verifies exact evaluation, execution-plan, event, and
+usage evidence before disposing both databases through the shared isolated-database lifecycle.
+`bun run test:recovery` runs only the restore portion when the local PostgreSQL service is already
+healthy and the three scoped database URLs are present.
 
-The M9 core lane also runs `bun run test:unit`, including executable failure and replay coverage in
+The integration/recovery lane runs `bun run test:recovery-matrix`. It fails closed unless every
+named `failureScenarios` entry maps to an existing production test or the real PostgreSQL/LangGraph
+integration and restore command, then executes all referenced evidence. Unit failure and replay
+coverage includes
 `apps/workflow-worker/src/execution-workflow.test.mjs`,
 `apps/runtime-gateway/src/reconnect-reconciliation.test.mjs`,
 `packages/events/src/delivery.test.mjs`, and `packages/langgraph-adapter/src/index.test.mjs`.
-PostgreSQL rollback and connection-loss behavior runs in
-`packages/database/src/integration.test.mjs`; checkpoint restart and the real restore drill remain in
-the integration lane. The `failureScenarios` catalog is an operator index for these implementations,
-not standalone evidence that a scenario passed.
+PostgreSQL transaction rollback runs in `packages/database/src/integration.test.mjs`; active
+connection loss and service-restart persistence run in `scripts/run-postgres-disruption-drill.mjs`;
+checkpoint restart and the real restore drill remain in the integration lane. The local restart is a
+failover surrogate, not proof of AWS Multi-AZ failover. The scenario catalog and executable evidence
+mapping must remain one-to-one.
 
 For an AWS drill, restore the selected RDS recovery point into a new isolated instance, deny all
 application traffic, run schema/record/digest verification, and record observed RPO/RTO. Promotion

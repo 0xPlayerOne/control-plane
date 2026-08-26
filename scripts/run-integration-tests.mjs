@@ -80,6 +80,15 @@ try {
   run('bun', ['x', 'turbo', 'run', 'test:integration', '--concurrency=1'], {
     environment: integrationEnvironment,
   })
+  if (!postgresWasRunning) {
+    run('bun', ['scripts/run-postgres-disruption-drill.mjs'], {
+      environment: { ...integrationEnvironment, POSTGRES_DISRUPTION_ALLOWED: 'true' },
+    })
+  } else {
+    console.log(
+      'Skipping PostgreSQL disruption drill because the runner did not start the service.'
+    )
+  }
   run('bun', ['scripts/run-postgres-restore-drill.mjs'], {
     environment: integrationEnvironment,
   })

@@ -23,6 +23,31 @@ export const failureScenarios = [
   'regional_dependency.degradation',
 ] as const
 
+export type FailureScenario = (typeof failureScenarios)[number]
+
+const knownFailureScenarios = new Set<string>(failureScenarios)
+
+export class ScenarioFailureInjector {
+  readonly #remaining = new Map<FailureScenario, number>()
+
+  arm(scenario: FailureScenario, count = 1): void {
+    assertFailureScenario(scenario)
+    if (!Number.isSafeInteger(count) || count < 1 || count > 100) {
+      throw new Error('INVALID_FAILURE_COUNT')
+    }
+    this.#remaining.set(scenario, count)
+  }
+
+  checkpoint(scenario: FailureScenario): void {
+    assertFailureScenario(scenario)
+    const remaining = this.#remaining.get(scenario) ?? 0
+    if (remaining === 0) return
+    if (remaining === 1) this.#remaining.delete(scenario)
+    else this.#remaining.set(scenario, remaining - 1)
+    throw new Error(`INJECTED_FAILURE:${scenario}`)
+  }
+}
+
 export const productionRecoveryObjectives = {
   executionLedger: { rpoSeconds: 0, rtoSeconds: 300 },
   eventLedger: { rpoSeconds: 0, rtoSeconds: 300 },
@@ -106,6 +131,10 @@ function assertInput(commandId: string, payloadDigest: string): void {
     throw new Error('INVALID_COMMAND_ID')
   }
   if (!/^sha256:[a-f0-9]{64}$/.test(payloadDigest)) throw new Error('INVALID_PAYLOAD_DIGEST')
+}
+
+function assertFailureScenario(scenario: string): asserts scenario is FailureScenario {
+  if (!knownFailureScenarios.has(scenario)) throw new Error('UNKNOWN_FAILURE_SCENARIO')
 }
 
 function injected(point: FailurePoint): Error {

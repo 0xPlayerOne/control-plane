@@ -35,9 +35,11 @@ export {
 export type { CredentialEnvelope, CredentialKind } from './security.js'
 export {
   DurableFailureHarness,
+  ScenarioFailureInjector,
   failureScenarios,
   productionRecoveryObjectives,
 } from './failure-injection.js'
+export type { FailureScenario } from './failure-injection.js'
 export {
   BoundedAdmissionController,
   compareLoadBaselines,

@@ -26,7 +26,12 @@ import {
   type GraphSegmentResult,
   type OrchestrationPort,
 } from '@control-plane/orchestration'
-import type { Telemetry, TelemetryIdentifiers, TelemetrySpan } from '@control-plane/telemetry'
+import {
+  redactTelemetryValue,
+  type Telemetry,
+  type TelemetryIdentifiers,
+  type TelemetrySpan,
+} from '@control-plane/telemetry'
 import { z } from 'zod'
 
 const JsonRecordSchema = z.record(z.string(), z.json())
@@ -102,12 +107,14 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
   async run(input: unknown): Promise<GraphSegmentResult> {
     const parsed = GraphExecutionRequestSchema.safeParse(input)
     if (!parsed.success) throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
+    assertCheckpointSafe(parsed.data.input)
     return this.#invoke(parsed.data, parsed.data.input, 'graph.started', 'GRAPH_FAILED')
   }
 
   async resume(input: unknown): Promise<GraphSegmentResult> {
     const parsed = GraphResumeRequestSchema.safeParse(input)
     if (!parsed.success) throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
+    assertCheckpointSafe(parsed.data.response)
     return this.#invoke(
       parsed.data,
       new Command({ resume: parsed.data.response }),
@@ -298,6 +305,12 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
     return operationName
       ? [nodeSpan, this.#telemetry.startSpan(operationName, identifiers, attributes)]
       : [nodeSpan]
+  }
+}
+
+function assertCheckpointSafe(value: unknown): void {
+  if (JSON.stringify(redactTelemetryValue(value)) !== JSON.stringify(value)) {
+    throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
   }
 }
 

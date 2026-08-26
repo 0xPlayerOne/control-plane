@@ -75,9 +75,9 @@ const allowPdp = {
   },
 }
 
-async function fixture(adapter = new FakeModelAdapter()) {
+async function fixture(adapter = new FakeModelAdapter(), deploymentOverrides = {}) {
   const registry = new ModelRouteRegistry()
-  registry.register(deployment)
+  registry.register({ ...deployment, ...deploymentOverrides })
   adapter.completion = {
     content: 'A summary.',
     finishReason: 'stop',
@@ -124,7 +124,8 @@ describe('managed model gateway', () => {
     )
   })
 
-  test('keeps LiteLLM and credential configuration server-side', async () => {
+  test('keeps a server-side credential canary out of model context', async () => {
+    const secretCanary = 'secret-canary-model-context-9f4a'
     const calls = []
     const client = {
       async complete(input) {
@@ -144,9 +145,12 @@ describe('managed model gateway', () => {
       },
     }
     const adapter = new LiteLlmAdapter({ client })
-    const { gateway } = await fixture(adapter)
+    const credentialRef = `lease://model/${secretCanary}`
+    const { gateway } = await fixture(adapter, { credentialRef })
     const result = await gateway.complete(request())
-    expect(calls[0]).toMatchObject({ model: 'gpt-5', credentialRef: 'lease://model/openai' })
+    expect(calls[0]).toMatchObject({ model: 'gpt-5', credentialRef })
+    expect(JSON.stringify(calls[0].messages)).not.toContain(secretCanary)
+    expect(JSON.stringify(calls[0].messages)).not.toContain(calls[0].credentialRef)
     expect(JSON.stringify(result)).not.toContain('credentialRef')
     expect(JSON.stringify(result)).not.toContain('lease://')
   })
@@ -191,14 +195,46 @@ describe('managed model gateway', () => {
     await expect(gateway.cancel(ids.call)).resolves.toBe(true)
   })
 
-  test('normalizes gateway/provider failures without credentials or prompts', async () => {
+  test('keeps a secret canary out of normalized provider errors', async () => {
+    const secretCanary = 'secret-canary-provider-error-9f4a'
     const adapter = new FakeModelAdapter()
-    adapter.error = new Error('Authorization: Bearer super-secret Summarize this.')
+    adapter.error = new Error(`Authorization: Bearer ${secretCanary} Summarize this.`)
     const { gateway } = await fixture(adapter)
-    await expect(gateway.complete(request())).rejects.toMatchObject({
-      code: 'PROVIDER_FAILED',
-      message: 'PROVIDER_FAILED',
-    })
+    try {
+      await gateway.complete(request())
+      throw new Error('EXPECTED_PROVIDER_FAILURE')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'PROVIDER_FAILED', message: 'PROVIDER_FAILED' })
+      expect(JSON.stringify(error)).not.toContain(secretCanary)
+    }
+  })
+
+  test('classifies a partial provider stream without retrying or hiding emitted output', async () => {
+    const adapter = new FakeModelAdapter()
+    let streamAttempts = 0
+    adapter.stream = async function* (input, route) {
+      this.requests.push({
+        request: JSON.parse(JSON.stringify(input)),
+        deploymentId: route.deploymentId,
+      })
+      streamAttempts += 1
+      yield { delta: 'partial ' }
+    }
+    const { gateway } = await fixture(adapter)
+    const chunks = []
+    let failure
+
+    try {
+      for await (const chunk of gateway.stream(request())) chunks.push(chunk)
+    } catch (error) {
+      failure = error
+    }
+
+    expect(chunks).toEqual([
+      expect.objectContaining({ sequence: 0, delta: 'partial ', modelCallId: ids.call }),
+    ])
+    expect(failure).toMatchObject({ code: 'STREAM_FAILED', retryable: true })
+    expect(streamAttempts).toBe(1)
   })
 
   test('routes deterministically and explains only eligible ranked candidates', async () => {

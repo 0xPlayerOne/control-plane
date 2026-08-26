@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { DurableFailureHarness, failureScenarios, productionRecoveryObjectives } from './index.ts'
+import {
+  DurableFailureHarness,
+  ScenarioFailureInjector,
+  failureScenarios,
+  productionRecoveryObjectives,
+} from './index.ts'
 
 describe('failure injection and recovery validation', () => {
   test('catalogs every production failure boundary with explicit recovery objectives', () => {
@@ -23,6 +28,18 @@ describe('failure injection and recovery validation', () => {
     )
     expect(productionRecoveryObjectives.postgres).toEqual({ rpoSeconds: 300, rtoSeconds: 3600 })
     expect(productionRecoveryObjectives.executionLedger.rpoSeconds).toBe(0)
+  })
+
+  test('injects every named production failure through a reusable bounded control', () => {
+    const injector = new ScenarioFailureInjector()
+
+    for (const scenario of failureScenarios) {
+      injector.arm(scenario)
+      expect(() => injector.checkpoint(scenario)).toThrow(`INJECTED_FAILURE:${scenario}`)
+      expect(() => injector.checkpoint(scenario)).not.toThrow()
+    }
+    expect(() => injector.arm('unknown.failure')).toThrow('UNKNOWN_FAILURE_SCENARIO')
+    expect(() => injector.arm(failureScenarios[0], 0)).toThrow('INVALID_FAILURE_COUNT')
   })
 
   test('retries a crash before commit without losing or duplicating durable work', () => {

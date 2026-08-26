@@ -63,7 +63,7 @@ export type UsageLedgerAppendResult =
 
 export interface UsageLedgerRepository {
   append(entry: UsageLedgerEntry): Promise<UsageLedgerAppendResult>
-  list(executionId: string): Promise<readonly UsageLedgerEntry[]>
+  list(workspaceId: string, executionId: string): Promise<readonly UsageLedgerEntry[]>
 }
 
 export function usageEntriesShareIdentity(
@@ -153,12 +153,10 @@ export class InMemoryUsageLedger {
     let maximumTokens = parsed.data.maximumTokens ?? Number.MAX_SAFE_INTEGER
     if (parsed.data.parentExecutionId !== undefined) {
       const parent = this.#budget(parsed.data.parentExecutionId)
-      if (
-        parent.workspaceId !== parsed.data.workspaceId ||
-        parent.currency !== parsed.data.currency
-      ) {
-        throw new UsageLedgerError('INVALID_ENTRY')
+      if (parent.workspaceId !== parsed.data.workspaceId) {
+        throw new UsageLedgerError('BUDGET_NOT_FOUND')
       }
+      if (parent.currency !== parsed.data.currency) throw new UsageLedgerError('INVALID_ENTRY')
       maximumMicrounits = Math.min(maximumMicrounits, available(parent))
       maximumTokens = Math.min(
         maximumTokens,
@@ -185,7 +183,7 @@ export class InMemoryUsageLedger {
       reservations: new Map(),
       settled: false,
     })
-    return this.summary(parsed.data.executionId)
+    return this.summary(parsed.data.workspaceId, parsed.data.executionId)
   }
 
   reserve(input: {
@@ -197,10 +195,10 @@ export class InMemoryUsageLedger {
     readonly source: z.output<typeof SourceSchema>
   }): UsageLedgerEntry {
     const budget = this.#budget(input.executionId)
-    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('INVALID_ENTRY')
+    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
     const existing = budget.reservations.get(input.reservationKey)
     if (existing) {
-      return this.#duplicateOrConflict(input.source, input)
+      return this.#duplicateOrConflict(input.workspaceId, input.source, input)
     }
     if (input.maximumMicrounits > available(budget)) throw new UsageLedgerError('BUDGET_EXHAUSTED')
     const entry = this.#append(
@@ -241,10 +239,10 @@ export class InMemoryUsageLedger {
     readonly costMicrounits: number
     readonly fundingSource: 'hq_managed' | 'external_subscription'
   }): UsageLedgerEntry {
-    const prior = this.#effect(input.source)
-    if (prior) return this.#assertDuplicate(prior, input)
     const budget = this.#budget(input.executionId)
-    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('INVALID_ENTRY')
+    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
+    const prior = this.#effect(input.workspaceId, input.source)
+    if (prior) return this.#assertDuplicate(prior, input)
     const reservation = this.#reservation(budget, input.reservationKey)
     if (reservation.settled) throw new UsageLedgerError('RESERVATION_SETTLED')
     if (input.fundingSource === 'external_subscription' && input.costMicrounits !== 0) {
@@ -276,14 +274,16 @@ export class InMemoryUsageLedger {
   }
 
   extendBudget(input: {
+    readonly workspaceId: string
     readonly executionId: string
     readonly additionalMicrounits: number
     readonly authorizationDecisionId: string
     readonly source: z.output<typeof SourceSchema>
   }): UsageLedgerEntry {
-    const prior = this.#effect(input.source)
-    if (prior) return this.#assertDuplicate(prior, input)
     const budget = this.#budget(input.executionId)
+    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
+    const prior = this.#effect(input.workspaceId, input.source)
+    if (prior) return this.#assertDuplicate(prior, input)
     validatePositiveAmount(input.additionalMicrounits)
     const entry = this.#append(
       {
@@ -305,15 +305,17 @@ export class InMemoryUsageLedger {
   }
 
   extendReservation(input: {
+    readonly workspaceId: string
     readonly executionId: string
     readonly reservationKey: string
     readonly additionalMicrounits: number
     readonly authorizationDecisionId: string
     readonly source: z.output<typeof SourceSchema>
   }): UsageLedgerEntry {
-    const prior = this.#effect(input.source)
-    if (prior) return this.#assertDuplicate(prior, input)
     const budget = this.#budget(input.executionId)
+    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
+    const prior = this.#effect(input.workspaceId, input.source)
+    if (prior) return this.#assertDuplicate(prior, input)
     const reservation = this.#reservation(budget, input.reservationKey)
     validatePositiveAmount(input.additionalMicrounits)
     if (reservation.settled) throw new UsageLedgerError('RESERVATION_SETTLED')
@@ -340,14 +342,16 @@ export class InMemoryUsageLedger {
   }
 
   settle(input: {
+    readonly workspaceId: string
     readonly executionId: string
     readonly reservationKey: string
     readonly source: z.output<typeof SourceSchema>
   }): { readonly releasedMicrounits: number; readonly settlement: UsageLedgerEntry } {
     const budget = this.#budget(input.executionId)
+    if (budget.workspaceId !== input.workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
     const reservation = this.#reservation(budget, input.reservationKey)
     const releasedMicrounits = reservation.maximumMicrounits - reservation.chargedMicrounits
-    const prior = this.#effect(input.source)
+    const prior = this.#effect(input.workspaceId, input.source)
     if (prior) {
       return {
         releasedMicrounits,
@@ -390,11 +394,15 @@ export class InMemoryUsageLedger {
     return { releasedMicrounits, settlement }
   }
 
-  entries(executionId: string): readonly UsageLedgerEntry[] {
+  entries(workspaceId: string, executionId: string): readonly UsageLedgerEntry[] {
+    this.#assertWorkspace(workspaceId, executionId)
     return (this.#entries.get(executionId) ?? []).map((entry) => entry)
   }
 
-  summary(executionId: string): {
+  summary(
+    workspaceId: string,
+    executionId: string
+  ): {
     readonly executionId: string
     readonly currency: string
     readonly maximumMicrounits: number
@@ -405,6 +413,7 @@ export class InMemoryUsageLedger {
     readonly settled: boolean
   } {
     const budget = this.#budget(executionId)
+    if (budget.workspaceId !== workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
     const spentMicrounits = spent(budget)
     const reservedMicrounits = reserved(budget)
     return deepFreeze({
@@ -419,7 +428,10 @@ export class InMemoryUsageLedger {
     })
   }
 
-  publicSummary(executionId: string): {
+  publicSummary(
+    workspaceId: string,
+    executionId: string
+  ): {
     readonly executionId: string
     readonly currency: string
     readonly funding: {
@@ -430,6 +442,7 @@ export class InMemoryUsageLedger {
     readonly settled: boolean
   } {
     const budget = this.#budget(executionId)
+    if (budget.workspaceId !== workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
     const billable = (this.#entries.get(executionId) ?? []).filter((entry) =>
       ['model_usage', 'tool_charge', 'sandbox_usage'].includes(entry.kind)
     )
@@ -450,6 +463,11 @@ export class InMemoryUsageLedger {
     })
   }
 
+  #assertWorkspace(workspaceId: string, executionId: string): void {
+    const budget = this.#budget(executionId)
+    if (budget.workspaceId !== workspaceId) throw new UsageLedgerError('BUDGET_NOT_FOUND')
+  }
+
   #budget(executionId: string): BudgetProjection {
     const budget = this.#budgets.get(executionId)
     if (!budget) throw new UsageLedgerError('BUDGET_NOT_FOUND')
@@ -462,12 +480,16 @@ export class InMemoryUsageLedger {
     return reservation
   }
 
-  #effect(source: z.output<typeof SourceSchema>): StoredEffect | undefined {
-    return this.#effects.get(source.idempotencyKey)
+  #effect(workspaceId: string, source: z.output<typeof SourceSchema>): StoredEffect | undefined {
+    return this.#effects.get(`${workspaceId}:${source.idempotencyKey}`)
   }
 
-  #duplicateOrConflict(source: z.output<typeof SourceSchema>, identity: unknown): UsageLedgerEntry {
-    const prior = this.#effect(source)
+  #duplicateOrConflict(
+    workspaceId: string,
+    source: z.output<typeof SourceSchema>,
+    identity: unknown
+  ): UsageLedgerEntry {
+    const prior = this.#effect(workspaceId, source)
     if (!prior) throw new UsageLedgerError('IDEMPOTENCY_CONFLICT')
     return this.#assertDuplicate(prior, identity)
   }
@@ -479,10 +501,13 @@ export class InMemoryUsageLedger {
   }
 
   #append(
-    value: Record<string, unknown> & { readonly source: z.output<typeof SourceSchema> },
+    value: Record<string, unknown> & {
+      readonly source: z.output<typeof SourceSchema>
+      readonly workspaceId: string
+    },
     identity: unknown
   ): UsageLedgerEntry {
-    const prior = this.#effect(value.source)
+    const prior = this.#effect(value.workspaceId, value.source)
     if (prior) return this.#assertDuplicate(prior, identity)
     this.#sequence += 1
     const entry = UsageLedgerEntrySchema.safeParse({
@@ -496,7 +521,7 @@ export class InMemoryUsageLedger {
     const list = this.#entries.get(frozen.executionId) ?? []
     list.push(frozen)
     this.#entries.set(frozen.executionId, list)
-    this.#effects.set(frozen.source.idempotencyKey, {
+    this.#effects.set(`${frozen.workspaceId}:${frozen.source.idempotencyKey}`, {
       digest: stableStringify(identity),
       entry: frozen,
     })

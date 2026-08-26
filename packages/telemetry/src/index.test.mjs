@@ -80,7 +80,8 @@ describe('telemetry safety and correlation', () => {
     expect(input.nested.safe).toBe('visible')
   })
 
-  test('writes stable redacted JSON log fields', () => {
+  test('keeps a secret canary out of structured logs', () => {
+    const secretCanary = 'secret-canary-log-9f4a'
     const lines = []
     const logger = createStructuredLogger({
       now: () => new Date('2026-08-23T12:00:00.000Z'),
@@ -91,7 +92,7 @@ describe('telemetry safety and correlation', () => {
       level: 'info',
       event: 'service.operation',
       metadata: { serviceName: 'control-api' },
-      details: { correlationId: 'correlation-1', password: 'private' },
+      details: { correlationId: 'correlation-1', password: secretCanary },
     })
 
     expect(JSON.parse(lines[0])).toEqual({
@@ -101,6 +102,7 @@ describe('telemetry safety and correlation', () => {
       metadata: { serviceName: 'control-api' },
       details: { correlationId: 'correlation-1', password: '[REDACTED]' },
     })
+    expect(lines[0]).not.toContain(secretCanary)
   })
 
   test('maps every semantic identifier to stable attributes', () => {
@@ -204,7 +206,8 @@ describe('telemetry safety and correlation', () => {
     ).toBe(true)
   })
 
-  test('keeps LangSmith traces metadata-only and redacted', () => {
+  test('keeps a secret canary out of LangSmith traces', () => {
+    const secretCanary = 'secret-canary-trace-9f4a'
     const runs = []
     const adapter = createLangSmithTraceAdapter({
       enabled: true,
@@ -220,13 +223,13 @@ describe('telemetry safety and correlation', () => {
       name: 'model.call',
       attributes: {
         'execution.id': 'execution-1',
-        prompt: 'secret-canary',
-        diagnostic: 'token=secret-canary',
+        prompt: secretCanary,
+        diagnostic: `token=${secretCanary}`,
       },
     })
     span.end({ status: 'ok' })
 
-    expect(JSON.stringify(runs)).not.toContain('secret-canary')
+    expect(JSON.stringify(runs)).not.toContain(secretCanary)
     expect(runs[0].input).toEqual({
       name: 'model.call',
       metadata: {
@@ -237,8 +240,9 @@ describe('telemetry safety and correlation', () => {
     })
   })
 
-  test('redacts errors before ending direct and vendor-backed spans', () => {
-    const secret = 'token=private-span-secret'
+  test('keeps a secret canary out of captured errors', () => {
+    const secretCanary = 'secret-canary-error-9f4a'
+    const secret = `token=${secretCanary}`
     const directOutcomes = []
     const telemetry = createTelemetry({
       serviceName: 'control-api',
@@ -263,7 +267,7 @@ describe('telemetry safety and correlation', () => {
       error: new Error(secret),
     })
 
-    expect(JSON.stringify({ directOutcomes, runs })).not.toContain('private-span-secret')
+    expect(JSON.stringify({ directOutcomes, runs })).not.toContain(secretCanary)
     expect(directOutcomes[0]).toEqual({
       status: 'error',
       error: { name: 'Error', message: 'token=[REDACTED]' },

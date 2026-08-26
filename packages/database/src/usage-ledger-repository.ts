@@ -7,6 +7,7 @@ import {
 } from '@control-plane/usage-ledger'
 import { and, asc, eq } from 'drizzle-orm'
 import type { ControlPlaneDatabase } from './connection.js'
+import { executions } from './schema/executions.js'
 import { usageLedgerEntries } from './schema/usage-ledger.js'
 
 export class PostgresUsageLedgerRepository implements UsageLedgerRepository {
@@ -14,35 +15,56 @@ export class PostgresUsageLedgerRepository implements UsageLedgerRepository {
 
   async append(value: UsageLedgerEntry): Promise<UsageLedgerAppendResult> {
     const entry = UsageLedgerEntrySchema.parse(value)
-    const inserted = await this.database
-      .insert(usageLedgerEntries)
-      .values(toUsageLedgerRow(entry))
-      .onConflictDoNothing()
-      .returning({ entryId: usageLedgerEntries.entryId })
-    if (inserted.length === 1) return { outcome: 'created', entry }
+    return this.database.transaction(async (transaction) => {
+      const [execution] = await transaction
+        .select({ workspaceId: executions.workspaceId })
+        .from(executions)
+        .where(eq(executions.executionId, entry.executionId))
+        .limit(1)
+      if (execution === undefined || execution.workspaceId !== entry.workspaceId) {
+        throw new Error('USAGE_LEDGER_SCOPE_MISMATCH')
+      }
 
-    const current = await this.#findByIdempotency(entry.workspaceId, entry.source.idempotencyKey)
-    if (current === undefined) throw new Error('USAGE_LEDGER_APPEND_RACE')
-    return {
-      outcome: usageEntriesShareIdentity(current, entry) ? 'duplicate' : 'conflict',
-      entry: current,
-    }
+      const inserted = await transaction
+        .insert(usageLedgerEntries)
+        .values(toUsageLedgerRow(entry))
+        .onConflictDoNothing()
+        .returning({ entryId: usageLedgerEntries.entryId })
+      if (inserted.length === 1) return { outcome: 'created', entry }
+
+      const current = await this.#findByIdempotency(
+        entry.workspaceId,
+        entry.source.idempotencyKey,
+        transaction
+      )
+      if (current === undefined) throw new Error('USAGE_LEDGER_APPEND_RACE')
+      return {
+        outcome: usageEntriesShareIdentity(current, entry) ? 'duplicate' : 'conflict',
+        entry: current,
+      }
+    })
   }
 
-  async list(executionId: string): Promise<readonly UsageLedgerEntry[]> {
+  async list(workspaceId: string, executionId: string): Promise<readonly UsageLedgerEntry[]> {
     const rows = await this.database
       .select()
       .from(usageLedgerEntries)
-      .where(eq(usageLedgerEntries.executionId, executionId))
+      .where(
+        and(
+          eq(usageLedgerEntries.workspaceId, workspaceId),
+          eq(usageLedgerEntries.executionId, executionId)
+        )
+      )
       .orderBy(asc(usageLedgerEntries.sequence))
     return rows.map(fromUsageLedgerRow)
   }
 
   async #findByIdempotency(
     workspaceId: string,
-    idempotencyKey: string
+    idempotencyKey: string,
+    database: ControlPlaneDatabase = this.database
   ): Promise<UsageLedgerEntry | undefined> {
-    const [row] = await this.database
+    const [row] = await database
       .select()
       .from(usageLedgerEntries)
       .where(

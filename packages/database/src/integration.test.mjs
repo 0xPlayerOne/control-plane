@@ -29,6 +29,7 @@ import { PostgresRuntimeConnectionRepository } from './runtime-connection-reposi
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
 import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.ts'
+import { PostgresUsageLedgerRepository } from './usage-ledger-repository.ts'
 import {
   commandInbox,
   delegations,
@@ -1173,6 +1174,64 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         .from(outboxEvents)
         .where(eq(outboxEvents.aggregateType, 'test'))
     ).toHaveLength(1)
+  })
+
+  test('scopes usage ledger reads and idempotency to workspace', async () => {
+    const first = {
+      workspaceId: 'wsp_01KABCDEF0123456789ABCDEFG',
+      executionId: 'exe_01KABCDEF0123456789ABCDEFG',
+    }
+    const second = {
+      workspaceId: 'wsp_01KBCDEF0123456789ABCDEFGH',
+      executionId: 'exe_01KBCDEF0123456789ABCDEFGH',
+    }
+    const now = new Date('2026-08-25T12:00:00.000Z')
+    await isolated.application.insert(executions).values(
+      [first, second].map((scope, index) => ({
+        ...scope,
+        state: 'accepted',
+        version: 1,
+        projectId: `prj_01K${index}CDEF0123456789ABCDEFGH`,
+        taskId: `tsk_01K${index}CDEF0123456789ABCDEFGH`,
+        agentId: `agt_01K${index}CDEF0123456789ABCDEFGH`,
+        requestId: `req_01K${index}CDEF0123456789ABCDEFGH`,
+        executionPlanId: `pln_01K${index}CDEF0123456789ABCDEFGH`,
+        executionPlanDigest: `sha256:${String(index + 1).repeat(64)}`,
+        executionPlanSchemaVersion: 1,
+        attemptCount: 0,
+        acceptedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    )
+    const repository = new PostgresUsageLedgerRepository(isolated.application)
+    const entry = (scope, suffix) => ({
+      entryId: `usg_01K${suffix}CDEF0123456789ABCDEFGH`,
+      sequence: 1,
+      ...scope,
+      kind: 'model_usage',
+      source: { sourceId: 'provider-request', idempotencyKey: 'shared-idempotency-key' },
+      fundingSource: 'hq_managed',
+      quantity: { unit: 'tokens', value: 1 },
+      currency: 'USD',
+      costMicrounits: 1,
+      costExact: true,
+      recordedAt: now.toISOString(),
+    })
+
+    await expect(repository.append(entry(first, 'A'))).resolves.toMatchObject({
+      outcome: 'created',
+    })
+    await expect(repository.append(entry(second, 'B'))).resolves.toMatchObject({
+      outcome: 'created',
+    })
+    await expect(
+      repository.append(
+        entry({ workspaceId: second.workspaceId, executionId: first.executionId }, 'C')
+      )
+    ).rejects.toThrow('USAGE_LEDGER_SCOPE_MISMATCH')
+    expect(await repository.list(first.workspaceId, first.executionId)).toHaveLength(1)
+    expect(await repository.list(second.workspaceId, first.executionId)).toEqual([])
   })
 
   test('persists memory proposals with workspace dedupe and optimistic transitions', async () => {

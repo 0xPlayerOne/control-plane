@@ -5,7 +5,7 @@ const sensitiveKeyPattern =
 const secretsInText = [
   {
     pattern:
-      /(api[_-]?key|authorization|credential|password|secret(?:[_-]?access[_-]?key)?|token)\s*[:=]\s*[^\s,;]+/gi,
+      /(api[_-]?key|authorization|credential|password|secret(?:[_-]?access[_-]?key)?|token)\s*[:=]\s*(?:Bearer\s+)?[^\s,;]+/gi,
     replacement: '$1=[REDACTED]',
   },
   { pattern: /\bBearer\s+[^\s,;]+/gi, replacement: 'Bearer [REDACTED]' },

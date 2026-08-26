@@ -13,7 +13,9 @@ and prefer real implementations over mocks when the dependency is local and inex
   parallel to validate concurrent test workers. Integration files use a 30-second per-test budget for
   cold database creation and migration, and the runner allows PostgreSQL up to 60 seconds to
   checkpoint during shutdown. Before projects start, the runner waits for a successful SQL query
-  instead of relying only on the container health transition.
+  instead of relying only on the container health transition. The service-stop disruption drill runs
+  only when the integration runner started the PostgreSQL service; a pre-existing developer service
+  is never disrupted.
 - `bun run test:e2e` runs the M2-M9 cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
 - `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
