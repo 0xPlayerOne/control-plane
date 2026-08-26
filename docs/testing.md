@@ -84,7 +84,7 @@ credential-free M7 acceptance command, and prove cleanup before the job exits.
 
 ## M1 foundation acceptance
 
-From a full, clean clone with Git, Docker Buildx, Node 24.18.0, and Bun 1.3.14 available, run:
+From a full, clean clone with Git, Docker Buildx, Node 24.18.0, and Bun 1.4.0 available, run:
 
 ```sh
 bun run test:acceptance

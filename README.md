@@ -7,7 +7,7 @@ domain.
 ## Prerequisites
 
 - Node.js 24.18.0 (`.node-version`)
-- Bun 1.3.14 (`.bun-version` and `packageManager`)
+- Bun 1.4.0 (`.bun-version` and `packageManager`)
 
 Newer compatible Bun 1.x patch releases may run the workspace, but the pinned version is the
 reproducible baseline.
