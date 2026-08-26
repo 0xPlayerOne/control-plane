@@ -26,16 +26,16 @@ test('pins the required Node and Bun toolchain', async () => {
   const manifest = await readJson('package.json')
   const testTsconfig = await readJson('tsconfig.json')
 
-  assert.equal(manifest.packageManager, 'bun@1.3.14')
+  assert.equal(manifest.packageManager, 'bun@1.4.0')
   assert.equal(manifest.engines.node, '>=24 <25')
-  assert.equal(manifest.engines.bun, '>=1.3.14 <2')
+  assert.equal(manifest.engines.bun, '>=1.4.0 <2')
   assert.equal(
     (await readFile(new URL('../.node-version', import.meta.url), 'utf8')).trim(),
     '24.18.0'
   )
   assert.equal(
     (await readFile(new URL('../.bun-version', import.meta.url), 'utf8')).trim(),
-    '1.3.14'
+    '1.4.0'
   )
   assert.equal(testTsconfig.extends, './tsconfig.base.json')
   assert.equal(testTsconfig.compilerOptions.experimentalDecorators, true)

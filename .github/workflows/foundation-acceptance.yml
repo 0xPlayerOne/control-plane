@@ -29,7 +29,7 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Setup pinned Bun
-        run: npm install --global bun@1.3.14
+        run: npm install --global bun@1.4.0
       - name: Verify toolchain
         run: |
           test "$(node --version)" = "v$(cat .node-version)"
