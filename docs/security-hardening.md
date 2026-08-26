@@ -43,6 +43,27 @@ credential formats without printing discovered secret material. Code Foundry sep
 native dependency audit, Dependency Review, and CodeQL. `bun audit` is the local lockfile advisory
 gate; forced audit remediation is prohibited.
 
+## Automated boundary evidence
+
+The M9 gate runs `bun run test:unit`, which exercises production implementations rather than only
+the reusable audit harness. The boundary evidence includes:
+
+- `apps/control-api/src/application.test.mjs` for service credential class, audience, operation, and
+  workspace enforcement plus scoped runtime-discovery responses;
+- `apps/runtime-gateway/src/authentication.test.mjs` and
+  `apps/runtime-gateway/src/reconnect-reconciliation.test.mjs` for node/workspace binding, replay,
+  revocation, and reconnect ownership;
+- `tests/m2-core-domain.test.mjs`, `packages/context/src/provider.test.mjs`, and
+  `packages/memory-writeback/src/index.test.mjs` for project, profile, context, and memory scope;
+- `packages/policy/src/index.test.mjs` and `apps/tool-gateway/src/tool-registry.test.mjs` for
+  policy/tool confused-deputy and cross-workspace denial;
+- `packages/credential-vault/src/index.test.mjs` and `packages/usage-ledger/src/index.test.mjs` for
+  purpose-bound credential leases and workspace-bound usage mutation.
+
+`packages/production-readiness/src/security.test.mjs` separately verifies that the generic matrix
+runner rejects any supplied probe that grants cross-scope access or leaks resource existence; it is
+not treated as proof of the production repositories above.
+
 ## Incident evidence
 
 Preserve the normalized request/correlation/execution/attempt IDs, actor and credential kind (never

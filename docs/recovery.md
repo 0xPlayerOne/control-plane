@@ -23,6 +23,15 @@ both databases through the shared isolated-database lifecycle. `bun run test:rec
 restore portion when the local PostgreSQL service is already healthy and the three scoped database
 URLs are present.
 
+The M9 core lane also runs `bun run test:unit`, including executable failure and replay coverage in
+`apps/workflow-worker/src/execution-workflow.test.mjs`,
+`apps/runtime-gateway/src/reconnect-reconciliation.test.mjs`,
+`packages/events/src/delivery.test.mjs`, and `packages/langgraph-adapter/src/index.test.mjs`.
+PostgreSQL rollback and connection-loss behavior runs in
+`packages/database/src/integration.test.mjs`; checkpoint restart and the real restore drill remain in
+the integration lane. The `failureScenarios` catalog is an operator index for these implementations,
+not standalone evidence that a scenario passed.
+
 For an AWS drill, restore the selected RDS recovery point into a new isolated instance, deny all
 application traffic, run schema/record/digest verification, and record observed RPO/RTO. Promotion
 requires an operator to repoint a canary task, validate readiness and reconciliation backlog, and

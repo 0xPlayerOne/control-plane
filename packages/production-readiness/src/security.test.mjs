@@ -50,7 +50,7 @@ describe('production security audit controls', () => {
     ).toThrow('CREDENTIAL_AUDIENCE_MISMATCH')
   })
 
-  test('proves every cross-scope read and mutation denies without existence leakage', async () => {
+  test('runs every caller-supplied isolation probe and enforces generic denials', async () => {
     const matrix = await runAuthorizationIsolationMatrix({
       dimensions: ['workspace', 'project', 'profile', 'context', 'runtime', 'tool', 'usage'],
       operations: ['read', 'mutate'],

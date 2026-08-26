@@ -32,6 +32,7 @@ jobs:
       - run: bun run format:check
       - run: bun run lint
       - run: bun run type-check
+      - run: bun run test:unit
       - run: bun run test:m9-acceptance
       - run: bun audit
 
