@@ -42,6 +42,8 @@ and prefer real implementations over mocks when the dependency is local and inex
 - `bun run test:m9-acceptance` builds the workspace, runs the production trace/security/deployment
   acceptance flow, scans tracked and untracked source for credential formats, and enforces the
   repeatable latency, throughput, memory, cost, retry, and telemetry-overhead budgets.
+- `bun run test:recovery-matrix` creates a uniquely named disposable Compose project on a free local
+  port, exercises PostgreSQL loss, restart, and restore there, then removes that project and volume.
 - `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
   group. CI shards must use distinct output directories if they collect coverage.
 

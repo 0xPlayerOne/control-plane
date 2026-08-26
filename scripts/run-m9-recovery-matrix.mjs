@@ -1,11 +1,21 @@
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { failureScenarios } from '../packages/production-readiness/src/failure-injection.ts'
 import { recoveryEvidence } from './m9-evidence-matrices.mjs'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
+const recoveryPort = await availablePort()
+const recoveryEnvironment = {
+  ...process.env,
+  COMPOSE_PROJECT_NAME: `control-plane-m9-recovery-${String(process.pid)}`,
+  POSTGRES_HOST_PORT: String(recoveryPort),
+  DATABASE_ADMIN_URL: `postgresql://control_plane_admin:local-admin-only@127.0.0.1:${String(recoveryPort)}/postgres`,
+  DATABASE_MIGRATION_URL: `postgresql://control_plane_migrator:local-migration-only@127.0.0.1:${String(recoveryPort)}/control_plane`,
+  DATABASE_URL: `postgresql://control_plane_app:local-application-only@127.0.0.1:${String(recoveryPort)}/control_plane`,
+}
 const injectorEvidence = {
   file: 'packages/production-readiness/src/failure-injection.test.mjs',
   testName: 'injects every named production failure through a reusable bounded control',
@@ -38,27 +48,31 @@ for (const { file, evidenceText } of recoveryEvidence.filter(
 
 const files = [...new Set(testEvidence.map(({ file }) => `./${file}`))].sort()
 run(process.execPath, ['test', ...files])
-for (const command of new Set(
-  recoveryEvidence.filter(({ kind }) => kind === 'integration').map(({ command }) => command)
-)) {
-  const [program, ...arguments_] = command.split(' ')
-  const output = run(program, arguments_, true)
-  for (const { evidenceText } of recoveryEvidence.filter(
-    (entry) => entry.kind === 'integration' && entry.command === command
+try {
+  for (const command of new Set(
+    recoveryEvidence.filter(({ kind }) => kind === 'integration').map(({ command }) => command)
   )) {
-    if (!output.includes(evidenceText)) {
-      throw new Error(`RECOVERY_INTEGRATION_NOT_OBSERVED:${evidenceText}`)
+    const [program, ...arguments_] = command.split(' ')
+    const output = run(program, arguments_, true, recoveryEnvironment)
+    for (const { evidenceText } of recoveryEvidence.filter(
+      (entry) => entry.kind === 'integration' && entry.command === command
+    )) {
+      if (!output.includes(evidenceText)) {
+        throw new Error(`RECOVERY_INTEGRATION_NOT_OBSERVED:${evidenceText}`)
+      }
     }
   }
+} finally {
+  run('docker', ['compose', 'down', '--volumes', '--remove-orphans'], false, recoveryEnvironment)
 }
 console.log(`Recovery matrix passed: ${actualScenarios.length} named failure scenarios.`)
 
-function run(command, arguments_, capture = false) {
+function run(command, arguments_, capture = false, environment = process.env) {
   const result = spawnSync(command, arguments_, {
     cwd: repositoryRoot,
     stdio: capture ? 'pipe' : 'inherit',
     encoding: capture ? 'utf8' : undefined,
-    env: process.env,
+    env: environment,
   })
   if (result.error) throw result.error
   if (capture) {
@@ -67,4 +81,18 @@ function run(command, arguments_, capture = false) {
   }
   if (result.status !== 0) process.exit(result.status ?? 1)
   return capture ? `${result.stdout ?? ''}\n${result.stderr ?? ''}` : ''
+}
+
+async function availablePort() {
+  const server = createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('RECOVERY_PORT_UNAVAILABLE')
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  )
+  return address.port
 }
