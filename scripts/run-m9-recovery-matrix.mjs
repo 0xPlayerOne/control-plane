@@ -4,6 +4,7 @@ import { createServer } from 'node:net'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { failureScenarios } from '../packages/production-readiness/src/failure-injection.ts'
+import { withGuaranteedCleanup } from './guaranteed-cleanup.mjs'
 import { recoveryEvidence } from './m9-evidence-matrices.mjs'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -48,23 +49,25 @@ for (const { file, evidenceText } of recoveryEvidence.filter(
 
 const files = [...new Set(testEvidence.map(({ file }) => `./${file}`))].sort()
 run(process.execPath, ['test', ...files])
-try {
-  for (const command of new Set(
-    recoveryEvidence.filter(({ kind }) => kind === 'integration').map(({ command }) => command)
-  )) {
-    const [program, ...arguments_] = command.split(' ')
-    const output = run(program, arguments_, true, recoveryEnvironment)
-    for (const { evidenceText } of recoveryEvidence.filter(
-      (entry) => entry.kind === 'integration' && entry.command === command
+await withGuaranteedCleanup(
+  () => {
+    for (const command of new Set(
+      recoveryEvidence.filter(({ kind }) => kind === 'integration').map(({ command }) => command)
     )) {
-      if (!output.includes(evidenceText)) {
-        throw new Error(`RECOVERY_INTEGRATION_NOT_OBSERVED:${evidenceText}`)
+      const [program, ...arguments_] = command.split(' ')
+      const output = run(program, arguments_, true, recoveryEnvironment)
+      for (const { evidenceText } of recoveryEvidence.filter(
+        (entry) => entry.kind === 'integration' && entry.command === command
+      )) {
+        if (!output.includes(evidenceText)) {
+          throw new Error(`RECOVERY_INTEGRATION_NOT_OBSERVED:${evidenceText}`)
+        }
       }
     }
-  }
-} finally {
-  run('docker', ['compose', 'down', '--volumes', '--remove-orphans'], false, recoveryEnvironment)
-}
+  },
+  () =>
+    run('docker', ['compose', 'down', '--volumes', '--remove-orphans'], false, recoveryEnvironment)
+)
 console.log(`Recovery matrix passed: ${actualScenarios.length} named failure scenarios.`)
 
 function run(command, arguments_, capture = false, environment = process.env) {
@@ -79,7 +82,9 @@ function run(command, arguments_, capture = false, environment = process.env) {
     if (result.stdout) process.stdout.write(result.stdout)
     if (result.stderr) process.stderr.write(result.stderr)
   }
-  if (result.status !== 0) process.exit(result.status ?? 1)
+  if (result.status !== 0) {
+    throw new Error(`${command} exited with status ${String(result.status ?? 1)}`)
+  }
   return capture ? `${result.stdout ?? ''}\n${result.stderr ?? ''}` : ''
 }
 
