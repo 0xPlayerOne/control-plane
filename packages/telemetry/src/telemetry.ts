@@ -1,5 +1,5 @@
 import { semanticAttributes } from './context.js'
-import { redactTelemetryValue, sanitizeAttributes } from './redaction.js'
+import { redactTelemetryValue, sanitizeAttributes, sanitizeSpanOutcome } from './redaction.js'
 import type {
   ErrorTracker,
   MetricAdapter,
@@ -156,7 +156,7 @@ function safeSpan(span: TelemetrySpan): TelemetrySpan {
     ...(span.context === undefined ? {} : { context: span.context }),
     end(outcome) {
       try {
-        span.end(outcome)
+        span.end(sanitizeSpanOutcome(outcome))
       } catch {
         // Span export is not part of the authoritative operation.
       }

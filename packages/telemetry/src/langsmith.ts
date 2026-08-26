@@ -1,4 +1,4 @@
-import { sanitizeAttributes } from './redaction.js'
+import { sanitizeAttributes, sanitizeSpanOutcome } from './redaction.js'
 import type { SpanOutcome, TelemetrySpan, TraceAdapter } from './types.js'
 
 export interface LangSmithRunPort {
@@ -26,7 +26,7 @@ export function createLangSmithTraceAdapter(options: {
       return {
         ...(input.parent === undefined ? {} : { context: input.parent }),
         end(outcome) {
-          run.end(outcome)
+          run.end(sanitizeSpanOutcome(outcome))
         },
       }
     },

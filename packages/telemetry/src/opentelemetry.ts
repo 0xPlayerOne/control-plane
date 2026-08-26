@@ -16,6 +16,7 @@ import type {
   TraceAdapter,
   TraceContext,
 } from './types.js'
+import { sanitizeSpanOutcome } from './redaction.js'
 
 export function createOpenTelemetryTraceAdapter(serviceName: string): TraceAdapter {
   const tracer = trace.getTracer(serviceName)
@@ -90,7 +91,10 @@ function traceContextFromSpan(span: SpanContext, tracestate?: string): TraceCont
 }
 
 function finishSpan(span: Span, outcome: SpanOutcome): void {
-  span.setStatus({ code: outcome.status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR })
-  if (outcome.status === 'error') span.recordException(String(outcome.error ?? 'operation failed'))
+  const safeOutcome = sanitizeSpanOutcome(outcome)
+  span.setStatus({ code: safeOutcome.status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+  if (safeOutcome.status === 'error') {
+    span.recordException(String(safeOutcome.error ?? 'operation failed'))
+  }
   span.end()
 }

@@ -1,3 +1,5 @@
+import type { SpanOutcome } from './types.js'
+
 const sensitiveKeyPattern =
   /^(?:access[_-]?token|api[_-]?key|authorization|client[_-]?secret|cookie|credential|file[_-]?contents?|id[_-]?token|model[_-]?input|passw(?:or)?d|prompt|refresh[_-]?token|secret|(?:aws[_-]?)?secret[_-]?access[_-]?key|token|tool[_-]?input)$/i
 const secretsInText = [
@@ -35,6 +37,13 @@ function redactText(value: string): string {
 
 export function redactTelemetryValue(value: unknown): unknown {
   return redact(value, new WeakSet<object>())
+}
+
+export function sanitizeSpanOutcome(outcome: SpanOutcome): SpanOutcome {
+  if (outcome.status !== 'error' || outcome.error === undefined) {
+    return { status: outcome.status }
+  }
+  return { status: 'error', error: redactTelemetryValue(outcome.error) }
 }
 
 function redact(value: unknown, seen: WeakSet<object>): unknown {

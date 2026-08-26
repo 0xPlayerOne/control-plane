@@ -237,6 +237,43 @@ describe('telemetry safety and correlation', () => {
     })
   })
 
+  test('redacts errors before ending direct and vendor-backed spans', () => {
+    const secret = 'token=private-span-secret'
+    const directOutcomes = []
+    const telemetry = createTelemetry({
+      serviceName: 'control-api',
+      traceAdapter: {
+        startSpan() {
+          return { end: (outcome) => directOutcomes.push(outcome) }
+        },
+      },
+    })
+    const runs = []
+    const langSmith = createLangSmithTraceAdapter({
+      client: {
+        startRun() {
+          return { end: (outcome) => runs.push(outcome) }
+        },
+      },
+    })
+
+    telemetry.startSpan('http.request').end({ status: 'error', error: new Error(secret) })
+    langSmith.startSpan({ name: 'model.call', attributes: {} }).end({
+      status: 'error',
+      error: new Error(secret),
+    })
+
+    expect(JSON.stringify({ directOutcomes, runs })).not.toContain('private-span-secret')
+    expect(directOutcomes[0]).toEqual({
+      status: 'error',
+      error: { name: 'Error', message: 'token=[REDACTED]' },
+    })
+    expect(runs[0]).toEqual({
+      status: 'error',
+      error: { name: 'Error', message: 'token=[REDACTED]' },
+    })
+  })
+
   test('propagates only valid W3C trace context across a carrier boundary', () => {
     const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
     const context = extractTraceContext({ traceparent, tracestate: 'vendor=OpaqueValue' })
