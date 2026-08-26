@@ -20,16 +20,20 @@ import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
+import { PostgresEvaluationRepository } from './evaluation-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
+import { PostgresReleaseAuditRepository } from './release-audit-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
 import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.ts'
+import { PostgresUsageLedgerRepository } from './usage-ledger-repository.ts'
 import {
   commandInbox,
   delegations,
+  evaluationRuns,
   executionEvents,
   executions,
   externalSessions,
@@ -37,6 +41,7 @@ import {
   interactionRequests,
   outboxEvents,
   reconciliationCheckpoints,
+  releaseAuditRecords,
   runtimeCommands,
   runtimeEventReceipts,
   runtimeInventoryCheckpoints,
@@ -76,14 +81,108 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'execution_attempts',
         'delegations',
         'executions',
+        'evaluation_runs',
         'external_sessions',
         'inbox_messages',
         'memory_write_proposals',
         'outbox_events',
         'reconciliation_checkpoints',
+        'release_audit_records',
         'runtime_connections',
         'runtime_inventory_checkpoints',
       ])
+    )
+  })
+
+  test('persists immutable evaluation evidence across repository restart', async () => {
+    await isolated.migrate()
+    const run = {
+      evalRunId: 'eval-run-integration',
+      suite: {
+        evalSuiteId: 'suite-release',
+        version: 'v1',
+        digest: `sha256:${'1'.repeat(64)}`,
+        dataset: { id: 'dataset', version: 'v1', digest: `sha256:${'2'.repeat(64)}` },
+        mode: 'offline',
+        cases: [
+          {
+            evalCaseId: 'case-1',
+            inputDigest: `sha256:${'3'.repeat(64)}`,
+            scorers: [
+              {
+                metric: 'functional_correctness',
+                direction: 'min',
+                threshold: 0.9,
+                required: true,
+              },
+            ],
+          },
+        ],
+      },
+      configuration: {
+        executionPlanDigest: `sha256:${'4'.repeat(64)}`,
+        profile: { id: 'profile', version: 'v1', digest: `sha256:${'5'.repeat(64)}` },
+        skills: [],
+        graph: { id: 'graph', version: 'v1', digest: `sha256:${'6'.repeat(64)}` },
+        runtime: { id: 'runtime', version: 'v1', digest: `sha256:${'7'.repeat(64)}` },
+        model: { id: 'model', version: 'v1', digest: `sha256:${'8'.repeat(64)}` },
+        tools: [],
+        policy: { id: 'policy', version: 'v1', digest: `sha256:${'9'.repeat(64)}` },
+      },
+      results: [],
+      aggregateMetrics: { functional_correctness: 1 },
+      status: 'passed',
+      startedAt: '2026-08-25T12:00:00.000Z',
+      completedAt: '2026-08-25T12:00:01.000Z',
+    }
+    run.results.push({
+      evalCaseId: 'case-1',
+      dataset: run.suite.dataset,
+      configuration: run.configuration,
+      metrics: { functional_correctness: 1 },
+      failedRequiredMetrics: [],
+      status: 'passed',
+    })
+    const repository = new PostgresEvaluationRepository(isolated.application)
+
+    await repository.saveRun(run)
+    await repository.saveRun(run)
+
+    const restarted = new PostgresEvaluationRepository(isolated.application)
+    expect(await restarted.getRun(run.evalRunId)).toEqual(run)
+    expect(await isolated.application.select().from(evaluationRuns)).toHaveLength(1)
+  })
+
+  test('persists immutable release decisions across repository restart', async () => {
+    await isolated.migrate()
+    const record = {
+      releaseAuditId: 'f18f6f64-8d3a-7c11-b043-001122334455',
+      releaseGateId: 'gate-profile-default',
+      action: 'promote',
+      actor: 'operator://release',
+      toRunId: 'eval-run-integration',
+      at: '2026-08-25T12:01:00.000Z',
+    }
+    const repository = new PostgresReleaseAuditRepository(isolated.application)
+
+    await repository.append(record)
+    await repository.append(record)
+    const rollback = {
+      ...record,
+      releaseAuditId: '018f6f64-8d3a-7c11-b043-001122334456',
+      action: 'rollback',
+      actor: 'operator://incident',
+      fromRunId: record.toRunId,
+      toRunId: 'eval-run-baseline',
+      reason: 'latency',
+    }
+    await repository.append(rollback)
+
+    const restarted = new PostgresReleaseAuditRepository(isolated.application)
+    expect(await restarted.list('gate-profile-default')).toEqual([record, rollback])
+    expect(await isolated.application.select().from(releaseAuditRecords)).toHaveLength(2)
+    await expect(restarted.append({ ...record, actor: 'operator://conflict' })).rejects.toThrow(
+      'RELEASE_AUDIT_CONFLICT'
     )
   })
 
@@ -1075,6 +1174,64 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         .from(outboxEvents)
         .where(eq(outboxEvents.aggregateType, 'test'))
     ).toHaveLength(1)
+  })
+
+  test('scopes usage ledger reads and idempotency to workspace', async () => {
+    const first = {
+      workspaceId: 'wsp_01KABCDEF0123456789ABCDEFG',
+      executionId: 'exe_01KABCDEF0123456789ABCDEFG',
+    }
+    const second = {
+      workspaceId: 'wsp_01KBCDEF0123456789ABCDEFGH',
+      executionId: 'exe_01KBCDEF0123456789ABCDEFGH',
+    }
+    const now = new Date('2026-08-25T12:00:00.000Z')
+    await isolated.application.insert(executions).values(
+      [first, second].map((scope, index) => ({
+        ...scope,
+        state: 'accepted',
+        version: 1,
+        projectId: `prj_01K${index}CDEF0123456789ABCDEFGH`,
+        taskId: `tsk_01K${index}CDEF0123456789ABCDEFGH`,
+        agentId: `agt_01K${index}CDEF0123456789ABCDEFGH`,
+        requestId: `req_01K${index}CDEF0123456789ABCDEFGH`,
+        executionPlanId: `pln_01K${index}CDEF0123456789ABCDEFGH`,
+        executionPlanDigest: `sha256:${String(index + 1).repeat(64)}`,
+        executionPlanSchemaVersion: 1,
+        attemptCount: 0,
+        acceptedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    )
+    const repository = new PostgresUsageLedgerRepository(isolated.application)
+    const entry = (scope, suffix) => ({
+      entryId: `usg_01K${suffix}CDEF0123456789ABCDEFGH`,
+      sequence: 1,
+      ...scope,
+      kind: 'model_usage',
+      source: { sourceId: 'provider-request', idempotencyKey: 'shared-idempotency-key' },
+      fundingSource: 'hq_managed',
+      quantity: { unit: 'tokens', value: 1 },
+      currency: 'USD',
+      costMicrounits: 1,
+      costExact: true,
+      recordedAt: now.toISOString(),
+    })
+
+    await expect(repository.append(entry(first, 'A'))).resolves.toMatchObject({
+      outcome: 'created',
+    })
+    await expect(repository.append(entry(second, 'B'))).resolves.toMatchObject({
+      outcome: 'created',
+    })
+    await expect(
+      repository.append(
+        entry({ workspaceId: second.workspaceId, executionId: first.executionId }, 'C')
+      )
+    ).rejects.toThrow('USAGE_LEDGER_SCOPE_MISMATCH')
+    expect(await repository.list(first.workspaceId, first.executionId)).toHaveLength(1)
+    expect(await repository.list(second.workspaceId, first.executionId)).toEqual([])
   })
 
   test('persists memory proposals with workspace dedupe and optimistic transitions', async () => {

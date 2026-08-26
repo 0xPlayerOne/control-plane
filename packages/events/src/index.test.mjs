@@ -55,13 +55,14 @@ describe('ExecutionEvent log', () => {
     expect(events.every(({ payloadHash }) => /^[a-f0-9]{64}$/.test(payloadHash))).toBe(true)
   })
 
-  test('redacts secret-bearing payload fields and text before persistence', async () => {
+  test('keeps a secret canary out of persisted events', async () => {
+    const secretCanary = 'secret-canary-event-9f4a'
     const { service } = setup()
     const event = await service.append({
       ...base('evt_01BRZ3NDEKTSV4RRFFQ69G5FAV'),
       payload: {
-        token: 'raw-token',
-        nested: { prompt: 'private prompt', note: 'authorization=Bearer-secret' },
+        token: secretCanary,
+        nested: { prompt: secretCanary, note: `authorization=Bearer ${secretCanary}` },
       },
     })
 
@@ -69,8 +70,7 @@ describe('ExecutionEvent log', () => {
       token: '[REDACTED]',
       nested: { prompt: '[REDACTED]', note: 'authorization=[REDACTED]' },
     })
-    expect(JSON.stringify(event)).not.toContain('raw-token')
-    expect(JSON.stringify(event)).not.toContain('private prompt')
+    expect(JSON.stringify(event)).not.toContain(secretCanary)
   })
 
   test('rejects oversized payloads and non-normalized event names', async () => {

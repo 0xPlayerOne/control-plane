@@ -9,6 +9,12 @@ export {
   timestampColumns,
 } from './conventions.js'
 export { eventPublicationStatus, executionEvents } from './events.js'
+export {
+  evaluationRuns,
+  evaluationRunStatus,
+  releaseAuditAction,
+  releaseAuditRecords,
+} from './evaluations.js'
 export { externalSessions, externalSessionState } from './external-sessions.js'
 export {
   executionAttempts,

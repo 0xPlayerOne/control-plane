@@ -44,6 +44,24 @@ variable "desired_count" {
   default     = 0
 }
 
+variable "minimum_capacity" {
+  description = "Minimum autoscaling capacity. Zero disables autoscaling with maximum_capacity zero."
+  type        = number
+  default     = 0
+}
+
+variable "maximum_capacity" {
+  description = "Maximum autoscaling capacity. Zero disables autoscaling."
+  type        = number
+  default     = 0
+}
+
+variable "autoscaling_cpu_target" {
+  description = "Target average ECS CPU utilization."
+  type        = number
+  default     = 65
+}
+
 variable "create_service" {
   description = "Create a long-running ECS service when true."
   type        = bool
@@ -93,6 +111,30 @@ variable "object_store_bucket_arn" {
   type        = string
 }
 
+variable "object_store_actions" {
+  description = "Exact S3 actions granted to this task. Empty means no object-store access."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for action in var.object_store_actions : contains([
+        "s3:AbortMultipartUpload",
+        "s3:DeleteObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:PutObject",
+      ], action)
+    ])
+    error_message = "object_store_actions contains an unsupported task permission."
+  }
+}
+
+variable "alarm_topic_arn" {
+  description = "SNS topic receiving service alarms."
+  type        = string
+}
+
 variable "log_group_name" {
   description = "Shared CloudWatch log group."
   type        = string
@@ -108,7 +150,7 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "security_group_id" {
-  description = "Security group for Fargate tasks."
-  type        = string
+variable "security_group_ids" {
+  description = "Exact network identity groups for Fargate tasks."
+  type        = list(string)
 }

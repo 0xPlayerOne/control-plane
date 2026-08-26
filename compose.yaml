@@ -12,7 +12,7 @@ services:
       timeout: 3s
       retries: 15
     ports:
-      - 127.0.0.1:54329:5432
+      - 127.0.0.1:${POSTGRES_HOST_PORT:-54329}:5432
     volumes:
       - control-plane-postgres:/var/lib/postgresql
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/001-control-plane.sql:ro

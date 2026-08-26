@@ -9,6 +9,15 @@ export interface TelemetryIdentifiers {
   readonly attemptId?: string
   readonly workflowId?: string
   readonly runtimeId?: string
+  readonly runtimeNodeId?: string
+  readonly profileVersion?: string
+  readonly skillVersion?: string
+  readonly graphVersion?: string
+  readonly modelAlias?: string
+  readonly toolId?: string
+  readonly policyVersion?: string
+  readonly sandboxId?: string
+  readonly delegationId?: string
 }
 
 export interface TraceContext {
@@ -42,6 +51,20 @@ export interface MetricAdapter {
     value: number,
     attributes: Readonly<Record<string, TelemetryAttributeValue>>
   ): void
+  record(
+    name: string,
+    value: number,
+    attributes: Readonly<Record<string, TelemetryAttributeValue>>
+  ): void
+}
+
+export interface TelemetrySamplingInput {
+  readonly name: string
+  readonly identifiers: TelemetryIdentifiers
+}
+
+export interface TelemetrySamplingPolicy {
+  shouldSample(input: TelemetrySamplingInput): boolean
 }
 
 export interface ErrorTracker {

@@ -164,6 +164,9 @@ export interface CommandInboxServiceOptions {
   readonly executionIdFactory: () => string
   readonly executionPlanValidator: ExecutionPlanAcceptanceValidator
   readonly now?: () => string
+  readonly failureInjector?: {
+    checkpoint(scenario: 'control_api.after_accept' | 'control_api.before_accept'): void
+  }
 }
 
 const AcceptExecutionSchema = z
@@ -244,12 +247,14 @@ export class CommandInboxService {
   readonly #executionIdFactory: () => string
   readonly #executionPlanValidator: ExecutionPlanAcceptanceValidator
   readonly #now: () => string
+  readonly #failureInjector: CommandInboxServiceOptions['failureInjector']
 
   constructor(options: CommandInboxServiceOptions) {
     this.repository = options.repository
     this.#executionIdFactory = options.executionIdFactory
     this.#executionPlanValidator = options.executionPlanValidator
     this.#now = options.now ?? (() => new Date().toISOString())
+    this.#failureInjector = options.failureInjector
   }
 
   async acceptExecution(input: unknown): Promise<{
@@ -302,7 +307,9 @@ export class CommandInboxService {
       lastSeenAt: parsed.receivedAt,
       retentionExpiresAt: parsed.retentionExpiresAt,
     })
+    this.#failureInjector?.checkpoint('control_api.before_accept')
     const result = await this.repository.accept(command, execution)
+    this.#failureInjector?.checkpoint('control_api.after_accept')
     this.#assertRetained(result.command)
     if (result.outcome === 'conflict') fail('IDEMPOTENCY_PAYLOAD_CONFLICT')
     return {

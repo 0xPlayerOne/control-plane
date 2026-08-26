@@ -104,6 +104,23 @@ describe('Control API', () => {
     )
   })
 
+  test('keeps a secret canary out of public API responses and request logs', async () => {
+    const secretCanary = 'secret-canary-public-api-9f4a'
+    const logs = []
+    const application = await createApplication(logs)
+
+    const response = await application.inject({
+      method: 'GET',
+      url: '/ready',
+      headers: { authorization: `Bearer ${secretCanary}` },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(JSON.stringify({ body: response.body, headers: response.headers, logs })).not.toContain(
+      secretCanary
+    )
+  })
+
   test('propagates valid W3C trace context through the HTTP boundary', async () => {
     const logs = []
     const application = await createApplication(logs)

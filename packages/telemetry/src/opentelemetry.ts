@@ -5,6 +5,7 @@ import {
   trace,
   type Attributes,
   type Counter,
+  type Histogram,
   type Span,
   type SpanContext,
 } from '@opentelemetry/api'
@@ -15,6 +16,7 @@ import type {
   TraceAdapter,
   TraceContext,
 } from './types.js'
+import { sanitizeSpanOutcome } from './redaction.js'
 
 export function createOpenTelemetryTraceAdapter(serviceName: string): TraceAdapter {
   const tracer = trace.getTracer(serviceName)
@@ -46,6 +48,7 @@ export function createOpenTelemetryTraceAdapter(serviceName: string): TraceAdapt
 export function createOpenTelemetryMetricAdapter(serviceName: string): MetricAdapter {
   const meter = metrics.getMeter(serviceName)
   const counters = new Map<string, Counter>()
+  const histograms = new Map<string, Histogram>()
   return {
     add(name, value, attributes) {
       let counter = counters.get(name)
@@ -54,6 +57,14 @@ export function createOpenTelemetryMetricAdapter(serviceName: string): MetricAda
         counters.set(name, counter)
       }
       counter.add(value, attributes as Attributes)
+    },
+    record(name, value, attributes) {
+      let histogram = histograms.get(name)
+      if (!histogram) {
+        histogram = meter.createHistogram(name)
+        histograms.set(name, histogram)
+      }
+      histogram.record(value, attributes as Attributes)
     },
   }
 }
@@ -80,7 +91,10 @@ function traceContextFromSpan(span: SpanContext, tracestate?: string): TraceCont
 }
 
 function finishSpan(span: Span, outcome: SpanOutcome): void {
-  span.setStatus({ code: outcome.status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR })
-  if (outcome.status === 'error') span.recordException(String(outcome.error ?? 'operation failed'))
+  const safeOutcome = sanitizeSpanOutcome(outcome)
+  span.setStatus({ code: safeOutcome.status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+  if (safeOutcome.status === 'error') {
+    span.recordException(String(safeOutcome.error ?? 'operation failed'))
+  }
   span.end()
 }

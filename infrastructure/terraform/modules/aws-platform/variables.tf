@@ -59,6 +59,17 @@ variable "database_instance_class" {
   type        = string
 }
 
+variable "database_engine_version" {
+  description = "Exact PostgreSQL engine version approved by compatibility certification."
+  type        = string
+  default     = "18.3"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+$", var.database_engine_version))
+    error_message = "database_engine_version must pin an exact major.minor version."
+  }
+}
+
 variable "database_multi_az" {
   description = "Whether RDS maintains a synchronous standby."
   type        = bool
@@ -69,9 +80,30 @@ variable "database_deletion_protection" {
   type        = bool
 }
 
+variable "database_backup_retention_days" {
+  description = "Automated PostgreSQL backup and point-in-time recovery window."
+  type        = number
+
+  validation {
+    condition     = var.database_backup_retention_days >= 1 && var.database_backup_retention_days <= 35
+    error_message = "database_backup_retention_days must be between 1 and 35."
+  }
+}
+
 variable "cache_node_type" {
   description = "ElastiCache node type."
   type        = string
+}
+
+variable "cache_engine_version" {
+  description = "Exact Valkey engine version approved by compatibility certification."
+  type        = string
+  default     = "8.0"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+$", var.cache_engine_version))
+    error_message = "cache_engine_version must pin an exact major.minor version."
+  }
 }
 
 variable "cache_nodes" {

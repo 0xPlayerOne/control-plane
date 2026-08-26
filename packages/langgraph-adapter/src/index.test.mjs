@@ -5,6 +5,7 @@ import {
   deterministicInterruptGraph,
   deterministicTestGraph,
 } from './index.ts'
+import { createTelemetry } from '@control-plane/telemetry'
 
 const request = {
   executionId: 'exe_01JABCDEF0123456789ABCDEFG',
@@ -48,6 +49,77 @@ describe('LangGraph orchestration adapter', () => {
     expect(result).toMatchObject({ status: 'completed', output: { summary: 'tool:lookup' } })
     expect(calls.map(({ kind }) => kind)).toEqual(['runtime', 'model', 'tool'])
     expect(events.map(({ type }) => type)).toContain('graph.node.completed')
+  })
+
+  test('keeps a secret canary out of graph checkpoints, operations, and traces', async () => {
+    const secretCanary = 'secret-canary-langgraph-9f4a'
+    const spans = []
+    const operations = []
+    const checkpointer = new MemorySaver()
+    const checkpointConfig = {
+      configurable: {
+        thread_id: `${request.workspaceId}:${request.executionId}:${request.threadId}`,
+      },
+    }
+    const telemetry = createTelemetry({
+      serviceName: 'workflow-worker',
+      traceAdapter: {
+        startSpan(input) {
+          const record = { input, outcome: undefined }
+          spans.push(record)
+          return { end: (outcome) => (record.outcome = outcome) }
+        },
+      },
+    })
+    const adapter = new LangGraphOrchestrationAdapter({
+      graphs: [deterministicTestGraph(request.graph)],
+      checkpointer,
+      operations: {
+        async invoke(operation) {
+          operations.push(operation)
+          return { value: `${operation.kind}:${operation.name}` }
+        },
+        async cancel() {
+          return true
+        },
+      },
+      events: { async publish() {} },
+      telemetry,
+    })
+
+    await expect(
+      adapter.run({
+        ...request,
+        input: { objective: 'verify boundaries', authorization: `Bearer ${secretCanary}` },
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_GRAPH_REQUEST' })
+    expect(await checkpointer.getTuple(checkpointConfig)).toBe(undefined)
+    expect(operations).toEqual([])
+    expect(spans).toEqual([])
+
+    await expect(adapter.run(request)).resolves.toMatchObject({ status: 'completed' })
+
+    const checkpoint = await checkpointer.getTuple(checkpointConfig)
+
+    expect(spans.map(({ input }) => input.name)).toEqual([
+      'graph.run',
+      'graph.node',
+      'runtime.start',
+      'graph.node',
+      'model.call',
+      'graph.node',
+      'tool.execute',
+    ])
+    expect(
+      spans.every(
+        ({ input }) =>
+          input.attributes['execution.id'] === request.executionId &&
+          input.attributes['workflow.id'] === request.workflowId
+      )
+    ).toBe(true)
+    expect(spans.every(({ outcome }) => outcome.status === 'ok')).toBe(true)
+    expect(JSON.stringify({ checkpoint, operations, spans })).not.toContain(secretCanary)
+    expect(operations[0].input).toEqual(request.input)
   })
 
   test('normalizes graph failures and cancellation without exposing input', async () => {
@@ -105,6 +177,20 @@ describe('LangGraph orchestration adapter', () => {
       interrupt: { interactionKey: 'approval-1', kind: 'approval' },
     })
     expect(first.checkpointId).toBeString()
+
+    await expect(
+      new LangGraphOrchestrationAdapter(options).resume({
+        executionId: request.executionId,
+        attemptId: request.attemptId,
+        workspaceId: request.workspaceId,
+        workflowId: request.workflowId,
+        graph: request.graph,
+        threadId: request.threadId,
+        checkpointId: first.checkpointId,
+        response: { authorization: 'Bearer secret-resume-canary-9f4a' },
+        idempotencyKey: 'test:segment:resume:rejected-secret',
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_GRAPH_REQUEST' })
 
     const resumed = await new LangGraphOrchestrationAdapter(options).resume({
       executionId: request.executionId,

@@ -162,24 +162,26 @@ describe('M7 tools, models, credentials, sandbox, and budget acceptance', () => 
       sandboxCharge
     )
     const settlement = ledger.settle({
+      workspaceId: ids.workspaceId,
       executionId: ids.executionId,
       reservationKey: 'managed-execution',
       source: { sourceId: 'settlement', idempotencyKey: 'settlement' },
     })
 
     expect(artifact.locator).toBe('artifact://sandbox/report')
-    expect(ledger.summary(ids.executionId)).toMatchObject({
+    expect(ledger.summary(ids.workspaceId, ids.executionId)).toMatchObject({
       spentMicrounits: 500_000,
       reservedMicrounits: 0,
       settled: true,
     })
     expect(
       ledger
-        .entries(ids.executionId)
+        .entries(ids.workspaceId, ids.executionId)
         .filter((entry) => ['model_usage', 'tool_charge', 'sandbox_usage'].includes(entry.kind))
     ).toHaveLength(3)
     expect(
       ledger.settle({
+        workspaceId: ids.workspaceId,
         executionId: ids.executionId,
         reservationKey: 'managed-execution',
         source: { sourceId: 'settlement', idempotencyKey: 'settlement' },
@@ -191,7 +193,7 @@ describe('M7 tools, models, credentials, sandbox, and budget acceptance', () => 
         modelResult,
         toolResult,
         artifact,
-        ledger: ledger.publicSummary(ids.executionId),
+        ledger: ledger.publicSummary(ids.workspaceId, ids.executionId),
       })
     ).not.toContain(secret)
   })

@@ -20,17 +20,30 @@ export interface SentryErrorTrackerOptions {
   readonly sdk?: SentrySdkPort
 }
 
+const disabledTracker: ErrorTracker = {
+  captureException() {},
+  async flush() {},
+}
+
 export async function createSentryErrorTracker(
   options: SentryErrorTrackerOptions
 ): Promise<ErrorTracker> {
-  const sdk = options.sdk ?? ((await import('@sentry/node')) as unknown as SentrySdkPort)
-  sdk.init({
-    dsn: options.dsn,
-    enabled: options.enabled ?? Boolean(options.dsn),
-    environment: options.environment,
-    release: options.release,
-    sendDefaultPii: false,
-  })
+  const enabled = options.enabled ?? Boolean(options.dsn)
+  if (!enabled) return disabledTracker
+
+  let sdk: SentrySdkPort
+  try {
+    sdk = options.sdk ?? ((await import('@sentry/node')) as unknown as SentrySdkPort)
+    sdk.init({
+      dsn: options.dsn,
+      enabled: true,
+      environment: options.environment,
+      release: options.release,
+      sendDefaultPii: false,
+    })
+  } catch {
+    return disabledTracker
+  }
   return {
     captureException(error, context) {
       sdk.withScope((scope) => {

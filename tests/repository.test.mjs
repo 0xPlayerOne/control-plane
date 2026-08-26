@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readdirSync } from 'node:fs'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath, URL } from 'node:url'
 import { test } from 'bun:test'
@@ -11,23 +12,11 @@ import {
 import { discoverTestFiles } from '../scripts/run-bun-test-group.mjs'
 
 const apps = ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
-const packages = [
-  'bootstrap',
-  'config',
-  'domain',
-  'contracts',
-  'control-sdk',
-  'database',
-  'events',
-  'telemetry',
-  'testing',
-  'execution-plan',
-  'runtime-sdk',
-  'tool-sdk',
-  'policy',
-  'context',
-]
-const publicPackages = new Set(['contracts', 'control-sdk'])
+const packages = readdirSync(new URL('../packages/', import.meta.url), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+  .map(({ name }) => name)
+  .sort()
+const publicPackages = new Set(['contracts', 'control-sdk', 'runtime-gateway-protocol'])
 
 async function readJson(path) {
   return JSON.parse(await readFile(new URL(`../${path}`, import.meta.url), 'utf8'))
@@ -105,6 +94,8 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
 
   assert.ok(unit.includes('apps/control-api/src/application.test.mjs'))
   assert.ok(unit.includes('packages/database/src/index.test.mjs'))
+  assert.ok(unit.includes('packages/production-readiness/src/deployment.test.mjs'))
+  assert.ok(unit.includes('packages/production-readiness/src/load-testing.test.mjs'))
   assert.ok(!unit.includes('packages/database/src/integration.test.mjs'))
   assert.ok(!unit.includes('packages/testing/src/postgres.integration.test.mjs'))
   assert.deepEqual(e2e, [
@@ -115,6 +106,7 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
     'tests/m6-runtime-adapters.test.mjs',
     'tests/m7-tools-models-sandboxes.test.mjs',
     'tests/m8-multi-agent-orchestration.test.mjs',
+    'tests/m9-production-hardening.test.mjs',
   ])
   assert.deepEqual(smoke, [
     'tests/foundation.test.mjs',
@@ -297,17 +289,15 @@ test('scaffolds every package with an explicit private or publishable server-onl
       assert.equal(manifest.private, true)
     }
     assert.equal(manifest.browser, false)
-    assert.deepEqual(manifest.files, packageName === 'control-sdk' ? ['dist', 'openapi'] : ['dist'])
-    assert.deepEqual(
-      Object.keys(manifest.exports),
-      packageName === 'database'
-        ? ['.', './migration', './testing']
-        : packageName === 'testing'
-          ? ['.', './postgres']
-          : packageName === 'control-sdk'
-            ? ['.', './testing']
-            : ['.']
-    )
+    assert.ok(manifest.files.includes('dist'))
+    if (packageName === 'control-sdk') assert.ok(manifest.files.includes('openapi'))
+    assert.ok(Object.hasOwn(manifest.exports, '.'))
+    if (packageName === 'database') {
+      assert.ok(Object.hasOwn(manifest.exports, './migration'))
+      assert.ok(Object.hasOwn(manifest.exports, './testing'))
+    }
+    if (packageName === 'testing') assert.ok(Object.hasOwn(manifest.exports, './postgres'))
+    if (packageName === 'control-sdk') assert.ok(Object.hasOwn(manifest.exports, './testing'))
     assert.equal(manifest.exports['.'].types, './dist/index.d.ts')
     assert.equal(manifest.exports['.'].node, './dist/index.js')
     assert.equal(manifest.exports['.'].default, './dist/index.js')

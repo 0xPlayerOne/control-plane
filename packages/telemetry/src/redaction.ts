@@ -1,13 +1,49 @@
+import type { SpanOutcome } from './types.js'
+
 const sensitiveKeyPattern =
-  /^(?:api[_-]?key|authorization|cookie|credential|file[_-]?contents?|model[_-]?input|passw(?:or)?d|prompt|secret|token|tool[_-]?input)$/i
-const secretInTextPattern = /(api[_-]?key|authorization|password|secret|token)\s*[:=]\s*[^\s,;]+/gi
+  /^(?:access[_-]?token|api[_-]?key|authorization|client[_-]?secret|cookie|credential|file[_-]?contents?|id[_-]?token|model[_-]?input|passw(?:or)?d|prompt|refresh[_-]?token|secret|(?:aws[_-]?)?secret[_-]?access[_-]?key|token|tool[_-]?input)$/i
+const secretsInText = [
+  {
+    pattern:
+      /(api[_-]?key|authorization|credential|password|secret(?:[_-]?access[_-]?key)?|token)\s*[:=]\s*(?:Bearer\s+)?[^\s,;]+/gi,
+    replacement: '$1=[REDACTED]',
+  },
+  { pattern: /\bBearer\s+[^\s,;]+/gi, replacement: 'Bearer [REDACTED]' },
+  {
+    pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{82})\b/g,
+    replacement: '[REDACTED]',
+  },
+  { pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, replacement: '[REDACTED]' },
+  { pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, replacement: '[REDACTED]' },
+  { pattern: /\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b/g, replacement: '[REDACTED]' },
+  { pattern: /\bAIza[A-Za-z0-9_-]{35}\b/g, replacement: '[REDACTED]' },
+  {
+    pattern: /\b([a-z][a-z0-9+.-]*:\/\/)[^@\s/:]+:[^@\s]+@/gi,
+    replacement: '$1[REDACTED]@',
+  },
+  {
+    pattern:
+      /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g,
+    replacement: '[REDACTED]',
+  },
+] as const
 
 function redactText(value: string): string {
-  return value.replace(secretInTextPattern, '$1=[REDACTED]')
+  return secretsInText.reduce(
+    (redacted, { pattern, replacement }) => redacted.replace(pattern, replacement),
+    value
+  )
 }
 
 export function redactTelemetryValue(value: unknown): unknown {
   return redact(value, new WeakSet<object>())
+}
+
+export function sanitizeSpanOutcome(outcome: SpanOutcome): SpanOutcome {
+  if (outcome.status !== 'error' || outcome.error === undefined) {
+    return { status: outcome.status }
+  }
+  return { status: 'error', error: redactTelemetryValue(outcome.error) }
 }
 
 function redact(value: unknown, seen: WeakSet<object>): unknown {

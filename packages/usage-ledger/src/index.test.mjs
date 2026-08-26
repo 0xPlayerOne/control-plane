@@ -33,7 +33,9 @@ describe('authoritative usage ledger', () => {
 
     expect(duplicate).toEqual(first)
     expect(
-      ledger.entries(ids.executionId).filter((entry) => entry.kind === 'model_usage')
+      ledger
+        .entries(ids.workspaceId, ids.executionId)
+        .filter((entry) => entry.kind === 'model_usage')
     ).toHaveLength(1)
     expect(() =>
       ledger.charge({
@@ -60,6 +62,7 @@ describe('authoritative usage ledger', () => {
       fundingSource: 'hq_managed',
     })
     const settlement = ledger.settle({
+      workspaceId: ids.workspaceId,
       executionId: ids.executionId,
       reservationKey: 'model-reservation',
       source: source('settlement-1'),
@@ -68,19 +71,20 @@ describe('authoritative usage ledger', () => {
     expect(settlement.releasedMicrounits).toBe(600_000)
     expect(
       ledger.settle({
+        workspaceId: ids.workspaceId,
         executionId: ids.executionId,
         reservationKey: 'model-reservation',
         source: source('settlement-1'),
       })
     ).toEqual(settlement)
-    expect(ledger.summary(ids.executionId)).toMatchObject({
+    expect(ledger.summary(ids.workspaceId, ids.executionId)).toMatchObject({
       maximumMicrounits: 2_000_000,
       spentMicrounits: 400_000,
       reservedMicrounits: 0,
       availableMicrounits: 1_600_000,
       settled: true,
     })
-    expect(ledger.entries(ids.executionId).map((entry) => entry.kind)).toEqual([
+    expect(ledger.entries(ids.workspaceId, ids.executionId).map((entry) => entry.kind)).toEqual([
       'reservation',
       'model_usage',
       'release',
@@ -103,12 +107,14 @@ describe('authoritative usage ledger', () => {
     ).toThrow('BUDGET_EXHAUSTED')
 
     ledger.extendBudget({
+      workspaceId: ids.workspaceId,
       executionId: ids.executionId,
       additionalMicrounits: 500_000,
       authorizationDecisionId: `sha256:${'a'.repeat(64)}`,
       source: source('extension-1'),
     })
     ledger.extendReservation({
+      workspaceId: ids.workspaceId,
       executionId: ids.executionId,
       reservationKey: 'model-reservation',
       additionalMicrounits: 500_000,
@@ -154,8 +160,8 @@ describe('authoritative usage ledger', () => {
       maximumMicrounits: 1_500_000,
       source: source('child-open'),
     })
-    expect(ledger.summary(childExecutionId).maximumMicrounits).toBe(1_000_000)
-    expect(ledger.summary(ids.executionId).reservedMicrounits).toBe(2_000_000)
+    expect(ledger.summary(ids.workspaceId, childExecutionId).maximumMicrounits).toBe(1_000_000)
+    expect(ledger.summary(ids.workspaceId, ids.executionId).reservedMicrounits).toBe(2_000_000)
     expect(() =>
       ledger.openBudget({
         workspaceId: ids.workspaceId,
@@ -166,6 +172,77 @@ describe('authoritative usage ledger', () => {
         source: source('second-child'),
       })
     ).toThrow('BUDGET_EXHAUSTED')
+  })
+
+  test('fails closed for cross-workspace usage reads and mutations without existence leakage', () => {
+    const ledger = fixture()
+    const otherWorkspaceId = 'wsp_01JBBCDEF0123456789ABCDEFG'
+    const missingExecutionId = 'exe_01JBBCDEF0123456789ABCDEFG'
+
+    expect(() => ledger.entries(otherWorkspaceId, ids.executionId)).toThrow('BUDGET_NOT_FOUND')
+    expect(() => ledger.entries(otherWorkspaceId, missingExecutionId)).toThrow('BUDGET_NOT_FOUND')
+    expect(() => ledger.publicSummary(otherWorkspaceId, ids.executionId)).toThrow(
+      'BUDGET_NOT_FOUND'
+    )
+    expect(() =>
+      ledger.extendBudget({
+        workspaceId: otherWorkspaceId,
+        executionId: ids.executionId,
+        additionalMicrounits: 1,
+        authorizationDecisionId: `sha256:${'c'.repeat(64)}`,
+        source: source('cross-workspace-extension'),
+      })
+    ).toThrow('BUDGET_NOT_FOUND')
+    expect(() =>
+      ledger.settle({
+        workspaceId: otherWorkspaceId,
+        executionId: ids.executionId,
+        reservationKey: 'model-reservation',
+        source: source('cross-workspace-settlement'),
+      })
+    ).toThrow('BUDGET_NOT_FOUND')
+
+    expect(
+      ledger.openBudget({
+        workspaceId: otherWorkspaceId,
+        executionId: missingExecutionId,
+        currency: 'USD',
+        maximumMicrounits: 10,
+        source: source('budget-open'),
+      })
+    ).toMatchObject({ executionId: missingExecutionId })
+    expect(
+      ledger.reserve({
+        workspaceId: otherWorkspaceId,
+        executionId: missingExecutionId,
+        reservationKey: 'other-workspace',
+        maximumMicrounits: 1,
+        source: source('reservation-1'),
+      })
+    ).toMatchObject({ workspaceId: otherWorkspaceId })
+    expect(() =>
+      ledger.reserve({
+        ...ids,
+        workspaceId: otherWorkspaceId,
+        reservationKey: 'cross-workspace',
+        maximumMicrounits: 1,
+        source: source('cross-workspace'),
+      })
+    ).toThrow('BUDGET_NOT_FOUND')
+
+    const charge = {
+      ...ids,
+      reservationKey: 'model-reservation',
+      kind: 'model_usage',
+      source: source('scope-bound-charge'),
+      quantity: { unit: 'tokens', value: 1 },
+      costMicrounits: 1,
+      fundingSource: 'hq_managed',
+    }
+    ledger.charge(charge)
+    expect(() => ledger.charge({ ...charge, workspaceId: otherWorkspaceId })).toThrow(
+      'BUDGET_NOT_FOUND'
+    )
   })
 
   test('classifies external-subscription usage without claiming exact HQ provider cost', () => {
@@ -208,16 +285,16 @@ describe('authoritative usage ledger', () => {
       costMicrounits: 100_000,
       fundingSource: 'hq_managed',
     })
-    const before = ledger.entries(ids.executionId)
+    const before = ledger.entries(ids.workspaceId, ids.executionId)
     expect(Object.isFrozen(before[0])).toBe(true)
-    expect(ledger.publicSummary(ids.executionId)).toEqual({
+    expect(ledger.publicSummary(ids.workspaceId, ids.executionId)).toEqual({
       executionId: ids.executionId,
       currency: 'USD',
       funding: { hqManagedMicrounits: 100_000, externalSubscriptionEffects: 0 },
       usage: { milliseconds: 5_000 },
       settled: false,
     })
-    expect(JSON.stringify(ledger.publicSummary(ids.executionId))).not.toMatch(
+    expect(JSON.stringify(ledger.publicSummary(ids.workspaceId, ids.executionId))).not.toMatch(
       /sourceId|idempotencyKey/
     )
   })

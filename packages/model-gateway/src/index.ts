@@ -327,8 +327,11 @@ export class ManagedModelGateway {
     const { deployment, adapter } = selected
     this.#calls.set(request.modelCallId, deployment.adapterRef)
     let sequence = 0
+    let completed = false
     try {
       for await (const chunk of adapter.stream(request, deployment)) {
+        if (completed) throw new ModelGatewayError('STREAM_FAILED', true)
+        completed = chunk.finishReason !== undefined
         yield ModelStreamChunkSchema.parse({
           modelCallId: request.modelCallId,
           alias: request.alias,
@@ -339,6 +342,7 @@ export class ManagedModelGateway {
           traceId: request.traceId,
         })
       }
+      if (!completed) throw new ModelGatewayError('STREAM_FAILED', true)
     } catch {
       throw new ModelGatewayError('STREAM_FAILED', true)
     }

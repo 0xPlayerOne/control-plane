@@ -127,6 +127,20 @@
       "when": 1787681348462,
       "tag": "0017_nappy_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787688221688,
+      "tag": "0018_loose_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787695500596,
+      "tag": "0019_reflective_miek",
+      "breakpoints": true
     }
   ]
 }

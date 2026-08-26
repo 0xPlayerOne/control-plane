@@ -8,9 +8,11 @@ export { PostgresDelegationRepository } from './delegation-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
 export { PostgresExternalSessionRepository } from './external-session-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
+export { PostgresEvaluationRepository } from './evaluation-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
 export { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.js'
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
+export { PostgresReleaseAuditRepository } from './release-audit-repository.js'
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
 export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
 export { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.js'
@@ -27,6 +29,10 @@ export {
   delegations,
   delegationState,
   eventPublicationStatus,
+  evaluationRuns,
+  evaluationRunStatus,
+  releaseAuditAction,
+  releaseAuditRecords,
   executionEvents,
   executionAttempts,
   executionAttemptState,

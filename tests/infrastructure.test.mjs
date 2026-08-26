@@ -46,6 +46,7 @@ test('defines reproducible non-root container builds for every deployable servic
 test('separates Terraform state and service configuration by environment', async () => {
   const manifest = JSON.parse(await readRepositoryFile('package.json'))
   const gitignore = await readRepositoryFile('infrastructure/terraform/.gitignore')
+  const validator = await readRepositoryFile('scripts/validate-terraform.mjs')
 
   for (const environment of ['development', 'staging', 'production']) {
     const root = `infrastructure/terraform/environments/${environment}`
@@ -75,6 +76,8 @@ test('separates Terraform state and service configuration by environment', async
   )
   assert.match(gitignore, /^\*\.tfvars$/m)
   assert.match(gitignore, /^!\*\.tfvars\.example$/m)
+  assert.match(validator, /TF_PLUGIN_CACHE_DIR/)
+  assert.match(validator, /infrastructure\/terraform\/\.terraform\/plugin-cache/)
 })
 
 test('models AWS dependencies without leaking secrets or Kubernetes into service images', async () => {
@@ -109,9 +112,29 @@ test('models AWS dependencies without leaking secrets or Kubernetes into service
   assert.match(service, /readonlyRootFilesystem/)
   assert.match(service, /secrets\s*=/)
   assert.match(service, /aws_ecs_task_definition/)
+  assert.match(service, /aws_appautoscaling_target/)
+  assert.match(service, /aws_appautoscaling_policy/)
+  assert.match(service, /deployment_minimum_healthy_percent/)
+  assert.match(service, /deployment_maximum_percent/)
+  assert.match(service, /ignore_changes\s*=\s*\[desired_count\]/)
+  assert.match(service, /var\.create_service && var\.maximum_capacity > 0 \? 1 : 0/)
+  assert.match(service, /dynamic "statement"/)
+  assert.match(platform, /aws_cloudwatch_metric_alarm/)
+  assert.match(platform, /backup_retention_period\s*=\s*var\.database_backup_retention_days/)
+  assert.match(platform, /aws_s3_bucket_lifecycle_configuration/)
+  assert.match(platform, /depends_on\s*=\s*\[aws_s3_bucket_versioning\.object_store\]/)
+  assert.match(platform, /nat_subnets\s*=\s*var\.environment == "production"/)
+  assert.match(platform, /resource "aws_eip" "nat"\s*{\s*for_each\s*=\s*local\.nat_subnets/s)
+  assert.match(
+    platform,
+    /resource "aws_route_table" "private"\s*{\s*for_each\s*=\s*aws_subnet\.private/s
+  )
+  assert.match(platform, /engine_version\s*=\s*var\.database_engine_version/)
+  assert.match(platform, /engine_version\s*=\s*var\.cache_engine_version/)
   assert.match(environment, /module "database_migration"/)
   assert.match(environment, /create_service\s*=\s*false/)
   assert.match(environment, /DATABASE_MIGRATION_URL/)
+  assert.match(environment, /object_store_actions/)
   assert.doesNotMatch(terraformSources, /kubernetes/i)
   assert.doesNotMatch(terraformSources, /(?:temporal|litellm|e2b).*resource/is)
 })

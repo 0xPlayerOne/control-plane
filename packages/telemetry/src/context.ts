@@ -17,6 +17,15 @@ export function semanticAttributes(
     ['execution.attempt.id', identifiers.attemptId],
     ['workflow.id', identifiers.workflowId],
     ['runtime.id', identifiers.runtimeId],
+    ['runtime.node.id', identifiers.runtimeNodeId],
+    ['agent.profile.version', identifiers.profileVersion],
+    ['agent.skill.version', identifiers.skillVersion],
+    ['agent.graph.version', identifiers.graphVersion],
+    ['gen_ai.request.model', identifiers.modelAlias],
+    ['tool.id', identifiers.toolId],
+    ['policy.version', identifiers.policyVersion],
+    ['sandbox.id', identifiers.sandboxId],
+    ['delegation.id', identifiers.delegationId],
   ] as const
   for (const [key, value] of mappings) if (value !== undefined) attributes[key] = value
   return attributes
@@ -25,8 +34,9 @@ export function semanticAttributes(
 export function extractTraceContext(
   carrier: Readonly<Record<string, unknown>>
 ): TraceContext | undefined {
-  const traceparent = header(carrier, 'traceparent')
-  if (traceparent === undefined) return undefined
+  const rawTraceparent = header(carrier, 'traceparent')
+  if (rawTraceparent === undefined) return undefined
+  const traceparent = rawTraceparent.toLowerCase()
   const match = traceparent.match(traceparentPattern)
   if (!match || invalidTraceId.test(match[1] ?? '') || invalidSpanId.test(match[2] ?? '')) {
     return undefined
@@ -53,7 +63,7 @@ export function traceIdFromContext(context: TraceContext | undefined): string | 
 
 function header(carrier: Readonly<Record<string, unknown>>, name: string): string | undefined {
   for (const [key, value] of Object.entries(carrier)) {
-    if (key.toLowerCase() === name && typeof value === 'string') return value.toLowerCase()
+    if (key.toLowerCase() === name && typeof value === 'string') return value
   }
   return undefined
 }
