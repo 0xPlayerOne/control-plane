@@ -32,6 +32,13 @@ export {
   executionState,
 } from './executions.js'
 export { executionPlans } from './execution-plans.js'
+export {
+  projectStateMutations,
+  projectStateRevisions,
+  projectStates,
+  statePromotionProposals,
+  statePromotionProposalState,
+} from './project-state.js'
 export { interactionKind, interactionRequests, interactionState } from './interactions.js'
 export { memoryWriteProposals, memoryWriteProposalState } from './memory-write-proposals.js'
 export { inboxMessages, outboxEvents, outboxStatus } from './messaging.js'
