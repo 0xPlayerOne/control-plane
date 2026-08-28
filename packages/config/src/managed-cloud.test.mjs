@@ -13,7 +13,11 @@ const cloud = {
   DATABASE_URL: 'postgresql://app:database-secret@example.neon.tech/control_plane?sslmode=require',
   CONTROL_PLANE_SECRET_ENCRYPTION_KEY:
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-  CONTROL_PLANE_SERVICE_AUTH_TOKEN: 'service-token-that-is-at-least-32-characters',
+  CONTROL_PLANE_SERVICE_AUTH_ISSUER: 'https://agent-hq.example',
+  CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: JSON.stringify([
+    { keyId: 'agent-hq-2026-08', publicKey: 'A'.repeat(43) },
+  ]),
+  CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: JSON.stringify(['revoked-credential']),
   RESTATE_INGRESS_URL: 'http://control-planerestate.railway.internal:8080',
   RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: 'publickeyv1_w7YHemBctH5Ck2nQRQ47iBBqhNHy4FV7t2Usbye2A6f',
   R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
@@ -35,9 +39,16 @@ describe('managed cloud configuration', () => {
     expect(JSON.stringify(managedCloudEnvironmentManifest())).not.toContain(
       'RESTATE_SERVICE_AUTH_TOKEN'
     )
-    expect(managedCloudEnvironmentManifest()['runtime-gateway']).toEqual([
-      'CONTROL_PLANE_SERVICE_AUTH_TOKEN',
+    expect(managedCloudEnvironmentManifest()['control-api']).toContain(
+      'CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS'
+    )
+    expect(Object.keys(managedCloudEnvironmentManifest()).sort()).toEqual([
+      'control-api',
+      'workflow-worker',
     ])
+    expect(JSON.stringify(managedCloudEnvironmentManifest())).not.toContain(
+      'CONTROL_PLANE_SERVICE_AUTH_TOKEN'
+    )
   })
 
   test('loads Railway, Neon, Restate, and R2 configuration without changing provider-neutral types', () => {
@@ -50,6 +61,12 @@ describe('managed cloud configuration', () => {
         ingressUrl: 'http://control-planerestate.railway.internal:8080',
       },
       objectStore: { bucket: 'ctrl-plane', region: 'auto' },
+      serviceAuthentication: {
+        audience: 'control-plane',
+        issuer: 'https://agent-hq.example',
+        trustedKeys: [{ keyId: 'agent-hq-2026-08', publicKey: 'A'.repeat(43) }],
+        revokedCredentialIds: ['revoked-credential'],
+      },
     })
 
     expect(loadManagedCloudConfiguration(cloud, 'workflow-worker')).toMatchObject({
@@ -83,6 +100,30 @@ describe('managed cloud configuration', () => {
     } catch (error) {
       expect(error.diagnostic.missing).toContain('R2_SECRET_ACCESS_KEY')
       expect(JSON.stringify(error)).not.toContain('secret-key')
+    }
+  })
+
+  test('fails closed for malformed service authentication configuration without exposing values', () => {
+    const malformedTrustedKeys = '[{"keyId":"duplicate","publicKey":"not-an-ed25519-key"}]'
+    const malformedRevocations = '["duplicate","duplicate"]'
+
+    try {
+      loadManagedCloudConfiguration(
+        {
+          ...cloud,
+          CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: malformedTrustedKeys,
+          CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: malformedRevocations,
+        },
+        'control-api'
+      )
+      throw new Error('Expected configuration failure')
+    } catch (error) {
+      expect(error.diagnostic.invalid).toEqual([
+        'CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS',
+        'CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS',
+      ])
+      expect(JSON.stringify(error)).not.toContain(malformedTrustedKeys)
+      expect(JSON.stringify(error)).not.toContain(malformedRevocations)
     }
   })
 })

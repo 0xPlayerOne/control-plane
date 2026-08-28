@@ -23,7 +23,6 @@ const productionEnvironment = {
   COMMIT_SHA: 'runtime-gateway-startup-test',
   INSTANCE_ID: 'runtime-gateway-production-test',
   SERVICE_VERSION: '1.3.0',
-  CONTROL_PLANE_SERVICE_AUTH_TOKEN: 'runtime-gateway-service-token-that-is-at-least-32-characters',
 }
 
 describe('Runtime Gateway production startup', () => {

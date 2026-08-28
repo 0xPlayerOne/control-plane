@@ -3,6 +3,7 @@ import {
   ConfigurationError,
   loadServiceConfiguration,
   loadManagedCloudConfiguration,
+  managedCloudServices,
   redactDiagnostics,
   type EnvironmentLoadOptions,
   type ManagedCloudConfiguration,
@@ -51,7 +52,10 @@ export async function bootstrapService<Service extends ServiceName>(
       environment,
       options.cwd === undefined ? {} : { cwd: options.cwd }
     )
-    if (config.metadata.environment === 'staging' || config.metadata.environment === 'production') {
+    if (
+      (config.metadata.environment === 'staging' || config.metadata.environment === 'production') &&
+      isManagedCloudService(options.serviceName)
+    ) {
       managedCloud = loadManagedCloudConfiguration(environment, options.serviceName)
     }
   } catch (error) {
@@ -79,6 +83,12 @@ export async function bootstrapService<Service extends ServiceName>(
     await runtime.handleFatal('startup', error)
     throw new ServiceStartupError()
   }
+}
+
+function isManagedCloudService(
+  service: ServiceName
+): service is (typeof managedCloudServices)[number] {
+  return (managedCloudServices as readonly ServiceName[]).includes(service)
 }
 
 export { jsonLogger } from './logger.js'

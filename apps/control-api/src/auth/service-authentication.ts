@@ -1,3 +1,4 @@
+import { createPublicKey, verify, type KeyObject } from 'node:crypto'
 import {
   BadRequestException,
   ForbiddenException,
@@ -51,6 +52,76 @@ export interface ServiceCredentialRevocationChecker {
   isRevoked(credentialId: string): Promise<boolean>
 }
 
+export interface TrustedEd25519ServiceKey {
+  readonly keyId: string
+  readonly publicKey: string
+}
+
+export class Ed25519ServiceCredentialVerifier implements ServiceCredentialVerifier {
+  readonly #keys: ReadonlyMap<string, KeyObject>
+
+  constructor(keys: readonly TrustedEd25519ServiceKey[]) {
+    if (keys.length === 0 || keys.length > 32) verificationFailed()
+    const entries = keys.map((key) => {
+      if (
+        !/^[A-Za-z0-9._:-]{1,128}$/.test(key.keyId) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(key.publicKey) ||
+        Buffer.from(key.publicKey, 'base64url').length !== 32
+      ) {
+        verificationFailed()
+      }
+      return [
+        key.keyId,
+        createPublicKey({
+          key: { crv: 'Ed25519', kty: 'OKP', x: key.publicKey },
+          format: 'jwk',
+        }),
+      ] as const
+    })
+    if (new Set(entries.map(([keyId]) => keyId)).size !== entries.length) verificationFailed()
+    this.#keys = new Map(entries)
+  }
+
+  async verify(credential: string): Promise<unknown> {
+    if (credential.length < 32 || credential.length > 131_072) verificationFailed()
+    const segments = credential.split('.')
+    if (segments.length !== 3) verificationFailed()
+    const [encodedHeader, encodedPayload, encodedSignature] = segments
+    if (!encodedHeader || !encodedPayload || !encodedSignature) verificationFailed()
+    const header = parseJsonSegment(encodedHeader)
+    const keyId = Reflect.get(header, 'kid')
+    if (
+      Reflect.get(header, 'alg') !== 'EdDSA' ||
+      Reflect.get(header, 'typ') !== 'JWT' ||
+      typeof keyId !== 'string'
+    ) {
+      verificationFailed()
+    }
+    const key = this.#keys.get(keyId)
+    if (!key) verificationFailed()
+    const signature = decodeBase64Url(encodedSignature)
+    const signingInput = Buffer.from(`${encodedHeader}.${encodedPayload}`)
+    if (signature.length !== 64 || !verify(null, signingInput, key, signature)) {
+      verificationFailed()
+    }
+    const claims = parseJsonSegment(encodedPayload)
+    if (Reflect.get(claims, 'keyId') !== keyId) verificationFailed()
+    return claims
+  }
+}
+
+export class ConfiguredCredentialRevocationChecker implements ServiceCredentialRevocationChecker {
+  readonly #revoked: ReadonlySet<string>
+
+  constructor(credentialIds: readonly string[]) {
+    this.#revoked = new Set(credentialIds)
+  }
+
+  async isRevoked(credentialId: string): Promise<boolean> {
+    return this.#revoked.has(credentialId)
+  }
+}
+
 export interface ServiceAuthenticator {
   authenticate(
     request: FastifyRequest,
@@ -75,6 +146,29 @@ export class DisabledServiceAuthenticator implements ServiceAuthenticator {
       message: 'Service authentication is not configured',
     })
   }
+}
+
+function parseJsonSegment(segment: string): object {
+  const bytes = decodeBase64Url(segment)
+  if (bytes.length === 0 || bytes.length > 65_536) verificationFailed()
+  try {
+    const parsed: unknown = JSON.parse(bytes.toString('utf8'))
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) verificationFailed()
+    return parsed
+  } catch {
+    verificationFailed()
+  }
+}
+
+function decodeBase64Url(value: string): Buffer {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) verificationFailed()
+  const decoded = Buffer.from(value, 'base64url')
+  if (decoded.toString('base64url') !== value) verificationFailed()
+  return decoded
+}
+
+function verificationFailed(): never {
+  throw new Error('SERVICE_CREDENTIAL_VERIFICATION_FAILED')
 }
 
 export class PolicyServiceAuthenticator implements ServiceAuthenticator {
