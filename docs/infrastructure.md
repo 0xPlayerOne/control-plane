@@ -56,6 +56,8 @@ The historical server/cloud composition roots remain:
 
 `workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring. M9.8 may still change the service topology where an old boundary exists only because of the former Temporal runtime. Do not preserve a five-service topology merely for historical symmetry.
 
+The per-service variable and credential-role contract is versioned in `infrastructure/railway/environment.json`. It contains names, classifications, and provider-neutral purposes only; secret values remain in Railway's secret boundary.
+
 M9.7 should use a dependency-aware, reproducible container build from the monorepo. The existing `infrastructure/containers` build pipeline may be adapted for Railway. AWS/ECS-specific image platform assumptions, ECR publication requirements, task definitions, Terraform roots, IAM roles, CloudWatch/SNS wiring, and ECS rollout mechanics are no longer the first-party deployment contract.
 
 ## Neon PostgreSQL
@@ -105,7 +107,7 @@ Do not make M10 responsible for getting cloud Restate working for the first time
 
 All service bootstrap configuration is typed and validated. Staging/production values are supplied by Railway configuration and approved external providers; secret values never belong in source, images, logs, issue bodies, or generated docs.
 
-Separate **service/bootstrap secrets** from **dynamic user/provider credentials**. Railway variables are appropriate for deployment configuration such as database endpoints, service credentials, Restate configuration, R2 credentials, and master/bootstrap secret references. User-scoped connector/provider credentials require the audited credential-vault `SecretProvider` boundary and cannot be modeled as one environment variable per user credential.
+Separate **service/bootstrap secrets** from **dynamic user/provider credentials**. Railway variables are appropriate for deployment configuration such as database endpoints, service credentials, Restate configuration, R2 credentials, and the encryption-key reference used by the vault. User-scoped connector/provider credentials are encrypted by `NeonEncryptedSecretProvider` and persisted through `PostgresEncryptedSecretStore`; they cannot be modeled as one environment variable per user credential.
 
 M10 adds Local and Hosted `SecretsProvider` adapters without changing secret-reference/rotation/revocation semantics.
 

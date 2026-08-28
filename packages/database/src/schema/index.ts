@@ -1,4 +1,5 @@
 export { commandInbox, commandInboxStatus } from './commands.js'
+export { credentialSecrets } from './credential-secrets.js'
 export { delegations, delegationState } from './delegations.js'
 export {
   idColumn,

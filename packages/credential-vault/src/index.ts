@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import { IdentifierSchemas } from '@control-plane/contracts'
 import {
   PolicyDecisionSchema,
@@ -57,7 +57,7 @@ export type CredentialMetadata = z.output<typeof CredentialMetadataSchema>
 export type CredentialLease = z.output<typeof CredentialLeaseSchema>
 
 export interface EncryptedSecretReference {
-  readonly backend: 'memory' | 'aws-secrets-manager'
+  readonly backend: 'memory' | 'neon-encrypted'
   readonly locator: string
   readonly version: string
   readonly keyReference: string
@@ -429,71 +429,99 @@ export class InMemorySecretProvider implements SecretProvider {
   }
 }
 
-export interface AwsSecretsManagerClientPort {
-  putSecretValue(input: {
-    readonly secretId: string
-    readonly secretString: string
-    readonly kmsKeyRef: string
-    readonly clientRequestToken: string
-  }): Promise<{ readonly versionId: string }>
-  getSecretValue(input: {
-    readonly secretId: string
-    readonly versionId: string
-  }): Promise<{ readonly secretString?: string }>
-  deleteSecretVersion?(input: {
-    readonly secretId: string
-    readonly versionId: string
+export interface EncryptedSecretStore {
+  put(input: {
+    readonly locator: string
+    readonly version: string
+    readonly ciphertext: string
+    readonly iv: string
+    readonly authTag: string
+    readonly keyReference: string
   }): Promise<void>
+  get(input: { readonly locator: string; readonly version: string }): Promise<
+    | {
+        readonly ciphertext: string
+        readonly iv: string
+        readonly authTag: string
+        readonly keyReference: string
+      }
+    | undefined
+  >
+  delete(input: { readonly locator: string; readonly version: string }): Promise<void>
 }
 
-export class AwsSecretsManagerProvider implements SecretProvider {
-  readonly #client: AwsSecretsManagerClientPort
-  readonly #kmsKeyRef: string
+export class NeonEncryptedSecretProvider implements SecretProvider {
+  readonly #store: EncryptedSecretStore
+  readonly #key: Buffer
+  readonly #keyReference: string
   readonly #secretPrefix: string
 
   constructor(options: {
-    readonly client: AwsSecretsManagerClientPort
-    readonly kmsKeyRef: string
-    readonly secretPrefix: string
+    readonly store: EncryptedSecretStore
+    readonly encryptionKey: string
+    readonly keyReference: string
+    readonly secretPrefix?: string
   }) {
-    this.#client = options.client
-    this.#kmsKeyRef = options.kmsKeyRef
-    this.#secretPrefix = options.secretPrefix.replace(/\/$/, '')
+    this.#store = options.store
+    this.#key = decodeEncryptionKey(options.encryptionKey)
+    this.#keyReference = options.keyReference
+    this.#secretPrefix = (options.secretPrefix ?? 'neon://credential-secrets').replace(/\/$/, '')
   }
 
   async store(input: { credentialId: string; revision: number; secret: string }) {
-    const secretId = `${this.#secretPrefix}/${input.credentialId}`
-    const token = hash({ credentialId: input.credentialId, revision: input.revision })
-    const stored = await this.#client.putSecretValue({
-      secretId,
-      secretString: input.secret,
-      kmsKeyRef: this.#kmsKeyRef,
-      clientRequestToken: token,
+    const locator = `${this.#secretPrefix}/${input.credentialId}`
+    const version = String(input.revision)
+    const iv = randomBytes(12)
+    const cipher = createCipheriv('aes-256-gcm', this.#key, iv)
+    const ciphertext = Buffer.concat([cipher.update(input.secret, 'utf8'), cipher.final()])
+    const authTag = cipher.getAuthTag()
+    await this.#store.put({
+      locator,
+      version,
+      ciphertext: ciphertext.toString('base64url'),
+      iv: iv.toString('base64url'),
+      authTag: authTag.toString('base64url'),
+      keyReference: this.#keyReference,
     })
     return {
-      backend: 'aws-secrets-manager' as const,
-      locator: secretId,
-      version: stored.versionId,
-      keyReference: this.#kmsKeyRef,
+      backend: 'neon-encrypted' as const,
+      locator,
+      version,
+      keyReference: this.#keyReference,
       ciphertextDigest: `sha256:${hash(input.secret)}` as const,
     }
   }
 
   async resolve(reference: EncryptedSecretReference): Promise<string> {
-    const result = await this.#client.getSecretValue({
-      secretId: reference.locator,
-      versionId: reference.version,
-    })
-    if (!result.secretString) throw new Error('SECRET_MISSING')
-    return result.secretString
+    const record = await this.#store.get({ locator: reference.locator, version: reference.version })
+    if (!record || record.keyReference !== this.#keyReference) throw new Error('SECRET_MISSING')
+    try {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        this.#key,
+        Buffer.from(record.iv, 'base64url')
+      )
+      decipher.setAuthTag(Buffer.from(record.authTag, 'base64url'))
+      return Buffer.concat([
+        decipher.update(Buffer.from(record.ciphertext, 'base64url')),
+        decipher.final(),
+      ]).toString('utf8')
+    } catch {
+      throw new Error('SECRET_CORRUPTED')
+    }
   }
 
-  async revoke(reference: EncryptedSecretReference): Promise<void> {
-    await this.#client.deleteSecretVersion?.({
-      secretId: reference.locator,
-      versionId: reference.version,
-    })
+  revoke(reference: EncryptedSecretReference): Promise<void> {
+    return this.#store.delete({ locator: reference.locator, version: reference.version })
   }
+}
+
+function decodeEncryptionKey(value: string): Buffer {
+  const key = /^[0-9a-f]{64}$/i.test(value)
+    ? Buffer.from(value, 'hex')
+    : Buffer.from(value, 'base64url')
+  if (key.length !== 32) throw new Error('INVALID_SECRET_ENCRYPTION_KEY')
+  return key
 }
 
 function assertSecret(secret: string): void {

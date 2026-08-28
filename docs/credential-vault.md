@@ -10,7 +10,7 @@ The accepted M9 managed-cloud profile uses Railway variables for **service/boots
 
 Railway environment variables are **not** the storage model for arbitrary user-scoped OAuth refresh tokens, API keys, or connector credentials. Dynamic credentials require the audited credential-vault secret provider boundary.
 
-The existing `AwsSecretsManagerProvider` is migration residue from the prior AWS-first architecture, not a supported provider option. **M9.9 #217 owns its replacement:** select, implement, and verify a Railway-compatible managed-cloud dynamic secret provider behind the stable vault contract. M9.6 cannot certify cloud credential handling while that provider is undefined or unverified.
+`NeonEncryptedSecretProvider`, backed by the repo-owned `credential_secrets` table through `PostgresEncryptedSecretStore`, is the managed-cloud implementation behind the stable vault contract. The AES-256-GCM encryption key is supplied as a Railway secret and referenced by key identifier; secret values and key material are never committed. AWS Secrets Manager is not an active provider.
 
 M10 then adds Local/Hosted secret-provider adapters without changing credential identity, scope, lease, rotation, revocation, or audit semantics.
 

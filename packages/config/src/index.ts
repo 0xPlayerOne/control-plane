@@ -1,6 +1,17 @@
 export { databaseCredentialRoles, loadDatabaseCredentials } from './database.js'
 export type { DatabaseCredentialRole, DatabaseCredentials } from './database.js'
 export {
+  loadManagedCloudConfiguration,
+  managedCloudEnvironmentManifest,
+  managedCloudServices,
+} from './managed-cloud.js'
+export type {
+  ManagedCloudConfiguration,
+  ManagedCloudObjectStoreConfiguration,
+  ManagedCloudRestateConfiguration,
+  ManagedCloudService,
+} from './managed-cloud.js'
+export {
   applicationEnvironments,
   EnvironmentNameError,
   loadEnvironment,

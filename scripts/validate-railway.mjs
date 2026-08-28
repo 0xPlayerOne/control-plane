@@ -9,6 +9,9 @@ const manifest = JSON.parse(
 const restate = JSON.parse(
   await readFile(`${repositoryRoot}/infrastructure/railway/restate.json`, 'utf8')
 )
+const environment = JSON.parse(
+  await readFile(`${repositoryRoot}/infrastructure/railway/environment.json`, 'utf8')
+)
 
 if (manifest.schemaVersion !== 1 || manifest.provider !== 'railway') {
   throw new Error('Railway service manifest must use schemaVersion 1 and provider railway.')
@@ -26,6 +29,22 @@ if (
   !restate.handlers.includes('cancelExecution')
 ) {
   throw new Error('Railway Restate contract is incomplete or points at the wrong service.')
+}
+
+if (
+  environment.schemaVersion !== 1 ||
+  environment.provider !== 'railway' ||
+  environment.profile !== 'cloud' ||
+  environment.applicationEnvironment !== 'managed-cloud' ||
+  environment.database?.runtimeVariable !== 'DATABASE_URL' ||
+  environment.database?.migrationVariable !== 'DATABASE_MIGRATION_URL' ||
+  environment.database?.administrationVariable !== 'DATABASE_ADMIN_URL' ||
+  environment.objectStore?.provider !== 'cloudflare-r2' ||
+  environment.objectStore?.bucket !== 'ctrl-plane' ||
+  environment.objectStore?.region !== 'auto' ||
+  environment.secrets?.valuesCommitted !== false
+) {
+  throw new Error('Railway environment manifest is incomplete or contains committed secrets.')
 }
 
 const cloud = manifest.profiles?.cloud
@@ -60,6 +79,10 @@ for (const service of services) {
   }
   if (service.public && (!service.healthPath || !service.readyPath)) {
     throw new Error(`Public Railway service must define health/readiness: ${service.name}.`)
+  }
+  const declared = environment.services?.[service.name]
+  if (!Array.isArray(declared) || JSON.stringify(declared) !== JSON.stringify(service.requires)) {
+    throw new Error(`Railway environment manifest is out of sync: ${service.name}.`)
   }
 }
 

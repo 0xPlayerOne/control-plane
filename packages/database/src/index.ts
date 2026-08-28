@@ -4,6 +4,7 @@ export {
   DatabaseConnectionError,
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
+export { PostgresEncryptedSecretStore } from './credential-secret-store.js'
 export { PostgresDelegationRepository } from './delegation-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
 export { PostgresExternalSessionRepository } from './external-session-repository.js'
