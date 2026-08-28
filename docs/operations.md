@@ -33,6 +33,12 @@ runtime still requires live provisioning. A dedicated Neon staging branch has th
 schema and least-privilege roles, while Neon main remains untouched. R2 service credentials and the
 remaining live deployment/recovery evidence are still required before M9.6 #73 can close.
 
+The repository Cloud composition now persists accepted commands/executions in PostgreSQL and wires
+the workflow worker's lifecycle activities to the same authoritative execution and plan data. The
+worker deliberately refuses readiness without an explicit managed runtime activity port;
+configuring and proving that staging runtime path is required before representative execution
+evidence can pass.
+
 Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
 
 ## Managed-cloud release and rollback

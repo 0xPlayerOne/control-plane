@@ -159,6 +159,28 @@ describe('Execution lifecycle', () => {
     })
   })
 
+  test('clears reconciliation failure metadata after terminal recovery', async () => {
+    const { service } = setup()
+    const accepted = await service.createExecution(executionInput())
+    const reconciling = await service.transitionExecution({
+      executionId: accepted.executionId,
+      expectedVersion: accepted.version,
+      to: 'reconciliation_required',
+      transitionedAt: '2026-08-23T10:01:00.000Z',
+      failure: { classification: 'infrastructure', code: 'DELIVERY_UNCONFIRMED' },
+    })
+    const completed = await service.transitionExecution({
+      executionId: accepted.executionId,
+      expectedVersion: reconciling.version,
+      to: 'completed',
+      transitionedAt: '2026-08-23T10:02:00.000Z',
+      terminalResultRef: ids.artifactId,
+    })
+
+    expect(completed).toMatchObject({ state: 'completed', terminalResultRef: ids.artifactId })
+    expect(completed.failure).toBeUndefined()
+  })
+
   test('rejects invalid, stale, and post-terminal transitions with classified errors', async () => {
     const { service } = setup()
     const accepted = await service.createExecution(executionInput())

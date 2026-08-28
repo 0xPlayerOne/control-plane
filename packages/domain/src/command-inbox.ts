@@ -87,6 +87,7 @@ export interface CommandAcceptanceResult {
 export interface CommandAcceptanceRepository {
   accept(command: CommandInboxRecord, execution: Execution): Promise<CommandAcceptanceResult>
   get(scope: CommandInboxScope): Promise<CommandInboxRecord | undefined>
+  getByExecutionId(executionId: string): Promise<CommandInboxRecord | undefined>
   getExecution(executionId: string): Promise<Execution | undefined>
   compareAndSet(expectedVersion: number, command: CommandInboxRecord): Promise<boolean>
 }
@@ -133,6 +134,13 @@ export class InMemoryCommandAcceptanceRepository implements CommandAcceptanceRep
 
   async get(scope: CommandInboxScope): Promise<CommandInboxRecord | undefined> {
     return cloneOptional(this.#commands.get(scopeKey(CommandInboxScopeSchema.parse(scope))))
+  }
+
+  async getByExecutionId(executionId: string): Promise<CommandInboxRecord | undefined> {
+    const parsedId = IdentifierSchemas.executionId.parse(executionId)
+    return cloneOptional(
+      [...this.#commands.values()].find((command) => command.executionId === parsedId)
+    )
   }
 
   async getExecution(executionId: string): Promise<Execution | undefined> {
@@ -215,6 +223,16 @@ const TransitionCommandSchema = z.object({
   resultReference: IdentifierSchemas.artifactId.optional(),
   errorReference: ExternalReferenceSchema.optional(),
 })
+
+const TransitionExecutionCommandSchema = z
+  .object({
+    executionId: IdentifierSchemas.executionId,
+    to: z.enum(['completed', 'failed']),
+    transitionedAt: TimestampSchema,
+    resultReference: IdentifierSchemas.artifactId.optional(),
+    errorReference: ExternalReferenceSchema.optional(),
+  })
+  .strict()
 
 export type CommandInboxErrorCode =
   | 'IDEMPOTENCY_PAYLOAD_CONFLICT'
@@ -349,6 +367,8 @@ export class CommandInboxService {
         ? { reconciliationRequiredAt: parsed.transitionedAt }
         : {}),
       ...(terminalStatuses.has(parsed.to) ? { terminalAt: parsed.transitionedAt } : {}),
+      resultReference: undefined,
+      errorReference: undefined,
       ...(parsed.resultReference ? { resultReference: parsed.resultReference } : {}),
       ...(parsed.errorReference ? { errorReference: parsed.errorReference } : {}),
     })
@@ -357,6 +377,46 @@ export class CommandInboxService {
       fail('STALE_COMMAND_VERSION', latest?.version)
     }
     return next
+  }
+
+  async transitionExecutionCommand(input: unknown): Promise<CommandInboxRecord> {
+    const parsed = TransitionExecutionCommandSchema.parse(input)
+    for (let update = 0; update < 3; update += 1) {
+      const current = await this.repository.getByExecutionId(parsed.executionId)
+      if (!current) fail('COMMAND_MISSING')
+      if (current.status === parsed.to) {
+        if (
+          current.resultReference !== parsed.resultReference ||
+          current.errorReference !== parsed.errorReference
+        ) {
+          fail('INVALID_COMMAND_METADATA')
+        }
+        return current
+      }
+      try {
+        return await this.transitionCommand({
+          callerPrincipalId: current.callerPrincipalId,
+          operation: current.operation,
+          workspaceId: current.workspaceId,
+          projectId: current.projectId,
+          idempotencyKey: current.idempotencyKey,
+          expectedVersion: current.version,
+          to: parsed.to,
+          transitionedAt: new Date(
+            Math.max(Date.parse(parsed.transitionedAt), Date.parse(current.lastSeenAt))
+          ).toISOString(),
+          ...(parsed.resultReference === undefined
+            ? {}
+            : { resultReference: parsed.resultReference }),
+          ...(parsed.errorReference === undefined ? {} : { errorReference: parsed.errorReference }),
+        })
+      } catch (error) {
+        if (!(error instanceof CommandInboxError && error.code === 'STALE_COMMAND_VERSION')) {
+          throw error
+        }
+      }
+    }
+    fail('STALE_COMMAND_VERSION')
   }
 
   async #replay(
@@ -441,11 +501,17 @@ function validateStatusMetadata(
   if (record.status === 'completed' && !record.resultReference) {
     context.addIssue({ code: 'custom', message: 'Completed status requires a result reference' })
   }
+  if (record.status !== 'completed' && record.resultReference) {
+    context.addIssue({ code: 'custom', message: 'Only completed status may reference a result' })
+  }
   if (
     (record.status === 'failed' || record.status === 'reconciliation_required') &&
     !record.errorReference
   ) {
     context.addIssue({ code: 'custom', message: 'Failure status requires an error reference' })
+  }
+  if (!['failed', 'reconciliation_required'].includes(record.status) && record.errorReference) {
+    context.addIssue({ code: 'custom', message: 'Only failure status may reference an error' })
   }
 }
 

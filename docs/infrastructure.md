@@ -68,6 +68,12 @@ service.
 
 `workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring.
 
+The worker probes Neon before readiness and composes durable execution/attempt activities from the
+PostgreSQL repositories. It refuses startup before registering the Restate endpoint when no managed
+runtime activity port is configured. This prevents an accepted workflow from reaching a late
+placeholder failure; the concrete staging runtime path and its recovery evidence remain an explicit
+M9 activation gate.
+
 The endpoint validates Restate native request identity with the environment-specific public key.
 The matching ED25519 private key is stored only on the Restate data volume and referenced by file;
 it is never committed or copied to application services. `control-api` owns the private port-8080

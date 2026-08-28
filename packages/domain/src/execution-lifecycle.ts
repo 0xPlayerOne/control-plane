@@ -498,6 +498,8 @@ function transition<Lifecycle extends Execution | ExecutionAttempt>(
     updatedAt: input.transitionedAt,
     ...(timestampField ? { [timestampField]: input.transitionedAt } : {}),
     ...(terminalStates.has(input.to) ? { terminalAt: input.transitionedAt } : {}),
+    failure: undefined,
+    terminalResultRef: undefined,
     ...(input.failure ? { failure: input.failure } : {}),
     ...(input.terminalResultRef ? { terminalResultRef: input.terminalResultRef } : {}),
   }) as Lifecycle
@@ -531,6 +533,12 @@ function validateStateMetadata(
   }
   if (lifecycle.state === 'failed' && !lifecycle.failure) {
     context.addIssue({ code: 'custom', message: 'Failed lifecycle requires classification' })
+  }
+  if (
+    lifecycle.failure &&
+    !['failed', 'timed_out', 'reconciliation_required'].includes(lifecycle.state)
+  ) {
+    context.addIssue({ code: 'custom', message: 'Only failure states may retain classification' })
   }
   if (lifecycle.state !== 'completed' && lifecycle.terminalResultRef) {
     context.addIssue({ code: 'custom', message: 'Only completed lifecycle may reference a result' })
