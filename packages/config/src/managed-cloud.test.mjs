@@ -25,6 +25,7 @@ const cloud = {
   R2_REGION: 'auto',
   R2_ACCESS_KEY_ID: 'access-key',
   R2_SECRET_ACCESS_KEY: 'secret-key-that-is-not-logged',
+  CONTROL_PLANE_CLOUD_RUNTIME: 'certification',
 }
 
 describe('managed cloud configuration', () => {
@@ -35,6 +36,9 @@ describe('managed cloud configuration', () => {
     )
     expect(managedCloudEnvironmentManifest()['workflow-worker']).not.toContain(
       'RESTATE_INGRESS_URL'
+    )
+    expect(managedCloudEnvironmentManifest()['workflow-worker']).toContain(
+      'CONTROL_PLANE_CLOUD_RUNTIME'
     )
     expect(JSON.stringify(managedCloudEnvironmentManifest())).not.toContain(
       'RESTATE_SERVICE_AUTH_TOKEN'
@@ -71,6 +75,7 @@ describe('managed cloud configuration', () => {
 
     expect(loadManagedCloudConfiguration(cloud, 'workflow-worker')).toMatchObject({
       service: 'workflow-worker',
+      runtime: { mode: 'certification' },
       restate: {
         role: 'endpoint',
         requestIdentityPublicKey: 'publickeyv1_w7YHemBctH5Ck2nQRQ47iBBqhNHy4FV7t2Usbye2A6f',
@@ -125,5 +130,14 @@ describe('managed cloud configuration', () => {
       expect(JSON.stringify(error)).not.toContain(malformedTrustedKeys)
       expect(JSON.stringify(error)).not.toContain(malformedRevocations)
     }
+  })
+
+  test('rejects an undeclared Cloud runtime mode', () => {
+    expect(() =>
+      loadManagedCloudConfiguration(
+        { ...cloud, CONTROL_PLANE_CLOUD_RUNTIME: 'managed-pi-placeholder' },
+        'workflow-worker'
+      )
+    ).toThrow()
   })
 })

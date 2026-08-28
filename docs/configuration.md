@@ -47,6 +47,14 @@ self-hosted runtime reads the matching private key from its persistent volume th
 `RESTATE_SERVICE_AUTH_TOKEN` compatibility variable: self-hosted ingress authentication, private
 networking, and Restate-to-service request identity are separate controls.
 
+`workflow-worker` also requires `CONTROL_PLANE_CLOUD_RUNTIME`. Railway staging sets it to
+`certification`, which enables the bounded M9 runtime that writes and verifies a terminal result
+through the Control Plane R2 `ObjectStore`. Railway production sets it to `disabled`; production
+cannot execute certification traffic and remains unavailable until a separately implemented runtime
+is explicitly composed for launch. The certification runtime accepts only plans pinned to
+`contract://control-plane/m9-cloud-certification/v1`; ordinary execution plans fail before R2
+access. Unknown modes fail configuration validation.
+
 Railway deployment metadata is consumed directly: `RAILWAY_GIT_COMMIT_SHA` supplies the source revision and `RAILWAY_DEPLOYMENT_ID` supplies the deployed service version. `COMMIT_SHA` and `SERVICE_VERSION` are provider-neutral explicit overrides for Hosted or other non-Railway supervisors; Railway services do not need redundant reference aliases for them.
 
 Railway's injected `PORT` must be honored by HTTP services or mapped explicitly through repository-owned Railway configuration. Do not assume the historical fixed development ports are the cloud ingress contract.

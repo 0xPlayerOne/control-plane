@@ -25,11 +25,16 @@ export interface ManagedCloudServiceAuthenticationConfiguration {
   readonly revokedCredentialIds: readonly string[]
 }
 
+export interface ManagedCloudRuntimeConfiguration {
+  readonly mode: 'certification' | 'disabled'
+}
+
 export interface ManagedCloudConfiguration {
   readonly service: ManagedCloudService
   readonly database?: DatabaseCredentials<'application'>
   readonly objectStore?: ManagedCloudObjectStoreConfiguration
   readonly restate?: ManagedCloudRestateConfiguration
+  readonly runtime?: ManagedCloudRuntimeConfiguration
   readonly serviceAuthentication?: ManagedCloudServiceAuthenticationConfiguration
   readonly secretEncryptionKey: string
 }
@@ -57,6 +62,7 @@ const requiredVariables: Record<ManagedCloudService, readonly string[]> = {
     'R2_REGION',
     'R2_ACCESS_KEY_ID',
     'R2_SECRET_ACCESS_KEY',
+    'CONTROL_PLANE_CLOUD_RUNTIME',
   ],
 }
 
@@ -97,6 +103,8 @@ export function loadManagedCloudConfiguration(
       : service === 'workflow-worker'
         ? loadRestateEndpointConfiguration(environment)
         : undefined
+  const runtime =
+    service === 'workflow-worker' ? loadWorkflowRuntimeConfiguration(environment) : undefined
   const serviceAuthentication =
     service === 'control-api' ? loadServiceAuthenticationConfiguration(environment) : undefined
 
@@ -105,9 +113,25 @@ export function loadManagedCloudConfiguration(
     ...(database === undefined ? {} : { database }),
     ...(objectStore === undefined ? {} : { objectStore }),
     ...(restate === undefined ? {} : { restate }),
+    ...(runtime === undefined ? {} : { runtime }),
     ...(serviceAuthentication === undefined ? {} : { serviceAuthentication }),
     secretEncryptionKey: secretEncryptionKey as string,
   }
+}
+
+function loadWorkflowRuntimeConfiguration(
+  environment: RawEnvironment
+): ManagedCloudRuntimeConfiguration {
+  const mode = environment['CONTROL_PLANE_CLOUD_RUNTIME']
+  if (mode !== 'certification' && mode !== 'disabled') {
+    throw new ConfigurationError({
+      code: 'INVALID_MANAGED_CLOUD_CONFIGURATION',
+      invalid: ['CONTROL_PLANE_CLOUD_RUNTIME'],
+      missing: [],
+      component: 'runtime',
+    })
+  }
+  return { mode }
 }
 
 function loadServiceAuthenticationConfiguration(
