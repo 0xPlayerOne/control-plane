@@ -1,118 +1,124 @@
 # Infrastructure and deployment baseline
 
-This repository defines a production-shaped AWS/ECS baseline without claiming that an environment
-has been provisioned. Terraform owns cloud topology and service interfaces; Buildx Bake owns the
-reproducible container build. There is no Kubernetes layer.
+The accepted first-party managed-cloud Control Plane target is **Railway compute + Neon PostgreSQL + Cloudflare R2 + Restate**. M9 owns making that profile real and production-shaped. M10 then ports the same Control Plane core and execution semantics to Local desktop and Self-hosted/VPS deployment profiles.
 
-## Scope and authority
+The repository still contains the earlier AWS/ECS/Terraform implementation from M1. Those files are historical/portable infrastructure assets until M9.7 explicitly replaces the first-party cloud path. They must not be cited as the current deployment target or as evidence that a cloud environment exists.
 
-| Capability                                                        | Classification                     | Contract                                                                                                 |
-| ----------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| VPC, private service subnets, managed egress, and security groups | Authoritative                      | Terraform module `aws-platform`; isolated VPCs and one production NAT gateway per AZ                     |
-| PostgreSQL                                                        | Authoritative durable state        | Encrypted RDS, private access, backups, deletion controls, and an AWS-managed master secret              |
-| Object storage                                                    | Authoritative durable state        | Private, versioned, KMS-encrypted S3 bucket; application data is not disposable                          |
-| Service secrets and KMS                                           | Authoritative interface            | Terraform creates KMS keys and empty Secrets Manager shells; operators populate values outside Terraform |
-| ECS task definitions, services, logs, and ECR repositories        | Authoritative deployment interface | Five long-running targets plus a one-off migration task; images must use immutable digests               |
-| Cache                                                             | Replaceable                        | Encrypted Valkey/ElastiCache; never treat cached data as authoritative                                   |
-| ECS tasks                                                         | Replaceable                        | Circuit-breaker rollbacks replace unhealthy revisions; tasks hold no durable local state                 |
-| Temporal, LiteLLM, and E2B                                        | Deferred                           | Stable application ports remain the boundary; no vendor-specific resources are provisioned in M1         |
-| Autoscaling and operational alarms                                | Authoritative deployment interface | Bounded per-service ECS scaling plus encrypted SNS alarm delivery                                        |
-| Public load balancing, DNS, and vendor adapters                   | Deferred                           | Add only when the corresponding gateway or worker has a real lifecycle and measured requirement          |
+## Milestone ownership
 
-Worker and gateway targets default to zero replicas. `control-api` is the only enabled target;
-networking remains private until an authenticated ingress design is approved. A disabled target
-still has an immutable task definition, least-privilege role, and bounded alarm/scaling path, but
-must not be enabled until its dependency adapter and readiness contract pass staging.
+- **M9.7 #215 — Railway service builds:** replace the AWS/ECS-first build/deploy baseline with reproducible Railway service configuration.
+- **M9.8 #216 — Restate managed-cloud migration:** replace Temporal in the active Railway cloud path and define the Restate service/runtime topology.
+- **M9.9 #217 — managed dependencies/configuration:** wire Neon, R2, service authentication, Railway private networking, secrets/configuration, health/readiness, and explicit database migration.
+- **M9.10–M9.13 #210–#213 — canonical behavior:** freeze public contracts, Profile/Skill behavior, ContextProvider behavior, and operational defaults before portability work.
+- **M9.6 #73 — cloud activation gate:** runs after the implementation/configuration work and closes only when live Railway staging is deployable and verified.
+- **M10 — Local & Self-Hosted Portability:** substitutes persistence, storage, secrets, process supervision, topology, and runtime transport adapters while preserving the accepted M9 semantics.
 
-## Reproducible containers
+## Managed-cloud provider map
 
-`infrastructure/containers/Dockerfile` pins Bun by both version and multi-platform image digest,
-installs the frozen lockfile, builds the complete workspace, and runs as UID 1000. Bake fixes the
-runtime platform to `linux/arm64`, matching the ECS task definition. No build argument or image
-environment variable carries a secret.
+| Capability | Accepted M9 provider/boundary | Rule |
+| --- | --- | --- |
+| Compute | Railway | Repository-owned service configuration; dashboard-only settings are not authoritative. |
+| Relational state | Separate Control Plane Neon PostgreSQL | Drizzle migrations are explicit; Agent HQ uses a different Neon project/database. |
+| Object storage | Cloudflare R2 through `ObjectStore` | R2 identifiers never enter public/domain contracts. |
+| Durable workflows | Restate through `WorkflowRuntime` | Temporal is superseded for the release path; Restate-specific types stay out of public/domain contracts. |
+| Service configuration/bootstrap secrets | Railway service/shared variables | Values are never committed; configuration is validated at startup. |
+| Dynamic connector/provider credentials | Provider-neutral credential-vault/secret boundary | Railway environment variables are not a substitute for user-scoped dynamic credential storage. M9.9 must explicitly retain or replace the legacy AWS adapter behind the port and document the accepted cloud implementation. |
+| Internal networking | Railway private networking where applicable | Only explicitly required authenticated endpoints receive public ingress. |
+| Coordination/cache | Replaceable and only where measured need exists | Never authoritative for durable correctness. |
 
-```sh
-bun run containers:print
-docker buildx bake -f infrastructure/containers/docker-bake.hcl --load
-docker buildx bake -f infrastructure/containers/docker-bake.hcl database-migrate --load
-```
+## Current external-resource state
 
-The default bake group builds `control-api`, `workflow-worker`, `runtime-worker`,
-`runtime-gateway`, and `tool-gateway`. The separate `database-migrate` target has a migration-only
-entrypoint. Publish images to the Terraform-created ECR repositories and deploy the registry
-references returned by the registry with `@sha256:...`; mutable tags are rejected by Terraform.
+As of the current M9 planning baseline:
 
-## Environment and state separation
+- a Railway `control-plane` project exists with the five historical server/cloud service targets;
+- their initial deployments have failed before runtime because the monorepo build path does not build/resolve internal workspace packages correctly;
+- the Railway services do not yet have Control Plane application variables configured;
+- a separate Neon project named `control-plane` exists, but the Control Plane Drizzle/domain schema has not yet been applied and no Railway service is currently wired to it;
+- existing `neon_auth` tables in that Neon project are not Control Plane identity authority and must not become an application dependency;
+- R2 and Restate must be provisioned/configured and verified through M9.8/M9.9 before M9.6 can close.
 
-Development, staging, and production are independent Terraform roots under
-`infrastructure/terraform/environments/`. Each root has distinct configuration, VPC CIDRs, remote
-state key, lock file, capacity settings, and example variables. The S3 backend uses native state
-locking. The backend bucket and IAM bootstrap are intentionally account-level prerequisites and
-must not share application state.
+Configuration shape is not deployment evidence. M9.6 requires an actual successful staging deployment, migrations, health/readiness, representative durable execution, restart/recovery, rollback/forward repair, R2 operations, and measured operational evidence.
 
-```sh
-cp infrastructure/terraform/environments/development/terraform.tfvars.example \
-  infrastructure/terraform/environments/development/terraform.tfvars
-terraform -chdir=infrastructure/terraform/environments/development init \
-  -backend-config=bucket=CONTROL_PLANE_TERRAFORM_STATE \
-  -backend-config=region=us-east-1
-terraform -chdir=infrastructure/terraform/environments/development plan
-```
+## Railway service composition
 
-Never commit the copied tfvars file or backend credentials. Repeat the process with the staging or
-production root; never select an environment through a shared workspace. Run the credential-free
-structural checks locally with `bun run infra:fmt:check` and `bun run infra:validate`.
+The historical server/cloud composition roots remain:
 
-## Secrets and service identity
+- `control-api`
+- `workflow-worker`
+- `runtime-worker`
+- `runtime-gateway`
+- `tool-gateway`
 
-Terraform creates one least-privilege task role and execution role per target. Tasks can read only
-their declared secret shells; object-store actions and database/cache network identities are
-granted per service. RDS creates and rotates
-its master secret itself. Application database URLs, migration credentials, and service credentials
-must be populated outside Terraform through an approved secret-delivery process; no secret value or
-Secrets Manager secret version belongs in source, tfvars, Terraform state, or an image.
+M9.8 may change the workflow-worker/service topology where the old shape exists only because of Temporal. Do not preserve a five-service topology merely for historical symmetry. Service boundaries are deployable composition roots, not public product contracts.
 
-For secret rotation, write a new secret value, start a canary task definition revision, confirm its
-health and dependency access, then force a rolling ECS deployment. Revoke the old credential only
-after all old tasks have drained. Database rotation must preserve a dedicated, separately scoped
-`DATABASE_MIGRATION_URL`; replicas receive `DATABASE_URL` and never migration authority.
+M9.7 should use a dependency-aware, reproducible container build from the monorepo. The existing `infrastructure/containers` build pipeline may be adapted for Railway. AWS/ECS-specific image platform assumptions, ECR publication requirements, task definitions, Terraform roots, IAM roles, CloudWatch/SNS wiring, and ECS rollout mechanics are no longer the first-party deployment contract.
 
-## Migration, rollout, and rollback
+## Neon PostgreSQL
 
-Use this order for every deployment:
+The Control Plane cloud database is external to Railway and independently owned.
 
-1. Build, test, scan, and publish all required images; record immutable image digests.
-2. Run `terraform plan` in exactly one environment root and review state, capacity, and task changes.
-3. Confirm the operations SNS topic has a tested incident subscription. Apply infrastructure and
-   task-definition changes without increasing service replica counts.
-4. Run `database-migrate` once as an explicit ECS task using the root outputs for cluster, private
-   subnets, security group, and migration task definition. Wait for exit code zero. A migration is
-   never a service replica startup hook.
-5. Use the deployment compatibility gate to reject unsupported contracts, unverified migrations,
-   mutable images, or a failed canary. ECS preserves full production capacity during rollout, and
-   deployment circuit breakers automatically roll back tasks that cannot stabilize.
-6. Confirm health, readiness, logs, migration version, and dependency access before completing the
-   rollout.
+Requirements:
 
-If migration fails, do not deploy new replicas. Inspect the isolated task logs, repair with a new
-forward migration, and rerun the operation. Do not edit an applied migration or automatically roll
-back a schema that may already contain production data. For an application rollback, restore the
-previous digest-pinned task definition and desired counts, then verify health. Restore PostgreSQL or
-versioned object data only through a separately reviewed recovery operation.
+1. Use a dedicated Control Plane Neon project/database, separate from Agent HQ.
+2. Apply repository-owned Drizzle migrations through an explicit migration job/pre-deploy step; ordinary service startup must not silently migrate production.
+3. Maintain separate runtime and migration/admin authority. Only services that need relational persistence receive runtime access.
+4. Validate schema compatibility before accepting traffic.
+5. Exercise reconnect, forward repair, backup/PITR or equivalent recovery, and restore procedures in staging.
+6. Keep provider/database identifiers out of public/domain contracts.
+7. Treat any unrelated `neon_auth` schema as non-authoritative; leave inert or remove safely only through an explicit M9 decision.
 
-## Health and operational signals
+The repository's local PostgreSQL Compose fixtures remain useful for integration tests and server-profile development. They are **not** the M10 product Local persistence profile, which uses embedded SQLite behind `PersistenceProvider`.
 
-`control-api` exposes `/health` for process liveness and `/ready` for readiness. Its ECS container
-health check uses the local `/health` endpoint; deployment verification must check both endpoints
-through the intended network path. Workers and gateways remain deferred at zero replicas until they
-define meaningful liveness, readiness, draining, and retry behavior. CloudWatch logs are encrypted
-and retained longer in production, ECS container insights is enabled, and RDS, Valkey, and ECS CPU
-alarms route through the operations SNS topic. Production RDS is Multi-AZ and deletion-protected
-with a 35-day point-in-time recovery window. The incident, provider, policy, budget, backlog,
-restore, canary, and access procedures are in `docs/operations.md`.
-PostgreSQL and Valkey engine versions are pinned to compatibility-certified major/minor releases;
-upgrades require an explicit variable change and the same migration, canary, and rollback review.
+## Cloudflare R2
 
-Terraform validation proves configuration shape, not cloud readiness. An actual environment still
-requires reviewed backend bootstrap, credentials, a plan, an apply, migration execution, service
-health evidence, and rollback rehearsal.
+R2 is used only for Control Plane-managed cloud object storage and explicitly stored/promoted cloud artifacts/bundles. M9.9 must provision or verify the environment-specific bucket/configuration, least-privilege credentials, endpoint settings, lifecycle/retention rules, and adapter operations.
+
+Local and Self-hosted profiles introduced in M10 use filesystem or user-controlled S3-compatible storage by default. Switching `ObjectStore` must not change Artifact identity or public contracts.
+
+## Restate
+
+Restate is the canonical durable workflow runtime across profiles.
+
+- M9.8 owns the **Railway cloud** migration from Temporal to Restate, including networking, health, persistence, restart/redeploy, observability, and in-flight execution behavior.
+- M10.1 owns packaging/porting the already accepted Restate workflow implementation to Local and Self-hosted profiles.
+
+Do not make M10 responsible for getting cloud Restate working for the first time.
+
+## Configuration and secrets
+
+All service bootstrap configuration is typed and validated. Staging/production values are supplied by Railway configuration and approved external providers; secret values never belong in source, images, logs, issue bodies, or generated docs.
+
+Separate **service/bootstrap secrets** from **dynamic user/provider credentials**. Railway variables are appropriate for deployment configuration such as database endpoints, service credentials, Restate configuration, R2 credentials, and master/bootstrap secret references. User-scoped connector/provider credentials require the audited credential-vault `SecretProvider` boundary and cannot be modeled as one environment variable per user credential.
+
+M10 adds Local and Self-hosted `SecretsProvider` adapters without changing secret-reference/rotation/revocation semantics.
+
+## Deployment, migration, and rollback
+
+The accepted managed-cloud release flow is:
+
+1. Build/test/scan reproducible service images from the complete workspace.
+2. Validate repository-owned Railway service configuration and exact image/application revision.
+3. Validate required Railway variables and external dependency configuration without exposing values.
+4. Run the explicit Neon migration step with separately scoped migration authority.
+5. Deploy the required service topology and Restate runtime.
+6. Verify liveness/readiness through intended public/private paths.
+7. Run a representative durable execution and R2 operations.
+8. Exercise service/Restate/database reconnect and failed-deploy rollback/forward repair.
+9. Run the M9 observability/security/recovery/load evidence against the real staging environment.
+10. Record exact commit, configuration versions, migrations, service versions, resource/cost measurements, and rollback target.
+
+A failed schema migration blocks application rollout. Applied production migrations are repaired forward unless an explicitly reviewed restore procedure is required.
+
+## Local and Self-hosted profiles
+
+M10 introduces:
+
+- **Local:** all-in-one Control Plane, Node 24 `node:sqlite`/Drizzle, pinned single-node Restate, filesystem storage, direct RuntimeTransport, no Docker/PostgreSQL/Redis/Temporal/Runtime Gateway requirement for ordinary co-located execution.
+- **Self-hosted `simple`:** containerized all-in-one, SQLite, Restate, filesystem storage, optional co-located runtimes/Cortana.
+- **Self-hosted `server`:** PostgreSQL-backed server composition, Restate, filesystem or S3-compatible storage, split services/Runtime Gateway only where topology requires them.
+
+The M9 Railway profile remains the semantic reference while M10 substitutes infrastructure adapters. M10 must keep the M9 cloud smoke/conformance baseline green throughout the extraction.
+
+## Historical AWS infrastructure
+
+The `infrastructure/terraform` AWS/ECS modules and associated AWS operational assumptions are retained as historical/provider-portability assets until M9.7 decides what to delete, archive, or preserve. They are not the current first-party cloud runbook, not a release prerequisite, and not evidence that AWS resources exist.
