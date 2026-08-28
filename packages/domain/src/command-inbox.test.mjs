@@ -191,6 +191,7 @@ describe('CommandInbox execution acceptance', () => {
       transitionedAt: '2026-08-24T10:03:00.000Z',
       resultReference: ids.artifactId,
     })
+    expect(completed.errorReference).toBeUndefined()
     const terminalReplay = await service.acceptExecution(commandInput())
 
     expect(terminalReplay.command).toEqual(completed)
@@ -218,6 +219,31 @@ describe('CommandInbox execution acceptance', () => {
         errorReference: 'database password leaked in stack trace',
       })
     ).rejects.toThrow()
+  })
+
+  test('transitions the acceptance command by its durable execution identity', async () => {
+    const { service } = setup()
+    const accepted = await service.acceptExecution(commandInput())
+    await service.transitionCommand({
+      ...commandInput(),
+      expectedVersion: accepted.command.version,
+      to: 'processing',
+      transitionedAt: '2026-08-24T10:01:00.000Z',
+    })
+
+    const completed = await service.transitionExecutionCommand({
+      executionId: ids.executionId,
+      to: 'completed',
+      transitionedAt: '2026-08-24T10:02:00.000Z',
+      resultReference: ids.artifactId,
+    })
+
+    expect(completed).toMatchObject({
+      executionId: ids.executionId,
+      status: 'completed',
+      resultReference: ids.artifactId,
+    })
+    expect((await service.acceptExecution(commandInput())).command).toEqual(completed)
   })
 
   test('rejects stale status transitions and retries after the retention deadline', async () => {

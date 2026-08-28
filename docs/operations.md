@@ -34,6 +34,13 @@ separately pinned `restate` runtime still requires live provisioning. Railway `s
 environment has separate least-privilege roles. R2 service credentials and the remaining live
 deployment/recovery evidence are still required before M9.6 #73 can close.
 
+The repository Cloud composition now persists accepted commands/executions in PostgreSQL and wires
+the workflow worker's lifecycle activities to the same authoritative execution and plan data.
+Staging uses the explicit `certification` runtime mode to persist and integrity-check a deterministic
+terminal result through R2. Production uses `disabled` and cannot accept certification executions.
+This path certifies the Control Plane cloud infrastructure only; later Agent HQ managed-runtime
+support requires its own runtime provider and certification.
+
 Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
 
 ## Managed-cloud release and rollback
@@ -54,6 +61,10 @@ revision.
 10. Run the existing M9 security, recovery, and performance tooling against the actual staging candidate and record measured evidence.
 
 A database migration failure blocks rollout. Never hide a broken revision behind a green process health check. Applied schema changes are repaired forward unless a reviewed restore operation is explicitly required.
+
+For M9 staging certification, verify the retained `m9/certification/` result with `get` and `head`,
+match its digest to the terminal execution/command state, and replay the same accepted command to
+confirm that no second logical artifact is created. Do not report this as managed Pi certification.
 
 ## Neon operations
 

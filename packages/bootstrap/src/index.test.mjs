@@ -48,7 +48,11 @@ describe('bootstrapService', () => {
           'postgresql://app:database-secret@example.neon.tech/control_plane?sslmode=require',
         CONTROL_PLANE_SECRET_ENCRYPTION_KEY:
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-        CONTROL_PLANE_SERVICE_AUTH_TOKEN: 'service-token-that-is-at-least-32-characters',
+        CONTROL_PLANE_SERVICE_AUTH_ISSUER: 'https://agent-hq.example',
+        CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: JSON.stringify([
+          { keyId: 'agent-hq-2026-08', publicKey: 'A'.repeat(43) },
+        ]),
+        CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: '[]',
         R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
         R2_BUCKET: 'ctrl-plane',
         R2_REGION: 'auto',

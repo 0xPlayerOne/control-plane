@@ -107,6 +107,7 @@ if (
   environment.services?.['control-api']?.includes('RESTATE_INGRESS_URL') !== true ||
   environment.services?.['workflow-worker']?.includes('RESTATE_REQUEST_IDENTITY_PUBLIC_KEY') !==
     true ||
+  environment.services?.['workflow-worker']?.includes('CONTROL_PLANE_CLOUD_RUNTIME') !== true ||
   JSON.stringify(environment).includes('RESTATE_SERVICE_AUTH_TOKEN')
 ) {
   throw new Error('Railway Restate dependency ownership or request identity is invalid.')
@@ -121,6 +122,10 @@ for (const requiredFragment of [
   'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
   "const sourceBranch = production ? 'main' : 'staging'",
   'branch: sourceBranch',
+  'CONTROL_PLANE_CLOUD_RUNTIME',
+  'CONTROL_PLANE_SERVICE_AUTH_ISSUER',
+  'CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS',
+  'CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS',
 ]) {
   if (!railwayIac.includes(requiredFragment)) {
     throw new Error(`Railway IaC is missing required project intent: ${requiredFragment}.`)
@@ -128,6 +133,9 @@ for (const requiredFragment of [
 }
 if (railwayIac.includes('RESTATE_SERVICE_AUTH_TOKEN')) {
   throw new Error('Railway IaC must not retain the unsupported Restate service token contract.')
+}
+if (railwayIac.includes('CONTROL_PLANE_SERVICE_AUTH_TOKEN')) {
+  throw new Error('Railway IaC must not retain the removed shared service-auth token.')
 }
 if (
   railwayIac.includes("service('@control-plane/runtime-worker'") ||

@@ -166,6 +166,23 @@ test('configures the Code Foundry CI baseline for the public staging-release rep
   }
 })
 
+test('emits the required gate contexts and documents the staging-release policy', async () => {
+  const [config, contributing, ci, foundation, productionReadiness] = await Promise.all([
+    readFile(new URL('../.github/code-foundry.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/CONTRIBUTING.md', import.meta.url), 'utf8'),
+    readFile(new URL('../docs/ci.md', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/foundation-acceptance.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/m9-production-readiness.yml', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(config, /^merge_strategy: rebase$/m)
+  assert.match(foundation, /^\s{4}name: Foundation Acceptance \/ Gate$/m)
+  assert.match(productionReadiness, /^\s{4}name: M9 Production Readiness \/ Gate$/m)
+  assert.match(contributing, /feature PRs land on `staging` with squash merges/)
+  assert.match(ci, /Feature branches must squash into `staging`/)
+  assert.doesNotMatch(contributing, /feature PRs land on `main` with rebase merges/)
+})
+
 test('generates the staging-release Code Foundry callers with parallel validation', async () => {
   const validation = await readFile(
     new URL('../.github/workflows/validation.yml', import.meta.url),

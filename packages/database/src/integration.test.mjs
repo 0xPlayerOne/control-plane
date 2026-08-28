@@ -2,13 +2,18 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
+import { contextPackageSerializationFixtures } from '@control-plane/context'
 import {
   CommandInboxService,
   ExecutionLifecycleService,
   ExecutionReconciliationService,
   InteractionService,
+  ProjectStateService,
+  RecordingProjectStateEventPublisher,
 } from '@control-plane/domain'
 import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
+import { ExecutionPlanAcceptanceValidator } from '@control-plane/execution-plan'
+import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
 import {
   ExternalSessionRegistry,
   RecordingRuntimeAvailabilityChangePublisher,
@@ -16,13 +21,19 @@ import {
   RuntimeHealthIngestionService,
 } from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
+import { PostgresContextPackageRepository } from './context-package-repository.ts'
 import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
+import { PostgresExecutionPlanRepository } from './execution-plan-repository.ts'
 import { PostgresEvaluationRepository } from './evaluation-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.ts'
+import {
+  PostgresProjectStateRepository,
+  PostgresStatePromotionProposalRepository,
+} from './project-state-repository.ts'
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import { PostgresReleaseAuditRepository } from './release-audit-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
@@ -32,20 +43,25 @@ import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventor
 import { PostgresUsageLedgerRepository } from './usage-ledger-repository.ts'
 import {
   commandInbox,
+  contextPackages,
   delegations,
   evaluationRuns,
   executionEvents,
+  executionPlans,
   executions,
   externalSessions,
   inboxMessages,
   interactionRequests,
   outboxEvents,
+  projectStateRevisions,
+  projectStates,
   reconciliationCheckpoints,
   releaseAuditRecords,
   runtimeCommands,
   runtimeEventReceipts,
   runtimeInventoryCheckpoints,
   runtimeConnections,
+  statePromotionProposals,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
 
@@ -79,6 +95,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(result.map(({ table_name: tableName }) => tableName)).toEqual(
       expect.arrayContaining([
         'execution_attempts',
+        'execution_plans',
         'delegations',
         'executions',
         'evaluation_runs',
@@ -92,6 +109,174 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'runtime_inventory_checkpoints',
       ])
     )
+  })
+
+  test('persists immutable execution plans across repository restart', async () => {
+    await isolated.migrate()
+    const plan = createExecutionPlanTestFixture()
+    const repository = new PostgresExecutionPlanRepository(isolated.application)
+    const reference = await repository.put(plan)
+
+    expect(reference).toEqual({
+      executionPlanId: plan.executionPlanId,
+      contentDigest: plan.contentDigest,
+    })
+    expect(await repository.put(plan)).toEqual(reference)
+
+    const restarted = new PostgresExecutionPlanRepository(isolated.application)
+    expect(await restarted.get(reference)).toEqual(plan)
+    expect(
+      await restarted.get({ ...reference, contentDigest: `sha256:${'f'.repeat(64)}` })
+    ).toBeUndefined()
+    expect(await isolated.application.select().from(executionPlans)).toHaveLength(1)
+
+    const validator = new ExecutionPlanAcceptanceValidator(restarted)
+    expect(
+      await validator.validate({
+        executionPlan: { ...reference, schemaVersion: plan.schemaVersion },
+        workspaceId: plan.correlation.workspaceId,
+        projectId: plan.correlation.projectId,
+        taskId: plan.correlation.taskId,
+        agentId: plan.correlation.agentId,
+      })
+    ).toBe(true)
+
+    await expect(
+      repository.put({
+        ...plan,
+        contentDigest: `sha256:${'f'.repeat(64)}`,
+      })
+    ).rejects.toThrow()
+  })
+
+  test('persists ProjectState history, mutation replay, and promotion CAS across restart', async () => {
+    await isolated.migrate()
+    const repository = new PostgresProjectStateRepository(isolated.application)
+    const proposals = new PostgresStatePromotionProposalRepository(isolated.application)
+    const service = new ProjectStateService(
+      repository,
+      proposals,
+      new RecordingProjectStateEventPublisher()
+    )
+    const scope = {
+      workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+      projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+    }
+    await service.initialize({ ...scope, at: '2026-08-28T12:00:00.000Z' })
+    const mutation = {
+      ...scope,
+      mutationId: 'stm_01JABCDEF0123456789ABCDEFG',
+      expectedRevision: 0,
+      actorPrincipalRef: 'principal://operator',
+      operations: [
+        {
+          kind: 'append',
+          item: {
+            itemId: 'psi_01JABCDEF0123456789ABCDEFG',
+            key: 'project.objective',
+            value: 'Ship the Cloud reference',
+            sensitivity: 'internal',
+            freshness: { observedAt: '2026-08-28T12:01:00.000Z' },
+            provenance: {
+              sourceKind: 'principal',
+              sourcePrincipalRef: 'principal://operator',
+              artifactRefs: [],
+              capturedAt: '2026-08-28T12:01:00.000Z',
+            },
+          },
+        },
+      ],
+      at: '2026-08-28T12:01:00.000Z',
+    }
+    expect((await service.applyMutation(mutation)).applied).toBe(true)
+
+    const restartedRepository = new PostgresProjectStateRepository(isolated.application)
+    const restartedProposals = new PostgresStatePromotionProposalRepository(isolated.application)
+    const restarted = new ProjectStateService(
+      restartedRepository,
+      restartedProposals,
+      new RecordingProjectStateEventPublisher()
+    )
+    expect((await restarted.applyMutation(mutation)).applied).toBe(false)
+    expect((await restarted.getHistory(scope)).map(({ revision }) => revision)).toEqual([0, 1])
+
+    const proposal = await restarted.createPromotionProposal({
+      ...scope,
+      proposalId: 'spp_01JABCDEF0123456789ABCDEFG',
+      baseRevision: 1,
+      sourceExecutionId: 'exe_01JABCDEF0123456789ABCDEFG',
+      operations: [
+        {
+          kind: 'append',
+          item: {
+            itemId: 'psi_01JBBCDEF0123456789ABCDEFG',
+            key: 'execution.result',
+            value: { status: 'verified' },
+            sensitivity: 'internal',
+            freshness: { observedAt: '2026-08-28T12:02:00.000Z' },
+            provenance: {
+              sourceKind: 'execution',
+              sourceExecutionId: 'exe_01JABCDEF0123456789ABCDEFG',
+              sourcePrincipalRef: 'agent://cloud-worker',
+              artifactRefs: [],
+              capturedAt: '2026-08-28T12:02:00.000Z',
+            },
+          },
+        },
+      ],
+      createdAt: '2026-08-28T12:02:00.000Z',
+      expiresAt: '2026-08-29T12:02:00.000Z',
+    })
+    expect(
+      await restartedProposals.compareAndSet(proposal.revision, {
+        ...proposal,
+        revision: proposal.revision + 1,
+        operations: [
+          {
+            ...proposal.operations[0],
+            item: { ...proposal.operations[0].item, value: { status: 'tampered' } },
+          },
+        ],
+      })
+    ).toBe(false)
+    const reviews = await Promise.allSettled([
+      restarted.approvePromotion({
+        proposalId: proposal.proposalId,
+        reviewingPrincipalRef: 'principal://reviewer-a',
+        reviewedAt: '2026-08-28T12:03:00.000Z',
+      }),
+      restarted.approvePromotion({
+        proposalId: proposal.proposalId,
+        reviewingPrincipalRef: 'principal://reviewer-b',
+        reviewedAt: '2026-08-28T12:03:00.000Z',
+      }),
+    ])
+    expect(reviews.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+    expect(reviews.filter(({ status }) => status === 'rejected')).toHaveLength(1)
+    expect((await restartedProposals.get(proposal.proposalId))?.state).toBe('approved')
+    expect(await isolated.application.select().from(projectStates)).toHaveLength(1)
+    expect(await isolated.application.select().from(projectStateRevisions)).toHaveLength(2)
+    expect(await isolated.application.select().from(statePromotionProposals)).toHaveLength(1)
+  })
+
+  test('persists immutable ContextPackages across restart and fails closed on tampering', async () => {
+    await isolated.migrate()
+    const package_ = contextPackageSerializationFixtures.futurePi
+    const repository = new PostgresContextPackageRepository(isolated.application)
+    const reference = await repository.put(package_)
+    expect(await repository.put(package_)).toEqual(reference)
+
+    const restarted = new PostgresContextPackageRepository(isolated.application)
+    expect(await restarted.get(reference)).toEqual(package_)
+    expect(
+      await restarted.get({ ...reference, contentDigest: `sha256:${'0'.repeat(64)}` })
+    ).toBeUndefined()
+
+    await isolated.application.execute(
+      sql`update context_packages set context_package = jsonb_set(context_package, '{objective}', '"tampered"'::jsonb)`
+    )
+    await expect(restarted.get(reference)).rejects.toThrow()
+    expect(await isolated.application.select().from(contextPackages)).toHaveLength(1)
   })
 
   test('persists immutable evaluation evidence across repository restart', async () => {
@@ -981,6 +1166,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       transitionedAt: '2026-08-24T11:01:00.000Z',
     })
     expect(processing).toMatchObject({ status: 'processing', version: record.version + 1 })
+    expect(await repository.getByExecutionId(processing.executionId)).toEqual(processing)
     expect((await service.acceptExecution(input)).command).toEqual(processing)
   })
 

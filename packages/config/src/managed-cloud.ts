@@ -2,13 +2,7 @@ import { ConfigurationError } from './service.js'
 import { loadDatabaseCredentials, type DatabaseCredentials } from './database.js'
 import type { RawEnvironment } from './environment.js'
 
-export const managedCloudServices = [
-  'control-api',
-  'workflow-worker',
-  'runtime-worker',
-  'runtime-gateway',
-  'tool-gateway',
-] as const
+export const managedCloudServices = ['control-api', 'workflow-worker'] as const
 
 export type ManagedCloudService = (typeof managedCloudServices)[number]
 
@@ -24,12 +18,24 @@ export type ManagedCloudRestateConfiguration =
   | { readonly role: 'caller'; readonly ingressUrl: string }
   | { readonly role: 'endpoint'; readonly requestIdentityPublicKey: string }
 
+export interface ManagedCloudServiceAuthenticationConfiguration {
+  readonly audience: 'control-plane'
+  readonly issuer: string
+  readonly trustedKeys: readonly { readonly keyId: string; readonly publicKey: string }[]
+  readonly revokedCredentialIds: readonly string[]
+}
+
+export interface ManagedCloudRuntimeConfiguration {
+  readonly mode: 'certification' | 'disabled'
+}
+
 export interface ManagedCloudConfiguration {
   readonly service: ManagedCloudService
   readonly database?: DatabaseCredentials<'application'>
   readonly objectStore?: ManagedCloudObjectStoreConfiguration
   readonly restate?: ManagedCloudRestateConfiguration
-  readonly serviceAuthToken: string
+  readonly runtime?: ManagedCloudRuntimeConfiguration
+  readonly serviceAuthentication?: ManagedCloudServiceAuthenticationConfiguration
   readonly secretEncryptionKey: string
 }
 
@@ -37,7 +43,9 @@ const requiredVariables: Record<ManagedCloudService, readonly string[]> = {
   'control-api': [
     'DATABASE_URL',
     'CONTROL_PLANE_SECRET_ENCRYPTION_KEY',
-    'CONTROL_PLANE_SERVICE_AUTH_TOKEN',
+    'CONTROL_PLANE_SERVICE_AUTH_ISSUER',
+    'CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS',
+    'CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS',
     'R2_ENDPOINT',
     'R2_BUCKET',
     'R2_REGION',
@@ -48,26 +56,14 @@ const requiredVariables: Record<ManagedCloudService, readonly string[]> = {
   'workflow-worker': [
     'DATABASE_URL',
     'CONTROL_PLANE_SECRET_ENCRYPTION_KEY',
-    'CONTROL_PLANE_SERVICE_AUTH_TOKEN',
     'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
     'R2_ENDPOINT',
     'R2_BUCKET',
     'R2_REGION',
     'R2_ACCESS_KEY_ID',
     'R2_SECRET_ACCESS_KEY',
+    'CONTROL_PLANE_CLOUD_RUNTIME',
   ],
-  'runtime-worker': [
-    'DATABASE_URL',
-    'CONTROL_PLANE_SECRET_ENCRYPTION_KEY',
-    'CONTROL_PLANE_SERVICE_AUTH_TOKEN',
-    'R2_ENDPOINT',
-    'R2_BUCKET',
-    'R2_REGION',
-    'R2_ACCESS_KEY_ID',
-    'R2_SECRET_ACCESS_KEY',
-  ],
-  'runtime-gateway': ['CONTROL_PLANE_SERVICE_AUTH_TOKEN'],
-  'tool-gateway': ['CONTROL_PLANE_SERVICE_AUTH_TOKEN'],
 }
 
 export function managedCloudEnvironmentManifest(): Readonly<
@@ -82,11 +78,7 @@ export function loadManagedCloudConfiguration(
 ): ManagedCloudConfiguration {
   const missing = requiredVariables[service].filter((variable) => !environment[variable])
   const invalid: string[] = []
-  const serviceAuthToken = environment['CONTROL_PLANE_SERVICE_AUTH_TOKEN']
   const secretEncryptionKey = environment['CONTROL_PLANE_SECRET_ENCRYPTION_KEY']
-  if (serviceAuthToken !== undefined && serviceAuthToken.length < 32) {
-    invalid.push('CONTROL_PLANE_SERVICE_AUTH_TOKEN')
-  }
   if (secretEncryptionKey !== undefined && !isEncryptionKey(secretEncryptionKey)) {
     invalid.push('CONTROL_PLANE_SECRET_ENCRYPTION_KEY')
   }
@@ -111,14 +103,116 @@ export function loadManagedCloudConfiguration(
       : service === 'workflow-worker'
         ? loadRestateEndpointConfiguration(environment)
         : undefined
+  const runtime =
+    service === 'workflow-worker' ? loadWorkflowRuntimeConfiguration(environment) : undefined
+  const serviceAuthentication =
+    service === 'control-api' ? loadServiceAuthenticationConfiguration(environment) : undefined
 
   return {
     service,
     ...(database === undefined ? {} : { database }),
     ...(objectStore === undefined ? {} : { objectStore }),
     ...(restate === undefined ? {} : { restate }),
-    serviceAuthToken: serviceAuthToken as string,
+    ...(runtime === undefined ? {} : { runtime }),
+    ...(serviceAuthentication === undefined ? {} : { serviceAuthentication }),
     secretEncryptionKey: secretEncryptionKey as string,
+  }
+}
+
+function loadWorkflowRuntimeConfiguration(
+  environment: RawEnvironment
+): ManagedCloudRuntimeConfiguration {
+  const mode = environment['CONTROL_PLANE_CLOUD_RUNTIME']
+  if (mode !== 'certification' && mode !== 'disabled') {
+    throw new ConfigurationError({
+      code: 'INVALID_MANAGED_CLOUD_CONFIGURATION',
+      invalid: ['CONTROL_PLANE_CLOUD_RUNTIME'],
+      missing: [],
+      component: 'runtime',
+    })
+  }
+  return { mode }
+}
+
+function loadServiceAuthenticationConfiguration(
+  environment: RawEnvironment
+): ManagedCloudServiceAuthenticationConfiguration {
+  const issuer = environment['CONTROL_PLANE_SERVICE_AUTH_ISSUER'] as string
+  const trustedKeys = parseJsonArray(environment['CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS'])
+  const revokedCredentialIds = parseJsonArray(
+    environment['CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS']
+  )
+  const validIssuer = isHttpsUrlWithoutCredentials(issuer)
+  const validKeys =
+    trustedKeys !== undefined &&
+    trustedKeys.length > 0 &&
+    trustedKeys.length <= 32 &&
+    trustedKeys.every(isTrustedServiceKey) &&
+    new Set(trustedKeys.map((key) => key.keyId)).size === trustedKeys.length
+  const validRevocations =
+    revokedCredentialIds !== undefined &&
+    revokedCredentialIds.length <= 10_000 &&
+    revokedCredentialIds.every(
+      (id) => typeof id === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(id)
+    ) &&
+    new Set(revokedCredentialIds).size === revokedCredentialIds.length
+  const invalid = [
+    ...(!validIssuer ? ['CONTROL_PLANE_SERVICE_AUTH_ISSUER'] : []),
+    ...(!validKeys ? ['CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS'] : []),
+    ...(!validRevocations ? ['CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS'] : []),
+  ]
+  if (invalid.length > 0) {
+    throw new ConfigurationError({
+      code: 'INVALID_MANAGED_CLOUD_CONFIGURATION',
+      invalid,
+      missing: [],
+      component: 'service-authentication',
+    })
+  }
+  return {
+    audience: 'control-plane',
+    issuer,
+    trustedKeys: trustedKeys as ManagedCloudServiceAuthenticationConfiguration['trustedKeys'],
+    revokedCredentialIds: revokedCredentialIds as readonly string[],
+  }
+}
+
+function parseJsonArray(value: string | undefined): unknown[] | undefined {
+  if (value === undefined || value.length > 65_536) return undefined
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function isTrustedServiceKey(value: unknown): value is { keyId: string; publicKey: string } {
+  if (typeof value !== 'object' || value === null) return false
+  const keyId = Reflect.get(value, 'keyId')
+  const publicKey = Reflect.get(value, 'publicKey')
+  return (
+    typeof keyId === 'string' &&
+    /^[A-Za-z0-9._:-]{1,128}$/.test(keyId) &&
+    typeof publicKey === 'string' &&
+    /^[A-Za-z0-9_-]{43}$/.test(publicKey) &&
+    Buffer.from(publicKey, 'base64url').length === 32
+  )
+}
+
+function isHttpsUrlWithoutCredentials(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      url.pathname === '/'
+    )
+  } catch {
+    return false
   }
 }
 

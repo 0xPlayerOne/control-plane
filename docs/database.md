@@ -17,21 +17,30 @@ Restate durable workflow state is separate from Control Plane domain persistence
 
 ## Current managed-cloud Neon state
 
-A separate Neon project named `control-plane` exists. It is distinct from the Agent HQ Neon project. At the current M9 planning baseline:
+A separate Neon project named `control-plane` exists. It is distinct from the Agent HQ Neon project.
+The repository-owned managed-cloud compositions now connect both `control-api` and
+`workflow-worker` to PostgreSQL using application-role credentials. The Control API persists plans,
+commands, executions, ProjectState, and ContextPackages; the workflow worker persists execution and
+attempt lifecycle transitions and loads the exact accepted plan before runtime dispatch.
 
 - the dedicated Control Plane Neon project has separate `staging` and `main`
   branches; `staging` is the Railway staging database and `main` is the Railway
   production database;
-- Railway's `staging` and `production` environments each supply their own
+- Railway's `staging` and `production` environments must each supply their own
   `DATABASE_URL`, `DATABASE_MIGRATION_URL`, and `DATABASE_ADMIN_URL` values;
-- the Control Plane Drizzle/domain schema is applied to the staging branch by the
+- the Control Plane Drizzle/domain schema is applied to the staging branch by an
   explicit migration job before staging traffic is accepted, while production
   remains separately migrated through the release process;
-- current inspection shows only an unrelated `neon_auth` schema outside the
-  Control Plane domain contract;
+- any unrelated `neon_auth` schema is outside the Control Plane domain contract;
 - Control Plane application code must not depend on that `neon_auth` schema because Agent HQ owns product user authentication.
 
-M9.9 #217 owns initialization/wiring. Production/staging tables must be created from repository-owned Drizzle migrations, not manual console SQL. M9.6 #73 verifies the resulting schema and live service connectivity.
+This composition is not live-environment evidence. M9.6 #73 still owns explicit migration of the
+current repository schema into the isolated Neon staging branch, deployed-service connectivity,
+least-privilege verification, reconnect/recovery evidence, and later promotion. Any unrelated
+`neon_auth` schema remains non-authoritative and unused by Control Plane application code.
+
+Production/staging tables must be created from repository-owned Drizzle migrations, not manual
+console SQL.
 
 ## PostgreSQL development and integration fixtures
 

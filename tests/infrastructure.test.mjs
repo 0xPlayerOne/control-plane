@@ -18,6 +18,11 @@ test('defines the Railway cloud service and migration manifest', async () => {
     ['control-api']
   )
   assert.deepEqual(manifest.profiles.cloud.migration.requires, ['DATABASE_MIGRATION_URL'])
+  assert.ok(
+    services
+      .find(({ name }) => name === 'workflow-worker')
+      .requires.includes('CONTROL_PLANE_CLOUD_RUNTIME')
+  )
   assert.equal(
     manifest.profiles.cloud.migration.command,
     'bun --cwd=packages/database run db:migrate'
@@ -60,7 +65,14 @@ test('owns the active Railway project graph as code without committed secrets', 
   assert.match(source, /DATABASE_URL: preserve\(\)/)
   assert.match(source, /RESTATE_INGRESS_URL:/)
   assert.match(source, /RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve\(\)/)
+  assert.match(source, /CONTROL_PLANE_CLOUD_RUNTIME: production \? 'disabled' : 'certification'/)
+  assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_ISSUER: preserve\(\)/)
+  assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: preserve\(\)/)
+  assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: preserve\(\)/)
+  assert.doesNotMatch(source, /CONTROL_PLANE_SERVICE_AUTH_TOKEN/)
   assert.doesNotMatch(source, /RESTATE_SERVICE_AUTH_TOKEN/)
+  assert.doesNotMatch(source, /\bCOMMIT_SHA:\s*preserve\(\)/)
+  assert.doesNotMatch(source, /\bSERVICE_VERSION:\s*preserve\(\)/)
   assert.doesNotMatch(source, /(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY):\s*['"][^'"]+['"]/)
   assert.doesNotMatch(
     source,

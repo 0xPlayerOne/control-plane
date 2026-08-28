@@ -29,6 +29,13 @@ Railway service/shared variables are the accepted initial source for **service/b
 - R2 endpoint/bucket/credential references;
 - bootstrap/master references for other deployment services.
 
+The Cloud Control API authenticates Agent HQ with signed, scoped service credentials. Railway
+configuration supplies the exact issuer, a bounded set of trusted Ed25519 public keys, and the current
+emergency-revocation set through `CONTROL_PLANE_SERVICE_AUTH_ISSUER`,
+`CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS`, and
+`CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS`. There is no shared opaque service-token
+compatibility path.
+
 M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency. The repository-owned manifest is `infrastructure/railway/environment.json`; M9.8 publishes the Restate contract in `infrastructure/railway/restate.json`, and M9.9 wires and verifies both against Railway.
 
 `control-api` owns `RESTATE_INGRESS_URL` because callers invoke workflows through Restate ingress.
@@ -39,6 +46,14 @@ self-hosted runtime reads the matching private key from its persistent volume th
 `RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE`. There is no
 `RESTATE_SERVICE_AUTH_TOKEN` compatibility variable: self-hosted ingress authentication, private
 networking, and Restate-to-service request identity are separate controls.
+
+`workflow-worker` also requires `CONTROL_PLANE_CLOUD_RUNTIME`. Railway staging sets it to
+`certification`, which enables the bounded M9 runtime that writes and verifies a terminal result
+through the Control Plane R2 `ObjectStore`. Railway production sets it to `disabled`; production
+cannot execute certification traffic and remains unavailable until a separately implemented runtime
+is explicitly composed for launch. The certification runtime accepts only plans pinned to
+`contract://control-plane/m9-cloud-certification/v1`; ordinary execution plans fail before R2
+access. Unknown modes fail configuration validation.
 
 Railway deployment metadata is consumed directly: `RAILWAY_GIT_COMMIT_SHA` supplies the source revision and `RAILWAY_DEPLOYMENT_ID` supplies the deployed service version. `COMMIT_SHA` and `SERVICE_VERSION` are provider-neutral explicit overrides for Hosted or other non-Railway supervisors; Railway services do not need redundant reference aliases for them.
 

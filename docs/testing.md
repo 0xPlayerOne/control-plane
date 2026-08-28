@@ -43,6 +43,7 @@ M9.7–M9.13 must leave a reproducible managed-cloud validation path covering:
 - least-privilege runtime versus migration database authority;
 - Restate lifecycle/restart/redeploy/recovery;
 - R2 adapter operations;
+- staging-only Cloud certification execution with deterministic R2 write/get/head and replay;
 - Railway private service networking/public ingress boundaries;
 - service authentication/secrets/configuration;
 - health/readiness/draining;

@@ -55,7 +55,7 @@ jobs:
 
   # Stable required check: Foundation Acceptance / Gate
   gate:
-    name: Gate
+    name: Foundation Acceptance / Gate
     if: always()
     needs: [core, containers]
     runs-on: ubuntu-latest

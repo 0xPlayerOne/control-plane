@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  ExecutionWorkflowInputSchema,
   GraphExecutionRequestSchema,
   GraphSegmentResultSchema,
   OrchestrationError,
@@ -43,6 +44,21 @@ describe('orchestration port contracts', () => {
         events: [],
       }).status
     ).toBe('awaiting_input')
+  })
+
+  test('requires the durable workflow identity to derive from the execution identity', () => {
+    expect(
+      ExecutionWorkflowInputSchema.safeParse({
+        executionId: ids.executionId,
+        workflowId: 'wfl_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        executionPlan: {
+          executionPlanId: 'pln_01JABCDEF0123456789ABCDEFG',
+          contentDigest: `sha256:${'a'.repeat(64)}`,
+          schemaVersion: 1,
+        },
+        deadlineAt: '2026-08-25T12:00:00.000Z',
+      }).success
+    ).toBe(false)
   })
 
   test('creates sequenced, correlated lifecycle events and safe errors', () => {

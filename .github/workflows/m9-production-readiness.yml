@@ -70,7 +70,7 @@ jobs:
 
   # Stable required check: M9 Production Readiness / Gate
   gate:
-    name: Gate
+    name: M9 Production Readiness / Gate
     if: always()
     needs: [containers, core, integration-recovery]
     runs-on: ubuntu-latest
