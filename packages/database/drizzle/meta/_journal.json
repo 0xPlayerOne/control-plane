@@ -169,6 +169,13 @@
       "when": 1787937116575,
       "tag": "0023_rapid_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787938889426,
+      "tag": "0024_mute_maelstrom",
+      "breakpoints": true
     }
   ]
 }

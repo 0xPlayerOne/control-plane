@@ -170,12 +170,14 @@ export type ProjectStateItem = z.output<typeof ProjectStateItemSchema>
 export type ProjectStateOperation = z.output<typeof ProjectStateOperationSchema>
 export type StatePromotionProposal = z.output<typeof StatePromotionProposalSchema>
 
-export interface AppliedStateMutation {
-  readonly mutationId: string
-  readonly inputDigest: string
-  readonly resultingRevision: number
-  readonly touchedItemIds: readonly string[]
-}
+export const AppliedStateMutationSchema = z.object({
+  mutationId: IdentifierSchemas.stateMutationId,
+  inputDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  resultingRevision: z.number().int().positive(),
+  touchedItemIds: z.array(IdentifierSchemas.projectStateItemId).max(256),
+})
+
+export type AppliedStateMutation = z.output<typeof AppliedStateMutationSchema>
 
 export interface ProjectStateRepository {
   create(state: ProjectState): Promise<boolean>
