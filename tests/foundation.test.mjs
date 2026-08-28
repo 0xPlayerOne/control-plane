@@ -117,15 +117,14 @@ test('records architecture ownership and adapter decisions', async () => {
     'LiteLLM',
     'E2B',
     'accepted',
-    'deferred',
     'adapter-bound',
   ]) {
     assert.match(architecture, new RegExp(term, 'i'))
   }
   assert.match(architecture, /Agent HQ.*identity.*workspace authorization/is)
-  assert.match(architecture, /Control Plane.*execution policy.*runtime semantics/is)
+  assert.match(architecture, /Control Plane.*runtime\/tool\/model\/provider policy/is)
   assert.match(architecture, /no-cross-database-access/i)
-  assert.match(architecture, /contracts.*context.*execution.*runtime.*worktrees/is)
+  assert.match(architecture, /contract.*context.*execution.*runtime/is)
 })
 
 test('provides one ancestry-aware local acceptance command and a parallel CI gate', async () => {
@@ -152,8 +151,8 @@ test('provides one ancestry-aware local acceptance command and a parallel CI gat
     assert.match(dependency.commit, /^[0-9a-f]{40}$/)
   }
   assert.match(workflow, /Foundation Acceptance \/ Gate/)
-  assert.match(workflow, /max-parallel:\s*3/)
-  assert.match(workflow, /development, staging, production/)
+  assert.match(workflow, /needs: \[core, containers\]/)
+  assert.doesNotMatch(workflow, /Terraform|terraform/)
   assert.match(workflow, /default database-migrate/)
   assert.match(workflow, /cancel-in-progress:\s*true/)
 })

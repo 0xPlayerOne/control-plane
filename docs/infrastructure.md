@@ -2,7 +2,9 @@
 
 The accepted first-party managed-cloud Control Plane target is **Railway compute + Neon PostgreSQL + Cloudflare R2 + Restate**. M9 owns making that profile real and production-shaped. M10 then ports the same Control Plane core and execution semantics to Local desktop and Self-hosted/VPS deployment profiles.
 
-The repository still contains the earlier AWS/ECS/Terraform implementation from M1. Those files are historical/portable infrastructure assets until M9.7 explicitly replaces the first-party cloud path. They must not be cited as the current deployment target or as evidence that a cloud environment exists.
+M9 is rewriting the earlier AWS/ECS/Terraform implementation into the active Railway/Neon/R2 Cloud
+option. AWS is not a supported deployment option; the Cloud, Hosted/VPS, and Local options share
+application semantics while using different infrastructure adapters.
 
 ## Milestone ownership
 
@@ -15,16 +17,16 @@ The repository still contains the earlier AWS/ECS/Terraform implementation from 
 
 ## Managed-cloud provider map
 
-| Capability | Accepted M9 provider/boundary | Rule |
-| --- | --- | --- |
-| Compute | Railway | Repository-owned/reproducible service configuration; dashboard-only settings are not sufficient release evidence. |
-| Relational state | Separate Control Plane Neon PostgreSQL | Drizzle migrations are explicit; Agent HQ uses a different Neon project/database. |
-| Object storage | Cloudflare R2 through `ObjectStore` | Current Control Plane bucket is `ctrl-plane` with Wrangler binding `ctrl_plane`; physical identifiers remain deployment configuration and never enter public/domain contracts. |
-| Durable workflows | Restate through `WorkflowRuntime` | Temporal is superseded for the release path; Restate-specific types stay out of public/domain contracts. |
-| Service configuration/bootstrap secrets | Railway service/shared variables | Values are never committed; configuration is validated at startup. |
-| Dynamic connector/provider credentials | Provider-neutral credential-vault/secret boundary | Railway environment variables are not a substitute for user-scoped dynamic credential storage. M9.9 must explicitly retain or replace the legacy AWS adapter behind the port and document the accepted cloud implementation. |
-| Internal networking | Railway private networking where applicable | Only explicitly required authenticated endpoints receive public ingress. |
-| Coordination/cache | Replaceable and only where measured need exists | Never authoritative for durable correctness. |
+| Capability                              | Accepted M9 provider/boundary                     | Rule                                                                                                                                                                           |
+| --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Compute                                 | Railway                                           | Repository-owned/reproducible service configuration; dashboard-only settings are not sufficient release evidence.                                                              |
+| Relational state                        | Separate Control Plane Neon PostgreSQL            | Drizzle migrations are explicit; Agent HQ uses a different Neon project/database.                                                                                              |
+| Object storage                          | Cloudflare R2 through `ObjectStore`               | Current Control Plane bucket is `ctrl-plane` with Wrangler binding `ctrl_plane`; physical identifiers remain deployment configuration and never enter public/domain contracts. |
+| Durable workflows                       | Restate through `WorkflowRuntime`                 | Temporal is superseded for the release path; Restate-specific types stay out of public/domain contracts.                                                                       |
+| Service configuration/bootstrap secrets | Railway service/shared variables                  | Values are never committed; configuration is validated at startup.                                                                                                             |
+| Dynamic connector/provider credentials  | Provider-neutral credential-vault/secret boundary | Railway environment variables are not a substitute for user-scoped dynamic credential storage. M9.9 must document the active provider implementation behind the port.          |
+| Internal networking                     | Railway private networking where applicable       | Only explicitly required authenticated endpoints receive public ingress.                                                                                                       |
+| Coordination/cache                      | Replaceable and only where measured need exists   | Never authoritative for durable correctness.                                                                                                                                   |
 
 ## Current external-resource state
 
@@ -134,6 +136,8 @@ M10 introduces:
 
 The M9 Railway profile remains the semantic reference while M10 substitutes infrastructure adapters. M10 must keep the M9 cloud smoke/conformance baseline green throughout the extraction.
 
-## Historical AWS infrastructure
+## Former AWS infrastructure
 
-The `infrastructure/terraform` AWS/ECS modules and associated AWS operational assumptions are retained as historical/provider-portability assets until M9.7 decides what to delete, archive, or preserve. They are not the current first-party cloud runbook, not a release prerequisite, and not evidence that AWS resources exist.
+The former `infrastructure/terraform` AWS/ECS modules and associated AWS operational assumptions are
+being removed as M9.7 replaces the first-party cloud path. They are migration input only and are not a
+supported deployment, release prerequisite, or portability target.

@@ -54,31 +54,6 @@ jobs:
       - run: bun run build
       - run: bun run test:recovery-matrix
 
-  terraform:
-    name: Terraform (${{ matrix.environment }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [development, staging, production]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - run: >-
-          docker run --rm --volume "$PWD:/workspace"
-          --workdir /workspace/infrastructure/terraform
-          hashicorp/terraform:1.13.5 fmt -check -recursive -diff
-      - run: >-
-          docker run --rm --volume "$PWD:/workspace"
-          --workdir /workspace/infrastructure/terraform/environments/${{ matrix.environment }}
-          hashicorp/terraform:1.13.5 init -backend=false -input=false -no-color
-      - run: >-
-          docker run --rm --volume "$PWD:/workspace"
-          --workdir /workspace/infrastructure/terraform/environments/${{ matrix.environment }}
-          hashicorp/terraform:1.13.5 validate -no-color
-
   containers:
     name: Production containers
     runs-on: ubuntu-latest
@@ -97,18 +72,16 @@ jobs:
   gate:
     name: Gate
     if: always()
-    needs: [containers, core, integration-recovery, terraform]
+    needs: [containers, core, integration-recovery]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       CORE_RESULT: ${{ needs.core.result }}
       CONTAINERS_RESULT: ${{ needs.containers.result }}
       INTEGRATION_RESULT: ${{ needs.integration-recovery.result }}
-      TERRAFORM_RESULT: ${{ needs.terraform.result }}
     steps:
       - name: Require every M9 lane
         run: |
           test "$CORE_RESULT" = success
           test "$CONTAINERS_RESULT" = success
           test "$INTEGRATION_RESULT" = success
-          test "$TERRAFORM_RESULT" = success

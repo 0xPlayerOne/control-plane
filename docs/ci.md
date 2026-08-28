@@ -55,8 +55,8 @@ validation, security, CodeQL, or draft-pull-request jobs.
 `Foundation Acceptance / Gate` is the repository-specific M1 extension added after the Code Foundry
 baseline. Code Foundry remains authoritative for generic formatting, lint, build, test, audit, CodeQL,
 and dependency-review behavior. The extension exists only for requirements generic CI cannot infer:
-accepted milestone ancestry, all Terraform environment roots, and the shared service/migration
-container graph. Its core, Terraform, and container jobs run in parallel and converge on one gate.
+accepted milestone ancestry, the Railway service manifest, and the shared service/migration container
+graph. Its core and container jobs run in parallel and converge on one gate.
 
 ## Extension policy
 

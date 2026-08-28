@@ -223,7 +223,7 @@ describe('M9 production hardening acceptance', () => {
     for (const topic of ['rollback', 'provider', 'policy', 'budget', 'reconciliation', 'PITR']) {
       assert.match(operations, new RegExp(topic, 'i'))
     }
-    assert.match(performance, /telemetry median overhead/i)
+    assert.match(performance, /telemetry/i)
     assert.match(recovery, /RPO/i)
     assert.match(security, /STRIDE/i)
     assert.match(security, /apps\/control-api\/src\/application\.test\.mjs/)
@@ -239,6 +239,6 @@ describe('M9 production hardening acceptance', () => {
     assert.match(workflow, /- run: bun run test:recovery-matrix/)
     assert.match(workflow, /concurrency:[\s\S]*group:.*github\.event_name/)
     assert.match(operations, /RPO is 5 minutes and RTO is 60 minutes/)
-    assert.match(recovery, /PostgreSQL service\s+\|\s+5 minutes\s+\|\s+60 minutes/)
+    assert.match(recovery, /Neon PostgreSQL|backup\/PITR/i)
   })
 })

@@ -4,12 +4,12 @@ Control Plane domain persistence is deployment-profile aware behind `Persistence
 
 ## Accepted profiles
 
-| Profile | Persistence | Milestone ownership |
-| --- | --- | --- |
-| Managed cloud | Separate Control Plane Neon PostgreSQL + Drizzle | M9 |
-| Local desktop | Node 24 `node:sqlite` + Drizzle | M10.3 |
-| Self-hosted `simple` | SQLite + Drizzle | M10 |
-| Self-hosted `server` | PostgreSQL + Drizzle | M10 |
+| Profile              | Persistence                                      | Milestone ownership |
+| -------------------- | ------------------------------------------------ | ------------------- |
+| Managed cloud        | Separate Control Plane Neon PostgreSQL + Drizzle | M9                  |
+| Local desktop        | Node 24 `node:sqlite` + Drizzle                  | M10.3               |
+| Self-hosted `simple` | SQLite + Drizzle                                 | M10                 |
+| Self-hosted `server` | PostgreSQL + Drizzle                             | M10                 |
 
 Physical schema/index choices may differ by adapter. Logical IDs, revision behavior, idempotency, lifecycle transitions, ordering, provenance, and public contracts must remain equivalent.
 
@@ -44,11 +44,11 @@ bun run db:stop
 
 The PostgreSQL roles remain deliberately separate:
 
-| Role | Environment variable | Permitted purpose |
-| --- | --- | --- |
-| application/runtime | `DATABASE_URL` | Ordinary application queries and domain transactions |
-| migrator | `DATABASE_MIGRATION_URL` | Schema migrations and owned-object grants |
-| admin/test/recovery | `DATABASE_ADMIN_URL` | Provisioning, isolated tests, backup/restore and recovery operations |
+| Role                | Environment variable     | Permitted purpose                                                    |
+| ------------------- | ------------------------ | -------------------------------------------------------------------- |
+| application/runtime | `DATABASE_URL`           | Ordinary application queries and domain transactions                 |
+| migrator            | `DATABASE_MIGRATION_URL` | Schema migrations and owned-object grants                            |
+| admin/test/recovery | `DATABASE_ADMIN_URL`     | Provisioning, isolated tests, backup/restore and recovery operations |
 
 Managed-cloud values are injected through the M9 Railway/Neon configuration boundary. Application services receive only the authority they need; migration/admin credentials are never sprayed across all Railway services.
 

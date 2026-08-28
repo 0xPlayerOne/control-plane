@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "provider": "railway",
+  "profiles": {
+    "cloud": {
+      "environment": "managed-cloud",
+      "services": [
+        {
+          "name": "control-api",
+          "app": "control-api",
+          "public": true,
+          "healthPath": "/health",
+          "readyPath": "/ready",
+          "requires": ["DATABASE_URL"]
+        },
+        {
+          "name": "workflow-worker",
+          "app": "workflow-worker",
+          "public": false,
+          "requires": ["DATABASE_URL"]
+        },
+        {
+          "name": "runtime-worker",
+          "app": "runtime-worker",
+          "public": false,
+          "requires": ["DATABASE_URL"]
+        },
+        {
+          "name": "runtime-gateway",
+          "app": "runtime-gateway",
+          "public": false,
+          "requires": []
+        },
+        {
+          "name": "tool-gateway",
+          "app": "tool-gateway",
+          "public": false,
+          "requires": []
+        }
+      ],
+      "migration": {
+        "app": "database",
+        "command": "bun --cwd=packages/database run db:migrate",
+        "requires": ["DATABASE_MIGRATION_URL"]
+      }
+    }
+  }
+}

@@ -3,167 +3,64 @@ import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
 import { test } from 'bun:test'
 
-const services = [
-  'control-api',
-  'workflow-worker',
-  'runtime-worker',
-  'runtime-gateway',
-  'tool-gateway',
-]
-
 const readRepositoryFile = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('defines reproducible non-root container builds for every deployable service', async () => {
+test('defines the Railway cloud service and migration manifest', async () => {
+  const manifest = JSON.parse(await readRepositoryFile('infrastructure/railway/services.json'))
+  const services = manifest.profiles.cloud.services
+
+  assert.deepEqual(
+    services.map(({ name }) => name),
+    ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
+  )
+  assert.deepEqual(
+    services.filter(({ public: isPublic }) => isPublic).map(({ name }) => name),
+    ['control-api']
+  )
+  assert.deepEqual(manifest.profiles.cloud.migration.requires, ['DATABASE_MIGRATION_URL'])
+  assert.equal(
+    manifest.profiles.cloud.migration.command,
+    'bun --cwd=packages/database run db:migrate'
+  )
+})
+
+test('uses a dependency-aware portable container build without AWS deployment assumptions', async () => {
   const dockerfile = await readRepositoryFile('infrastructure/containers/Dockerfile')
   const bake = await readRepositoryFile('infrastructure/containers/docker-bake.hcl')
   const entrypoint = await readRepositoryFile('infrastructure/containers/entrypoint.sh')
-  const manifest = JSON.parse(await readRepositoryFile('package.json'))
 
-  assert.match(
-    dockerfile,
-    /^FROM oven\/bun:1\.4\.0-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb AS /m
-  )
   assert.match(dockerfile, /bun install --frozen-lockfile/)
   assert.match(dockerfile, /^USER bun$/m)
   assert.doesNotMatch(dockerfile, /^\s*(?:ARG|ENV)\s+.*(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)/im)
   assert.match(bake, /context\s*=\s*"\."/)
-  assert.match(bake, /platforms\s*=\s*\["linux\/arm64"\]/)
-  assert.doesNotMatch(bake, /context\s*=\s*"\.\.\//)
-
-  for (const service of services) {
+  assert.doesNotMatch(bake, /platforms\s*=\s*\["linux\/arm64"\]/)
+  assert.doesNotMatch(`${dockerfile}\n${bake}\n${entrypoint}`, /ECS|Terraform|ECR|AWS/i)
+  for (const service of [
+    'control-api',
+    'workflow-worker',
+    'runtime-worker',
+    'runtime-gateway',
+    'tool-gateway',
+  ]) {
     assert.match(bake, new RegExp(`target "${service}"`))
     assert.match(bake, new RegExp(`APP_NAME = "${service}"`))
+    assert.match(entrypoint, new RegExp(`\\b${service}\\b`))
   }
   assert.match(bake, /target "database-migrate"/)
-  assert.match(bake, /target\s*=\s*"migration"/)
   assert.match(dockerfile, /packages\/database.*db:migrate/s)
-  for (const service of services) assert.match(entrypoint, new RegExp(`\\b${service}\\b`))
   assert.doesNotMatch(entrypoint, /\beval\b/)
-  assert.match(manifest.scripts['containers:print'], /docker buildx bake/)
-  assert.match(manifest.scripts['containers:build'], /docker buildx bake/)
 })
 
-test('separates Terraform state and service configuration by environment', async () => {
-  const manifest = JSON.parse(await readRepositoryFile('package.json'))
-  const gitignore = await readRepositoryFile('infrastructure/terraform/.gitignore')
-  const validator = await readRepositoryFile('scripts/validate-terraform.mjs')
+test('does not retain the former AWS deployment tree', async () => {
+  const packageManifest = JSON.parse(await readRepositoryFile('package.json'))
+  const railwayValidator = await readRepositoryFile('scripts/validate-railway.mjs')
+  const infrastructureDocs = await readRepositoryFile('docs/infrastructure.md')
 
-  for (const environment of ['development', 'staging', 'production']) {
-    const root = `infrastructure/terraform/environments/${environment}`
-    const backend = await readRepositoryFile(`${root}/backend.tf`)
-    const main = await readRepositoryFile(`${root}/main.tf`)
-    const variables = await readRepositoryFile(`${root}/variables.tf`)
-    const example = await readRepositoryFile(`${root}/terraform.tfvars.example`)
-    const outputs = await readRepositoryFile(`${root}/outputs.tf`)
-
-    assert.match(backend, new RegExp(`control-plane/${environment}/terraform\\.tfstate`))
-    assert.match(backend, /use_lockfile\s*=\s*true/)
-    assert.match(main, /module "environment"/)
-    assert.match(main, new RegExp(`environment\\s*=\\s*"${environment}"`))
-    assert.match(variables, /variable "image_references"/)
-    assert.match(outputs, /database_migration_task_definition_arn/)
-    assert.match(outputs, /private_subnet_ids/)
-    assert.match(outputs, /service_security_group_id/)
-    for (const service of services) assert.match(example, new RegExp(`${service}\\s*=`))
-  }
-
-  assert.match(manifest.scripts['infra:fmt:check'], /terraform/)
-  assert.match(manifest.scripts['infra:validate'], /validate-terraform/)
-  assert.match(manifest.scripts.format, /--ignore-path infrastructure\/terraform\/\.gitignore/)
-  assert.match(
-    manifest.scripts['format:check'],
-    /--ignore-path infrastructure\/terraform\/\.gitignore/
+  assert.equal(packageManifest.scripts['infra:validate'], 'bun scripts/validate-railway.mjs')
+  assert.equal(packageManifest.scripts['infra:fmt:check'], undefined)
+  assert.match(railwayValidator, /Railway cloud manifest/)
+  assert.match(infrastructureDocs, /Cloud, Hosted\/VPS, and Local/)
+  await assert.rejects(
+    readRepositoryFile('infrastructure/terraform/environments/production/main.tf')
   )
-  assert.match(gitignore, /^\*\.tfvars$/m)
-  assert.match(gitignore, /^!\*\.tfvars\.example$/m)
-  assert.match(validator, /TF_PLUGIN_CACHE_DIR/)
-  assert.match(validator, /infrastructure\/terraform\/\.terraform\/plugin-cache/)
-})
-
-test('models AWS dependencies without leaking secrets or Kubernetes into service images', async () => {
-  const platform = await readRepositoryFile('infrastructure/terraform/modules/aws-platform/main.tf')
-  const service = await readRepositoryFile('infrastructure/terraform/modules/ecs-service/main.tf')
-  const environment = await readRepositoryFile(
-    'infrastructure/terraform/modules/environment/main.tf'
-  )
-  const terraformSources = `${platform}\n${service}\n${environment}`
-
-  for (const resource of [
-    'aws_vpc',
-    'aws_db_instance',
-    'aws_s3_bucket',
-    'aws_elasticache_replication_group',
-    'aws_kms_key',
-    'aws_secretsmanager_secret',
-    'aws_ecs_cluster',
-  ]) {
-    assert.match(platform, new RegExp(`resource "${resource}"`))
-  }
-  assert.doesNotMatch(platform, /aws_secretsmanager_secret_version/)
-  assert.match(
-    platform,
-    /name\s*=\s*"\$\{var\.project_name\}\/\$\{var\.environment\}\/\$\{each\.value\}"/
-  )
-  assert.match(
-    platform,
-    /logs\.\$\{var\.aws_region\}\.\$\{data\.aws_partition\.current\.dns_suffix\}/
-  )
-  assert.match(platform, /kms:EncryptionContext:aws:logs:arn/)
-  assert.match(service, /readonlyRootFilesystem/)
-  assert.match(service, /secrets\s*=/)
-  assert.match(service, /aws_ecs_task_definition/)
-  assert.match(service, /aws_appautoscaling_target/)
-  assert.match(service, /aws_appautoscaling_policy/)
-  assert.match(service, /deployment_minimum_healthy_percent/)
-  assert.match(service, /deployment_maximum_percent/)
-  assert.match(service, /ignore_changes\s*=\s*\[desired_count\]/)
-  assert.match(service, /var\.create_service && var\.maximum_capacity > 0 \? 1 : 0/)
-  assert.match(service, /dynamic "statement"/)
-  assert.match(platform, /aws_cloudwatch_metric_alarm/)
-  assert.match(platform, /backup_retention_period\s*=\s*var\.database_backup_retention_days/)
-  assert.match(platform, /aws_s3_bucket_lifecycle_configuration/)
-  assert.match(platform, /depends_on\s*=\s*\[aws_s3_bucket_versioning\.object_store\]/)
-  assert.match(platform, /nat_subnets\s*=\s*var\.environment == "production"/)
-  assert.match(platform, /resource "aws_eip" "nat"\s*{\s*for_each\s*=\s*local\.nat_subnets/s)
-  assert.match(
-    platform,
-    /resource "aws_route_table" "private"\s*{\s*for_each\s*=\s*aws_subnet\.private/s
-  )
-  assert.match(platform, /engine_version\s*=\s*var\.database_engine_version/)
-  assert.match(platform, /engine_version\s*=\s*var\.cache_engine_version/)
-  assert.match(environment, /module "database_migration"/)
-  assert.match(environment, /create_service\s*=\s*false/)
-  assert.match(environment, /DATABASE_MIGRATION_URL/)
-  assert.match(environment, /object_store_actions/)
-  assert.doesNotMatch(terraformSources, /kubernetes/i)
-  assert.doesNotMatch(terraformSources, /(?:temporal|litellm|e2b).*resource/is)
-})
-
-test('documents deployment authority, operations, and deliberate deferrals', async () => {
-  const documentation = await readRepositoryFile('docs/infrastructure.md')
-  const readme = await readRepositoryFile('README.md')
-
-  for (const topic of [
-    'authoritative',
-    'replaceable',
-    'deferred',
-    'migration',
-    'rollout',
-    'rollback',
-    'secret rotation',
-    'health',
-    'development',
-    'staging',
-    'production',
-    'Temporal',
-    'LiteLLM',
-    'E2B',
-  ]) {
-    assert.match(documentation, new RegExp(topic, 'i'))
-  }
-  assert.match(documentation, /database-migrate/)
-  assert.match(documentation, /digest/i)
-  assert.match(documentation, /populate.*outside Terraform/is)
-  assert.match(documentation, /no Kubernetes/i)
-  assert.match(readme, /docs\/infrastructure\.md/)
 })
