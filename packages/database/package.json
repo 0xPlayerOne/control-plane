@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@control-plane/config": "workspace:*",
+    "@control-plane/credential-vault": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/events": "workspace:*",
     "@control-plane/contracts": "workspace:*",

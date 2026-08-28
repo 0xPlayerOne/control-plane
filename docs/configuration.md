@@ -29,7 +29,7 @@ Railway service/shared variables are the accepted initial source for **service/b
 - R2 endpoint/bucket/credential references;
 - bootstrap/master references for other deployment services.
 
-M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency. M9.8 publishes the Restate contract in `infrastructure/railway/restate.json`; M9.9 wires and verifies it against Railway.
+M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency. The repository-owned manifest is `infrastructure/railway/environment.json`; M9.8 publishes the Restate contract in `infrastructure/railway/restate.json`, and M9.9 wires and verifies both against Railway.
 
 Railway's injected `PORT` must be honored by HTTP services or mapped explicitly through repository-owned Railway configuration. Do not assume the historical fixed development ports are the cloud ingress contract.
 
@@ -37,7 +37,7 @@ Railway's injected `PORT` must be honored by HTTP services or mapped explicitly 
 
 Railway environment variables are not the storage model for arbitrary user-scoped connector/provider credentials. Those remain behind the audited credential-vault secret-provider boundary. Service/bootstrap secrets and dynamic user/provider credentials are separate classes with separate lifecycle and least-privilege rules.
 
-The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. It is migration residue, not a supported managed-cloud dependency. M9.9 must select, implement, and verify the accepted Railway-compatible managed-cloud dynamic credential-vault provider behind the stable interface. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
+Managed Cloud uses `NeonEncryptedSecretProvider` backed by the repo-owned `credential_secrets` table. `CONTROL_PLANE_SECRET_ENCRYPTION_KEY` is a Railway secret used only to encrypt/decrypt dynamic credentials; it does not replace the credential vault or expose one environment variable per user credential. AWS Secrets Manager is not an active dependency.
 
 ## Local and Hosted configuration — M10
 

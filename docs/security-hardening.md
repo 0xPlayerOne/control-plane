@@ -37,7 +37,7 @@ M9 uses Railway service/shared variables for service/bootstrap configuration suc
 
 ### Dynamic connector/provider credentials
 
-Arbitrary user-scoped OAuth refresh tokens, API keys, and connector credentials remain behind the audited credential-vault/secret-provider boundary. They are **not** modeled as one Railway environment variable per user credential. The existing AWS Secrets Manager adapter is migration residue and is not a supported dependency. **M9.9 #217 must select, implement, and verify the accepted managed-cloud dynamic secret provider behind the stable vault contract.** M9.6 cannot certify cloud credential handling while that provider remains undefined or unverified.
+Arbitrary user-scoped OAuth refresh tokens, API keys, and connector credentials remain behind the audited credential-vault/secret-provider boundary. They are **not** modeled as one Railway environment variable per user credential. Managed Cloud uses `NeonEncryptedSecretProvider` with the repo-owned `credential_secrets` table and an externally supplied AES-256-GCM key. AWS Secrets Manager is not a supported dependency.
 
 M10 adds Local/Hosted secret-provider adapters while preserving credential identity, lease, scope, rotation, revocation, and audit semantics.
 

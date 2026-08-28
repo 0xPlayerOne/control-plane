@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "provider": "railway",
+  "profile": "cloud",
+  "applicationEnvironment": "managed-cloud",
+  "database": {
+    "runtimeVariable": "DATABASE_URL",
+    "migrationVariable": "DATABASE_MIGRATION_URL",
+    "administrationVariable": "DATABASE_ADMIN_URL",
+    "runtimeRole": "control_plane_app",
+    "migrationRole": "control_plane_migrator",
+    "administrationRole": "control_plane_admin"
+  },
+  "shared": [
+    {
+      "name": "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+      "classification": "secret",
+      "purpose": "authenticated service-to-service calls"
+    }
+  ],
+  "services": {
+    "control-api": [
+      "DATABASE_URL",
+      "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
+      "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+      "R2_ENDPOINT",
+      "R2_BUCKET",
+      "R2_REGION",
+      "R2_ACCESS_KEY_ID",
+      "R2_SECRET_ACCESS_KEY"
+    ],
+    "workflow-worker": [
+      "DATABASE_URL",
+      "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
+      "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+      "RESTATE_INGRESS_URL",
+      "RESTATE_SERVICE_AUTH_TOKEN",
+      "R2_ENDPOINT",
+      "R2_BUCKET",
+      "R2_REGION",
+      "R2_ACCESS_KEY_ID",
+      "R2_SECRET_ACCESS_KEY"
+    ],
+    "runtime-worker": [
+      "DATABASE_URL",
+      "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
+      "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+      "R2_ENDPOINT",
+      "R2_BUCKET",
+      "R2_REGION",
+      "R2_ACCESS_KEY_ID",
+      "R2_SECRET_ACCESS_KEY"
+    ],
+    "runtime-gateway": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"],
+    "tool-gateway": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"]
+  },
+  "objectStore": {
+    "provider": "cloudflare-r2",
+    "bucket": "ctrl-plane",
+    "region": "auto",
+    "endpointVariable": "R2_ENDPOINT",
+    "accessKeyVariable": "R2_ACCESS_KEY_ID",
+    "secretKeyVariable": "R2_SECRET_ACCESS_KEY",
+    "cors": "not configured; no browser-direct upload path is part of the M9 baseline",
+    "lifecycle": "abort incomplete multipart uploads after 7 days"
+  },
+  "restate": {
+    "contract": "restate.json",
+    "endpointVariable": "RESTATE_INGRESS_URL",
+    "authVariable": "RESTATE_SERVICE_AUTH_TOKEN"
+  },
+  "secrets": {
+    "valuesCommitted": false,
+    "dynamicCredentialProvider": "NeonEncryptedSecretProvider backed by credential_secrets; encryption key remains a Railway secret"
+  }
+}

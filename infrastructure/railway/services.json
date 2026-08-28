@@ -11,7 +11,16 @@
           "public": true,
           "healthPath": "/health",
           "readyPath": "/ready",
-          "requires": ["DATABASE_URL"]
+          "requires": [
+            "DATABASE_URL",
+            "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
+            "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+            "R2_ENDPOINT",
+            "R2_BUCKET",
+            "R2_REGION",
+            "R2_ACCESS_KEY_ID",
+            "R2_SECRET_ACCESS_KEY"
+          ]
         },
         {
           "name": "workflow-worker",
@@ -19,25 +28,45 @@
           "public": false,
           "healthPath": "/health",
           "readyPath": "/ready",
-          "requires": ["DATABASE_URL"]
+          "requires": [
+            "DATABASE_URL",
+            "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
+            "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+            "RESTATE_INGRESS_URL",
+            "RESTATE_SERVICE_AUTH_TOKEN",
+            "R2_ENDPOINT",
+            "R2_BUCKET",
+            "R2_REGION",
+            "R2_ACCESS_KEY_ID",
+            "R2_SECRET_ACCESS_KEY"
+          ]
         },
         {
           "name": "runtime-worker",
           "app": "runtime-worker",
           "public": false,
-          "requires": ["DATABASE_URL"]
+          "requires": [
+            "DATABASE_URL",
+            "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
+            "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
+            "R2_ENDPOINT",
+            "R2_BUCKET",
+            "R2_REGION",
+            "R2_ACCESS_KEY_ID",
+            "R2_SECRET_ACCESS_KEY"
+          ]
         },
         {
           "name": "runtime-gateway",
           "app": "runtime-gateway",
           "public": false,
-          "requires": []
+          "requires": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"]
         },
         {
           "name": "tool-gateway",
           "app": "tool-gateway",
           "public": false,
-          "requires": []
+          "requires": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"]
         }
       ],
       "migration": {

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  AwsSecretsManagerProvider,
   CredentialVault,
   CredentialVaultError,
   InMemorySecretProvider,
+  NeonEncryptedSecretProvider,
 } from './index.ts'
 
 const ids = {
@@ -224,26 +224,36 @@ describe('connector credential vault', () => {
     ).resolves.toBe(true)
   })
 
-  test('adapts AWS Secrets Manager without leaking client or secret types into vault contracts', async () => {
-    const calls = []
-    const client = {
-      async putSecretValue(input) {
-        calls.push(input)
-        return { versionId: `version-${calls.length}` }
+  test('encrypts Neon-backed secrets without leaking plaintext or provider types into vault contracts', async () => {
+    const records = new Map()
+    const store = {
+      async put(input) {
+        records.set(`${input.locator}:${input.version}`, input)
       },
-      async getSecretValue() {
-        return { secretString: secret }
+      async get(input) {
+        return records.get(`${input.locator}:${input.version}`)
+      },
+      async delete(input) {
+        records.delete(`${input.locator}:${input.version}`)
       },
     }
-    const provider = new AwsSecretsManagerProvider({
-      client,
-      kmsKeyRef: 'kms://control-plane',
-      secretPrefix: 'control-plane/connectors',
+    const provider = new NeonEncryptedSecretProvider({
+      store,
+      encryptionKey: 'a'.repeat(64),
+      keyReference: 'control-plane-secret-key-v1',
     })
     const { vault, metadata } = await fixture(provider)
-    expect(calls[0].secretString).toBe(secret)
+    expect([...records.values()][0].ciphertext).not.toContain(secret)
     expect(JSON.stringify(metadata)).not.toContain(secret)
-    expect(JSON.stringify(metadata)).not.toContain('kms://')
     expect(JSON.stringify(await vault.audit())).not.toContain(secret)
+    expect(
+      await provider.resolve(
+        await provider.store({
+          credentialId: ids.credential,
+          revision: 2,
+          secret,
+        })
+      )
+    ).toBe(secret)
   })
 })
