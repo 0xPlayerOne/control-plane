@@ -1,4 +1,11 @@
 export { commandInbox, commandInboxStatus } from './commands.js'
+export {
+  agentProfileVersions,
+  agentProfiles,
+  catalogVersionLifecycle,
+  skillVersions,
+  skills,
+} from './catalog.js'
 export { credentialSecrets } from './credential-secrets.js'
 export { delegations, delegationState } from './delegations.js'
 export {

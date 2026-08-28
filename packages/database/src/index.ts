@@ -4,6 +4,7 @@ export {
   DatabaseConnectionError,
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
+export { PostgresCatalogRepository } from './catalog-repository.js'
 export { PostgresEncryptedSecretStore } from './credential-secret-store.js'
 export { PostgresDelegationRepository } from './delegation-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
@@ -27,6 +28,9 @@ export type {
 export {
   commandInbox,
   commandInboxStatus,
+  agentProfileVersions,
+  agentProfiles,
+  catalogVersionLifecycle,
   delegations,
   delegationState,
   eventPublicationStatus,
@@ -77,6 +81,8 @@ export {
   usageFundingSource,
   usageLedgerEntries,
   usageLedgerEntryKind,
+  skillVersions,
+  skills,
 } from './schema/index.js'
 export { withDomainTransaction } from './transaction.js'
 export type { DomainTransaction } from './transaction.js'

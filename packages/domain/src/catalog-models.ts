@@ -16,6 +16,15 @@ const ToolIdSchema = z
   .regex(/^[a-z][a-z0-9.-]*$/)
 const unique = <Value>(values: Value[]) => new Set(values).size === values.length
 
+const VersionRangeSchema = z.string().min(1).max(128)
+const SkillRelationSchema = z.object({
+  skillId: IdentifierSchemas.skillId,
+  versionRange: VersionRangeSchema,
+})
+
+export const SkillDependencySchema = SkillRelationSchema
+export const SkillConflictSchema = SkillRelationSchema
+
 export const CatalogOwnershipSchema = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('system') }),
   z.object({ scope: z.literal('workspace'), workspaceId: IdentifierSchemas.workspaceId }),
@@ -46,6 +55,10 @@ export const AgentProfileDefinitionSchema = z.object({
   schemaVersion: z.literal(1),
   roleInstructions: z.string().min(1).max(32_768),
   personaInstructions: z.string().max(32_768).optional(),
+  hardInstructions: z.array(z.string().min(1).max(8_192)).max(128).default([]),
+  defaultInstructions: z.array(z.string().min(1).max(8_192)).max(128).default([]),
+  purpose: z.string().min(1).max(512).optional(),
+  tags: z.array(z.string().min(1).max(64)).max(64).refine(unique).default([]),
   skills: z.array(ExactSkillVersionReferenceSchema).max(128),
   capabilityRequirements: z.array(CapabilitySchema).max(128).refine(unique),
   executionConstraints: ExecutionConstraintSetSchema,
@@ -65,6 +78,9 @@ export const SkillManifestSchema = z.object({
   contentDigest: DigestSchema,
   requiredCapabilities: z.array(CapabilitySchema).max(128).refine(unique),
   requiredTools: z.array(ToolRequirementSchema).max(128),
+  dependencies: z.array(SkillDependencySchema).max(128).default([]),
+  conflicts: z.array(SkillConflictSchema).max(128).default([]),
+  supersedes: z.array(SkillConflictSchema).max(128).default([]),
   compatibleProfileSchemaVersions: z.array(z.number().int().positive()).min(1).refine(unique),
   compatibleContractMajorVersions: z.array(z.number().int().positive()).min(1).refine(unique),
   evalRefs: z.array(z.string().min(1).max(512)).max(32).refine(unique).optional(),
@@ -82,6 +98,13 @@ export const SkillSchema = z.object({
   displayName: z.string().min(1).max(128),
   ownership: CatalogOwnershipSchema,
   createdAt: TimestampSchema,
+  provenance: z
+    .object({
+      source: z.enum(['system-curated', 'workspace-authorized', 'private-user-authorized']),
+      ownerRef: z.string().min(1).max(256),
+      trust: z.enum(['trusted', 'authorized']).default('authorized'),
+    })
+    .default({ source: 'private-user-authorized', ownerRef: 'unknown', trust: 'authorized' }),
 })
 
 const LifecycleMetadataSchema = z.object({
