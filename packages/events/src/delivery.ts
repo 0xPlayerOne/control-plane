@@ -118,7 +118,7 @@ export class ExecutionEventDispatcher {
     this.#transport = options.transport
     this.#now = options.now ?? (() => new Date().toISOString())
     this.#baseDelayMs = options.retry?.baseDelayMs ?? 1_000
-    this.#maximumAttempts = options.retry?.maximumAttempts ?? 8
+    this.#maximumAttempts = options.retry?.maximumAttempts ?? 5
     this.#observer = options.observer
     if (this.#baseDelayMs < 1 || this.#maximumAttempts < 1) {
       throw new Error('INVALID_EVENT_DELIVERY_RETRY_POLICY')
