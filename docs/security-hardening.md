@@ -6,15 +6,15 @@ Control Plane treats every external request, RuntimeTransport frame, provider re
 
 The threat review uses STRIDE categories alongside the profile-specific controls below.
 
-| Boundary                                       | Primary threats                                                           | Required controls                                                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Client / Agent HQ → Control Plane              | spoofing, cross-workspace access, replay                                  | purpose-bound credentials, workspace scope, idempotency, normalized denial                                              |
-| Direct Local Control Plane → RuntimeDriver     | local privilege confusion, path/process escape                            | trusted local IPC/in-process allowlist, capability/scope validation, no policy bypass because components are co-located |
-| Control Plane → non-co-located RuntimeNode     | node/workspace substitution, replay, stale ownership                      | authenticated Runtime Gateway, command ID/digest/expiry, revocation, durable duplicate-effect ledger                    |
-| Agent HQ remote relay → Local/Self-hosted host | ciphertext replay/tamper/wrong recipient                                  | HPKE recipient/AAD binding, expiry/replay checks, endpoint-only plaintext, cloud-safe metadata                          |
-| Model/tool/MCP/provider adapters               | prompt injection, confused deputy, secret egress                          | policy before execution, exact pins, scoped leases, bounded output validation                                           |
-| Persistence / Restate / events / telemetry     | tenant leakage, tampering, secret/content leakage                         | workspace scope, integrity/idempotency, adapter-specific permissions, redaction, audit                                  |
-| Sandbox                                        | path traversal, metadata access, ambient credentials, resource exhaustion | bounded paths/network/resources/time/output, ephemeral capability references                                            |
+| Boundary                                   | Primary threats                                                           | Required controls                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Client / Agent HQ → Control Plane          | spoofing, cross-workspace access, replay                                  | purpose-bound credentials, workspace scope, idempotency, normalized denial                                              |
+| Direct Local Control Plane → RuntimeDriver | local privilege confusion, path/process escape                            | trusted local IPC/in-process allowlist, capability/scope validation, no policy bypass because components are co-located |
+| Control Plane → non-co-located RuntimeNode | node/workspace substitution, replay, stale ownership                      | authenticated Runtime Gateway, command ID/digest/expiry, revocation, durable duplicate-effect ledger                    |
+| Agent HQ remote relay → Local/Hosted host  | ciphertext replay/tamper/wrong recipient                                  | HPKE recipient/AAD binding, expiry/replay checks, endpoint-only plaintext, cloud-safe metadata                          |
+| Model/tool/MCP/provider adapters           | prompt injection, confused deputy, secret egress                          | policy before execution, exact pins, scoped leases, bounded output validation                                           |
+| Persistence / Restate / events / telemetry | tenant leakage, tampering, secret/content leakage                         | workspace scope, integrity/idempotency, adapter-specific permissions, redaction, audit                                  |
+| Sandbox                                    | path traversal, metadata access, ambient credentials, resource exhaustion | bounded paths/network/resources/time/output, ephemeral capability references                                            |
 
 ## Credential classes
 
@@ -37,14 +37,14 @@ M9 uses Railway service/shared variables for service/bootstrap configuration suc
 
 ### Dynamic connector/provider credentials
 
-Arbitrary user-scoped OAuth refresh tokens, API keys, and connector credentials remain behind the audited credential-vault/secret-provider boundary. They are **not** modeled as one Railway environment variable per user credential. The existing AWS Secrets Manager adapter is historical/optional. **M9.9 #217 must explicitly select/implement and verify the accepted managed-cloud dynamic secret provider behind the stable vault contract, or explicitly justify retaining AWS Secrets Manager as an external dependency.** M9.6 cannot certify cloud credential handling while that adapter remains undefined/unverified.
+Arbitrary user-scoped OAuth refresh tokens, API keys, and connector credentials remain behind the audited credential-vault/secret-provider boundary. They are **not** modeled as one Railway environment variable per user credential. The existing AWS Secrets Manager adapter is migration residue and is not a supported dependency. **M9.9 #217 must select, implement, and verify the accepted managed-cloud dynamic secret provider behind the stable vault contract.** M9.6 cannot certify cloud credential handling while that provider remains undefined or unverified.
 
-M10 adds Local/Self-hosted secret-provider adapters while preserving credential identity, lease, scope, rotation, revocation, and audit semantics.
+M10 adds Local/Hosted secret-provider adapters while preserving credential identity, lease, scope, rotation, revocation, and audit semantics.
 
 ## Persistence and workflow security
 
 - M9 managed cloud uses separate Control Plane Neon PostgreSQL; Agent HQ uses a different database.
-- M10 Local and Self-hosted `simple` use SQLite; Self-hosted `server` uses PostgreSQL.
+- M10 Local and Hosted `simple` use SQLite; Hosted `server` uses PostgreSQL.
 - Restate workflow state is separate from Control Plane domain persistence.
 - LangGraph checkpoint state is separate from Restate and ProjectState.
 - No deployment profile may widen workspace, provider, runtime, tool, model, secret, Artifact, or project authority merely because components are co-located.
@@ -89,10 +89,10 @@ M10 adds tests for:
 - Local IPC/direct RuntimeTransport authorization;
 - SQLite file/WAL/backup permissions and secret exclusion;
 - OS-secure secret handles and standalone-local secret references;
-- Self-hosted environment/Docker/private-file/external-manager secret references;
+- Hosted environment/Docker/private-file/external-manager secret references;
 - Compose/TLS/reverse-proxy boundaries;
 - host-side HPKE decrypt/response/key rotation/revocation;
-- Local/Self-hosted export/import validation;
+- Local/Hosted export/import validation;
 - no silent cloud failover or content upload.
 
 ## Secret-canary sinks
@@ -121,4 +121,4 @@ Do not copy prompts, repository/file content, provider payloads, memory values, 
 
 ## Milestone release rule
 
-M9 certifies managed-cloud security, M10 adds Local/Self-hosted security/conformance, and M11 independently audits all profiles. A historical passing test cannot waive a security control whose implementation boundary changed during M9/M10.
+M9 certifies managed-cloud security, M10 adds Local/Hosted security/conformance, and M11 independently audits all profiles. A historical passing test cannot waive a security control whose implementation boundary changed during M9/M10.

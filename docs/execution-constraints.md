@@ -35,6 +35,6 @@ An empty required intersection or incompatible immutable constraint fails determ
 
 ## Deployment portability
 
-M9 freezes these deployment-independent semantics against the Railway managed-cloud reference. M10 changes persistence, workflow composition, object storage, secrets, process supervision and RuntimeTransport adapters for Local/Self-hosted profiles without changing constraint meaning.
+M9 freezes these deployment-independent semantics against the Railway managed-cloud reference. M10 changes persistence, workflow composition, object storage, secrets, process supervision and RuntimeTransport adapters for Local/Hosted profiles without changing constraint meaning.
 
 Location-specific capabilities may legitimately affect runtime eligibility—for example local project access—but the reason must be explicit and recorded rather than inferred from the infrastructure provider.

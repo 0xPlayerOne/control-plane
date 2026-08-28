@@ -6,9 +6,26 @@ const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
 const manifest = JSON.parse(
   await readFile(`${repositoryRoot}/infrastructure/railway/services.json`, 'utf8')
 )
+const restate = JSON.parse(
+  await readFile(`${repositoryRoot}/infrastructure/railway/restate.json`, 'utf8')
+)
 
 if (manifest.schemaVersion !== 1 || manifest.provider !== 'railway') {
   throw new Error('Railway service manifest must use schemaVersion 1 and provider railway.')
+}
+
+if (
+  restate.schemaVersion !== 1 ||
+  restate.runtime !== 'restate' ||
+  restate.service !== 'workflow-worker' ||
+  restate.railwayPortVariable !== 'PORT' ||
+  restate.port !== 9080 ||
+  !Array.isArray(restate.handlers) ||
+  !restate.handlers.includes('run') ||
+  !restate.handlers.includes('respondToInteraction') ||
+  !restate.handlers.includes('cancelExecution')
+) {
+  throw new Error('Railway Restate contract is incomplete or points at the wrong service.')
 }
 
 const cloud = manifest.profiles?.cloud
@@ -37,6 +54,9 @@ for (const service of services) {
   }
   if (typeof service.public !== 'boolean' || !Array.isArray(service.requires)) {
     throw new Error(`Invalid Railway service contract: ${service.name}.`)
+  }
+  if (service.name === 'workflow-worker' && (!service.healthPath || !service.readyPath)) {
+    throw new Error(`Restate workflow endpoint must define health/readiness: ${service.name}.`)
   }
   if (service.public && (!service.healthPath || !service.readyPath)) {
     throw new Error(`Public Railway service must define health/readiness: ${service.name}.`)

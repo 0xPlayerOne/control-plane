@@ -1,12 +1,3 @@
-import {
-  CancellationScope,
-  condition,
-  defineSignal,
-  isCancellation,
-  patched,
-  proxyActivities,
-  setHandler,
-} from '@temporalio/workflow'
 import type { GraphReference } from '@control-plane/orchestration'
 import type { GraphActivityOutcome, GraphSegmentActivityPort } from './graph-segment-activity.js'
 
@@ -228,55 +219,5 @@ export async function runExecutionLifecycle(
     ...('checkpointId' in runtimeOutcome && runtimeOutcome.checkpointId
       ? { graphCheckpointId: runtimeOutcome.checkpointId }
       : {}),
-  }
-}
-
-const cancelSignal = defineSignal('cancelExecution')
-export const interactionResponseSignal =
-  defineSignal<[WorkflowInteractionResponse]>('respondToInteraction')
-const temporalActivities = proxyActivities<ExecutionLifecycleActivities>(
-  workflowPolicies.activities
-)
-
-export async function executionLifecycleWorkflow(
-  input: ExecutionWorkflowInput
-): Promise<ExecutionWorkflowResult> {
-  patched(workflowPolicies.version)
-  patched(workflowPolicies.graphSegmentVersion)
-  let cancelled = false
-  const interactionResponses: WorkflowInteractionResponse[] = []
-  setHandler(cancelSignal, () => {
-    cancelled = true
-  })
-  setHandler(interactionResponseSignal, (response) => {
-    if (!interactionResponses.some(({ responseId }) => responseId === response.responseId)) {
-      interactionResponses.push(response)
-    }
-  })
-  const waitForInteraction = async (interactionId: string) => {
-    await condition(() =>
-      interactionResponses.some((response) => response.interactionId === interactionId)
-    )
-    const responseIndex = interactionResponses.findIndex(
-      (response) => response.interactionId === interactionId
-    )
-    const [response] = interactionResponses.splice(responseIndex, 1)
-    if (!response) throw new Error('INTERACTION_SIGNAL_MISSING')
-    return response
-  }
-  const deadlineDelay = Math.max(0, Date.parse(input.deadlineAt) - Date.now())
-  const terminalControl = await Promise.race([
-    condition(() => cancelled).then(() => ({ cancelled: true })),
-    condition(() => false, deadlineDelay).then(() => ({ deadlineReached: true })),
-    CancellationScope.cancellable(() =>
-      runExecutionLifecycle(input, temporalActivities, { waitForInteraction })
-    ),
-  ])
-  if ('status' in terminalControl) return terminalControl
-  try {
-    return await runExecutionLifecycle(input, temporalActivities, terminalControl)
-  } catch (error) {
-    if (!isCancellation(error)) throw error
-    return runExecutionLifecycle(input, temporalActivities, { cancelled: true })
   }
 }

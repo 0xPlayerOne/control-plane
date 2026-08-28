@@ -17,7 +17,7 @@ const commonBudgets = {
 const telemetry = createTelemetry({ serviceName: 'load-fixture' })
 const profiles = [
   profile('control-api-command-read', ({ sequence }) => digest({ sequence, action: 'read' })),
-  profile('temporal-workflow-replay', ({ sequence }) =>
+  profile('restate-workflow-replay', ({ sequence }) =>
     digest({ sequence, plan: `sha256:${'a'.repeat(64)}`, state: 'running' })
   ),
   profile('event-delivery', ({ sequence }) =>

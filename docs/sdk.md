@@ -1,6 +1,6 @@
 # Control Plane public SDK
 
-The public boundary is distributed through versioned contract and SDK packages. It is deployment-neutral: the same semantic API/events must work against the accepted M9 managed-cloud profile and the M10 Local/Self-hosted compositions.
+The public boundary is distributed through versioned contract and SDK packages. It is deployment-neutral: the same semantic API/events must work against the accepted M9 managed-cloud profile and the M10 Local/Hosted compositions.
 
 ## Package boundary
 
@@ -29,7 +29,7 @@ The client must:
 
 The repository contains historical SDK operations and deterministic stubs from earlier milestones. They remain useful independent-build fixtures. M9.10 reconciles those exports with the final v1 Zod/OpenAPI/event/error contracts, and M11 verifies every claimed operation is reachable through supported composition roots.
 
-A stub/fake is never evidence that the concrete Railway, Local or Self-hosted implementation is production-ready.
+A stub/fake is never evidence that the concrete Railway, Local or Hosted implementation is production-ready.
 
 ## Deterministic contract tests
 
@@ -51,10 +51,10 @@ Compatibility rules:
 
 ## Publishing and deprecation
 
-Contract/SDK releases remain independently consumable by third-party/self-hosted clients. Publishing must preserve Apache-2.0 packaging and cannot require Agent HQ private packages.
+Contract/SDK releases remain independently consumable by third-party/hosted clients. Publishing must preserve Apache-2.0 packaging and cannot require Agent HQ private packages.
 
 Deprecations remain available through their supported major until the documented sunset. Clients with no compatible major fail before dispatch rather than attempting best-effort coercion.
 
 ## Deployment portability rule
 
-A change from managed cloud to Local/Self-hosted may change base URL/IPC transport, availability, latency and deployment metadata. It must not require callers to rewrite Task/Execution/Profile/Skill/ProjectState/ContextProvider semantics. M10 conformance and M11 audit enforce that rule.
+A change from managed cloud to Local/Hosted may change base URL/IPC transport, availability, latency and deployment metadata. It must not require callers to rewrite Task/Execution/Profile/Skill/ProjectState/ContextProvider semantics. M10 conformance and M11 audit enforce that rule.

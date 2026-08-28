@@ -177,17 +177,17 @@ export const recoveryEvidence = [
     'PostgreSQL backup and restore drill preserved immutable evaluation, execution, event, and usage evidence.'
   ),
   recovery(
-    'temporal.worker_crash',
+    'restate.endpoint_crash',
     'apps/workflow-worker/src/execution-workflow.test.mjs',
     'replay after worker restart converges on one attempt and dispatch effect'
   ),
   recovery(
-    'temporal.worker_redeploy',
+    'restate.endpoint_redeploy',
     'apps/workflow-worker/src/execution-workflow.test.mjs',
     'pins workflow versioning and bounded activity policies'
   ),
   recovery(
-    'temporal.workflow_replay',
+    'restate.workflow_replay',
     'apps/workflow-worker/src/execution-workflow.test.mjs',
     'activity retry reuses stable effect keys instead of creating another attempt'
   ),

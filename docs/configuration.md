@@ -10,8 +10,8 @@ Deployment profile is a separate concept from application environment:
 
 - managed cloud — Railway services using Neon, R2 and Restate;
 - Local — all-in-one composition using SQLite, local Restate and direct RuntimeTransport;
-- Self-hosted `simple` — containerized all-in-one with SQLite;
-- Self-hosted `server` — PostgreSQL-backed server composition.
+- Hosted `simple` — containerized all-in-one with SQLite;
+- Hosted `server` — PostgreSQL-backed server composition.
 
 The same public/domain behavior must not depend on an environment-specific variable name.
 
@@ -29,7 +29,7 @@ Railway service/shared variables are the accepted initial source for **service/b
 - R2 endpoint/bucket/credential references;
 - bootstrap/master references for other deployment services.
 
-M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency.
+M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency. M9.8 publishes the Restate contract in `infrastructure/railway/restate.json`; M9.9 wires and verifies it against Railway.
 
 Railway's injected `PORT` must be honored by HTTP services or mapped explicitly through repository-owned Railway configuration. Do not assume the historical fixed development ports are the cloud ingress contract.
 
@@ -37,16 +37,16 @@ Railway's injected `PORT` must be honored by HTTP services or mapped explicitly 
 
 Railway environment variables are not the storage model for arbitrary user-scoped connector/provider credentials. Those remain behind the audited credential-vault secret-provider boundary. Service/bootstrap secrets and dynamic user/provider credentials are separate classes with separate lifecycle and least-privilege rules.
 
-The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. M9.9 must explicitly select and verify the accepted managed-cloud dynamic credential-vault provider behind the stable interface, or explicitly justify retaining an external AWS Secrets Manager dependency. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
+The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. It is migration residue, not a supported managed-cloud dependency. M9.9 must select, implement, and verify the accepted Railway-compatible managed-cloud dynamic credential-vault provider behind the stable interface. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
 
-## Local and Self-hosted configuration — M10
+## Local and Hosted configuration — M10
 
-Local and Self-hosted compositions consume the same typed configuration model through different adapters:
+Local and Hosted compositions consume the same typed configuration model through different adapters:
 
 - packaged Local: host-secure handles for reusable secrets plus local data/component paths selected by the trusted launcher;
 - standalone Local: owner-controlled environment/private-file references where supported;
-- Self-hosted: environment/Docker/private-file or external secret-manager references;
-- cloud-only provider identifiers such as Railway/Neon/R2 cannot be required by Local/Self-hosted core startup.
+- Hosted: environment/Docker/private-file or external secret-manager references;
+- cloud-only provider identifiers such as Railway/Neon/R2 cannot be required by Local/Hosted core startup.
 
 Profile-specific configuration may select persistence, object store, secrets, runtime transport, process supervision and service discovery. It may not redefine Task/Execution/Profile/Skill/ProjectState/ContextProvider semantics.
 
@@ -54,15 +54,15 @@ Profile-specific configuration may select persistence, object store, secrets, ru
 
 The historical server/cloud composition currently includes:
 
-| Service           | Development/default surface                                                   |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `control-api`     | current development HTTP port contract                                        |
-| `runtime-gateway` | current development gateway port contract                                     |
-| `tool-gateway`    | current development tool port contract                                        |
-| `workflow-worker` | current worker concurrency contract; M9.8 may change Temporal-shaped topology |
-| `runtime-worker`  | current server/cloud runtime worker contract                                  |
+| Service           | Development/default surface                                     |
+| ----------------- | --------------------------------------------------------------- |
+| `control-api`     | current development HTTP port contract                          |
+| `runtime-gateway` | current development gateway port contract                       |
+| `tool-gateway`    | current development tool port contract                          |
+| `workflow-worker` | Restate HTTP endpoint and workflow-runtime concurrency contract |
+| `runtime-worker`  | current server/cloud runtime worker contract                    |
 
-M9.7/M9.8 may alter cloud process topology where an existing process exists only because of AWS/Temporal assumptions. M10 Local is not required to run these five applications as separate processes.
+M9.7/M9.8 may alter cloud process topology where an existing process exists only because of the former AWS/Temporal assumptions. M10 Local is not required to run these five applications as separate processes.
 
 ## Validation and diagnostics
 
@@ -74,4 +74,4 @@ M9.7/M9.8 may alter cloud process topology where an existing process exists only
 
 ## Shutdown
 
-`SIGINT`/`SIGTERM` mark the process unready and close registered resources in reverse order. M9.13 owns the accepted graceful drain/cleanup defaults. Local launchers and Self-hosted supervisors must implement equivalent semantics without changing domain behavior.
+`SIGINT`/`SIGTERM` mark the process unready and close registered resources in reverse order. M9.13 owns the accepted graceful drain/cleanup defaults. Local launchers and Hosted supervisors must implement equivalent semantics without changing domain behavior.

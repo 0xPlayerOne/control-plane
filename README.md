@@ -1,12 +1,12 @@
 # Control Plane
 
-Production-shaped TypeScript monorepo for the Control Plane. The repository is organized as a modular monolith with independently deployable composition roots. Stable domain/execution packages remain deployment-neutral; managed cloud, Local, and Self-hosted profiles select infrastructure through adapters/composition roots.
+Production-shaped TypeScript monorepo for the Control Plane. The repository is organized as a modular monolith with independently deployable composition roots. Stable domain/execution packages remain deployment-neutral; managed cloud, Local, and Hosted profiles select infrastructure through adapters/composition roots.
 
 ## Current delivery sequence
 
 - **M9 — Managed Cloud Deployment, Hardening & Evals:** make the Railway + Neon + R2 + Restate managed-cloud profile fully operational and freeze deployment-independent behavior.
-- **M10 — Local & Self-Hosted Portability:** port the accepted M9 semantics to embedded Local and user-controlled VPS/container profiles.
-- **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Self-hosted.
+- **M10 — Local & Hosted Portability:** port the accepted M9 semantics to embedded Local and user-controlled VPS/container profiles.
+- **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Hosted.
 - **M12 — Cross-Product Integration & Release:** connect the approved Control Plane candidate to Agent HQ and optional Cortana release candidates.
 
 M9 is rewriting the former AWS/ECS/Terraform and Temporal cloud implementation into the active

@@ -10,8 +10,7 @@
     "@control-plane/execution-plan": "workspace:*",
     "@control-plane/orchestration": "workspace:*",
     "@control-plane/telemetry": "workspace:*",
-    "@temporalio/worker": "1.22.0",
-    "@temporalio/workflow": "1.22.0"
+    "@restatedev/restate-sdk": "1.16.9"
   },
   "browser": false,
   "engines": {

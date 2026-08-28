@@ -1,15 +1,15 @@
 # Control Plane persistence
 
-Control Plane domain persistence is deployment-profile aware behind `PersistenceProvider`. PostgreSQL remains the server-grade/cloud relational implementation; embedded SQLite is the accepted Local and Self-hosted `simple` implementation. Durable correctness must not depend on Valkey/Redis.
+Control Plane domain persistence is deployment-profile aware behind `PersistenceProvider`. PostgreSQL remains the server-grade/cloud relational implementation; embedded SQLite is the accepted Local and Hosted `simple` implementation. Durable correctness must not depend on Valkey/Redis.
 
 ## Accepted profiles
 
-| Profile              | Persistence                                      | Milestone ownership |
-| -------------------- | ------------------------------------------------ | ------------------- |
-| Managed cloud        | Separate Control Plane Neon PostgreSQL + Drizzle | M9                  |
-| Local desktop        | Node 24 `node:sqlite` + Drizzle                  | M10.3               |
-| Self-hosted `simple` | SQLite + Drizzle                                 | M10                 |
-| Self-hosted `server` | PostgreSQL + Drizzle                             | M10                 |
+| Profile         | Persistence                                      | Milestone ownership |
+| --------------- | ------------------------------------------------ | ------------------- |
+| Managed cloud   | Separate Control Plane Neon PostgreSQL + Drizzle | M9                  |
+| Local desktop   | Node 24 `node:sqlite` + Drizzle                  | M10.3               |
+| Hosted `simple` | SQLite + Drizzle                                 | M10                 |
+| Hosted `server` | PostgreSQL + Drizzle                             | M10                 |
 
 Physical schema/index choices may differ by adapter. Logical IDs, revision behavior, idempotency, lifecycle transitions, ordering, provenance, and public contracts must remain equivalent.
 
@@ -113,7 +113,7 @@ Integration tests may continue to create isolated PostgreSQL databases for Postg
 Recovery is profile-specific:
 
 - **Managed cloud:** Neon backup/PITR or equivalent provider recovery plus logical/export procedures validated in M9/M11.
-- **Local/Self-hosted `simple`:** SQLite backup/restore validated in M10/M11.
-- **Self-hosted `server`:** PostgreSQL backup/restore owned by the operator/reference deployment and validated in M10/M11.
+- **Local/Hosted `simple`:** SQLite backup/restore validated in M10/M11.
+- **Hosted `server`:** PostgreSQL backup/restore owned by the operator/reference deployment and validated in M10/M11.
 
 Restore into an isolated destination first, verify schema/integrity/reconciliation, then switch through the normal change process. Never validate recovery by overwriting the active database.

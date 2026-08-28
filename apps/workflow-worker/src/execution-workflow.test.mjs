@@ -44,7 +44,7 @@ function fakeActivities({ failDispatchOnce = false } = {}) {
   }
 }
 
-describe('Temporal execution lifecycle', () => {
+describe('Restate execution lifecycle', () => {
   test('replay after worker restart converges on one attempt and dispatch effect', async () => {
     const fake = fakeActivities()
     const first = await runExecutionLifecycle(input, fake.activities)

@@ -12,7 +12,7 @@ import {
   createTelemetry,
   type TraceAdapter,
 } from '@control-plane/telemetry'
-import { createTemporalWorkerFactory, type TemporalWorkerFactory } from './temporal-worker.js'
+import { createRestateEndpointFactory, type RestateEndpointFactory } from './restate-worker.js'
 
 export const serviceName = 'workflow-worker'
 
@@ -21,7 +21,7 @@ export interface WorkflowWorkerStartOptions {
   readonly logger?: StructuredLogger
   readonly processAdapter?: ProcessAdapter
   readonly traceAdapter?: TraceAdapter
-  readonly temporalWorkerFactory?: TemporalWorkerFactory
+  readonly restateEndpointFactory?: RestateEndpointFactory
 }
 
 export const start = (options: WorkflowWorkerStartOptions = {}) => {
@@ -48,7 +48,7 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
         { correlationId: metadata.instanceId },
         async () => {
           const factory =
-            options.temporalWorkerFactory ??
+            options.restateEndpointFactory ??
             (metadata.environment === 'test'
               ? {
                   create: async () => ({
@@ -56,16 +56,10 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
                     shutdown: async () => undefined,
                   }),
                 }
-              : createTemporalWorkerFactory({ address: '127.0.0.1:7233', namespace: 'default' }))
-          const worker = await factory.create()
-          registerResource('temporal-worker', () => worker.shutdown())
-          void worker.run().catch((error: unknown) =>
-            logger.write({
-              level: 'error',
-              event: 'workflow.worker.failed',
-              details: { message: error instanceof Error ? error.message : 'Unknown worker error' },
-            })
-          )
+              : createRestateEndpointFactory())
+          const endpoint = await factory.create()
+          registerResource('restate-endpoint', () => endpoint.shutdown())
+          await endpoint.run()
           markReady()
         }
       )

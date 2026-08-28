@@ -1,6 +1,6 @@
 # Infrastructure and deployment baseline
 
-The accepted first-party managed-cloud Control Plane target is **Railway compute + Neon PostgreSQL + Cloudflare R2 + Restate**. M9 owns making that profile real and production-shaped. M10 then ports the same Control Plane core and execution semantics to Local desktop and Self-hosted/VPS deployment profiles.
+The accepted first-party managed-cloud Control Plane target is **Railway compute + Neon PostgreSQL + Cloudflare R2 + Restate**. M9 owns making that profile real and production-shaped. M10 then ports the same Control Plane core and execution semantics to Local desktop and Hosted/VPS deployment profiles.
 
 M9 is rewriting the earlier AWS/ECS/Terraform implementation into the active Railway/Neon/R2 Cloud
 option. AWS is not a supported deployment option; the Cloud, Hosted/VPS, and Local options share
@@ -13,7 +13,7 @@ application semantics while using different infrastructure adapters.
 - **M9.9 #217 — managed dependencies/configuration:** wire Neon, the existing Control Plane R2 bucket, service authentication, Railway private networking, secrets/configuration, health/readiness, and explicit database migration.
 - **M9.10–M9.13 #210–#213 — canonical behavior:** freeze public contracts, Profile/Skill behavior, ContextProvider behavior, and operational defaults before portability work.
 - **M9.6 #73 — cloud activation gate:** runs after the implementation/configuration work and closes only when live Railway staging is deployable and verified.
-- **M10 — Local & Self-Hosted Portability:** substitutes persistence, storage, secrets, process supervision, topology, and runtime transport adapters while preserving the accepted M9 semantics.
+- **M10 — Local & Hosted Portability:** substitutes persistence, storage, secrets, process supervision, topology, and runtime transport adapters while preserving the accepted M9 semantics.
 
 ## Managed-cloud provider map
 
@@ -54,7 +54,7 @@ The historical server/cloud composition roots remain:
 - `runtime-gateway`
 - `tool-gateway`
 
-M9.8 may change the workflow-worker/service topology where the old shape exists only because of Temporal. Do not preserve a five-service topology merely for historical symmetry. Service boundaries are deployable composition roots, not public product contracts.
+`workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring. M9.8 may still change the service topology where an old boundary exists only because of the former Temporal runtime. Do not preserve a five-service topology merely for historical symmetry.
 
 M9.7 should use a dependency-aware, reproducible container build from the monorepo. The existing `infrastructure/containers` build pipeline may be adapted for Railway. AWS/ECS-specific image platform assumptions, ECR publication requirements, task definitions, Terraform roots, IAM roles, CloudWatch/SNS wiring, and ECS rollout mechanics are no longer the first-party deployment contract.
 
@@ -90,14 +90,14 @@ M9.9 must:
 
 **Product storage ownership remains separate.** Agent HQ may use the same Cloudflare account/provider, but it uses a separate Agent HQ-owned bucket or environment-isolated bucket set and separate credentials. Agent HQ must not reuse the Control Plane `ctrl-plane` bucket or its broad credentials as Artifact authority.
 
-Local and Self-hosted profiles introduced in M10 use filesystem or user-controlled S3-compatible storage by default. Switching `ObjectStore` must not change Artifact identity or public contracts.
+Local and Hosted profiles introduced in M10 use filesystem or user-controlled S3-compatible storage by default. Switching `ObjectStore` must not change Artifact identity or public contracts.
 
 ## Restate
 
 Restate is the canonical durable workflow runtime across profiles.
 
 - M9.8 owns the **Railway cloud** migration from Temporal to Restate, including networking, health, persistence, restart/redeploy, observability, and in-flight execution behavior.
-- M10.1 owns packaging/porting the already accepted Restate workflow implementation to Local and Self-hosted profiles.
+- M10.1 owns packaging/porting the already accepted Restate workflow implementation to Local and Hosted profiles.
 
 Do not make M10 responsible for getting cloud Restate working for the first time.
 
@@ -107,7 +107,7 @@ All service bootstrap configuration is typed and validated. Staging/production v
 
 Separate **service/bootstrap secrets** from **dynamic user/provider credentials**. Railway variables are appropriate for deployment configuration such as database endpoints, service credentials, Restate configuration, R2 credentials, and master/bootstrap secret references. User-scoped connector/provider credentials require the audited credential-vault `SecretProvider` boundary and cannot be modeled as one environment variable per user credential.
 
-M10 adds Local and Self-hosted `SecretsProvider` adapters without changing secret-reference/rotation/revocation semantics.
+M10 adds Local and Hosted `SecretsProvider` adapters without changing secret-reference/rotation/revocation semantics.
 
 ## Deployment, migration, and rollback
 
@@ -126,13 +126,13 @@ The accepted managed-cloud release flow is:
 
 A failed schema migration blocks application rollout. Applied production migrations are repaired forward unless an explicitly reviewed restore procedure is required.
 
-## Local and Self-hosted profiles
+## Local and Hosted profiles
 
 M10 introduces:
 
 - **Local:** all-in-one Control Plane, Node 24 `node:sqlite`/Drizzle, pinned single-node Restate, filesystem storage, direct RuntimeTransport, no Docker/PostgreSQL/Redis/Temporal/Runtime Gateway requirement for ordinary co-located execution.
-- **Self-hosted `simple`:** containerized all-in-one, SQLite, Restate, filesystem storage, optional co-located runtimes/Cortana.
-- **Self-hosted `server`:** PostgreSQL-backed server composition, Restate, filesystem or S3-compatible storage, split services/Runtime Gateway only where topology requires them.
+- **Hosted `simple`:** containerized all-in-one, SQLite, Restate, filesystem storage, optional co-located runtimes/Cortana.
+- **Hosted `server`:** PostgreSQL-backed server composition, Restate, filesystem or S3-compatible storage, split services/Runtime Gateway only where topology requires them.
 
 The M9 Railway profile remains the semantic reference while M10 substitutes infrastructure adapters. M10 must keep the M9 cloud smoke/conformance baseline green throughout the extraction.
 
