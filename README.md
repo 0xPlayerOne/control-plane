@@ -9,9 +9,10 @@ Production-shaped TypeScript monorepo for the Control Plane. The repository is o
 - **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Hosted.
 - **M12 — Cross-Product Integration & Release:** connect the approved Control Plane candidate to Agent HQ and optional Cortana release candidates.
 
-M9 is rewriting the former AWS/ECS/Terraform and Temporal cloud implementation into the active
-Railway + Neon + Cloudflare R2 + Restate Cloud option. Hosted/VPS and Local remain separate system
-options that port the same application semantics; AWS is not a supported deployment option.
+M9 is rewriting the former AWS/ECS/Terraform and Temporal implementation into the active Cloud
+profile: Railway + Neon + Cloudflare R2 + Restate. The product has exactly three deployment profiles:
+Cloud, Hosted, and Local. M10 ports the same application semantics to Hosted and Local; AWS/ECS/
+Terraform is historical context, not an active compatibility or portability target.
 
 ## Prerequisites
 

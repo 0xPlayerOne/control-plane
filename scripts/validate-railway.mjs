@@ -71,7 +71,12 @@ for (const service of services) {
   if (!expected.has(service.name) || service.app !== service.name) {
     throw new Error(`Invalid Railway service mapping: ${service.name ?? '<unnamed>'}.`)
   }
-  if (typeof service.public !== 'boolean' || !Array.isArray(service.requires)) {
+  if (
+    typeof service.public !== 'boolean' ||
+    typeof service.buildCommand !== 'string' ||
+    !service.buildCommand.includes(`--filter=@control-plane/${service.app}...`) ||
+    !Array.isArray(service.requires)
+  ) {
     throw new Error(`Invalid Railway service contract: ${service.name}.`)
   }
   if (service.name === 'workflow-worker' && (!service.healthPath || !service.readyPath)) {
