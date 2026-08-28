@@ -16,9 +16,9 @@ describe('workflow worker telemetry', () => {
   test('emits a correlated initialization span through an injectable adapter', async () => {
     const spans = []
     const logs = []
-    const worker = { run: async () => undefined, shutdown: async () => undefined }
+    const endpoint = { run: async () => undefined, shutdown: async () => undefined }
     const runtime = await start({
-      temporalWorkerFactory: { create: async () => worker },
+      restateEndpointFactory: { create: async () => endpoint },
       environment: {
         APP_ENV: 'test',
         COMMIT_SHA: 'abc123',

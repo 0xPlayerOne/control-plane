@@ -10,9 +10,9 @@ The accepted M9 managed-cloud profile uses Railway variables for **service/boots
 
 Railway environment variables are **not** the storage model for arbitrary user-scoped OAuth refresh tokens, API keys, or connector credentials. Dynamic credentials require the audited credential-vault secret provider boundary.
 
-The existing `AwsSecretsManagerProvider` is a historical implementation from the prior AWS-first architecture. It may remain as an optional adapter, but it is no longer automatically the first-party managed-cloud provider merely because the code exists. **M9.9 #217 owns an explicit implementation decision and verification:** select/implement a Railway-compatible managed-cloud dynamic secret provider behind the stable vault contract, or explicitly retain AWS Secrets Manager as a separately justified external dependency. M9.6 cannot certify cloud credential handling while that provider is undefined or unverified.
+The existing `AwsSecretsManagerProvider` is migration residue from the prior AWS-first architecture, not a supported provider option. **M9.9 #217 owns its replacement:** select, implement, and verify a Railway-compatible managed-cloud dynamic secret provider behind the stable vault contract. M9.6 cannot certify cloud credential handling while that provider is undefined or unverified.
 
-M10 then adds Local/Self-hosted secret-provider adapters without changing credential identity, scope, lease, rotation, revocation, or audit semantics.
+M10 then adds Local/Hosted secret-provider adapters without changing credential identity, scope, lease, rotation, revocation, or audit semantics.
 
 ## Scoped use
 
@@ -42,4 +42,4 @@ Missing policy, policy-evaluator failure, scope mismatch, expiry, replay, or pro
 
 ## Backup and migration
 
-Default Control Plane export/import never includes reusable credential values. It may include credential identity and unresolved secret references so an operator can rebind them explicitly at the destination. Cross-profile migration must never silently copy a cloud secret into Local/Self-hosted storage or vice versa.
+Default Control Plane export/import never includes reusable credential values. It may include credential identity and unresolved secret references so an operator can rebind them explicitly at the destination. Cross-profile migration must never silently copy a cloud secret into Local/Hosted storage or vice versa.

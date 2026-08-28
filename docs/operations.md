@@ -1,12 +1,12 @@
 # Production operations runbook
 
-This runbook covers the accepted Control Plane deployment sequence and must distinguish **managed cloud (M9)** from **Local/Self-hosted portability (M10)**. A release is not complete because infrastructure files exist; live environment evidence is required.
+This runbook covers the accepted Control Plane deployment sequence and must distinguish **managed cloud (M9)** from **Local/Hosted portability (M10)**. A release is not complete because infrastructure files exist; live environment evidence is required.
 
 ## Milestone sequence
 
 - **M9 — Managed Cloud Deployment, Hardening & Evals:** make the Railway + Neon + R2 + Restate profile actually deploy, recover, and pass the cloud hardening/eval gates.
-- **M10 — Local & Self-Hosted Portability:** port the accepted M9 semantics to Local and user-controlled Self-hosted profiles.
-- **M11 — Feature Completion & Production Audit:** rerun production-readiness evidence across managed cloud, Local, and Self-hosted.
+- **M10 — Local & Hosted Portability:** port the accepted M9 semantics to Local and user-controlled Hosted profiles.
+- **M11 — Feature Completion & Production Audit:** rerun production-readiness evidence across managed cloud, Local, and Hosted.
 - **M12 — Cross-Product Integration & Release:** connect the independently approved Control Plane candidate to Agent HQ and optional Cortana release candidates.
 
 Historical AWS/ECS/Terraform procedures are not the current first-party cloud runbook.
@@ -65,7 +65,7 @@ A database migration failure blocks rollout. Never hide a broken revision behind
 - R2 buckets remain private and are accessed only through the provider-neutral ObjectStore/Artifact boundary.
 - Bucket/environment separation, retention/lifecycle, least-privilege credentials, and upload/download policy are defined in M9.9.
 - Failed or ambiguous object operations reconcile against authoritative metadata/digests rather than assuming success.
-- Local/Self-hosted data is not automatically promoted to R2; cloud storage requires an explicit authorized operation.
+- Local/Hosted data is not automatically promoted to R2; cloud storage requires an explicit authorized operation.
 
 ## Restate operations
 
@@ -73,7 +73,7 @@ A database migration failure blocks rollout. Never hide a broken revision behind
 - M9.8 replaces active Temporal cloud configuration with Restate and defines its Railway networking, persistence, health/readiness, restart, upgrade, and observability behavior.
 - On Restate degradation, stop unsafe new admission where required, preserve durable command/domain state, and recover using the accepted Restate lifecycle guarantees.
 - LangGraph graph/checkpoint mechanics remain subordinate to the Restate lifecycle; ProjectState remains separately authoritative.
-- Temporal-specific worker/runbook evidence is historical until M9.8 removes it from the active path.
+- Temporal-specific worker/runbook evidence is historical migration provenance and is not part of the active path.
 
 ## Gateway and provider degradation
 
@@ -97,9 +97,9 @@ Operational requirements include:
 - no Docker/PostgreSQL/Redis/Temporal/Runtime Gateway requirement for ordinary Local execution;
 - explicit unavailable/queued behavior when the selected node is offline, with no silent cloud failover.
 
-## Self-hosted operations — M10
+## Hosted operations — M10
 
-Self-hosted `simple` uses SQLite; `server` uses PostgreSQL. Both use Restate and user-controlled storage/secrets.
+Hosted `simple` uses SQLite; `server` uses PostgreSQL. Both use Restate and user-controlled storage/secrets.
 
 Required operational evidence includes:
 
@@ -128,6 +128,6 @@ Provider-specific Railway/Neon/R2/Restate identifiers may appear in operational 
 ## Scheduled evidence
 
 - **Every managed-cloud candidate:** build/deploy, Neon migration/schema, Restate, R2, health/readiness, recovery, security, and cost evidence.
-- **Every M10 candidate:** Local and Self-hosted clean install/start/restart/backup/restore/conformance evidence.
+- **Every M10 candidate:** Local and Hosted clean install/start/restart/backup/restore/conformance evidence.
 - **M11:** independent full-profile audit from frozen candidate.
 - **M12:** live cross-product integration evidence only after M11 approval.

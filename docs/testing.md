@@ -5,7 +5,7 @@ The repository uses Bun's native test runner. Keep tests deterministic, isolate 
 ## Milestone ownership
 
 - **M9** finishes and certifies the managed-cloud Railway + Neon + R2 + Restate profile.
-- **M10** adds Local and Self-hosted deployment adapters/conformance.
+- **M10** adds Local and Hosted deployment adapters/conformance.
 - **M11** rebuilds the complete validation program into deterministic release lanes and independently reruns all three profiles.
 - **M12** is the first live Agent HQ/optional Cortana cross-product release gate.
 
@@ -62,14 +62,14 @@ M10 must add profile-aware conformance for:
 - Local single-node Restate versus the accepted M9 cloud Restate semantics;
 - all-in-one Local composition from clean state;
 - direct Local RuntimeTransport with no Runtime Gateway process;
-- Self-hosted `simple` Compose with SQLite;
-- Self-hosted `server` with PostgreSQL;
+- Hosted `simple` Compose with SQLite;
+- Hosted `server` with PostgreSQL;
 - user-controlled filesystem/S3-compatible storage;
-- Local/Self-hosted SecretsProvider adapters;
+- Local/Hosted SecretsProvider adapters;
 - host-side HPKE remote-control contract;
 - explicit export/import/migration;
 - backup/restore, restart, upgrade/rollback, and small-VPS resource evidence;
-- one conformance suite comparing M9 managed cloud, Local, Self-hosted `simple`, and Self-hosted `server` for deployment-independent semantics.
+- one conformance suite comparing M9 managed cloud, Local, Hosted `simple`, and Hosted `server` for deployment-independent semantics.
 
 ## M11 test architecture
 
@@ -97,7 +97,7 @@ Independent test groups run in parallel where their resources are isolated.
 The repository currently starts a pinned local PostgreSQL service for integration testing. That remains useful for:
 
 - Neon/PostgreSQL-compatible domain behavior;
-- Self-hosted `server` behavior;
+- Hosted `server` behavior;
 - migration/transaction/recovery testing.
 
 It must not be described as the M10 Local product profile. M10.3 adds SQLite and cross-adapter conformance.
@@ -112,9 +112,9 @@ Existing M4–M6 suites remain useful for Runtime Fabric, Runtime Gateway, Manag
 
 ## Durable execution acceptance
 
-Existing Temporal workflow tests remain historical execution-lifecycle evidence until M9.8. M9.8 must replace active release evidence with Restate equivalents while preserving accepted lifecycle semantics: retries, waits, deadlines, cancellation, interactions, restart recovery, idempotency, reconciliation, parent/child execution, and bounded LangGraph integration.
+The Restate workflow tests are active execution-lifecycle evidence. Historical Temporal tests and changelog entries may remain as migration provenance, but do not certify the accepted Railway/Restate deployment. Active evidence must preserve retries, waits, deadlines, cancellation, interactions, restart recovery, idempotency, reconciliation, parent/child execution, and bounded LangGraph integration.
 
-M10.1 then runs the same Restate workflow/conformance behavior in Local and Self-hosted compositions.
+M10.1 then runs the same Restate workflow/conformance behavior in Local and Hosted compositions.
 
 ## Security and secret-canary testing
 
@@ -128,7 +128,7 @@ Secret canaries must cover:
 - runtime/gateway/direct transport;
 - credential-vault use;
 - SQLite/PostgreSQL persistence and backups;
-- Local/Self-hosted exports;
+- Local/Hosted exports;
 - HPKE relay fixtures;
 - telemetry and incident evidence.
 

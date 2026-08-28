@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "service": "workflow-worker",
+  "runtime": "restate",
+  "port": 9080,
+  "railwayPortVariable": "PORT",
+  "healthPath": "/health",
+  "readyPath": "/ready",
+  "workflowName": "execution-lifecycle",
+  "handlers": ["run", "respondToInteraction", "cancelExecution"],
+  "durability": {
+    "activities": "ctx.run",
+    "interactions": "workflow durable promises",
+    "deadlines": "durable timer race",
+    "restarts": "replay from Restate journal"
+  },
+  "requiredEnvironment": ["DATABASE_URL", "R2_ENDPOINT", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]
+}

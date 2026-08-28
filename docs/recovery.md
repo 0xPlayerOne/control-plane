@@ -5,7 +5,7 @@ Control Plane recovery is profile-specific but preserves one semantic rule: comm
 ## Ownership by milestone
 
 - **M9** proves the managed-cloud Railway + Neon + R2 + Restate recovery path.
-- **M10** adds Local SQLite/Restate and Self-hosted SQLite/PostgreSQL recovery, backup, restart, and upgrade/rollback behavior.
+- **M10** adds Local SQLite/Restate and Hosted SQLite/PostgreSQL recovery, backup, restart, and upgrade/rollback behavior.
 - **M11** independently reruns the recovery matrix across all accepted profiles and records measured RPO/RTO or equivalent recovery evidence.
 
 Historical AWS/RDS/ECS recovery text and scripts may remain as implementation provenance until M9.7 removes or archives them. They are not the current first-party cloud runbook.
@@ -48,7 +48,7 @@ Required behavior:
 - no Runtime Gateway dependency for co-located execution;
 - no silent failover to Agent HQ Cloud when the selected Local node is unavailable.
 
-## Self-hosted recovery target — M10
+## Hosted recovery target — M10
 
 `simple` uses SQLite + Restate + filesystem storage. `server` uses PostgreSQL + Restate and filesystem or S3-compatible storage.
 
@@ -91,6 +91,6 @@ Sensitive prompt, file, provider, credential, or HPKE plaintext content is prohi
 
 ## Current automated evidence
 
-Existing PostgreSQL/LangGraph/Temporal-era integration and recovery scripts are historical executable evidence and may remain useful while M9.8/M10 replace the underlying workflow/persistence topology. They do not by themselves certify the accepted Railway/Neon/R2/Restate cloud profile or the M10 Local/Self-hosted profiles.
+Existing PostgreSQL/LangGraph/Temporal-era integration and recovery scripts are historical executable evidence. They do not by themselves certify the accepted Railway/Neon/R2/Restate cloud profile or the M10 Local/Hosted profiles.
 
 M9.7–M9.9 and M10 must update the executable recovery matrix so M11 can run one explicit profile-aware suite rather than treating historical AWS/Temporal fixtures as production proof.

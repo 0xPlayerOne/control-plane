@@ -1,6 +1,6 @@
 # Performance, capacity, and cost baseline
 
-Performance evidence is profile-specific. The repository's existing M9 synthetic load harness remains a useful regression baseline, but it is **not** a substitute for the live Railway, Local, or Self-hosted measurements required by the current milestone plan.
+Performance evidence is profile-specific. The repository's existing M9 synthetic load harness remains a useful regression baseline, but it is **not** a substitute for the live Railway, Local, or Hosted measurements required by the current milestone plan.
 
 ## Existing synthetic baseline
 
@@ -45,7 +45,7 @@ Measure the all-in-one Local profile using SQLite + single-node Restate + filesy
 
 Local release budgets must fit ordinary developer hardware and cannot assume Docker/PostgreSQL/Redis/Runtime Gateway are running.
 
-## M10 Self-hosted evidence
+## M10 Hosted evidence
 
 Measure both supported profiles:
 
@@ -56,7 +56,7 @@ Record minimum/recommended CPU, memory and disk, idle/active consumption, satura
 
 ## Cross-profile conformance
 
-Performance differences are allowed; semantic differences are not. M10.9 runs equivalent versioned fixtures across the accepted M9 cloud candidate, Local, Self-hosted `simple`, and Self-hosted `server`.
+Performance differences are allowed; semantic differences are not. M10.9 runs equivalent versioned fixtures across the accepted M9 cloud candidate, Local, Hosted `simple`, and Hosted `server`.
 
 Permitted differences include latency, capacity, availability, infrastructure cost and location-specific capabilities. Retry/idempotency/cancellation/approval/state/result semantics must remain compatible.
 

@@ -1,6 +1,6 @@
 # Architecture baseline
 
-The Control Plane is a TypeScript modular monolith with independently deployable composition roots. Stable domain and contract packages point inward; infrastructure and vendor integrations attach through adapter-bound ports. The same core execution semantics are required across the managed-cloud, Local, and Self-hosted deployment profiles.
+The Control Plane is a TypeScript modular monolith with independently deployable composition roots. Stable domain and contract packages point inward; infrastructure and vendor integrations attach through adapter-bound ports. The same core execution semantics are required across the managed-cloud, Local, and Hosted deployment profiles.
 
 ## System ownership
 
@@ -18,7 +18,7 @@ This is the no-cross-database-access rule.
 ## Repository ownership
 
 - `apps/control-api` owns synchronous API composition and health endpoints.
-- `apps/workflow-worker` is the historical durable-workflow composition root and is being migrated from Temporal-shaped operation to Restate in M9.8.
+- `apps/workflow-worker` is the Restate durable-workflow composition root for the managed-cloud profile.
 - `apps/runtime-worker` owns server/cloud runtime-worker composition where that topology is required.
 - `apps/runtime-gateway` owns transport for non-co-located RuntimeNodes.
 - `apps/tool-gateway` owns tool-facing server composition where separated deployment is required.
@@ -32,8 +32,8 @@ Applications may select concrete adapters. Stable packages must not import appli
 The accepted implementation sequence is:
 
 1. **M9 — Managed Cloud Deployment, Hardening & Evals:** establish a working Railway + Neon + R2 + Restate managed-cloud reference and freeze deployment-independent contracts/behavior.
-2. **M10 — Local & Self-Hosted Portability:** extract/consume infrastructure ports and add Local/Self-hosted adapters while preserving the M9 semantic baseline.
-3. **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Self-hosted as one portable product.
+2. **M10 — Local & Hosted Portability:** extract/consume infrastructure ports and add Local/Hosted adapters while preserving the M9 semantic baseline.
+3. **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Hosted as one portable product.
 4. **M12 — Cross-Product Integration & Release:** connect independently approved Agent HQ and optional Cortana release candidates.
 
 This implementation order is distinct from Agent HQ product rollout. The Control Plane cloud profile is implemented in M9 even though `agent_hq_cloud` remains a later user-visible Agent HQ execution-location option.
@@ -59,7 +59,7 @@ Control Plane R2 storage and Agent HQ Artifact storage are separate authorities 
 - direct co-located RuntimeTransport/RuntimeDriver path;
 - no Docker, PostgreSQL, Redis/Valkey, Temporal, or Runtime Gateway requirement for ordinary execution.
 
-### Self-hosted — M10
+### Hosted — M10
 
 - `simple`: all-in-one + SQLite + Restate + filesystem storage;
 - `server`: PostgreSQL + Restate + filesystem or S3-compatible storage, with split services/Runtime Gateway only where topology requires them;
@@ -72,11 +72,11 @@ Control Plane R2 storage and Agent HQ Artifact storage are separate authorities 
 | TypeScript        | accepted                                   | Primary application and package language under strict workspace settings.                                                                             |
 | NestJS            | accepted                                   | HTTP/service composition and dependency-injection framework where server composition requires it.                                                     |
 | Fastify           | accepted                                   | HTTP adapter beneath NestJS and for lightweight transport boundaries.                                                                                 |
-| PostgreSQL        | accepted server/cloud adapter              | Neon for the M9 managed-cloud profile; recommended for Self-hosted `server`.                                                                          |
-| SQLite            | accepted Local/simple adapter              | Node 24 `node:sqlite` + Drizzle for M10 Local and Self-hosted `simple`.                                                                               |
+| PostgreSQL        | accepted server/cloud adapter              | Neon for the M9 managed-cloud profile; recommended for Hosted `server`.                                                                          |
+| SQLite            | accepted Local/simple adapter              | Node 24 `node:sqlite` + Drizzle for M10 Local and Hosted `simple`.                                                                               |
 | Drizzle           | accepted                                   | Persistence schema/migration layer behind deployment-specific adapters.                                                                               |
-| Restate           | accepted canonical workflow runtime        | M9.8 establishes the Railway implementation; M10.1 ports the same workflow semantics to Local/Self-hosted.                                            |
-| Temporal          | superseded/transitional                    | Existing implementation/history remains until M9.8 removes it from the active release path. It is not an accepted release dependency.                 |
+| Restate           | accepted canonical workflow runtime        | M9.8 establishes the Railway implementation; M10.1 ports the same workflow semantics to Local/Hosted.                                            |
+| Temporal          | historical migration provenance            | Not an accepted release dependency or active runtime.                                                   |
 | LangGraph         | adapter-bound                              | Optional bounded graph/multi-agent execution inside a Restate-owned durable lifecycle.                                                                |
 | Pi                | adapter-bound                              | Default managed harness behind RuntimeAdapter/RuntimeDriver contracts.                                                                                |
 | ACP               | adapter-bound                              | External-harness interoperability protocol.                                                                                                           |
@@ -86,7 +86,7 @@ Control Plane R2 storage and Agent HQ Artifact storage are separate authorities 
 | Railway           | accepted initial managed-cloud compute     | M9 first-party cloud target; provider-specific details remain outside domain contracts.                                                               |
 | Neon              | accepted managed-cloud PostgreSQL provider | Separate Control Plane project/database; explicit migrations and least-privilege runtime authority.                                                   |
 | Cloudflare R2     | accepted managed-cloud object store        | Control Plane current bucket `ctrl-plane`; explicit cloud storage only, behind `ObjectStore`, with product/environment credentials separately scoped. |
-| AWS/ECS/Terraform | historical/optional portability assets     | No longer the first-party cloud deployment target.                                                                                                    |
+| AWS/ECS/Terraform | removed migration provenance              | No longer present in the active deployment path or supported as a provider option.                                                                    |
 
 ## Persistence and data ownership
 
@@ -94,8 +94,8 @@ The Control Plane owns a separate persistence boundary from Agent HQ and Cortana
 
 - Managed cloud: Neon PostgreSQL.
 - Local: embedded SQLite.
-- Self-hosted `simple`: SQLite.
-- Self-hosted `server`: PostgreSQL.
+- Hosted `simple`: SQLite.
+- Hosted `server`: PostgreSQL.
 
 Physical schemas may differ by adapter, but logical IDs, revisions, idempotency, lifecycle, provenance, and public contracts may not. Restate workflow state is separate from Control Plane domain persistence. LangGraph checkpoint state is separate from both. Provider corpus/native memory remains provider-owned.
 
@@ -103,7 +103,7 @@ The repository's existing local PostgreSQL Compose fixtures are integration/serv
 
 ## Object storage ownership
 
-`ObjectStore` is deployment-neutral. The M9 Control Plane cloud implementation uses the Control Plane-owned Cloudflare R2 bucket/configuration; M10 Local/Self-hosted use filesystem or user-controlled S3-compatible storage. Physical provider identifiers do not enter stable contracts.
+`ObjectStore` is deployment-neutral. The M9 Control Plane cloud implementation uses the Control Plane-owned Cloudflare R2 bucket/configuration; M10 Local/Hosted use filesystem or user-controlled S3-compatible storage. Physical provider identifiers do not enter stable contracts.
 
 Agent HQ owns a different Artifact authorization/lifecycle boundary and must use its own bucket/credentials for first-party Artifact promotion. Sharing a Cloudflare account does not authorize one product to read, write, delete, scan, retain, or issue capabilities for the other product's objects.
 
@@ -134,8 +134,8 @@ M10 formalizes deployment-specific choices behind ports such as:
 - `ServiceDiscovery`
 - `ObservabilityProvider`
 
-M10 must preserve the M9 Railway cloud implementation behind these ports while adding Local/Self-hosted implementations. A portability refactor that changes deployment-independent product semantics is an architecture regression.
+M10 must preserve the M9 Railway cloud implementation behind these ports while adding Local/Hosted implementations. A portability refactor that changes deployment-independent product semantics is an architecture regression.
 
 ## Current implementation versus accepted target
 
-Some source files, Terraform, tests, and runbooks still encode the previous AWS/Temporal/PostgreSQL-only implementation. Those are not silently redefined by documentation. M9.7 and M9.8 own the code/config migration; M9.9 owns the live Neon/R2/Railway dependency wiring. Until those issues close, repository documentation must label old infrastructure as historical/transitional rather than claiming the target is already deployed.
+M9.7 removed the former AWS/ECS/Terraform deployment path, and M9.8 removes the former Temporal runtime from active code/configuration. M9.9 owns the live Neon/R2/Railway dependency wiring. Historical ADRs, changelogs, and issue records retain migration provenance; they are not supported deployment options or active runtime dependencies.
