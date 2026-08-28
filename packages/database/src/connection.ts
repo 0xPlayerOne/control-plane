@@ -12,6 +12,7 @@ export interface PostgresConnectionOptions {
 
 export interface PostgresConnection {
   readonly database: ControlPlaneDatabase
+  check(): Promise<void>
   close(): Promise<void>
 }
 
@@ -43,6 +44,9 @@ export function createPostgresConnection(
   })
   return {
     database: drizzle(client, { schema }),
+    check: async () => {
+      await client`select 1`
+    },
     close: () => client.end({ timeout: 5 }),
   }
 }

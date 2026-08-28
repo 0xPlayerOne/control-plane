@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Buffer } from 'node:buffer'
 import { generateKeyPairSync, sign } from 'node:crypto'
+import { loadManagedCloudConfiguration } from '@control-plane/config'
 import { contextPackageSerializationFixtures } from '@control-plane/context'
 import { ControlApiFixtures } from '@control-plane/contracts'
 import { executionConstraintFixtures } from '@control-plane/domain'
@@ -12,7 +13,7 @@ import {
   PolicyServiceAuthenticator,
   createInternalServicePrincipal,
 } from './auth/service-authentication.ts'
-import { start } from './index.ts'
+import { createManagedCloudControlApiComposition, start } from './index.ts'
 import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
@@ -718,7 +719,101 @@ describe('Control API', () => {
 
     await processAdapter.emit('SIGTERM')
   })
+
+  test('probes and closes the Neon connection around managed Cloud startup', async () => {
+    const processAdapter = new FakeProcessAdapter()
+    const lifecycle = []
+    const started = await start({
+      environment: managedCloudEnvironment(),
+      listen: false,
+      logger: { write: () => undefined },
+      processAdapter,
+      postgresConnectionFactory: () => ({
+        database: {},
+        check: async () => lifecycle.push('checked'),
+        close: async () => lifecycle.push('closed'),
+      }),
+    })
+
+    expect(lifecycle).toEqual(['checked'])
+    expect(started.runtime.readiness().status).toBe('ready')
+    const authentication = await started.application.inject({
+      method: 'POST',
+      url: '/v1/system/authenticated',
+      headers: { authorization: 'Bearer invalid-signed-service-credential' },
+      payload: scopedRequest(),
+    })
+    expect(authentication.statusCode).toBe(401)
+    expect(authentication.json().error.code).toBe('SERVICE_CREDENTIAL_MALFORMED')
+
+    await processAdapter.emit('SIGTERM')
+
+    expect(lifecycle).toEqual(['checked', 'closed'])
+    expect(started.runtime.readiness().status).toBe('not_ready')
+  })
+
+  test('fails managed Cloud startup closed and releases PostgreSQL when readiness probing fails', async () => {
+    const lifecycle = []
+    const logs = []
+
+    await expect(
+      start({
+        environment: managedCloudEnvironment(),
+        listen: false,
+        logger: { write: (entry) => logs.push(entry) },
+        processAdapter: new FakeProcessAdapter(),
+        postgresConnectionFactory: () => ({
+          database: {},
+          check: async () => {
+            lifecycle.push('checked')
+            throw new Error('postgresql://app:must-not-leak@example.neon.tech/control_plane')
+          },
+          close: async () => lifecycle.push('closed'),
+        }),
+      })
+    ).rejects.toThrow('Service startup failed')
+
+    expect(lifecycle).toEqual(['checked', 'closed'])
+    expect(JSON.stringify(logs)).not.toContain('must-not-leak')
+  })
+
+  test('constructs the durable validator and signed authenticator from one Cloud composition', () => {
+    const composition = createManagedCloudControlApiComposition(
+      loadManagedCloudConfiguration(managedCloudEnvironment(), 'control-api'),
+      { write: () => undefined },
+      () => ({ database: {}, check: async () => undefined, close: async () => undefined })
+    )
+
+    expect(composition.executionValidationService).toBeInstanceOf(DurableExecutionValidationService)
+    expect(composition.serviceAuthenticator).toBeInstanceOf(PolicyServiceAuthenticator)
+  })
 })
+
+function managedCloudEnvironment() {
+  const { publicKey } = generateKeyPairSync('ed25519')
+  const trustedKey = publicKey.export({ format: 'jwk' }).x
+  return {
+    APP_ENV: 'staging',
+    SERVICE_VERSION: '1.4.0',
+    COMMIT_SHA: 'abc123',
+    INSTANCE_ID: 'control-api-staging',
+    DATABASE_URL:
+      'postgresql://app:database-secret@example.neon.tech/control_plane?sslmode=require',
+    CONTROL_PLANE_SECRET_ENCRYPTION_KEY:
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    CONTROL_PLANE_SERVICE_AUTH_ISSUER: 'https://agent-hq.example',
+    CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: JSON.stringify([
+      { keyId: 'agent-hq-2026-08', publicKey: trustedKey },
+    ]),
+    CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: '[]',
+    R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+    R2_BUCKET: 'ctrl-plane',
+    R2_REGION: 'auto',
+    R2_ACCESS_KEY_ID: 'access-key',
+    R2_SECRET_ACCESS_KEY: 'secret-key-that-is-not-logged',
+    RESTATE_INGRESS_URL: 'http://control-planerestate.railway.internal:8080',
+  }
+}
 
 function validServiceClaims() {
   return {
