@@ -4,15 +4,16 @@ The Control Plane is a TypeScript modular monolith with independently deployable
 
 ## System ownership
 
-| System | Owns | Does not own |
-| --- | --- | --- |
-| **Agent HQ** | Product identity, workspace authorization, persistent user-facing Agents/Tasks, RuntimeNode registration, product events, execution-location UX, and web/mobile remote coordination | Control Plane execution policy, ProjectState, durable workflow semantics, or provider corpora |
-| **Control Plane** | AgentProfile/Skill resolution, ProjectState, ContextPackages, ExecutionPlans, durable execution, runtime/tool/model/provider policy, orchestration, usage, and normalized execution evidence | Agent HQ product tables/UI state or Cortana corpus/native memory |
-| **RuntimeNode / host** | Concrete execution location and RuntimeDriver/local-service capabilities | Product authorization or Control Plane routing/orchestration policy |
-| **Concrete harness** | Native agent loop, native sessions, provider authentication, harness-local tools/configuration | Stable Control Plane contracts or product identity |
-| **ContextProvider** | Separately owned evidence/memory/corpus and provider-specific authorization | ProjectState or Control Plane execution authority |
+| System                 | Owns                                                                                                                                                                                         | Does not own                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Agent HQ**           | Product identity, workspace authorization, persistent user-facing Agents/Tasks, RuntimeNode registration, product events, execution-location UX, and web/mobile remote coordination          | Control Plane execution policy, ProjectState, durable workflow semantics, or provider corpora |
+| **Control Plane**      | AgentProfile/Skill resolution, ProjectState, ContextPackages, ExecutionPlans, durable execution, runtime/tool/model/provider policy, orchestration, usage, and normalized execution evidence | Agent HQ product tables/UI state or Cortana corpus/native memory                              |
+| **RuntimeNode / host** | Concrete execution location and RuntimeDriver/local-service capabilities                                                                                                                     | Product authorization or Control Plane routing/orchestration policy                           |
+| **Concrete harness**   | Native agent loop, native sessions, provider authentication, harness-local tools/configuration                                                                                               | Stable Control Plane contracts or product identity                                            |
+| **ContextProvider**    | Separately owned evidence/memory/corpus and provider-specific authorization                                                                                                                  | ProjectState or Control Plane execution authority                                             |
 
 Cross-product integration uses public/versioned contracts. No product reads another product's database directly or treats another product's storage credentials as its own authority.
+This is the no-cross-database-access rule.
 
 ## Repository ownership
 
@@ -66,26 +67,26 @@ Control Plane R2 storage and Agent HQ Artifact storage are separate authorities 
 
 ## Technology decisions
 
-| Technology | Status | Current architectural decision |
-| --- | --- | --- |
-| TypeScript | accepted | Primary application and package language under strict workspace settings. |
-| NestJS | accepted | HTTP/service composition and dependency-injection framework where server composition requires it. |
-| Fastify | accepted | HTTP adapter beneath NestJS and for lightweight transport boundaries. |
-| PostgreSQL | accepted server/cloud adapter | Neon for the M9 managed-cloud profile; recommended for Self-hosted `server`. |
-| SQLite | accepted Local/simple adapter | Node 24 `node:sqlite` + Drizzle for M10 Local and Self-hosted `simple`. |
-| Drizzle | accepted | Persistence schema/migration layer behind deployment-specific adapters. |
-| Restate | accepted canonical workflow runtime | M9.8 establishes the Railway implementation; M10.1 ports the same workflow semantics to Local/Self-hosted. |
-| Temporal | superseded/transitional | Existing implementation/history remains until M9.8 removes it from the active release path. It is not an accepted release dependency. |
-| LangGraph | adapter-bound | Optional bounded graph/multi-agent execution inside a Restate-owned durable lifecycle. |
-| Pi | adapter-bound | Default managed harness behind RuntimeAdapter/RuntimeDriver contracts. |
-| ACP | adapter-bound | External-harness interoperability protocol. |
-| MCP | adapter-bound | Tool interoperability adapter; not the internal authority model. |
-| LiteLLM | adapter-bound | Initial managed model-gateway adapter where required. |
-| E2B | adapter-bound | Initial hosted isolated-compute adapter. |
-| Railway | accepted initial managed-cloud compute | M9 first-party cloud target; provider-specific details remain outside domain contracts. |
-| Neon | accepted managed-cloud PostgreSQL provider | Separate Control Plane project/database; explicit migrations and least-privilege runtime authority. |
-| Cloudflare R2 | accepted managed-cloud object store | Control Plane current bucket `ctrl-plane`; explicit cloud storage only, behind `ObjectStore`, with product/environment credentials separately scoped. |
-| AWS/ECS/Terraform | historical/optional portability assets | No longer the first-party cloud deployment target. |
+| Technology        | Status                                     | Current architectural decision                                                                                                                        |
+| ----------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript        | accepted                                   | Primary application and package language under strict workspace settings.                                                                             |
+| NestJS            | accepted                                   | HTTP/service composition and dependency-injection framework where server composition requires it.                                                     |
+| Fastify           | accepted                                   | HTTP adapter beneath NestJS and for lightweight transport boundaries.                                                                                 |
+| PostgreSQL        | accepted server/cloud adapter              | Neon for the M9 managed-cloud profile; recommended for Self-hosted `server`.                                                                          |
+| SQLite            | accepted Local/simple adapter              | Node 24 `node:sqlite` + Drizzle for M10 Local and Self-hosted `simple`.                                                                               |
+| Drizzle           | accepted                                   | Persistence schema/migration layer behind deployment-specific adapters.                                                                               |
+| Restate           | accepted canonical workflow runtime        | M9.8 establishes the Railway implementation; M10.1 ports the same workflow semantics to Local/Self-hosted.                                            |
+| Temporal          | superseded/transitional                    | Existing implementation/history remains until M9.8 removes it from the active release path. It is not an accepted release dependency.                 |
+| LangGraph         | adapter-bound                              | Optional bounded graph/multi-agent execution inside a Restate-owned durable lifecycle.                                                                |
+| Pi                | adapter-bound                              | Default managed harness behind RuntimeAdapter/RuntimeDriver contracts.                                                                                |
+| ACP               | adapter-bound                              | External-harness interoperability protocol.                                                                                                           |
+| MCP               | adapter-bound                              | Tool interoperability adapter; not the internal authority model.                                                                                      |
+| LiteLLM           | adapter-bound                              | Initial managed model-gateway adapter where required.                                                                                                 |
+| E2B               | adapter-bound                              | Initial hosted isolated-compute adapter.                                                                                                              |
+| Railway           | accepted initial managed-cloud compute     | M9 first-party cloud target; provider-specific details remain outside domain contracts.                                                               |
+| Neon              | accepted managed-cloud PostgreSQL provider | Separate Control Plane project/database; explicit migrations and least-privilege runtime authority.                                                   |
+| Cloudflare R2     | accepted managed-cloud object store        | Control Plane current bucket `ctrl-plane`; explicit cloud storage only, behind `ObjectStore`, with product/environment credentials separately scoped. |
+| AWS/ECS/Terraform | historical/optional portability assets     | No longer the first-party cloud deployment target.                                                                                                    |
 
 ## Persistence and data ownership
 

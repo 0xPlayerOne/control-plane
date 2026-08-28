@@ -9,7 +9,9 @@ Production-shaped TypeScript monorepo for the Control Plane. The repository is o
 - **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Self-hosted.
 - **M12 — Cross-Product Integration & Release:** connect the approved Control Plane candidate to Agent HQ and optional Cortana release candidates.
 
-The repository still contains transitional AWS/ECS/Terraform and Temporal implementation artifacts from earlier milestones. They are historical/portability assets until M9.7/M9.8 replace them in the active first-party cloud release path; they are not the current architecture target.
+M9 is rewriting the former AWS/ECS/Terraform and Temporal cloud implementation into the active
+Railway + Neon + Cloudflare R2 + Restate Cloud option. Hosted/VPS and Local remain separate system
+options that port the same application semantics; AWS is not a supported deployment option.
 
 ## Prerequisites
 
@@ -55,20 +57,21 @@ Key documentation:
 
 ## Workspace commands
 
-| Command | Purpose |
-| --- | --- |
-| `bun run build` | Build every app and package through Turborepo |
-| `bun run lint` | Lint source/configuration and enforce package boundaries |
-| `bun test` | Run workspace test groups |
-| `bun run test:acceptance` | Run the repository acceptance baseline currently implemented in source |
-| `bun run check:boundaries` | Reject undeclared dependencies and cross-package source imports |
-| `bun run format` | Format the repository with Prettier |
-| `bun run format:check` | Check formatting without modifying files |
-| `bun run containers:print` | Print the current service image build plan |
-| `bun run containers:build` | Build current production-shaped service images |
+| Command                      | Purpose                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bun run build`              | Build every app and package through Turborepo                                                          |
+| `bun run lint`               | Lint source/configuration and enforce package boundaries                                               |
+| `bun test`                   | Run workspace test groups                                                                              |
+| `bun run test:acceptance`    | Run the repository acceptance baseline currently implemented in source                                 |
+| `bun run check:boundaries`   | Reject undeclared dependencies and cross-package source imports                                        |
+| `bun run format`             | Format the repository with Prettier                                                                    |
+| `bun run format:check`       | Check formatting without modifying files                                                               |
+| `bun run containers:print`   | Print the current service image build plan                                                             |
+| `bun run containers:build`   | Build current production-shaped service images                                                         |
 | `bun run test:m9-acceptance` | Run the existing M9 hardening/evidence suite; M9.6 additionally requires live Railway staging evidence |
 
-Existing Terraform validation commands are historical AWS infrastructure checks until M9.7 reclassifies/removes them. A passing Terraform check is not Railway deployment evidence.
+The repository-owned Railway manifest validator is the infrastructure composition check. A passing
+local check is not Railway staging evidence until the M9.6 live activation gate is completed.
 
 ## Architecture map
 

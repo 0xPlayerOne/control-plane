@@ -25,6 +25,7 @@ Record at minimum:
 - p50/p95/p99/max latency;
 - retry/redelivery/error counts;
 - idle and representative active cost.
+- telemetry median overhead and representative p95 overhead.
 
 M9.6 records the initial cloud baseline only after live staging is healthy. M11 later reruns it from the frozen release candidate.
 

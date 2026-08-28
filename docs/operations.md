@@ -33,6 +33,10 @@ Do not treat the current Railway dashboard or existing AWS Terraform as producti
 
 ## Managed-cloud release and rollback
 
+The current operational target is RPO is 5 minutes and RTO is 60 minutes; M9.6 must replace these
+planning values with measured Railway/Neon/R2/Restate staging evidence or an explicitly accepted
+revision.
+
 1. Require M9.7–M9.13 implementation/configuration gates to be complete.
 2. Build/test/scan the complete monorepo using the repository-owned Railway/container build path.
 3. Record exact commit, service versions, Restate version, schema/contracts, and repository-owned Railway configuration.

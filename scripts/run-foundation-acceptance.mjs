@@ -13,12 +13,7 @@ const containerCommand = [
   'database-migrate',
 ]
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
-const supportedFlags = new Set([
-  '--skip-containers',
-  '--skip-install',
-  '--skip-terraform',
-  '--verify-only',
-])
+const supportedFlags = new Set(['--skip-containers', '--skip-install', '--verify-only'])
 
 for (const argument of process.argv.slice(2)) {
   if (!supportedFlags.has(argument)) throw new Error(`Unsupported acceptance flag: ${argument}`)
@@ -84,7 +79,7 @@ if (!flags.has('--verify-only')) {
   for (const script of ['format:check', 'lint', 'type-check', 'build', 'test:foundation']) {
     run('bun', ['run', script])
   }
-  if (!flags.has('--skip-terraform')) run('bun', ['run', 'infra:validate'])
+  run('bun', ['run', 'infra:validate'])
   if (!flags.has('--skip-containers')) {
     const [command, ...arguments_] = containerCommand
     run(command, arguments_)

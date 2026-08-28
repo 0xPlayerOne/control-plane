@@ -9,7 +9,7 @@ The repository uses Bun's native test runner. Keep tests deterministic, isolate 
 - **M11** rebuilds the complete validation program into deterministic release lanes and independently reruns all three profiles.
 - **M12** is the first live Agent HQ/optional Cortana cross-product release gate.
 
-A historical M1–M9 test remains useful evidence, but it cannot certify a component after its architecture has been superseded. In particular, AWS/ECS/Terraform and Temporal-specific tests do not prove the accepted Railway/Restate deployment merely because they still pass.
+A historical M1–M9 test remains useful evidence, but it cannot certify a component after its architecture has been superseded. In particular, former AWS/ECS/Terraform and Temporal-specific tests do not prove the accepted Railway/Restate deployment.
 
 ## Current commands
 
@@ -24,10 +24,14 @@ The following commands describe the repository as it exists today. M9.7/M9.8/M10
 - `bun run test:acceptance` runs the existing repository acceptance baseline.
 - `bun run compatibility:check` validates machine-readable runtime compatibility evidence.
 - `bun run test:m3-acceptance` through `test:m7-acceptance` preserve the historical feature acceptance seams.
+- The M2-M6 acceptance flows remain available as historical feature acceptance evidence while M9/M10
+  replace the deployment topology.
+- `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, and protocol matrix.
 - `bun run test:m9-acceptance` runs the existing production-hardening/security/load evidence. **It is not sufficient to close M9.6**: live Railway staging evidence is also required.
 - `bun run test:recovery-matrix` runs current disposable recovery fixtures.
 
-Existing Terraform validation/container commands remain historical AWS infrastructure checks until M9.7 replaces/reclassifies the first-party cloud path. A green Terraform validation is not Railway staging evidence.
+The Railway manifest validator checks repository-owned service composition. A green local validation is
+not Railway staging evidence until the M9.6 live activation gate is completed.
 
 ## Required M9 validation additions
 
@@ -71,6 +75,9 @@ M10 must add profile-aware conformance for:
 
 M11 owns the final release validation layout. At minimum it must classify each suite as one primary lane:
 
+Failure-injection tests use recording or deliberately failing adapters and assert durable state,
+recovery, and idempotency rather than internal call order.
+
 - unit;
 - contract/schema;
 - integration;
@@ -83,6 +90,7 @@ M11 owns the final release validation layout. At minimum it must classify each s
 - infrastructure/live-provider certification.
 
 The aggregate release gate cannot pass when a required lane is skipped, cancelled, missing, or inconclusive. M11 must identify the exact deployment profile/configuration/version used by each production-shaped test.
+Independent test groups run in parallel where their resources are isolated.
 
 ## Current PostgreSQL integration fixture
 
@@ -128,7 +136,9 @@ Deployment bootstrap secrets and dynamic connector/provider credentials are sepa
 
 ## Coverage goals
 
-Unit coverage remains at or above the repository's configured threshold unless an explicit accepted change updates the policy. Add focused tests rather than lowering coverage to make a gate green.
+Unit coverage remains at or above the repository's configured 80% threshold unless an explicit accepted
+change updates the policy. Add focused tests rather than lowering coverage to make a gate green.
+The complete unit report is emitted as LCOV for CI coverage publication.
 
 ## Evidence rules
 

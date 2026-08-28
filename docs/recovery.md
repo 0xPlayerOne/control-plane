@@ -16,6 +16,9 @@ The accepted cloud profile is Railway compute, separate Control Plane Neon Postg
 
 Required M9 evidence includes:
 
+- `apps/workflow-worker/src/execution-workflow.test.mjs`;
+- `apps/runtime-gateway/src/reconnect-reconciliation.test.mjs`;
+- `packages/events/src/delivery.test.mjs`;
 - failed Railway deploy rollback/forward repair;
 - service restart/redeploy and draining behavior;
 - Neon connection loss/reconnect;

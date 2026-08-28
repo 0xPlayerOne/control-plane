@@ -19,7 +19,6 @@ group "default" {
 target "_service" {
   context    = "."
   dockerfile = "infrastructure/containers/Dockerfile"
-  platforms  = ["linux/arm64"]
   target     = "runtime"
 }
 

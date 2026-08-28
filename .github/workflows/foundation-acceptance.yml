@@ -37,37 +37,7 @@ jobs:
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
       - name: Run core foundation acceptance
-        run: bun scripts/run-foundation-acceptance.mjs --skip-install --skip-terraform --skip-containers
-
-  terraform:
-    name: Terraform (${{ matrix.environment }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        environment: [development, staging, production]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Check formatting
-        run: >-
-          docker run --rm --volume "$PWD:/workspace"
-          --workdir /workspace/infrastructure/terraform
-          hashicorp/terraform:1.13.5 fmt -check -recursive -diff
-      - name: Initialize without remote state
-        run: >-
-          docker run --rm --volume "$PWD:/workspace"
-          --workdir /workspace/infrastructure/terraform/environments/${{ matrix.environment }}
-          hashicorp/terraform:1.13.5 init -backend=false -input=false -no-color
-      - name: Validate
-        run: >-
-          docker run --rm --volume "$PWD:/workspace"
-          --workdir /workspace/infrastructure/terraform/environments/${{ matrix.environment }}
-          hashicorp/terraform:1.13.5 validate -no-color
+        run: bun scripts/run-foundation-acceptance.mjs --skip-install --skip-containers
 
   containers:
     name: Containers
@@ -87,16 +57,14 @@ jobs:
   gate:
     name: Gate
     if: always()
-    needs: [core, terraform, containers]
+    needs: [core, containers]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       CONTAINERS_RESULT: ${{ needs.containers.result }}
       CORE_RESULT: ${{ needs.core.result }}
-      TERRAFORM_RESULT: ${{ needs.terraform.result }}
     steps:
       - name: Require every foundation lane
         run: |
           test "$CORE_RESULT" = success
-          test "$TERRAFORM_RESULT" = success
           test "$CONTAINERS_RESULT" = success
