@@ -1,4 +1,5 @@
 import helmet from '@fastify/helmet'
+import { managedCloudOperationalPolicy } from '@control-plane/config'
 import { ValidationPipe, VersioningType, type VersioningOptions } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify'
@@ -18,7 +19,7 @@ export async function createControlApiApplication(
   options: AppModuleOptions
 ): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
-    bodyLimit: 1_048_576,
+    bodyLimit: managedCloudOperationalPolicy.payload.gatewayFrameBytes,
     genReqId: requestIdFromHeaders,
     logger: false,
     trustProxy: false,

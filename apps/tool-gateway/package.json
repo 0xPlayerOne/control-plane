@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@control-plane/bootstrap": "workspace:*",
+    "@control-plane/config": "workspace:*",
     "@control-plane/contracts": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/policy": "workspace:*",

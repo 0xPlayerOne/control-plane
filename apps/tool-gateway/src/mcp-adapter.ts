@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { managedCloudOperationalPolicy } from '@control-plane/config'
 import {
   ToolExecutorError,
   type ToolExecutionRequest,
@@ -89,9 +90,9 @@ export class McpAdapter implements ToolExecutor {
     this.#ids = options.ids
     this.#now = options.now ?? (() => new Date().toISOString())
     this.#limits = options.limits ?? {
-      maxInputBytes: 1_048_576,
-      maxOutputBytes: 1_048_576,
-      timeoutMs: 30_000,
+      maxInputBytes: managedCloudOperationalPolicy.payload.encryptedContentBytes,
+      maxOutputBytes: managedCloudOperationalPolicy.payload.encryptedContentBytes,
+      timeoutMs: managedCloudOperationalPolicy.payload.publicRequestDeadlineMs,
     }
     options.gateway.registerExecutor('mcp', this.#executorReference, this)
   }

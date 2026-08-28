@@ -26,12 +26,13 @@ import {
   RuntimeExecutionProgressSchema,
   type RuntimeExecutionProgress,
 } from '@control-plane/runtime-sdk'
+import { managedCloudOperationalPolicy } from '@control-plane/config'
 import { createHash } from 'node:crypto'
 import type { GatewayMetrics } from './websocket-coordination.js'
 import type { RuntimeCommandDeliveryService } from './runtime-command-delivery.js'
 
 const MAX_INLINE_EVENT_BYTES = 16_384
-const RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
+const RETENTION_MS = managedCloudOperationalPolicy.retention.executionEventsMs
 const TERMINAL_STATES = new Set(['completed', 'failed', 'cancelled', 'timed_out'])
 
 export interface RuntimeEventSourceChannel {
