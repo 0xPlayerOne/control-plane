@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { Buffer } from 'node:buffer'
+import { generateKeyPairSync, sign } from 'node:crypto'
 import { contextPackageSerializationFixtures } from '@control-plane/context'
 import { ControlApiFixtures } from '@control-plane/contracts'
 import { executionConstraintFixtures } from '@control-plane/domain'
 import { withTestApplication } from '@control-plane/testing'
 import { createControlApiApplication, createOpenApiDocument } from './application.ts'
 import {
+  ConfiguredCredentialRevocationChecker,
+  Ed25519ServiceCredentialVerifier,
   PolicyServiceAuthenticator,
   createInternalServicePrincipal,
 } from './auth/service-authentication.ts'
@@ -350,6 +354,29 @@ describe('Control API', () => {
         details: expect.objectContaining({ principalId: 'svc_agent-hq' }),
       })
     )
+  })
+
+  test('verifies signed Ed25519 service credentials by trusted key and explicit revocation', async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519')
+    const publicJwk = publicKey.export({ format: 'jwk' })
+    const claims = validServiceClaims()
+    const verifier = new Ed25519ServiceCredentialVerifier([
+      { keyId: claims.keyId, publicKey: publicJwk.x },
+    ])
+    const token = signedServiceCredential(privateKey, claims)
+
+    expect(await verifier.verify(token)).toEqual(claims)
+    await expect(verifier.verify(tamperCredential(token))).rejects.toThrow()
+    await expect(
+      verifier.verify(signedServiceCredential(privateKey, claims, { kid: 'unknown-key' }))
+    ).rejects.toThrow()
+    await expect(
+      verifier.verify(signedServiceCredential(privateKey, claims, { alg: 'none' }))
+    ).rejects.toThrow()
+
+    const revocations = new ConfiguredCredentialRevocationChecker([claims.credentialId])
+    expect(await revocations.isRevoked(claims.credentialId)).toBe(true)
+    expect(await revocations.isRevoked('active-credential')).toBe(false)
   })
 
   test('rejects user, device, and provider credential classes', async () => {
@@ -707,6 +734,22 @@ function validServiceClaims() {
     scopes: ['runtime:read', 'system:authenticate'],
     workspaceIds: ['wsp_01JABCDEF0123456789ABCDEFG'],
   }
+}
+
+function signedServiceCredential(privateKey, claims, headerOverrides = {}) {
+  const header = Buffer.from(
+    JSON.stringify({ alg: 'EdDSA', kid: claims.keyId, typ: 'JWT', ...headerOverrides })
+  ).toString('base64url')
+  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url')
+  const signingInput = `${header}.${payload}`
+  const signature = sign(null, Buffer.from(signingInput), privateKey).toString('base64url')
+  return `${signingInput}.${signature}`
+}
+
+function tamperCredential(credential) {
+  const [header, payload, signature] = credential.split('.')
+  const replacement = signature[0] === 'A' ? 'B' : 'A'
+  return `${header}.${payload}.${replacement}${signature.slice(1)}`
 }
 
 function scopedRequest() {
