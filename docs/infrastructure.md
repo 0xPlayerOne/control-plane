@@ -8,7 +8,7 @@ The repository still contains the earlier AWS/ECS/Terraform implementation from 
 
 - **M9.7 #215 — Railway service builds:** replace the AWS/ECS-first build/deploy baseline with reproducible Railway service configuration.
 - **M9.8 #216 — Restate managed-cloud migration:** replace Temporal in the active Railway cloud path and define the Restate service/runtime topology.
-- **M9.9 #217 — managed dependencies/configuration:** wire Neon, R2, service authentication, Railway private networking, secrets/configuration, health/readiness, and explicit database migration.
+- **M9.9 #217 — managed dependencies/configuration:** wire Neon, the existing Control Plane R2 bucket, service authentication, Railway private networking, secrets/configuration, health/readiness, and explicit database migration.
 - **M9.10–M9.13 #210–#213 — canonical behavior:** freeze public contracts, Profile/Skill behavior, ContextProvider behavior, and operational defaults before portability work.
 - **M9.6 #73 — cloud activation gate:** runs after the implementation/configuration work and closes only when live Railway staging is deployable and verified.
 - **M10 — Local & Self-Hosted Portability:** substitutes persistence, storage, secrets, process supervision, topology, and runtime transport adapters while preserving the accepted M9 semantics.
@@ -17,9 +17,9 @@ The repository still contains the earlier AWS/ECS/Terraform implementation from 
 
 | Capability | Accepted M9 provider/boundary | Rule |
 | --- | --- | --- |
-| Compute | Railway | Repository-owned service configuration; dashboard-only settings are not authoritative. |
+| Compute | Railway | Repository-owned/reproducible service configuration; dashboard-only settings are not sufficient release evidence. |
 | Relational state | Separate Control Plane Neon PostgreSQL | Drizzle migrations are explicit; Agent HQ uses a different Neon project/database. |
-| Object storage | Cloudflare R2 through `ObjectStore` | R2 identifiers never enter public/domain contracts. |
+| Object storage | Cloudflare R2 through `ObjectStore` | Current Control Plane bucket is `ctrl-plane` with Wrangler binding `ctrl_plane`; physical identifiers remain deployment configuration and never enter public/domain contracts. |
 | Durable workflows | Restate through `WorkflowRuntime` | Temporal is superseded for the release path; Restate-specific types stay out of public/domain contracts. |
 | Service configuration/bootstrap secrets | Railway service/shared variables | Values are never committed; configuration is validated at startup. |
 | Dynamic connector/provider credentials | Provider-neutral credential-vault/secret boundary | Railway environment variables are not a substitute for user-scoped dynamic credential storage. M9.9 must explicitly retain or replace the legacy AWS adapter behind the port and document the accepted cloud implementation. |
@@ -35,9 +35,12 @@ As of the current M9 planning baseline:
 - the Railway services do not yet have Control Plane application variables configured;
 - a separate Neon project named `control-plane` exists, but the Control Plane Drizzle/domain schema has not yet been applied and no Railway service is currently wired to it;
 - existing `neon_auth` tables in that Neon project are not Control Plane identity authority and must not become an application dependency;
-- R2 and Restate must be provisioned/configured and verified through M9.8/M9.9 before M9.6 can close.
+- a Cloudflare R2 bucket named **`ctrl-plane`** already exists for the Control Plane managed-cloud ObjectStore, with logical Wrangler binding **`ctrl_plane`**;
+- an authenticated Wrangler CLI is available to implementation agents for non-destructive R2 inspection/configuration and synthetic smoke tests;
+- the R2 bucket still requires environment mapping, least-privilege service credentials, Railway configuration, lifecycle/retention policy, and adapter-level write/read/delete verification before M9.6 can close;
+- Restate must be implemented/configured and verified through M9.8/M9.9 before M9.6 can close.
 
-Configuration shape is not deployment evidence. M9.6 requires an actual successful staging deployment, migrations, health/readiness, representative durable execution, restart/recovery, rollback/forward repair, R2 operations, and measured operational evidence.
+Configuration shape or resource existence is not deployment evidence. M9.6 requires an actual successful staging deployment, migrations, health/readiness, representative durable execution, restart/recovery, rollback/forward repair, R2 operations, and measured operational evidence.
 
 ## Railway service composition
 
@@ -59,7 +62,7 @@ The Control Plane cloud database is external to Railway and independently owned.
 
 Requirements:
 
-1. Use a dedicated Control Plane Neon project/database, separate from Agent HQ.
+1. Use the existing dedicated Control Plane Neon project/database, separate from Agent HQ.
 2. Apply repository-owned Drizzle migrations through an explicit migration job/pre-deploy step; ordinary service startup must not silently migrate production.
 3. Maintain separate runtime and migration/admin authority. Only services that need relational persistence receive runtime access.
 4. Validate schema compatibility before accepting traffic.
@@ -71,7 +74,19 @@ The repository's local PostgreSQL Compose fixtures remain useful for integration
 
 ## Cloudflare R2
 
-R2 is used only for Control Plane-managed cloud object storage and explicitly stored/promoted cloud artifacts/bundles. M9.9 must provision or verify the environment-specific bucket/configuration, least-privilege credentials, endpoint settings, lifecycle/retention rules, and adapter operations.
+The existing **`ctrl-plane`** bucket is the current Control Plane-owned managed-cloud ObjectStore resource. Its Wrangler binding is **`ctrl_plane`**. Those names are operator/deployment configuration only; Control Plane public/domain contracts continue to use provider-neutral ObjectStore/Artifact references.
+
+M9.9 must:
+
+1. verify the bucket and account access using the authenticated Wrangler CLI;
+2. decide/document staging-versus-production bucket isolation before production data exists;
+3. configure least-privilege R2/S3-compatible credentials for only the Railway services that require object access;
+4. configure endpoint/bucket/environment mapping through server-only deployment configuration;
+5. define lifecycle/retention and CORS only where required;
+6. perform synthetic Wrangler write/read/delete checks and then the same checks through the Control Plane `ObjectStore` adapter from Railway staging;
+7. record a sanitized resource/configuration manifest without account tokens, access-key secrets, or raw credentials.
+
+**Product storage ownership remains separate.** Agent HQ may use the same Cloudflare account/provider, but it uses a separate Agent HQ-owned bucket or environment-isolated bucket set and separate credentials. Agent HQ must not reuse the Control Plane `ctrl-plane` bucket or its broad credentials as Artifact authority.
 
 Local and Self-hosted profiles introduced in M10 use filesystem or user-controlled S3-compatible storage by default. Switching `ObjectStore` must not change Artifact identity or public contracts.
 
@@ -97,15 +112,15 @@ M10 adds Local and Self-hosted `SecretsProvider` adapters without changing secre
 The accepted managed-cloud release flow is:
 
 1. Build/test/scan reproducible service images from the complete workspace.
-2. Validate repository-owned Railway service configuration and exact image/application revision.
+2. Validate repository-owned/reproducible Railway service configuration and exact image/application revision.
 3. Validate required Railway variables and external dependency configuration without exposing values.
 4. Run the explicit Neon migration step with separately scoped migration authority.
 5. Deploy the required service topology and Restate runtime.
 6. Verify liveness/readiness through intended public/private paths.
-7. Run a representative durable execution and R2 operations.
+7. Run a representative durable execution and R2 ObjectStore operations.
 8. Exercise service/Restate/database reconnect and failed-deploy rollback/forward repair.
 9. Run the M9 observability/security/recovery/load evidence against the real staging environment.
-10. Record exact commit, configuration versions, migrations, service versions, resource/cost measurements, and rollback target.
+10. Record exact commit, configuration versions, migrations, service versions, R2/Neon resource-purpose mapping, resource/cost measurements, and rollback target without credentials.
 
 A failed schema migration blocks application rollout. Applied production migrations are repaired forward unless an explicitly reviewed restore procedure is required.
 
