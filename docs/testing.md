@@ -1,170 +1,137 @@
 # Testing
 
-The repository uses Bun's native test runner. Keep tests deterministic, isolate mutable state,
-and prefer real implementations over mocks when the dependency is local and inexpensive.
+The repository uses Bun's native test runner. Keep tests deterministic, isolate mutable state, and prefer real local implementations over mocks when they are inexpensive and safe. Deployment-profile certification must distinguish **historical executable evidence** from **current release evidence**.
 
-## Commands
+## Milestone ownership
 
-- `bun run test` builds once, then runs the unit, end-to-end, and smoke groups in parallel.
-- `bun run test:unit` runs colocated package and application tests and enforces coverage.
-- `bun run test:integration` starts the pinned local PostgreSQL service when needed, runs all
-  integration projects serially to avoid cross-project migration contention, and stops only the
-  database service that it started. The shared harness still creates two isolated databases in
-  parallel to validate concurrent test workers. Integration files use a 30-second per-test budget for
-  cold database creation and migration, and the runner allows PostgreSQL up to 60 seconds to
-  checkpoint during shutdown. Before projects start, the runner waits for a successful SQL query
-  instead of relying only on the container health transition. The service-stop disruption drill runs
-  only when the integration runner started the PostgreSQL service; a pre-existing developer service
-  is never disrupted.
-- `bun run test:e2e` runs the M2-M9 cross-package acceptance scenarios.
+- **M9** finishes and certifies the managed-cloud Railway + Neon + R2 + Restate profile.
+- **M10** adds Local and Self-hosted deployment adapters/conformance.
+- **M11** rebuilds the complete validation program into deterministic release lanes and independently reruns all three profiles.
+- **M12** is the first live Agent HQ/optional Cortana cross-product release gate.
+
+A historical M1–M9 test remains useful evidence, but it cannot certify a component after its architecture has been superseded. In particular, AWS/ECS/Terraform and Temporal-specific tests do not prove the accepted Railway/Restate deployment merely because they still pass.
+
+## Current commands
+
+The following commands describe the repository as it exists today. M9.7/M9.8/M10/M11 will update them as implementation changes land.
+
+- `bun run test` builds once, then runs the current test groups.
+- `bun run test:unit` runs colocated unit tests and coverage enforcement.
+- `bun run test:integration` currently exercises PostgreSQL-backed integration boundaries and recovery fixtures. These PostgreSQL fixtures remain valid for server/cloud persistence testing but are not the M10 Local product database.
+- `bun run test:e2e` runs the existing cross-package acceptance scenarios.
 - `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
-- `bun run test:foundation` runs the complete unit and integration foundation suite from a clean
-  checkout with one command.
-- `bun run test:acceptance` is the one-command acceptance gate. It checks dependency ancestry,
-  installs the frozen lockfile, runs formatting, lint and boundary enforcement, type-checking, builds,
-  the full foundation and M2-M7 suites, Terraform validation, and all service plus migration
-  container builds.
-- Terraform validation shares one ignored provider-plugin cache across the three isolated roots so
-  environment isolation does not triple local provider storage. State and module working directories
-  remain separate.
-- `bun run test:coverage` enforces the unit coverage goal and writes `coverage/lcov.info` for Code
-  Foundry's coverage upload step.
-- `bun run compatibility:check` validates exact runtime certifications, evidence sources, and the
-  generated matrix schema. The root `type-check` command includes this gate.
-- `bun run test:m3-acceptance` runs the durable execution and recovery scenario matrix.
-- `bun run test:m4-acceptance` runs the adapter-neutral Runtime Fabric scenario matrix used to
-  qualify inventory, eligibility, routing, sessions, read models, and historical attempt references.
-- `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, inventory, and
-  protocol-version scenario matrix.
-- `bun run test:m6-acceptance` runs the managed Pi and ACP cross-runtime acceptance matrix.
-- `bun run test:m7-acceptance` runs the policy-controlled tools, models, credentials, sandbox, and
-  budget acceptance matrix with deterministic provider fakes.
-- `bun run test:m9-acceptance` builds the workspace, runs the production trace/security/deployment
-  acceptance flow, scans tracked and untracked source for credential formats, and enforces the
-  repeatable latency, throughput, memory, cost, retry, and telemetry-overhead budgets.
-- `bun run test:recovery-matrix` creates a uniquely named disposable Compose project on a free local
-  port, exercises PostgreSQL loss, restart, and restore there, then removes that project and volume.
-- `bun run test:shard -- --shard=1/2` forwards Bun's deterministic file sharding option to the unit
-  group. CI shards must use distinct output directories if they collect coverage.
+- `bun run test:foundation` runs the current foundation suite from a clean checkout.
+- `bun run test:acceptance` runs the existing repository acceptance baseline.
+- `bun run compatibility:check` validates machine-readable runtime compatibility evidence.
+- `bun run test:m3-acceptance` through `test:m7-acceptance` preserve the historical feature acceptance seams.
+- `bun run test:m9-acceptance` runs the existing production-hardening/security/load evidence. **It is not sufficient to close M9.6**: live Railway staging evidence is also required.
+- `bun run test:recovery-matrix` runs current disposable recovery fixtures.
 
-Code Foundry detects the four public group scripts (`test:unit`, `test:integration`, `test:e2e`, and
-`test:smoke`) and schedules them as independent parallel jobs. The internal `test:group:*` scripts
-avoid rebuilding when `bun run test` mirrors that fan-out locally.
+Existing Terraform validation/container commands remain historical AWS infrastructure checks until M9.7 replaces/reclassifies the first-party cloud path. A green Terraform validation is not Railway staging evidence.
+
+## Required M9 validation additions
+
+M9.7–M9.13 must leave a reproducible managed-cloud validation path covering:
+
+- dependency-aware Railway service builds from a clean clone;
+- repository-owned Railway service configuration;
+- explicit Neon Drizzle migration and schema-version verification;
+- least-privilege runtime versus migration database authority;
+- Restate lifecycle/restart/redeploy/recovery;
+- R2 adapter operations;
+- Railway private service networking/public ingress boundaries;
+- service authentication/secrets/configuration;
+- health/readiness/draining;
+- public schema/OpenAPI/SDK compatibility;
+- deterministic Profile/Skill resolution;
+- ContextProvider policy/cache/failure behavior;
+- operational retry/heartbeat/expiry/retention/payload defaults;
+- M9.1–M9.5 observability/security/recovery/performance evidence rerun against the real staging candidate.
+
+M9.6 #73 closes only after the complete live cloud path passes.
+
+## Required M10 validation additions
+
+M10 must add profile-aware conformance for:
+
+- Local `node:sqlite` + Drizzle versus PostgreSQL domain parity;
+- Local single-node Restate versus the accepted M9 cloud Restate semantics;
+- all-in-one Local composition from clean state;
+- direct Local RuntimeTransport with no Runtime Gateway process;
+- Self-hosted `simple` Compose with SQLite;
+- Self-hosted `server` with PostgreSQL;
+- user-controlled filesystem/S3-compatible storage;
+- Local/Self-hosted SecretsProvider adapters;
+- host-side HPKE remote-control contract;
+- explicit export/import/migration;
+- backup/restore, restart, upgrade/rollback, and small-VPS resource evidence;
+- one conformance suite comparing M9 managed cloud, Local, Self-hosted `simple`, and Self-hosted `server` for deployment-independent semantics.
+
+## M11 test architecture
+
+M11 owns the final release validation layout. At minimum it must classify each suite as one primary lane:
+
+- unit;
+- contract/schema;
+- integration;
+- end-to-end;
+- smoke/configuration;
+- security/adversarial;
+- eval;
+- performance/capacity;
+- recovery/chaos;
+- infrastructure/live-provider certification.
+
+The aggregate release gate cannot pass when a required lane is skipped, cancelled, missing, or inconclusive. M11 must identify the exact deployment profile/configuration/version used by each production-shaped test.
+
+## Current PostgreSQL integration fixture
+
+The repository currently starts a pinned local PostgreSQL service for integration testing. That remains useful for:
+
+- Neon/PostgreSQL-compatible domain behavior;
+- Self-hosted `server` behavior;
+- migration/transaction/recovery testing.
+
+It must not be described as the M10 Local product profile. M10.3 adds SQLite and cross-adapter conformance.
+
+## Runtime acceptance
+
+Existing M4–M6 suites remain useful for Runtime Fabric, Runtime Gateway, Managed Pi, and ACP behavior. Their release interpretation changes by topology:
+
+- Runtime Gateway evidence applies to non-co-located RuntimeNodes.
+- M10 must add `DirectLocalRuntimeTransport` evidence for co-located managed Pi/ACP execution.
+- A runtime certification is tied to exact RuntimeAdapter + RuntimeDriver + RuntimeTransport + harness/protocol + deployment profile/location.
+
+## Durable execution acceptance
+
+Existing Temporal workflow tests remain historical execution-lifecycle evidence until M9.8. M9.8 must replace active release evidence with Restate equivalents while preserving accepted lifecycle semantics: retries, waits, deadlines, cancellation, interactions, restart recovery, idempotency, reconciliation, parent/child execution, and bounded LangGraph integration.
+
+M10.1 then runs the same Restate workflow/conformance behavior in Local and Self-hosted compositions.
+
+## Security and secret-canary testing
+
+Secret canaries must cover:
+
+- Railway build/deploy/configuration output;
+- Neon connection/migration diagnostics;
+- Restate state/logging;
+- R2 metadata/errors;
+- public API/SDK/events;
+- runtime/gateway/direct transport;
+- credential-vault use;
+- SQLite/PostgreSQL persistence and backups;
+- Local/Self-hosted exports;
+- HPKE relay fixtures;
+- telemetry and incident evidence.
+
+Deployment bootstrap secrets and dynamic connector/provider credentials are separate secret classes and both require leak tests.
 
 ## Coverage goals
 
-Unit coverage must remain at or above 80% for both lines and functions. Bun excludes test files and
-compiled `dist/` copies from the denominator, prints a text summary, and writes an LCOV report under
-`coverage/`. `scripts/check-coverage.mjs` enforces the aggregate threshold from that LCOV file, while
-`.github/code-foundry.yml` retains the same 80% policy for CI reporting. The threshold is checked after
-Bun has produced the complete workspace report, so a low-level adapter cannot replace the intended
-aggregate gate. Add focused tests instead of lowering the goal.
-The root `tsconfig.json` preserves the Control API's legacy-decorator transform when Bun executes all
-workspace tests in one process, so that application remains part of the aggregate coverage result.
+Unit coverage remains at or above the repository's configured threshold unless an explicit accepted change updates the policy. Add focused tests rather than lowering coverage to make a gate green.
 
-## Suite ownership
+## Evidence rules
 
-- **Unit** tests stay beside the production module and avoid network, database, and filesystem I/O.
-- **Integration** tests use `.integration.test.*` names and exercise HTTP, PostgreSQL, or another
-  local boundary. Use `withTestApplication` and `withIsolatedPostgres` so cleanup runs on failure.
-- **Contract** tests belong to the package that owns the stable public contract. Generated OpenAPI
-  drift is checked separately through `bun run openapi:check`.
-- **Failure-injection** tests use recording or deliberately failing port adapters and assert state,
-  not internal call order.
-- **End-to-end** tests cover the critical cross-package M2-M9 acceptance flows without external
-  credentials.
-  The established M2-M6 acceptance flows remain included unchanged alongside M7.
+Every production-readiness result records exact commit, toolchain, deployment profile, persistence adapter/schema, Restate version, RuntimeAdapter/Driver/Transport, runtime/provider versions, relevant configuration digest, command, timestamp, environment, and outcome.
 
-Vendor adapters must expose stable ports and use fakes or recording adapters in ordinary CI. Unit
-and integration tests must not require production credentials or a developer's persistent database.
-
-Targeted provider integration jobs may inject disposable LiteLLM, MCP, E2B, and secret-provider
-clients behind those same ports. They must use isolated resources, remain independent of the
-credential-free M7 acceptance command, and prove cleanup before the job exits.
-
-## M1 foundation acceptance
-
-From a full, clean clone with Git, Docker Buildx, Node 24.18.0, and Bun 1.4.0 available, run:
-
-```sh
-bun run test:acceptance
-```
-
-The command fails if any accepted M1.1-M1.8 commit is absent from history, the pinned toolchain files
-drift, a forbidden import crosses a package boundary, a zero-state PostgreSQL migration or isolated
-transaction fails, a service cannot boot and shut down through shared configuration, telemetry leaks
-the credential sentinel, Terraform is invalid, or an ARM64 container cannot build. It creates and
-removes its own PostgreSQL test service and needs no persistent local state or manual database repair.
-
-CI runs the core suite, three environment-specific Terraform validations, and the shared container
-build graph as parallel jobs. `Foundation Acceptance / Gate` aggregates them into one stable result.
-Local iteration may use the runner's explicit skip flags, but completion requires the unskipped command.
-
-## M2 core-domain acceptance
-
-`tests/m2-core-domain.test.mjs` submits a versioned Agent HQ service intent through the public SDK,
-authenticates the least-privilege service principal, resolves exact published profile and Skill
-versions, compiles a revision-pinned ContextPackage, and persists a deterministic immutable
-ExecutionPlan. The test retrieves the content-addressed references without a database or vendor
-adapter and asserts that runtime dispatch remains at zero.
-
-The same suite fails closed for invalid, expired, revoked, and cross-scope credentials; missing,
-deprecated, revoked, or incompatible catalog versions; stale, unauthorized, and over-budget context;
-contradictory runtime, model, policy, or tool requirements; persisted-plan mutation; and public SDK
-contract-major drift. It deliberately does not execute Pi, ACP, LangGraph, LiteLLM, MCP, E2B, or
-Temporal, so M3 durable-execution and M4 runtime work can start from the same pinned seam.
-
-## M3 durable execution acceptance
-
-Run `bun run test:m3-acceptance` to exercise authenticated execution acceptance, stable effect keys,
-workflow restart, activity retry, duplicate and out-of-order progress, durable interactions,
-cancellation races, Agent HQ outage replay, and explicit reconciliation of stale work. The suite uses
-the mock runtime boundary and requires no production runtime or external credentials.
-
-## M4 Runtime Fabric acceptance
-
-Run `bun run test:m4-acceptance` to exercise multiple RuntimeConnections on one RuntimeNode,
-managed-cloud and local candidates for the same plan, required and optional capability outcomes,
-node-online/runtime-unhealthy separation, stale capability inventory, policy-constrained preferences,
-stable tie-breaking, capability-specific external-session controls, safe Agent HQ read models, and a
-routed attempt that survives later runtime disconnection.
-
-The suite uses only the normalized Runtime Fabric and domain ports. It imports no concrete runtime
-gateway, Pi SDK, or ACP implementation, so M6 adapters can reuse the harness as a conformance target.
-Fixtures are deterministic and contain only opaque native identifiers; public projections are asserted
-not to expose those identifiers or unrestricted native state.
-
-## M5 Runtime Gateway acceptance
-
-Run `bun run test:m5-acceptance` to execute the Runtime Gateway's provider-neutral protocol,
-device-bound authentication, WebSocket lifecycle, durable command delivery, normalized event and
-inventory ingestion, and reconnect reconciliation scenarios as one suite. It covers wrong-scope,
-expired, replayed, and revoked credentials; lost acknowledgements and terminal outcomes; duplicate
-delivery; command expiry; cancellation races; stale inventory; cross-instance replacement; malformed
-and oversized frames; backpressure; and bounded restart recovery.
-
-The suite records protocol versions 1.0 through 1.5 and runs inside Code Foundry's independent E2E
-job. Component tests remain colocated with the Runtime Gateway so the acceptance entrypoint reuses the
-same executable controls instead of maintaining divergent fixtures.
-
-## M6 Runtime Adapters acceptance
-
-Run `bun run test:m6-acceptance` to build the workspace and execute the repository-local
-cross-runtime suite. It drives one normalized ExecutionPlan through the managed Pi and ACP reference
-adapters, exercises a standalone hosted-Pi fixture, routing preferences, capability degradation,
-interactions, cancellation, reconnect reconciliation, grant revocation, version invalidation, and ACP
-session resume/history controls.
-
-The suite reads exact adapter, driver, harness, protocol, profile, and skill pins from
-`tests/fixtures/m6-runtime-adapters.v1.json`. It uses disposable drivers, synthetic grants, and a
-generic reference client; it neither clones nor starts Agent HQ.
-
-## M7 tools, models, and sandboxes acceptance
-
-Run `bun run test:m7-acceptance` to compile a bounded ExecutionPlan and drive one execution through
-model routing, an approval-required tool, a scoped credential lease, isolated sandbox artifact
-promotion, and usage settlement. The suite proves duplicate delivery does not repeat effects or
-charges and probes policy denial/evaluator failure, credential revocation, pinned tool-schema drift,
-allowed and disallowed model fallback, sandbox timeout and metadata-network denial, hard budget
-exhaustion, cleanup, and secret leakage. Ordinary CI uses deterministic fakes and no provider
-credentials.
+Mocked or sampled evidence must be labeled. It cannot replace required concrete evidence when the milestone acceptance explicitly requires Railway, Neon, R2, Restate, SQLite, Compose, or another real implementation.
