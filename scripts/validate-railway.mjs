@@ -70,13 +70,7 @@ if (!cloud || cloud.environment !== 'managed-cloud') {
   throw new Error('Railway manifest must define the managed-cloud profile.')
 }
 
-const expected = new Set([
-  'control-api',
-  'workflow-worker',
-  'runtime-worker',
-  'runtime-gateway',
-  'tool-gateway',
-])
+const expected = new Set(['control-api', 'workflow-worker'])
 const services = cloud.services ?? []
 if (
   services.length !== expected.size ||
@@ -125,4 +119,4 @@ if (
   throw new Error('Railway migration must remain an explicit DATABASE_MIGRATION_URL job.')
 }
 
-console.log(`Validated Railway cloud manifest for ${services.length} services.`)
+console.log(`Validated Railway cloud manifest for ${services.length} application services.`)
