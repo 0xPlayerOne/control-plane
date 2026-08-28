@@ -93,11 +93,41 @@ describe('workflow worker telemetry', () => {
     expect(lifecycle).toEqual(['checked', 'endpoint', 'postgres'])
   })
 
-  test('fails managed Cloud startup before accepting workflows without a runtime port', async () => {
+  test('composes and closes the staging certification runtime through R2', async () => {
+    const lifecycle = []
+    const endpoint = {
+      run: async () => undefined,
+      shutdown: async () => lifecycle.push('endpoint'),
+    }
+    const runtime = await start({
+      environment: managedCloudEnvironment(),
+      logger: { write: () => undefined },
+      processAdapter: new FakeProcessAdapter(),
+      restateEndpointFactory: { create: async () => endpoint },
+      postgresConnectionFactory: () => ({
+        database: {},
+        check: async () => lifecycle.push('postgres-checked'),
+        close: async () => lifecycle.push('postgres'),
+      }),
+      objectStoreFactory: () => ({
+        put: async () => undefined,
+        get: async () => undefined,
+        head: async () => undefined,
+        delete: async () => undefined,
+        close: () => lifecycle.push('r2'),
+      }),
+    })
+
+    expect(runtime.readiness().status).toBe('ready')
+    await runtime.shutdown('test-complete')
+    expect(lifecycle).toEqual(['postgres-checked', 'endpoint', 'postgres', 'r2'])
+  })
+
+  test('fails production startup before accepting certification workflows', async () => {
     const calls = []
     await expect(
       start({
-        environment: managedCloudEnvironment(),
+        environment: { ...managedCloudEnvironment(), APP_ENV: 'production' },
         logger: { write: () => undefined },
         processAdapter: new FakeProcessAdapter(),
         restateEndpointFactory: {
@@ -109,6 +139,10 @@ describe('workflow worker telemetry', () => {
         postgresConnectionFactory: () => {
           calls.push('postgres')
           return { database: {}, check: async () => undefined, close: async () => undefined }
+        },
+        objectStoreFactory: () => {
+          calls.push('r2')
+          return {}
         },
       })
     ).rejects.toThrow('Service startup failed')
@@ -140,5 +174,6 @@ function managedCloudEnvironment() {
     R2_REGION: 'auto',
     R2_ACCESS_KEY_ID: 'access-key',
     R2_SECRET_ACCESS_KEY: 'secret-key-that-is-not-logged',
+    CONTROL_PLANE_CLOUD_RUNTIME: 'certification',
   }
 }

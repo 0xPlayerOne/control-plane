@@ -4,7 +4,9 @@ import {
   type ProcessAdapter,
   type StructuredLogger,
 } from '@control-plane/bootstrap'
-import type { RawEnvironment } from '@control-plane/config'
+import type { ManagedCloudConfiguration, RawEnvironment } from '@control-plane/config'
+import { managedCloudOperationalPolicy } from '@control-plane/config'
+import { createR2ObjectStore, type ObjectStore } from '@control-plane/object-store'
 import {
   createConsoleTraceAdapter,
   createOpenTelemetryMetricAdapter,
@@ -19,6 +21,7 @@ import {
 } from './cloud-composition.js'
 import type { WorkflowRuntimeActivityPort } from './cloud-execution-activities.js'
 import type { GraphSegmentActivityPort } from './graph-segment-activity.js'
+import { CloudCertificationRuntime } from './cloud-certification-runtime.js'
 
 export const serviceName = 'workflow-worker'
 
@@ -31,6 +34,7 @@ export interface WorkflowWorkerStartOptions {
   readonly workflowRuntime?: WorkflowRuntimeActivityPort
   readonly graphActivities?: GraphSegmentActivityPort
   readonly postgresConnectionFactory?: PostgresConnectionFactory
+  readonly objectStoreFactory?: typeof createR2ObjectStore
 }
 
 export const start = (options: WorkflowWorkerStartOptions = {}) => {
@@ -56,12 +60,23 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
         'worker.initialize',
         { correlationId: metadata.instanceId },
         async () => {
+          const cloudRuntime =
+            managedCloud === undefined || options.workflowRuntime !== undefined
+              ? options.workflowRuntime
+              : createCertificationRuntime(
+                  managedCloud,
+                  metadata.environment,
+                  options.objectStoreFactory
+                )
+          if (cloudRuntime instanceof CloudCertificationRuntime) {
+            registerResource('workflow-worker-r2', () => cloudRuntime.objectStore.close())
+          }
           const cloudComposition =
             managedCloud === undefined
               ? undefined
               : createManagedCloudWorkflowWorkerComposition(
                   managedCloud,
-                  requiredWorkflowRuntime(options.workflowRuntime),
+                  requiredWorkflowRuntime(cloudRuntime),
                   options.graphActivities,
                   options.postgresConnectionFactory
                 )
@@ -103,6 +118,22 @@ function requiredWorkflowRuntime(
 ): WorkflowRuntimeActivityPort {
   if (runtime === undefined) throw new Error('MANAGED_CLOUD_RUNTIME_NOT_CONFIGURED')
   return runtime
+}
+
+function createCertificationRuntime(
+  configuration: ManagedCloudConfiguration,
+  environment: string,
+  objectStoreFactory: typeof createR2ObjectStore = createR2ObjectStore
+): CloudCertificationRuntime {
+  if (configuration.runtime?.mode !== 'certification') {
+    throw new Error('MANAGED_CLOUD_RUNTIME_NOT_CONFIGURED')
+  }
+  if (environment !== 'staging') throw new Error('CLOUD_CERTIFICATION_RUNTIME_STAGING_ONLY')
+  if (configuration.objectStore === undefined) throw new Error('MANAGED_CLOUD_R2_NOT_CONFIGURED')
+  const objectStore: ObjectStore = objectStoreFactory(configuration.objectStore, {
+    maxObjectBytes: managedCloudOperationalPolicy.payload.encryptedContentBytes,
+  })
+  return new CloudCertificationRuntime(objectStore)
 }
 
 export { createManagedCloudWorkflowWorkerComposition } from './cloud-composition.js'
