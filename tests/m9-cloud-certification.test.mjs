@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { createHash, generateKeyPairSync, verify } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { URL } from 'node:url'
 import { TextEncoder } from 'node:util'
 import { describe, expect, test } from 'bun:test'
 import {

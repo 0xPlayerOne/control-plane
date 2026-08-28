@@ -27,12 +27,13 @@ Keep runtime database credentials separate from migration/admin authority. Keep 
 
 ## Current M9 state
 
-The Railway project has isolated `staging` and `production` environments. The active Cloud
-application topology is `control-api` plus the private `workflow-worker` Restate endpoint; the
-separately pinned `restate` runtime still requires live provisioning. Railway `staging` tracks Git
-`staging` and Neon `staging`, while Railway `production` tracks Git `main` and Neon `main`; each
-environment has separate least-privilege roles. R2 service credentials and the remaining live
-deployment/recovery evidence are still required before M9.6 #73 can close.
+The Railway project has isolated `staging` and `production` environments. The active Cloud staging
+topology is the public `control-api`, private `workflow-worker`, and separately pinned `restate`
+runtime with its persistent Railway volume. Railway `staging` tracks Git `staging` and Neon staging,
+while Railway `production` tracks Git `main` and Neon production; each environment has separate
+least-privilege roles. The 2026-08-28 staging activation, restart, execution, Neon, R2, security,
+resource, and bounded cost results are recorded in
+[`evidence/m9-cloud-certification-2026-08-28.md`](evidence/m9-cloud-certification-2026-08-28.md).
 
 The repository Cloud composition now persists accepted commands/executions in PostgreSQL and wires
 the workflow worker's lifecycle activities to the same authoritative execution and plan data.
@@ -41,7 +42,8 @@ terminal result through R2. Production uses `disabled` and cannot accept certifi
 This path certifies the Control Plane cloud infrastructure only; later Agent HQ managed-runtime
 support requires its own runtime provider and certification.
 
-Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
+Do not treat the staging certification, current Railway dashboard, or existing AWS Terraform as
+production certification. Production promotion remains a separate reviewed release gate.
 
 ## Managed-cloud release and rollback
 
