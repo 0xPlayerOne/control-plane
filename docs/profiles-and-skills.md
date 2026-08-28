@@ -42,12 +42,21 @@ must be published and belong to the same stable profile or Skill.
 
 ## Resolution and compatibility
 
-Resolution always uses the stable record ID plus exact version ID. Skill resolution additionally
-matches the immutable content digest. Results are explicit: available, deprecated, superseded, revoked,
-unpublished, missing, or incompatible. Compatibility checks report deterministic reasons for missing
-capabilities/tools, missing or revoked Skills, digest drift, and incompatible profile-schema or public
-contract majors. These checks are inputs to later ExecutionPlan compilation; they do not silently
-select a newer version.
+Resolution starts with the profile baseline, adds explicitly authorized task-time Skills, and then
+walks declared dependencies. Dependencies use `skillId` plus a SemVer range; the resolver selects the
+highest published, approved, non-prerelease version satisfying every accumulated range. It emits a
+stable dependency-first order, exact Skill IDs and content digests, and a provenance digest. Cycles,
+unsatisfied ranges, revoked required Skills, incompatible versions, and unresolved conflicts fail
+closed before execution. Community/public ingestion and signing are unsupported in the MVP.
+
+Constraint layers are composed from platform security through workspace policy, profile hard
+constraints/defaults, task/runtime constraints, task Skill augmentation, and harness/project
+configuration. Composition is restrictive: lower-precedence input can narrow authority but cannot
+broaden tools, models, context, runtime locations, permissions, budgets, or hard instructions.
+Resolution always retains the stable record ID plus exact version ID and immutable content digest.
+Results are explicit: available, deprecated, superseded, revoked, unpublished, missing, or
+incompatible. These checks and the complete resolved manifest are inputs to ExecutionPlan
+compilation; the resolver never silently replaces an exact profile pin.
 
 `AgentProfileRepository` and `SkillRepository` are persistence ports. Durable adapters must retain
 historical versions, return defensive snapshots, and implement revision compare-and-set plus published
