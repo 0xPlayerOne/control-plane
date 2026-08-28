@@ -4,6 +4,7 @@ export {
   DatabaseConnectionError,
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
+export { PostgresContextPackageRepository } from './context-package-repository.js'
 export { PostgresCatalogRepository } from './catalog-repository.js'
 export { PostgresEncryptedSecretStore } from './credential-secret-store.js'
 export { PostgresDelegationRepository } from './delegation-repository.js'
@@ -33,6 +34,7 @@ export type {
 export {
   commandInbox,
   commandInboxStatus,
+  contextPackages,
   agentProfileVersions,
   agentProfiles,
   catalogVersionLifecycle,

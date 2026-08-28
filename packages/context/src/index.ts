@@ -368,8 +368,7 @@ export interface ContextPackageRepository {
 export class InMemoryContextPackageRepository implements ContextPackageRepository {
   readonly #packages = new Map<string, ContextPackage>()
   async put(input: ContextPackage): Promise<ContextPackageReference> {
-    const package_ = ContextPackageSchema.parse(input)
-    assertPackageIntegrity(package_)
+    const package_ = assertContextPackageIntegrity(input)
     const existing = this.#packages.get(package_.contextPackageId)
     if (existing && existing.contentDigest !== package_.contentDigest)
       throw new Error('CONTEXT_PACKAGE_ID_CONFLICT')
@@ -382,6 +381,12 @@ export class InMemoryContextPackageRepository implements ContextPackageRepositor
     if (!package_ || package_.contentDigest !== reference.contentDigest) return undefined
     return structuredClone(package_)
   }
+}
+
+export function assertContextPackageIntegrity(input: unknown): ContextPackage {
+  const package_ = ContextPackageSchema.parse(input)
+  assertPackageIntegrity(package_)
+  return package_
 }
 
 function assertUniqueCandidates(candidates: z.output<typeof CandidateSchema>[]): void {

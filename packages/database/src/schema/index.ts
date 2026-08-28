@@ -7,6 +7,7 @@ export {
   skills,
 } from './catalog.js'
 export { credentialSecrets } from './credential-secrets.js'
+export { contextPackages } from './context-packages.js'
 export { delegations, delegationState } from './delegations.js'
 export {
   idColumn,

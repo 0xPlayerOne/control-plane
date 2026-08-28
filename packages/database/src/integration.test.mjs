@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
+import { contextPackageSerializationFixtures } from '@control-plane/context'
 import {
   CommandInboxService,
   ExecutionLifecycleService,
@@ -20,6 +21,7 @@ import {
   RuntimeHealthIngestionService,
 } from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
+import { PostgresContextPackageRepository } from './context-package-repository.ts'
 import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
@@ -41,6 +43,7 @@ import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventor
 import { PostgresUsageLedgerRepository } from './usage-ledger-repository.ts'
 import {
   commandInbox,
+  contextPackages,
   delegations,
   evaluationRuns,
   executionEvents,
@@ -254,6 +257,26 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(await isolated.application.select().from(projectStates)).toHaveLength(1)
     expect(await isolated.application.select().from(projectStateRevisions)).toHaveLength(2)
     expect(await isolated.application.select().from(statePromotionProposals)).toHaveLength(1)
+  })
+
+  test('persists immutable ContextPackages across restart and fails closed on tampering', async () => {
+    await isolated.migrate()
+    const package_ = contextPackageSerializationFixtures.futurePi
+    const repository = new PostgresContextPackageRepository(isolated.application)
+    const reference = await repository.put(package_)
+    expect(await repository.put(package_)).toEqual(reference)
+
+    const restarted = new PostgresContextPackageRepository(isolated.application)
+    expect(await restarted.get(reference)).toEqual(package_)
+    expect(
+      await restarted.get({ ...reference, contentDigest: `sha256:${'0'.repeat(64)}` })
+    ).toBeUndefined()
+
+    await isolated.application.execute(
+      sql`update context_packages set context_package = jsonb_set(context_package, '{objective}', '"tampered"'::jsonb)`
+    )
+    await expect(restarted.get(reference)).rejects.toThrow()
+    expect(await isolated.application.select().from(contextPackages)).toHaveLength(1)
   })
 
   test('persists immutable evaluation evidence across repository restart', async () => {
