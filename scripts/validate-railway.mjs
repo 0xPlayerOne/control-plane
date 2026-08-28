@@ -12,6 +12,7 @@ const restate = JSON.parse(
 const environment = JSON.parse(
   await readFile(`${repositoryRoot}/infrastructure/railway/environment.json`, 'utf8')
 )
+const railwayIac = await readFile(`${repositoryRoot}/.railway/railway.ts`, 'utf8')
 
 if (manifest.schemaVersion !== 1 || manifest.provider !== 'railway') {
   throw new Error('Railway service manifest must use schemaVersion 1 and provider railway.')
@@ -63,6 +64,25 @@ if (
   environment.secrets?.valuesCommitted !== false
 ) {
   throw new Error('Railway environment manifest is incomplete or contains committed secrets.')
+}
+
+for (const requiredFragment of [
+  "service('@control-plane/control-api'",
+  "service('@control-plane/workflow-worker'",
+  "service('restate'",
+  "volume('restate-data'",
+  'preserve()',
+]) {
+  if (!railwayIac.includes(requiredFragment)) {
+    throw new Error(`Railway IaC is missing required project intent: ${requiredFragment}.`)
+  }
+}
+if (
+  railwayIac.includes("service('@control-plane/runtime-worker'") ||
+  railwayIac.includes("service('@control-plane/runtime-gateway'") ||
+  railwayIac.includes("service('@control-plane/tool-gateway'")
+) {
+  throw new Error('Railway IaC must not deploy non-serving historical process targets.')
 }
 
 const cloud = manifest.profiles?.cloud

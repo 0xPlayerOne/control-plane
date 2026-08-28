@@ -45,6 +45,25 @@ test('pins a durable private Restate runtime for Railway cloud', async () => {
   })
 })
 
+test('owns the active Railway project graph as code without committed secrets', async () => {
+  const source = await readRepositoryFile('.railway/railway.ts')
+
+  assert.match(source, /defineRailway/)
+  assert.match(source, /service\('@control-plane\/control-api'/)
+  assert.match(source, /service\('@control-plane\/workflow-worker'/)
+  assert.match(source, /service\('restate'/)
+  assert.match(source, /volume\('restate-data'/)
+  assert.match(source, /docker\.restate\.dev\/restatedev\/restate:1\.7\.7@sha256:/)
+  assert.match(source, /healthcheckPath: '\/ready'/)
+  assert.match(source, /['"]\/restate-data['"]: restateData/)
+  assert.match(source, /DATABASE_URL: preserve\(\)/)
+  assert.doesNotMatch(source, /(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY):\s*['"][^'"]+['"]/)
+  assert.doesNotMatch(
+    source,
+    /service\('@control-plane\/(?:runtime-worker|runtime-gateway|tool-gateway)'/
+  )
+})
+
 test('uses a dependency-aware portable container build without AWS deployment assumptions', async () => {
   const dockerfile = await readRepositoryFile('infrastructure/containers/Dockerfile')
   const bake = await readRepositoryFile('infrastructure/containers/docker-bake.hcl')
