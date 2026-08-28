@@ -1,49 +1,40 @@
 # Execution constraints
 
-AgentProfile versions carry a provider-neutral `ExecutionConstraintSet`. The same immutable value is
-the input to ExecutionPlan compilation. Stable domain code does not import MCP, LiteLLM, Cedar, AWS,
-or connector SDKs; gateways and adapters resolve the references later.
+AgentProfile versions carry a provider-neutral `ExecutionConstraintSet`. The same immutable value is the input to ExecutionPlan compilation. Stable domain code does not import MCP, LiteLLM, Cedar, Railway, Neon, R2, AWS, database drivers, workflow-runtime SDKs, or connector SDKs; gateways and adapters resolve concrete implementations later.
 
 ## Tool authority
 
-Tool access is always deny-by-default. A grant identifies a logical tool and version range, the exact
-operations and capabilities requested, a risk class, and an approval mode. A grant for `read` never
-implies `write`, and an unknown tool or operation is denied. Concrete protocol names, endpoints, and
-credentials are not part of the contract.
+Tool access is always deny-by-default. A grant identifies a logical tool and version range, the exact operations and capabilities requested, a risk class, and an approval mode. A grant for `read` never implies `write`, and an unknown tool or operation is denied. Concrete protocol names, endpoints, credentials, and deployment providers are not part of the contract.
 
-Risk classes progress from `safe` and `read` through `write`, `destructive`, and `privileged`.
-Approval modes are explicit: `none`, `per_execution`, `per_operation`, or `always`.
+Risk classes progress from `safe` and `read` through `write`, `destructive`, and `privileged`. Approval modes are explicit and policy-owned.
 
 ## Model and policy requirements
 
-Model requests use logical aliases such as `reasoning.standard`, capability requirements, permitted
-provider classes, denied-provider policy, data residency, and a bounded fallback class. User-authored
-constraints cannot name an arbitrary provider/model pair.
+Model requests use logical aliases/capability requirements, permitted/denied provider classes, data policy, and bounded fallback policy. User-authored constraints cannot create arbitrary provider authority.
 
-`PolicySnapshotReference` pins the policy identity, version, and digest used to compile or authorize
-an execution. `AuthorizationDecisionInput` supplies evaluator-neutral principal, action, resource,
-workspace, snapshot, and context values. A later adapter may evaluate these with Cedar or another
-engine without changing the domain contract.
+`PolicySnapshotReference` pins the policy identity/version/digest used to compile or authorize an execution. Authorization input remains evaluator-neutral; Cedar is an adapter implementation rather than a domain dependency.
 
 ## Limits and interaction
 
-Every constraint set specifies cost in USD microunits, total tokens, duration, parallel concurrency,
-child-execution count and depth, plus sandbox CPU, memory, and storage. Values are positive except
-child count and depth, which may explicitly be zero. Interaction policy independently controls
-approvals, user input, destructive operations, and approval expiry.
+Every constraint set specifies bounded cost/tokens/duration/concurrency/delegation and sandbox/resource limits as applicable. Interaction policy separately controls approvals, user input, destructive operations, and expiry.
+
+Operational transport/retry/heartbeat/retention defaults are infrastructure/reliability policy owned by M9.13, not caller-chosen execution authority.
 
 ## Composition
 
-`composeExecutionConstraints` only narrows authority:
+Constraint composition only narrows authority:
 
-- context classifications, tool operations, model provider classes, data residency, runtime families,
-  and runtime locations are intersected;
+- context classifications, tool operations, model/provider classes, data residency, runtime families and runtime locations are intersected;
 - required capabilities and denied providers are combined;
-- numeric limits use the lowest ceiling;
+- numeric limits use the strictest compatible ceiling;
 - risk and approval requirements become stricter;
-- policy snapshots must match exactly.
+- pinned policy snapshots must remain compatible;
+- deployment profile cannot broaden permissions merely because components are co-located or user-controlled.
 
-An empty required intersection, mismatched policy snapshot, or `disabled`/`required` interaction pair
-throws a deterministic `CONSTRAINT_CONFLICT:<path>` error. Composition never silently chooses a
-provider or widens access. Fixtures cover safe, read-only, write, privileged, and budget-constrained
-profiles.
+An empty required intersection or incompatible immutable constraint fails deterministically. Composition never silently chooses a provider, runtime location, deployment profile, secret source, or broader capability.
+
+## Deployment portability
+
+M9 freezes these deployment-independent semantics against the Railway managed-cloud reference. M10 changes persistence, workflow composition, object storage, secrets, process supervision and RuntimeTransport adapters for Local/Self-hosted profiles without changing constraint meaning.
+
+Location-specific capabilities may legitimately affect runtime eligibility—for example local project access—but the reason must be explicit and recorded rather than inferred from the infrastructure provider.
