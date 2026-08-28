@@ -59,13 +59,7 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
               : createRestateEndpointFactory())
           const endpoint = await factory.create()
           registerResource('restate-endpoint', () => endpoint.shutdown())
-          void endpoint.run().catch((error: unknown) =>
-            logger.write({
-              level: 'error',
-              event: 'workflow.restate_endpoint.failed',
-              details: { message: error instanceof Error ? error.message : 'Unknown worker error' },
-            })
-          )
+          await endpoint.run()
           markReady()
         }
       )
