@@ -2,6 +2,7 @@ import process from 'node:process'
 import {
   ConfigurationError,
   loadServiceConfiguration,
+  loadManagedCloudConfiguration,
   redactDiagnostics,
   type EnvironmentLoadOptions,
   type RawEnvironment,
@@ -42,11 +43,15 @@ export async function bootstrapService<Service extends ServiceName>(
   const processAdapter = options.processAdapter ?? nodeProcessAdapter
   let config
   try {
+    const environment = options.environment ?? process.env
     config = await loadServiceConfiguration(
       options.serviceName,
-      options.environment ?? process.env,
+      environment,
       options.cwd === undefined ? {} : { cwd: options.cwd }
     )
+    if (config.metadata.environment === 'staging' || config.metadata.environment === 'production') {
+      loadManagedCloudConfiguration(environment, options.serviceName)
+    }
   } catch (error) {
     processAdapter.setExitCode(1)
     logger.write({

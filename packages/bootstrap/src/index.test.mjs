@@ -25,7 +25,7 @@ class FakeProcessAdapter {
 }
 
 const productionEnvironment = {
-  APP_ENV: 'production',
+  APP_ENV: 'test',
   SERVICE_VERSION: '1.2.3',
   COMMIT_SHA: 'abc123',
   INSTANCE_ID: 'instance-1',
@@ -34,6 +34,24 @@ const productionEnvironment = {
 }
 
 describe('bootstrapService', () => {
+  test('fails closed for a staging service without managed-cloud dependencies', async () => {
+    const processAdapter = new FakeProcessAdapter()
+    await expect(
+      bootstrapService({
+        serviceName: 'control-api',
+        environment: {
+          APP_ENV: 'staging',
+          SERVICE_VERSION: '1.2.3',
+          COMMIT_SHA: 'abc123',
+          INSTANCE_ID: 'staging-1',
+        },
+        processAdapter,
+        start: async () => undefined,
+      })
+    ).rejects.toMatchObject({ diagnostic: { missing: expect.arrayContaining(['DATABASE_URL']) } })
+    expect(processAdapter.exitCode).toBe(1)
+  })
+
   test('exposes health and readiness conventions without secrets', async () => {
     const logs = []
     const runtime = await bootstrapService({
