@@ -5,6 +5,7 @@ import {
   loadManagedCloudConfiguration,
   redactDiagnostics,
   type EnvironmentLoadOptions,
+  type ManagedCloudConfiguration,
   type RawEnvironment,
   type ServiceName,
 } from '@control-plane/config'
@@ -42,6 +43,7 @@ export async function bootstrapService<Service extends ServiceName>(
   const logger = options.logger ?? jsonLogger
   const processAdapter = options.processAdapter ?? nodeProcessAdapter
   let config
+  let managedCloud: ManagedCloudConfiguration | undefined
   try {
     const environment = options.environment ?? process.env
     config = await loadServiceConfiguration(
@@ -50,7 +52,7 @@ export async function bootstrapService<Service extends ServiceName>(
       options.cwd === undefined ? {} : { cwd: options.cwd }
     )
     if (config.metadata.environment === 'staging' || config.metadata.environment === 'production') {
-      loadManagedCloudConfiguration(environment, options.serviceName)
+      managedCloud = loadManagedCloudConfiguration(environment, options.serviceName)
     }
   } catch (error) {
     processAdapter.setExitCode(1)
@@ -62,7 +64,7 @@ export async function bootstrapService<Service extends ServiceName>(
     throw error
   }
 
-  const runtime = new ServiceRuntime(config, logger, processAdapter)
+  const runtime = new ServiceRuntime(config, logger, processAdapter, managedCloud)
   logger.write({
     level: 'info',
     event: 'service.starting',

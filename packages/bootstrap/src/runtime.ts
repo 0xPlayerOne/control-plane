@@ -1,6 +1,7 @@
 import {
   redactDiagnostics,
   type ApplicationMetadata,
+  type ManagedCloudConfiguration,
   type ServiceConfiguration,
   type ServiceName,
 } from '@control-plane/config'
@@ -14,6 +15,7 @@ export interface ServiceResource {
 
 export interface ServiceStartContext<Service extends ServiceName> {
   readonly config: ServiceConfiguration<Service>
+  readonly managedCloud?: ManagedCloudConfiguration
   readonly metadata: ApplicationMetadata<Service>
   health(): HealthResponse
   markReady(): void
@@ -34,6 +36,7 @@ export interface ReadinessResponse {
 export class ServiceRuntime<Service extends ServiceName> {
   readonly metadata: ApplicationMetadata<Service>
   readonly #config: ServiceConfiguration<Service>
+  readonly #managedCloud: ManagedCloudConfiguration | undefined
   readonly #logger: StructuredLogger
   readonly #process: ProcessAdapter
   readonly #resources: ServiceResource[] = []
@@ -44,9 +47,11 @@ export class ServiceRuntime<Service extends ServiceName> {
   constructor(
     config: ServiceConfiguration<Service>,
     logger: StructuredLogger,
-    processAdapter: ProcessAdapter
+    processAdapter: ProcessAdapter,
+    managedCloud?: ManagedCloudConfiguration
   ) {
     this.#config = config
+    this.#managedCloud = managedCloud
     this.metadata = config.metadata
     this.#logger = logger
     this.#process = processAdapter
@@ -56,6 +61,7 @@ export class ServiceRuntime<Service extends ServiceName> {
   context(): ServiceStartContext<Service> {
     return {
       config: this.#config,
+      ...(this.#managedCloud === undefined ? {} : { managedCloud: this.#managedCloud }),
       metadata: this.metadata,
       health: () => this.health(),
       markReady: () => {
