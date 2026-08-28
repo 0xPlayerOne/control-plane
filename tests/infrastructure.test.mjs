@@ -24,6 +24,27 @@ test('defines the Railway cloud service and migration manifest', async () => {
   )
 })
 
+test('pins a durable private Restate runtime for Railway cloud', async () => {
+  const manifest = JSON.parse(await readRepositoryFile('infrastructure/railway/restate.json'))
+
+  assert.deepEqual(manifest.server, {
+    service: 'restate',
+    version: '1.7.7',
+    image:
+      'docker.restate.dev/restatedev/restate:1.7.7@sha256:dd1695b61c9de877d24bf9afe8a0ac5fb0f66d175c1bc397975d2252bd784eb2',
+    nodeName: 'control-plane-staging-1',
+    dataMount: '/restate-data',
+    healthPath: '/health',
+    privatePorts: { ingress: 8080, admin: 9070, fabric: 5122 },
+    public: false,
+    environment: {
+      RESTATE_CLUSTER_NAME: 'control-plane-staging',
+      RESTATE_NODE_NAME: 'control-plane-staging-1',
+      RESTATE_AUTO_PROVISION: 'true',
+    },
+  })
+})
+
 test('uses a dependency-aware portable container build without AWS deployment assumptions', async () => {
   const dockerfile = await readRepositoryFile('infrastructure/containers/Dockerfile')
   const bake = await readRepositoryFile('infrastructure/containers/docker-bake.hcl')
