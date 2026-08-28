@@ -1,115 +1,129 @@
 # Production operations runbook
 
-This runbook covers the M9 production deployment boundary. Terraform and tests define the
-desired controls; a release is not complete until environment-specific evidence is attached to
-the immutable evaluation and deployment records.
+This runbook covers the accepted Control Plane deployment sequence and must distinguish **managed cloud (M9)** from **Local/Self-hosted portability (M10)**. A release is not complete because infrastructure files exist; live environment evidence is required.
 
-## Access and escalation
+## Milestone sequence
 
-- Use short-lived federated AWS roles with separate read-only, deploy, database-migration, and
-  break-glass recovery permissions. Do not use long-lived access keys or share roles.
-- Subscribe the incident system to the Terraform output `operations_alarm_topic_arn` and test
-  delivery before enabling replicas. An alarm with no confirmed subscription is not operational.
-- ECS Exec is disabled. Diagnose through encrypted logs, traces, metrics, and approved one-off
-  tasks. Break-glass access requires an incident record and post-incident credential rotation.
-- Populate Secrets Manager values outside Terraform. Rotate with an overlapping credential,
-  canary it, drain the old task revision, revoke the old credential, and retain the audit record.
+- **M9 — Managed Cloud Deployment, Hardening & Evals:** make the Railway + Neon + R2 + Restate profile actually deploy, recover, and pass the cloud hardening/eval gates.
+- **M10 — Local & Self-Hosted Portability:** port the accepted M9 semantics to Local and user-controlled Self-hosted profiles.
+- **M11 — Feature Completion & Production Audit:** rerun production-readiness evidence across managed cloud, Local, and Self-hosted.
+- **M12 — Cross-Product Integration & Release:** connect the independently approved Control Plane candidate to Agent HQ and optional Cortana release candidates.
 
-## Release and rollback
+Historical AWS/ECS/Terraform procedures are not the current first-party cloud runbook.
 
-1. Require the M9 security, evaluation, recovery, load, Terraform, container, and compatibility
-   gates. Record exact commit, configuration, migration, and image digests. Promotion and rollback
-   must use the PostgreSQL-backed release-audit repository; an unavailable audit store blocks the
-   state change.
-2. Review `terraform plan` for one environment. Reject mutable images, unexpected deletes,
-   widened IAM/network rules, reduced alarms, or weakened backup settings.
-3. Confirm a recent PostgreSQL recovery point and successful restore drill. Apply infrastructure
-   without increasing disabled service counts.
-4. Run the digest-pinned `database-migrate` task with both the service and database-client
-   security groups. Stop if it exits nonzero or the expected migration version is absent.
-5. Deploy one candidate task. The compatibility gate must accept its API, database, and gateway
-   contracts. Verify readiness, error rate, p95 latency, provider access, and durable-write replay.
-6. Increase to the normal replica count. ECS preserves 100% production capacity, permits at most
-   200% during rollout, and automatically rolls back a deployment that cannot stabilize.
-7. If the canary violates a budget, restore the previous digest-pinned task definition. Never
-   reverse an applied schema migration in place; use a reviewed forward repair or PITR restore.
+## Managed-cloud access and configuration
 
-Targets with zero desired count are deliberately disabled until their real dependency adapter,
-health/readiness contract, and alarms pass this procedure in staging. Do not turn a target on only
-because its image builds.
+The initial managed-cloud profile uses:
 
-## Database and object storage
+- Railway for compute/service lifecycle;
+- a separate Control Plane Neon PostgreSQL project/database;
+- Cloudflare R2 behind the `ObjectStore` boundary;
+- Restate as the canonical durable workflow runtime;
+- Railway private networking where applicable;
+- Railway variables for service/bootstrap configuration;
+- a separate provider-neutral credential-vault boundary for dynamic user/provider secrets.
 
-- Production RDS is encrypted, private, Multi-AZ, deletion-protected, and retains 35 days of
-  automated backups for point-in-time recovery. CPU and free-storage alarms page through the
-  operations topic.
-- On database saturation, stop nonessential producers, preserve the command/event backlog, inspect
-  slow queries and connection counts, and scale only after identifying the constraint. Do not add
-  blind retries; they amplify an outage.
-- For corruption or accidental deletion, freeze writes, select a recovery time before the event,
-  restore into a new instance, run integrity/reconciliation checks, and switch only after approval.
-  RPO is 5 minutes and RTO is 60 minutes; record actual timings.
-- The S3 object store is private, KMS-encrypted, and versioned. Incomplete uploads expire after seven
-  days and noncurrent versions after 90 days. Restore a prior version rather than overwriting
-  evidence. Tasks receive only their declared object actions.
+Keep runtime database credentials separate from migration/admin authority. Keep service credentials scoped by service/audience. Do not store production credentials in repository files, issue bodies, test fixtures, or ordinary logs.
+
+## Current M9 state
+
+The current Railway project exists, but its initial five service deployments failed during monorepo build resolution and the services do not yet have Control Plane application configuration. The separate Neon `control-plane` project exists but has not yet received the Control Plane Drizzle/domain schema and is not wired to Railway. M9.7–M9.9 own those fixes; M9.6 #73 is the final live activation/certification gate.
+
+Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
+
+## Managed-cloud release and rollback
+
+1. Require M9.7–M9.13 implementation/configuration gates to be complete.
+2. Build/test/scan the complete monorepo using the repository-owned Railway/container build path.
+3. Record exact commit, service versions, Restate version, schema/contracts, and repository-owned Railway configuration.
+4. Validate required Railway variables and external dependency references without exposing secret values.
+5. Run explicit Neon migrations using separately scoped migration authority.
+6. Deploy required Railway services and the accepted Restate topology.
+7. Verify liveness/readiness through intended public/private network paths.
+8. Run a representative durable execution through Restate and verify authoritative Neon state plus R2 operations where used.
+9. Exercise failed deploy rollback/forward repair, service restart/redeploy, Neon reconnect, Restate restart/recovery, and Runtime Gateway reconnect where applicable.
+10. Run the existing M9 security, recovery, and performance tooling against the actual staging candidate and record measured evidence.
+
+A database migration failure blocks rollout. Never hide a broken revision behind a green process health check. Applied schema changes are repaired forward unless a reviewed restore operation is explicitly required.
+
+## Neon operations
+
+- Use the dedicated Control Plane Neon project/database, never Agent HQ's database.
+- Application services receive least-privilege runtime authority only where needed.
+- Migration/admin authority is one-shot/operator scoped and not available to ordinary service replicas.
+- Validate schema version before accepting traffic.
+- On database saturation, stop nonessential producers and inspect query/pool/backlog evidence before increasing retry pressure.
+- On corruption or accidental deletion, freeze writes where practical, restore into an isolated destination using Neon recovery/PITR or equivalent provider capability, verify schema/integrity/reconciliation, then switch through an explicit change process.
+- The existing `neon_auth` schema in the Control Plane Neon project is not application identity authority and must remain unused unless an explicit architecture decision changes ownership.
+
+## R2 operations
+
+- R2 buckets remain private and are accessed only through the provider-neutral ObjectStore/Artifact boundary.
+- Bucket/environment separation, retention/lifecycle, least-privilege credentials, and upload/download policy are defined in M9.9.
+- Failed or ambiguous object operations reconcile against authoritative metadata/digests rather than assuming success.
+- Local/Self-hosted data is not automatically promoted to R2; cloud storage requires an explicit authorized operation.
+
+## Restate operations
+
+- Restate is the only required durable workflow runtime for the accepted release path.
+- M9.8 replaces active Temporal cloud configuration with Restate and defines its Railway networking, persistence, health/readiness, restart, upgrade, and observability behavior.
+- On Restate degradation, stop unsafe new admission where required, preserve durable command/domain state, and recover using the accepted Restate lifecycle guarantees.
+- LangGraph graph/checkpoint mechanics remain subordinate to the Restate lifecycle; ProjectState remains separately authoritative.
+- Temporal-specific worker/runbook evidence is historical until M9.8 removes it from the active path.
 
 ## Gateway and provider degradation
 
-- Distinguish transport failure, provider refusal, policy denial, approval wait, and budget
-  exhaustion in telemetry. Never convert one class into another or expose credential material.
-- On gateway disconnect, stop issuing new side effects, replay only durably identified commands,
-  and reconcile ambiguous outcomes before retry. A command identity conflict fails closed.
-- On model, tool, sandbox, Temporal, or other provider degradation, trip bounded admission, honor
-  retry guidance, and use only a pre-approved compatible provider/routing policy. Disable the route
-  if idempotency or usage settlement cannot be proven.
-- Runtime Gateway remains disabled in production until a concrete authenticated WebSocket server
-  adapter is injected and its lifecycle passes the staging canary. The application intentionally
-  refuses a placeholder production startup.
+- Distinguish transport failure, provider refusal, policy denial, approval wait, budget exhaustion, and persistence/workflow failure in telemetry.
+- Runtime Gateway is used only for non-co-located RuntimeNodes. Local co-located execution uses direct RuntimeTransport and must not fall back to Runtime Gateway as an implicit recovery path.
+- On gateway disconnect, replay only durably identified commands and reconcile ambiguous outcomes before retry.
+- On model/tool/sandbox/ContextProvider degradation, follow the pinned policy and approved fallback behavior; optional providers must not become undeclared startup dependencies.
 
-## Diagnostic views and correlation queries
+## Local operations — M10
 
-Start every investigation with the stable identifiers in the execution trace, then narrow by the
-failure-class signals below. The machine-readable source of truth is `diagnosticQueries` in
-`@control-plane/telemetry`; dashboards and alert links must preserve these fields rather than
-embedding provider-specific identifiers.
+Local uses all-in-one Control Plane + SQLite + single-node Restate + filesystem storage + direct RuntimeTransport.
 
-| Failure class | Signals                                                                                             | Required correlation                                     |
-| ------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Application   | `control.api.error.count`, `control.api.request.duration`, `service.name=control-api`               | `control.correlation_id`, `workspace.id`, `execution.id` |
-| Workflow      | `workflow.backlog.count`, `workflow.replay.count`, `span.name=workflow.run`                         | `workflow.id`, `execution.id`, `execution.attempt.id`    |
-| Gateway       | `runtime.gateway.connection.count`, `runtime.gateway.ack.duration`, `service.name=runtime-gateway`  | `runtime.node.id`, `runtime.id`, `execution.id`          |
-| Runtime       | `runtime.available.count`, `span.name=runtime.route`, `span.name=runtime.start`                     | `runtime.id`, `runtime.node.id`, `execution.id`          |
-| Provider      | `model.call.error.count`, `tool.call.error.count`, `span.name=model.call OR span.name=tool.execute` | `gen_ai.request.model`, `tool.id`, `execution.id`        |
-| Policy        | `span.name=tool.authorize`, `event=policy.denied`, `event=approval.waiting`                         | `policy.version`, `tool.id`, `execution.id`              |
+Operational requirements include:
 
-Join only on sanitized correlation attributes. If a trace is missing, query the authoritative
-execution/event records by `execution.id`; telemetry gaps never authorize guessing state or
-replaying a side effect.
+- clean startup/shutdown and component health manifest;
+- Control Plane/Restate crash recovery;
+- host restart and sleep/wake behavior;
+- SQLite backup/restore and corruption handling;
+- local filesystem Artifact lifecycle;
+- OS-secure secret handles or approved standalone-local secret references;
+- no Docker/PostgreSQL/Redis/Temporal/Runtime Gateway requirement for ordinary Local execution;
+- explicit unavailable/queued behavior when the selected node is offline, with no silent cloud failover.
 
-## Policy, budget, and security incidents
+## Self-hosted operations — M10
 
-- Policy denial is authoritative. Do not override it through prompt content, child-plan changes,
-  tool arguments, or operator retries. Child work may narrow but never widen parent authority.
-- On budget exhaustion, stop admission and settle already durable usage. Reconcile reservations
-  before raising a limit; preserve the original policy version and decision evidence.
-- For suspected cross-workspace access or credential leakage, disable the credential/route, retain
-  sanitized correlation IDs, run the isolation matrix and secret-canary audit, rotate affected
-  credentials, and notify the security owner. Never paste raw payloads or secrets into tickets.
+Self-hosted `simple` uses SQLite; `server` uses PostgreSQL. Both use Restate and user-controlled storage/secrets.
 
-## Event backlog and reconciliation
+Required operational evidence includes:
 
-- Watch delivery latency, dead letters, command attempts, reconciliation lag, and usage-settlement
-  lag. Autoscaling targets 65% ECS CPU and is bounded to three times steady configured capacity.
-- During backlog growth, prefer bounded horizontal scale and provider-aware admission control.
-  Preserve ordering and idempotency keys; never purge durable events to make a metric green.
-- After recovery, replay from durable checkpoints, verify no duplicate external effect or charge,
-  reconcile ambiguous commands, and compare authoritative database state with emitted events.
+- one documented Compose deployment path;
+- persistent volumes across container/host restart;
+- TLS/reverse-proxy and authenticated external API/relay configuration;
+- backup/restore;
+- update/rollback/forward repair;
+- key/credential rotation/revocation;
+- resource budgets for small VPS and server profiles;
+- no dependency on Railway/Neon/R2/Agent HQ Cloud for standalone operation.
+
+## Diagnostic correlation
+
+Investigations begin with stable product/execution identifiers, not provider-specific resource IDs. Minimum useful correlation includes request, workspace, execution, attempt, workflow/Restate invocation, runtime/node/transport, profile/Skill versions, provider/tool/model policy versions, and trace identifiers.
+
+Provider-specific Railway/Neon/R2/Restate identifiers may appear in operational diagnostics but do not replace stable Control Plane IDs and must not leak secrets or protected content.
+
+## Security incidents
+
+- Policy denial is authoritative and cannot be overridden by prompt/model/tool/provider content.
+- On credential leakage, revoke/rotate first, then clean history/logs and record sanitized evidence.
+- On suspected cross-workspace access, disable affected routes/credentials, preserve sanitized correlation evidence, run the isolation matrix, and block promotion until fixed.
+- Remote relay/gateway incidents must preserve HPKE/content-redaction guarantees; cloud/relay systems must not require plaintext sensitive execution content.
 
 ## Scheduled evidence
 
-- Every release: all M9 gates, reviewed plan, canary, alarm health, and rollback target.
-- Weekly: backup age, alarm delivery, secret age, reconciliation backlog, capacity headroom, and
-  provider quota/cost review.
-- Monthly and after material schema changes: isolated PostgreSQL restore drill.
-- Quarterly: staging dependency outage drills, credential rotation, cross-workspace isolation,
-  rollback rehearsal, and recovery-objective review.
+- **Every managed-cloud candidate:** build/deploy, Neon migration/schema, Restate, R2, health/readiness, recovery, security, and cost evidence.
+- **Every M10 candidate:** Local and Self-hosted clean install/start/restart/backup/restore/conformance evidence.
+- **M11:** independent full-profile audit from frozen candidate.
+- **M12:** live cross-product integration evidence only after M11 approval.
