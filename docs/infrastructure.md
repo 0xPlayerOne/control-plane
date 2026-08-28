@@ -1,10 +1,15 @@
 # Infrastructure and deployment baseline
 
-The accepted first-party managed-cloud Control Plane target is **Railway compute + Neon PostgreSQL + Cloudflare R2 + Restate**. M9 owns making that profile real and production-shaped. M10 then ports the same Control Plane core and execution semantics to Local desktop and Hosted/VPS deployment profiles.
+The accepted first-party **Cloud** Control Plane target is **Railway compute + Neon PostgreSQL + Cloudflare R2 + Restate**. M9 owns making that profile real and production-shaped. The product has exactly three deployment profiles: Cloud, Hosted, and Local. M10 then ports the same Control Plane core and execution semantics to Local desktop and Hosted/VPS deployment profiles.
 
 M9 is rewriting the earlier AWS/ECS/Terraform implementation into the active Railway/Neon/R2 Cloud
-option. AWS is not a supported deployment option; the Cloud, Hosted/VPS, and Local options share
+profile. AWS is not a supported deployment option or compatibility layer; the Cloud, Hosted/VPS, and Local options share
 application semantics while using different infrastructure adapters.
+
+Each Railway service declares a dependency-aware Turborepo build filter (for example,
+`bun run build --filter=@control-plane/workflow-worker...`). The trailing dependency closure is
+required because Railway builds from a clean checkout and workspace package imports must be compiled
+before the selected service.
 
 ## Milestone ownership
 
@@ -141,5 +146,6 @@ The M9 Railway profile remains the semantic reference while M10 substitutes infr
 ## Former AWS infrastructure
 
 The former `infrastructure/terraform` AWS/ECS modules and associated AWS operational assumptions are
-being removed as M9.7 replaces the first-party cloud path. They are migration input only and are not a
-supported deployment, release prerequisite, or portability target.
+not part of the active repository deployment path. Any remaining references in ADRs, changelogs, or
+historical notes document the superseded design only; they are not a supported deployment,
+compatibility layer, release prerequisite, or portability target.

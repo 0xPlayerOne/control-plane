@@ -8,7 +8,8 @@ Control Plane recovery is profile-specific but preserves one semantic rule: comm
 - **M10** adds Local SQLite/Restate and Hosted SQLite/PostgreSQL recovery, backup, restart, and upgrade/rollback behavior.
 - **M11** independently reruns the recovery matrix across all accepted profiles and records measured RPO/RTO or equivalent recovery evidence.
 
-Historical AWS/RDS/ECS recovery text and scripts may remain as implementation provenance until M9.7 removes or archives them. They are not the current first-party cloud runbook.
+Historical AWS/RDS/ECS recovery text is retained only as decision provenance. It is not executable
+recovery code, a compatibility layer, or the current first-party Cloud runbook.
 
 ## Managed-cloud recovery target — M9
 

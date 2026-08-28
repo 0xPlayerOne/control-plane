@@ -8,6 +8,7 @@
         {
           "name": "control-api",
           "app": "control-api",
+          "buildCommand": "bun run build --filter=@control-plane/control-api...",
           "public": true,
           "healthPath": "/health",
           "readyPath": "/ready",
@@ -25,6 +26,7 @@
         {
           "name": "workflow-worker",
           "app": "workflow-worker",
+          "buildCommand": "bun run build --filter=@control-plane/workflow-worker...",
           "public": false,
           "healthPath": "/health",
           "readyPath": "/ready",
@@ -44,6 +46,7 @@
         {
           "name": "runtime-worker",
           "app": "runtime-worker",
+          "buildCommand": "bun run build --filter=@control-plane/runtime-worker...",
           "public": false,
           "requires": [
             "DATABASE_URL",
@@ -59,12 +62,14 @@
         {
           "name": "runtime-gateway",
           "app": "runtime-gateway",
+          "buildCommand": "bun run build --filter=@control-plane/runtime-gateway...",
           "public": false,
           "requires": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"]
         },
         {
           "name": "tool-gateway",
           "app": "tool-gateway",
+          "buildCommand": "bun run build --filter=@control-plane/tool-gateway...",
           "public": false,
           "requires": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"]
         }
