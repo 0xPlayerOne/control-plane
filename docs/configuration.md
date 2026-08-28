@@ -27,7 +27,7 @@ Railway service/shared variables are the accepted initial source for **service/b
 - separately scoped Neon migration/admin reference for the migration job only;
 - Restate endpoint/runtime configuration;
 - R2 endpoint/bucket/credential references;
-- optional provider bootstrap configuration required by the selected staging scenario.
+- bootstrap/master references for other deployment services.
 
 M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency.
 
@@ -36,6 +36,8 @@ Railway's injected `PORT` must be honored by HTTP services or mapped explicitly 
 ## Dynamic credentials are separate
 
 Railway environment variables are not the storage model for arbitrary user-scoped connector/provider credentials. Those remain behind the audited credential-vault secret-provider boundary. Service/bootstrap secrets and dynamic user/provider credentials are separate classes with separate lifecycle and least-privilege rules.
+
+The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. M9.9 must explicitly select and verify the accepted managed-cloud dynamic credential-vault provider behind the stable interface, or explicitly justify retaining an external AWS Secrets Manager dependency. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
 
 ## Local and Self-hosted configuration — M10
 
