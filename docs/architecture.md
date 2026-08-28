@@ -12,7 +12,7 @@ The Control Plane is a TypeScript modular monolith with independently deployable
 | **Concrete harness** | Native agent loop, native sessions, provider authentication, harness-local tools/configuration | Stable Control Plane contracts or product identity |
 | **ContextProvider** | Separately owned evidence/memory/corpus and provider-specific authorization | ProjectState or Control Plane execution authority |
 
-Cross-product integration uses public/versioned contracts. No product reads another product's database directly.
+Cross-product integration uses public/versioned contracts. No product reads another product's database directly or treats another product's storage credentials as its own authority.
 
 ## Repository ownership
 
@@ -41,11 +41,13 @@ This implementation order is distinct from Agent HQ product rollout. The Control
 
 - Railway compute/service lifecycle.
 - Separate Control Plane Neon PostgreSQL.
-- Cloudflare R2 through the S3-compatible `ObjectStore` boundary.
+- Cloudflare R2 through the S3-compatible `ObjectStore` boundary. The current Control Plane resource is bucket `ctrl-plane` with Wrangler binding `ctrl_plane`; these identifiers are deployment configuration, not domain identity.
 - Restate as the only required durable workflow runtime.
 - Railway private networking for internal service calls where applicable.
 - Railway service/shared variables for bootstrap/service configuration.
 - Dynamic connector/provider credentials remain behind the credential-vault secret boundary rather than becoming per-user environment variables.
+
+Control Plane R2 storage and Agent HQ Artifact storage are separate authorities even if they use the same Cloudflare account/provider. Each product uses separately scoped buckets/environment sets and credentials; Control Plane's `ctrl-plane` bucket is not Agent HQ Artifact storage.
 
 ### Local — M10
 
@@ -82,7 +84,7 @@ This implementation order is distinct from Agent HQ product rollout. The Control
 | E2B | adapter-bound | Initial hosted isolated-compute adapter. |
 | Railway | accepted initial managed-cloud compute | M9 first-party cloud target; provider-specific details remain outside domain contracts. |
 | Neon | accepted managed-cloud PostgreSQL provider | Separate Control Plane project/database; explicit migrations and least-privilege runtime authority. |
-| Cloudflare R2 | accepted managed-cloud object store | Explicit cloud storage only, behind `ObjectStore`. |
+| Cloudflare R2 | accepted managed-cloud object store | Control Plane current bucket `ctrl-plane`; explicit cloud storage only, behind `ObjectStore`, with product/environment credentials separately scoped. |
 | AWS/ECS/Terraform | historical/optional portability assets | No longer the first-party cloud deployment target. |
 
 ## Persistence and data ownership
@@ -97,6 +99,12 @@ The Control Plane owns a separate persistence boundary from Agent HQ and Cortana
 Physical schemas may differ by adapter, but logical IDs, revisions, idempotency, lifecycle, provenance, and public contracts may not. Restate workflow state is separate from Control Plane domain persistence. LangGraph checkpoint state is separate from both. Provider corpus/native memory remains provider-owned.
 
 The repository's existing local PostgreSQL Compose fixtures are integration/server-profile development infrastructure; they are not the M10 Local product database.
+
+## Object storage ownership
+
+`ObjectStore` is deployment-neutral. The M9 Control Plane cloud implementation uses the Control Plane-owned Cloudflare R2 bucket/configuration; M10 Local/Self-hosted use filesystem or user-controlled S3-compatible storage. Physical provider identifiers do not enter stable contracts.
+
+Agent HQ owns a different Artifact authorization/lifecycle boundary and must use its own bucket/credentials for first-party Artifact promotion. Sharing a Cloudflare account does not authorize one product to read, write, delete, scan, retain, or issue capabilities for the other product's objects.
 
 ## Runtime transport
 
@@ -129,4 +137,4 @@ M10 must preserve the M9 Railway cloud implementation behind these ports while a
 
 ## Current implementation versus accepted target
 
-Some source files, Terraform, tests, and runbooks still encode the previous AWS/Temporal/PostgreSQL-only implementation. Those are not silently redefined by documentation. M9.7 and M9.8 own the code/config migration. Until those issues close, repository documentation must label old infrastructure as historical/transitional rather than claiming the target is already deployed.
+Some source files, Terraform, tests, and runbooks still encode the previous AWS/Temporal/PostgreSQL-only implementation. Those are not silently redefined by documentation. M9.7 and M9.8 own the code/config migration; M9.9 owns the live Neon/R2/Railway dependency wiring. Until those issues close, repository documentation must label old infrastructure as historical/transitional rather than claiming the target is already deployed.
