@@ -42,7 +42,7 @@ export const ContextProviderPolicySchema = z.object({
   maximumTokens: z.number().int().nonnegative(),
   maximumAgeSeconds: z.number().int().nonnegative(),
   maximumLatencyMs: z.number().int().positive(),
-  failureBehavior: z.enum(['continue_without', 'fail', 'await_input']),
+  failureBehavior: z.enum(['continue_without', 'fail', 'await_input']).default('continue_without'),
 })
 
 export const ContextContributionSchema = z.object({
