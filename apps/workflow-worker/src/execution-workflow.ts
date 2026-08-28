@@ -1,4 +1,5 @@
 import type { GraphReference } from '@control-plane/orchestration'
+import { managedCloudOperationalPolicy } from '@control-plane/config'
 import type { GraphActivityOutcome, GraphSegmentActivityPort } from './graph-segment-activity.js'
 
 export const workflowPolicies = {
@@ -7,7 +8,11 @@ export const workflowPolicies = {
   taskQueue: 'control-plane.execution.v1',
   progressPersistence: 'postgres-execution-events',
   activities: {
-    retry: { maximumAttempts: 5, initialInterval: '1 second', backoffCoefficient: 2 },
+    retry: {
+      maximumAttempts: managedCloudOperationalPolicy.retry.maximumAttempts,
+      initialInterval: `${managedCloudOperationalPolicy.retry.initialDelayMs / 1_000} seconds`,
+      backoffCoefficient: managedCloudOperationalPolicy.retry.factor,
+    },
     startToCloseTimeout: '2 minutes',
     heartbeatTimeout: '20 seconds',
   },

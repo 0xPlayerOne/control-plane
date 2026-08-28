@@ -24,5 +24,12 @@ export type {
 } from './environment.js'
 export type { ApplicationMetadata } from './metadata.js'
 export { redactDiagnostics } from './redaction.js'
+export {
+  loadOperationalPolicy,
+  managedCloudOperationalPolicy,
+  operationalPolicyDigest,
+  retryDelayMs,
+} from './operational.js'
+export type { OperationalPolicyConfig } from './operational.js'
 export { ConfigurationError, loadServiceConfiguration, serviceNames } from './service.js'
 export type { ServiceConfiguration, ServiceName } from './service.js'
