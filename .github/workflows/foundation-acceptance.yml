@@ -2,7 +2,7 @@ name: Foundation Acceptance
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, staging]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 

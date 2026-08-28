@@ -27,11 +27,12 @@ Keep runtime database credentials separate from migration/admin authority. Keep 
 
 ## Current M9 state
 
-The Railway project and isolated staging environment exist. The active Cloud application topology is
-`control-api` plus the private `workflow-worker` Restate endpoint; the separately pinned `restate`
-runtime still requires live provisioning. A dedicated Neon staging branch has the Control Plane
-schema and least-privilege roles, while Neon main remains untouched. R2 service credentials and the
-remaining live deployment/recovery evidence are still required before M9.6 #73 can close.
+The Railway project has isolated `staging` and `production` environments. The active Cloud
+application topology is `control-api` plus the private `workflow-worker` Restate endpoint; the
+separately pinned `restate` runtime still requires live provisioning. Railway `staging` tracks Git
+`staging` and Neon `staging`, while Railway `production` tracks Git `main` and Neon `main`; each
+environment has separate least-privilege roles. R2 service credentials and the remaining live
+deployment/recovery evidence are still required before M9.6 #73 can close.
 
 Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
 

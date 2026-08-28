@@ -40,7 +40,7 @@ As of the current M9 activation baseline:
 - a Railway `control-plane` project and isolated staging environment exist;
 - dependency-aware monorepo builds are fixed and the active Cloud application topology is `control-api` plus `workflow-worker`;
 - the private Restate runtime is separately pinned in `restate.json` and requires live provisioning;
-- a dedicated Neon staging branch has the complete Control Plane schema and least-privilege runtime/migration roles; Neon main remains untouched;
+- the Railway `staging` environment tracks Git `staging` and uses the dedicated Neon `staging` branch, while Railway `production` tracks Git `main` and uses Neon `main`; each environment has separate least-privilege runtime/migration roles;
 - existing `neon_auth` tables in that Neon project are not Control Plane identity authority and must not become an application dependency;
 - a Cloudflare R2 bucket named **`ctrl-plane`** already exists for the Control Plane managed-cloud ObjectStore, with logical Wrangler binding **`ctrl_plane`**;
 - an authenticated Wrangler CLI is available to implementation agents for non-destructive R2 inspection/configuration and synthetic smoke tests;
@@ -92,6 +92,10 @@ M9.7 should use a dependency-aware, reproducible container build from the monore
 ## Neon PostgreSQL
 
 The Control Plane cloud database is external to Railway and independently owned.
+Railway does not share a connection string between environments: `staging` maps
+to the Neon `staging` branch and `production` maps to Neon `main`. The mapping is
+versioned in `infrastructure/railway/environment.json`; connection strings and
+credentials remain Railway-managed secrets.
 
 Requirements:
 

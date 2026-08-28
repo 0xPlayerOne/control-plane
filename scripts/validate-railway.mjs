@@ -57,6 +57,8 @@ if (
   environment.provider !== 'railway' ||
   environment.profile !== 'cloud' ||
   environment.applicationEnvironment !== 'managed-cloud' ||
+  environment.database?.provider !== 'neon' ||
+  environment.database?.project !== 'control-plane' ||
   environment.database?.runtimeVariable !== 'DATABASE_URL' ||
   environment.database?.migrationVariable !== 'DATABASE_MIGRATION_URL' ||
   environment.database?.administrationVariable !== 'DATABASE_ADMIN_URL' ||
@@ -66,6 +68,39 @@ if (
   environment.secrets?.valuesCommitted !== false
 ) {
   throw new Error('Railway environment manifest is incomplete or contains committed secrets.')
+}
+
+const expectedEnvironments = {
+  staging: {
+    railwayEnvironment: 'staging',
+    applicationEnvironment: 'staging',
+    sourceBranch: 'staging',
+    neonBranch: 'staging',
+  },
+  production: {
+    railwayEnvironment: 'production',
+    applicationEnvironment: 'production',
+    sourceBranch: 'main',
+    neonBranch: 'main',
+  },
+}
+for (const [name, expectedEnvironment] of Object.entries(expectedEnvironments)) {
+  const configuredEnvironment = environment.environments?.[name]
+  if (
+    configuredEnvironment?.railwayEnvironment !== expectedEnvironment.railwayEnvironment ||
+    configuredEnvironment?.applicationEnvironment !== expectedEnvironment.applicationEnvironment ||
+    configuredEnvironment?.sourceBranch !== expectedEnvironment.sourceBranch ||
+    configuredEnvironment?.neon?.provider !== 'neon' ||
+    configuredEnvironment?.neon?.project !== 'control-plane' ||
+    configuredEnvironment?.neon?.branch !== expectedEnvironment.neonBranch
+  ) {
+    throw new Error(`Railway environment mapping is incomplete or crosses Neon branches: ${name}.`)
+  }
+}
+if (
+  environment.environments.staging.neon.branch === environment.environments.production.neon.branch
+) {
+  throw new Error('Railway staging and production must use distinct Neon branches.')
 }
 
 if (
@@ -84,6 +119,8 @@ for (const requiredFragment of [
   "volume('restate-data'",
   'preserve()',
   'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
+  "const sourceBranch = production ? 'main' : 'staging'",
+  'branch: sourceBranch',
 ]) {
   if (!railwayIac.includes(requiredFragment)) {
     throw new Error(`Railway IaC is missing required project intent: ${requiredFragment}.`)

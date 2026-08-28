@@ -68,6 +68,30 @@ test('owns the active Railway project graph as code without committed secrets', 
   )
 })
 
+test('maps Railway staging and production to isolated Neon branches', async () => {
+  const environment = JSON.parse(
+    await readRepositoryFile('infrastructure/railway/environment.json')
+  )
+  const source = await readRepositoryFile('.railway/railway.ts')
+
+  assert.deepEqual(environment.environments, {
+    staging: {
+      railwayEnvironment: 'staging',
+      applicationEnvironment: 'staging',
+      sourceBranch: 'staging',
+      neon: { provider: 'neon', project: 'control-plane', branch: 'staging' },
+    },
+    production: {
+      railwayEnvironment: 'production',
+      applicationEnvironment: 'production',
+      sourceBranch: 'main',
+      neon: { provider: 'neon', project: 'control-plane', branch: 'main' },
+    },
+  })
+  assert.match(source, /const sourceBranch = production \? 'main' : 'staging'/)
+  assert.equal((source.match(/branch: sourceBranch/g) ?? []).length, 2)
+})
+
 test('uses a dependency-aware portable container build without AWS deployment assumptions', async () => {
   const dockerfile = await readRepositoryFile('infrastructure/containers/Dockerfile')
   const bake = await readRepositoryFile('infrastructure/containers/docker-bake.hcl')

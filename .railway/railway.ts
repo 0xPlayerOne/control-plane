@@ -7,10 +7,11 @@ const restateImage =
 export default defineRailway((context) => {
   const production = context.isEnvironment('production')
   const applicationEnvironment = production ? 'production' : 'staging'
+  const sourceBranch = production ? 'main' : 'staging'
   const restateData = volume('restate-data')
 
   const controlApi = service('@control-plane/control-api', {
-    source: github(repository, { branch: 'main' }),
+    source: github(repository, { branch: sourceBranch }),
     build: {
       builder: 'RAILPACK',
       buildCommand: 'bun run build --filter=@control-plane/control-api...',
@@ -41,7 +42,7 @@ export default defineRailway((context) => {
   })
 
   const workflowWorker = service('@control-plane/workflow-worker', {
-    source: github(repository, { branch: 'main' }),
+    source: github(repository, { branch: sourceBranch }),
     build: {
       builder: 'RAILPACK',
       buildCommand: 'bun run build --filter=@control-plane/workflow-worker...',

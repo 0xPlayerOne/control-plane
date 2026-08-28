@@ -141,12 +141,12 @@ end_of_record
   assert.throws(() => parseCoverageMinimum('features: all\n'), /not configured/)
 })
 
-test('configures the Code Foundry CI baseline for the public direct-flow repository', async () => {
+test('configures the Code Foundry CI baseline for the public staging-release repository', async () => {
   const config = await readFile(new URL('../.github/code-foundry.yml', import.meta.url), 'utf8')
 
   assert.match(config, /^features: all$/m)
   assert.match(config, /^license: apache-2\.0$/m)
-  assert.match(config, /^git_workflow: direct$/m)
+  assert.match(config, /^git_workflow: staging-release$/m)
   assert.match(config, /^release_merge_strategy: rebase$/m)
   assert.match(config, /^codeql: auto$/m)
   assert.match(config, /^dependency_review: auto$/m)
@@ -166,7 +166,7 @@ test('configures the Code Foundry CI baseline for the public direct-flow reposit
   }
 })
 
-test('generates only the direct-flow Code Foundry callers with parallel validation', async () => {
+test('generates the staging-release Code Foundry callers with parallel validation', async () => {
   const validation = await readFile(
     new URL('../.github/workflows/validation.yml', import.meta.url),
     'utf8'
@@ -179,6 +179,7 @@ test('generates only the direct-flow Code Foundry callers with parallel validati
     new URL('../.github/workflows/draft-pr.yml', import.meta.url),
     'utf8'
   )
+  const dependabot = await readFile(new URL('../.github/dependabot.yml', import.meta.url), 'utf8')
 
   assert.match(
     validation,
@@ -187,17 +188,22 @@ test('generates only the direct-flow Code Foundry callers with parallel validati
   assert.equal((validation.match(/if: vars\.CI_BILLING_PAUSED != 'true'/g) ?? []).length, 2)
   assert.match(validation, /cancel-in-progress: true/)
   assert.doesNotMatch(validation, /ubuntu-slim/)
-  assert.match(validation, /branches: \[main\]/)
+  assert.match(validation, /branches: \[main, staging\]/)
   assert.match(validation, /validation mode/)
   assert.match(validation, /mode: \$\{\{ needs\.mode\.outputs\.mode \}\}/)
-  assert.doesNotMatch(validation, /branches: \[[^\]]*staging/)
   assert.match(release, /release\.yml@v0\.38\.0/)
   assert.match(release, /release-while-paused:/)
   assert.match(release, /billing-pause-bypass:/)
   assert.match(draftPr, /if: vars\.CI_BILLING_PAUSED != 'true'/)
-  assert.match(draftPr, /base: main/)
+  assert.match(draftPr, /base: staging/)
+  assert.equal((dependabot.match(/target-branch: staging/g) ?? []).length, 3)
 
-  await assert.rejects(readFile(new URL('../.github/workflows/release-pr.yml', import.meta.url)))
+  const releasePr = await readFile(
+    new URL('../.github/workflows/release-pr.yml', import.meta.url),
+    'utf8'
+  )
+  assert.match(releasePr, /branches: \[staging\]/)
+  assert.match(releasePr, /release-pr\.yml@v0\.38\.0/)
   await assert.rejects(
     readFile(new URL('../.github/workflows/opencode-security.yml', import.meta.url))
   )
@@ -311,7 +317,7 @@ test('tracks every workspace for coordinated stable release automation', async (
   const config = await readJson('release-please-config.json')
   const manifest = await readJson('.release-please-manifest.json')
 
-  assert.equal(config['bump-minor-pre-major'], undefined)
+  assert.equal(config['bump-minor-pre-major'], true)
   for (const [path, packageName] of [
     ['.', 'workspace'],
     ...apps.map((app) => [`apps/${app}`, app]),
