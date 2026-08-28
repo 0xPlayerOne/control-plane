@@ -28,6 +28,22 @@ export interface ContextProviderDriver {
   retrieve(request: ContextProviderRequest): Promise<ContextContribution[]>
 }
 
+export interface ContextContributionCache {
+  get(key: string): Promise<ContextContribution[] | undefined>
+  set(key: string, contributions: ContextContribution[]): Promise<void>
+}
+
+export class InMemoryContextContributionCache implements ContextContributionCache {
+  readonly #entries = new Map<string, ContextContribution[]>()
+  async get(key: string): Promise<ContextContribution[] | undefined> {
+    const value = this.#entries.get(key)
+    return value === undefined ? undefined : structuredClone(value)
+  }
+  async set(key: string, contributions: ContextContribution[]): Promise<void> {
+    this.#entries.set(key, structuredClone(contributions))
+  }
+}
+
 export type ContextProviderErrorCode =
   | 'PROVIDER_UNAVAILABLE'
   | 'PROVIDER_REVOKED'
@@ -66,8 +82,13 @@ export interface ContextProviderResolution {
 
 export class ContextProviderResolver {
   readonly #providers: ContextProviderDriver[]
-  constructor(providers: ContextProviderDriver[]) {
+  readonly #cache: ContextContributionCache | undefined
+  constructor(
+    providers: ContextProviderDriver[],
+    options: { readonly cache?: ContextContributionCache } = {}
+  ) {
     this.#providers = [...providers]
+    this.#cache = options.cache
   }
 
   async resolve(input: unknown): Promise<ContextProviderResolution> {
@@ -81,43 +102,75 @@ export class ContextProviderResolver {
           throw new ContextProviderResolutionError('PROVIDER_REVOKED')
         if (provider.readModel.health.status === 'unavailable')
           throw new ContextProviderResolutionError('PROVIDER_UNAVAILABLE')
+        const cacheKey = this.#cacheKey(provider, request)
+        const cached = await this.#cache?.get(cacheKey)
+        if (cached) {
+          const normalizedCached = this.#validate(provider, request, cached)
+          return this.#included(provider, normalizedCached)
+        }
         const contributions = await withTimeout(
           provider.retrieve(request),
           request.policy.maximumLatencyMs
         )
         const normalized = this.#validate(provider, request, contributions)
-        return {
-          status:
-            provider.readModel.health.status === 'degraded' ||
-            normalized.some((entry) => entry.degraded)
-              ? 'degraded'
-              : 'included',
-          contributions: normalized,
-          pins: normalized.map((entry) => ({
-            providerId: entry.providerId,
-            connectionId: entry.connectionId,
-            contractVersion: entry.contractVersion,
-            scopeDigest: entry.scopeDigest,
-            revision: entry.revision,
-            contentDigest: entry.contentDigest,
-            observedAt: entry.observedAt,
-            degraded: entry.degraded,
-            included: true,
-            provenance: entry.provenance.map(({ sourceRef, sourceKind, citation }) => ({
-              sourceRef,
-              sourceKind,
-              ...(citation === undefined ? {} : { citation }),
-            })),
-            ...(entry.providerMetadata === undefined
-              ? {}
-              : { providerMetadata: entry.providerMetadata }),
-          })),
-        }
+        await this.#cache?.set(cacheKey, normalized)
+        return this.#included(provider, normalized)
       } catch (error) {
         lastError = normalizeError(error)
       }
     }
     return this.#failure(request, lastError)
+  }
+
+  #included(
+    provider: ContextProviderDriver,
+    normalized: ContextContribution[]
+  ): ContextProviderResolution {
+    return {
+      status:
+        provider.readModel.health.status === 'degraded' ||
+        normalized.some((entry) => entry.degraded)
+          ? 'degraded'
+          : 'included',
+      contributions: normalized,
+      pins: normalized.map((entry) => ({
+        providerId: entry.providerId,
+        connectionId: entry.connectionId,
+        contractVersion: entry.contractVersion,
+        scopeDigest: entry.scopeDigest,
+        revision: entry.revision,
+        contentDigest: entry.contentDigest,
+        observedAt: entry.observedAt,
+        degraded: entry.degraded,
+        included: true,
+        provenance: entry.provenance.map(({ sourceRef, sourceKind, citation }) => ({
+          sourceRef,
+          sourceKind,
+          ...(citation === undefined ? {} : { citation }),
+        })),
+        ...(entry.providerMetadata === undefined
+          ? {}
+          : { providerMetadata: entry.providerMetadata }),
+      })),
+    }
+  }
+
+  #cacheKey(provider: ContextProviderDriver, request: ContextProviderRequest): string {
+    return digest(
+      JSON.stringify({
+        provider: provider.readModel.definition,
+        connection: provider.readModel.connection,
+        workspaceId: request.workspaceId,
+        scopeDigest: request.scopeDigest,
+        principalRef: request.principalRef,
+        capability: request.capability,
+        policy: request.policy,
+        nowBucket: Math.floor(
+          Date.parse(request.now) / (request.policy.maximumAgeSeconds * 1_000 || 1)
+        ),
+        adapterVersion: 'context-provider-resolver/1',
+      })
+    )
   }
 
   #eligible(request: ContextProviderRequest): ContextProviderDriver[] {

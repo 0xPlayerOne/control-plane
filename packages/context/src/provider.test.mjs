@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   ContextProviderResolver,
+  InMemoryContextContributionCache,
   createFakeContextProvider,
   runContextProviderConformance,
 } from './provider.ts'
@@ -99,10 +100,28 @@ describe('optional context provider resolution', () => {
       scopePreserved: true,
     })
   })
+
+  test('reuses only scope- and policy-bound contribution cache entries', async () => {
+    const cache = new InMemoryContextContributionCache()
+    const provider = fake('K')
+    let retrievals = 0
+    const counted = {
+      ...provider,
+      async retrieve(input) {
+        retrievals += 1
+        return provider.retrieve(input)
+      },
+    }
+    const selected = resolver([counted], { cache })
+    await selected.resolve(request())
+    await selected.resolve(request())
+    await selected.resolve(request({ maximumTokens: 99 }))
+    expect(retrievals).toBe(2)
+  })
 })
 
-function resolver(providers) {
-  return new ContextProviderResolver(providers)
+function resolver(providers, options) {
+  return new ContextProviderResolver(providers, options)
 }
 
 function fake(suffix, overrides = {}) {

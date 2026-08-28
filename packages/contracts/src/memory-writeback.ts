@@ -7,7 +7,7 @@ const ConnectionIdSchema = z.string().regex(/^ctc_[0-9A-HJKMNP-TV-Z]{26}$/)
 const TimestampSchema = z.iso.datetime()
 
 export const MemoryWritePolicySchema = z.object({
-  mode: z.enum(['disabled', 'proposal_only', 'approval_required']),
+  mode: z.enum(['disabled', 'proposal_only', 'approval_required']).default('disabled'),
   maximumBytes: z.number().int().positive().max(65_536),
   allowedSensitivities: z.array(z.enum(['public', 'internal', 'confidential', 'restricted'])),
   approvalPrincipalIds: z.array(z.string().min(3).max(128)).max(64),
