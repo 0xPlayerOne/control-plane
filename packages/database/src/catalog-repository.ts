@@ -16,7 +16,7 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
   async insertAgentProfile(profile: AgentProfile): Promise<boolean> {
     const result = await this.database
       .insert(agentProfiles)
-      .values(profile)
+      .values({ ...profile, createdAt: new Date(profile.createdAt) })
       .onConflictDoNothing()
       .returning({ profileId: agentProfiles.profileId })
     return result.length === 1
@@ -27,12 +27,12 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .from(agentProfiles)
       .where(eq(agentProfiles.profileId, profileId))
       .limit(1)
-    return row ? parse<AgentProfile>(row) : undefined
+    return row ? parse<AgentProfile>({ ...row, createdAt: row.createdAt.toISOString() }) : undefined
   }
   async insertAgentProfileVersion(version: AgentProfileVersion): Promise<boolean> {
     const result = await this.database
       .insert(agentProfileVersions)
-      .values(version)
+      .values(profileVersionRow(version))
       .onConflictDoNothing()
       .returning({ id: agentProfileVersions.profileVersionId })
     return result.length === 1
@@ -43,7 +43,9 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .from(agentProfileVersions)
       .where(eq(agentProfileVersions.profileVersionId, id))
       .limit(1)
-    return row ? parse<AgentProfileVersion>(row) : undefined
+    return row
+      ? parse<AgentProfileVersion>({ ...row, createdAt: row.createdAt.toISOString() })
+      : undefined
   }
   async listAgentProfileVersions(profileId: string): Promise<readonly AgentProfileVersion[]> {
     const rows = await this.database
@@ -51,7 +53,9 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .from(agentProfileVersions)
       .where(eq(agentProfileVersions.profileId, profileId))
       .orderBy(asc(agentProfileVersions.version))
-    return rows.map((row) => parse<AgentProfileVersion>(row))
+    return rows.map((row) =>
+      parse<AgentProfileVersion>({ ...row, createdAt: row.createdAt.toISOString() })
+    )
   }
   async compareAndSetAgentProfileVersion(
     expectedRevision: number,
@@ -59,7 +63,7 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
   ): Promise<boolean> {
     const result = await this.database
       .update(agentProfileVersions)
-      .set(version)
+      .set(profileVersionRow(version))
       .where(
         and(
           eq(agentProfileVersions.profileVersionId, version.profileVersionId),
@@ -73,7 +77,7 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
   async insertSkill(skill: Skill): Promise<boolean> {
     const result = await this.database
       .insert(skills)
-      .values(skill)
+      .values({ ...skill, createdAt: new Date(skill.createdAt) })
       .onConflictDoNothing()
       .returning({ skillId: skills.skillId })
     return result.length === 1
@@ -84,12 +88,12 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .from(skills)
       .where(eq(skills.skillId, skillId))
       .limit(1)
-    return row ? parse<Skill>(row) : undefined
+    return row ? parse<Skill>({ ...row, createdAt: row.createdAt.toISOString() }) : undefined
   }
   async insertSkillVersion(version: SkillVersion): Promise<boolean> {
     const result = await this.database
       .insert(skillVersions)
-      .values(version)
+      .values(skillVersionRow(version))
       .onConflictDoNothing()
       .returning({ id: skillVersions.skillVersionId })
     return result.length === 1
@@ -100,7 +104,7 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .from(skillVersions)
       .where(eq(skillVersions.skillVersionId, id))
       .limit(1)
-    return row ? parse<SkillVersion>(row) : undefined
+    return row ? parse<SkillVersion>({ ...row, createdAt: row.createdAt.toISOString() }) : undefined
   }
   async listSkillVersions(skillId: string): Promise<readonly SkillVersion[]> {
     const rows = await this.database
@@ -108,7 +112,9 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .from(skillVersions)
       .where(eq(skillVersions.skillId, skillId))
       .orderBy(asc(skillVersions.createdAt))
-    return rows.map((row) => parse<SkillVersion>(row))
+    return rows.map((row) =>
+      parse<SkillVersion>({ ...row, createdAt: row.createdAt.toISOString() })
+    )
   }
   async compareAndSetSkillVersion(
     expectedRevision: number,
@@ -116,7 +122,7 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
   ): Promise<boolean> {
     const result = await this.database
       .update(skillVersions)
-      .set(version)
+      .set(skillVersionRow(version))
       .where(
         and(
           eq(skillVersions.skillVersionId, version.skillVersionId),
@@ -126,6 +132,14 @@ export class PostgresCatalogRepository implements AgentProfileRepository, SkillR
       .returning({ id: skillVersions.skillVersionId })
     return result.length === 1
   }
+}
+
+function profileVersionRow(version: AgentProfileVersion) {
+  return { ...version, createdAt: new Date(version.createdAt) }
+}
+
+function skillVersionRow(version: SkillVersion) {
+  return { ...version, createdAt: new Date(version.createdAt) }
 }
 
 function parse<Value>(value: unknown): Value {
