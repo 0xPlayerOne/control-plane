@@ -217,6 +217,7 @@ describe('M9 production hardening acceptance', () => {
       'test:load',
       'test:m9-acceptance',
       'test:recovery-matrix',
+      'certify:m9-cloud',
     ]) {
       assert.equal(typeof scripts[command], 'string')
     }
@@ -240,5 +241,7 @@ describe('M9 production hardening acceptance', () => {
     assert.match(workflow, /concurrency:[\s\S]*group:.*github\.event_name/)
     assert.match(operations, /RPO is 5 minutes and RTO is 60 minutes/)
     assert.match(recovery, /Neon PostgreSQL|backup\/PITR/i)
+    assert.match(operations, /bun run certify:m9-cloud/)
+    assert.match(operations, /idempotent replay/i)
   })
 })

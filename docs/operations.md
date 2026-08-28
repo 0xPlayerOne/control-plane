@@ -27,12 +27,13 @@ Keep runtime database credentials separate from migration/admin authority. Keep 
 
 ## Current M9 state
 
-The Railway project has isolated `staging` and `production` environments. The active Cloud
-application topology is `control-api` plus the private `workflow-worker` Restate endpoint; the
-separately pinned `restate` runtime still requires live provisioning. Railway `staging` tracks Git
-`staging` and Neon `staging`, while Railway `production` tracks Git `main` and Neon `main`; each
-environment has separate least-privilege roles. R2 service credentials and the remaining live
-deployment/recovery evidence are still required before M9.6 #73 can close.
+The Railway project has isolated `staging` and `production` environments. The active Cloud staging
+topology is the public `control-api`, private `workflow-worker`, and separately pinned `restate`
+runtime with its persistent Railway volume. Railway `staging` tracks Git `staging` and Neon staging,
+while Railway `production` tracks Git `main` and Neon production; each environment has separate
+least-privilege roles. The 2026-08-28 staging activation, restart, execution, Neon, R2, security,
+resource, and bounded cost results are recorded in
+[`evidence/m9-cloud-certification-2026-08-28.md`](evidence/m9-cloud-certification-2026-08-28.md).
 
 The repository Cloud composition now persists accepted commands/executions in PostgreSQL and wires
 the workflow worker's lifecycle activities to the same authoritative execution and plan data.
@@ -41,7 +42,8 @@ terminal result through R2. Production uses `disabled` and cannot accept certifi
 This path certifies the Control Plane cloud infrastructure only; later Agent HQ managed-runtime
 support requires its own runtime provider and certification.
 
-Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
+Do not treat the staging certification, current Railway dashboard, or existing AWS Terraform as
+production certification. Production promotion remains a separate reviewed release gate.
 
 ## Managed-cloud release and rollback
 
@@ -65,6 +67,30 @@ A database migration failure blocks rollout. Never hide a broken revision behind
 For M9 staging certification, verify the retained `m9/certification/` result with `get` and `head`,
 match its digest to the terminal execution/command state, and replay the same accepted command to
 confirm that no second logical artifact is created. Do not report this as managed Pi certification.
+
+Run the repository-owned live certification harness only against the isolated Railway/Neon/R2
+staging profile:
+
+```sh
+bun run certify:m9-cloud
+```
+
+The operator supplies `M9_CONTROL_API_URL`, `M9_SERVICE_AUTH_ISSUER`,
+`M9_SERVICE_AUTH_KEY_ID`, `M9_SERVICE_AUTH_PRIVATE_KEY_FILE`, `DATABASE_URL`, `R2_ENDPOINT`,
+`R2_BUCKET`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` through the local secret boundary. The
+private signing key is a short-lived staging-certification credential whose matching public key is
+configured in the staging Control API trust set; it is never committed or printed. `DATABASE_URL`
+uses the least-privilege staging application role because the harness seeds one immutable bounded
+certification plan through the same repository used by the service. The harness does not accept a
+migration/admin connection.
+
+A passing JSON record proves all of the following for one run: authenticated public acceptance,
+terminal command/execution/attempt state in Neon, an integrity-matched retained result through the
+R2 `ObjectStore`, and idempotent replay returning the original execution and artifact. The record
+contains identifiers, timestamps, state, and digests only. Keep deployment IDs, exact source commit,
+Railway build/readiness results, Restate registration/restart evidence, resource metrics, and the
+sanitized harness record together in the M9.6 evidence attachment. The harness is not by itself
+proof of rollback, restart recovery, load, isolation, secret-canary, or cost acceptance.
 
 ## Neon operations
 
