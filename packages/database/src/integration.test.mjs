@@ -9,6 +9,8 @@ import {
   InteractionService,
 } from '@control-plane/domain'
 import { ExecutionEventDispatcher, ExecutionEventService } from '@control-plane/events'
+import { ExecutionPlanAcceptanceValidator } from '@control-plane/execution-plan'
+import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
 import {
   ExternalSessionRegistry,
   RecordingRuntimeAvailabilityChangePublisher,
@@ -20,6 +22,7 @@ import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
 import { PostgresExecutionRepository } from './execution-repository.ts'
+import { PostgresExecutionPlanRepository } from './execution-plan-repository.ts'
 import { PostgresEvaluationRepository } from './evaluation-repository.ts'
 import { PostgresInteractionRepository } from './interaction-repository.ts'
 import { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.ts'
@@ -35,6 +38,7 @@ import {
   delegations,
   evaluationRuns,
   executionEvents,
+  executionPlans,
   executions,
   externalSessions,
   inboxMessages,
@@ -79,6 +83,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(result.map(({ table_name: tableName }) => tableName)).toEqual(
       expect.arrayContaining([
         'execution_attempts',
+        'execution_plans',
         'delegations',
         'executions',
         'evaluation_runs',
@@ -92,6 +97,44 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'runtime_inventory_checkpoints',
       ])
     )
+  })
+
+  test('persists immutable execution plans across repository restart', async () => {
+    await isolated.migrate()
+    const plan = createExecutionPlanTestFixture()
+    const repository = new PostgresExecutionPlanRepository(isolated.application)
+    const reference = await repository.put(plan)
+
+    expect(reference).toEqual({
+      executionPlanId: plan.executionPlanId,
+      contentDigest: plan.contentDigest,
+    })
+    expect(await repository.put(plan)).toEqual(reference)
+
+    const restarted = new PostgresExecutionPlanRepository(isolated.application)
+    expect(await restarted.get(reference)).toEqual(plan)
+    expect(
+      await restarted.get({ ...reference, contentDigest: `sha256:${'f'.repeat(64)}` })
+    ).toBeUndefined()
+    expect(await isolated.application.select().from(executionPlans)).toHaveLength(1)
+
+    const validator = new ExecutionPlanAcceptanceValidator(restarted)
+    expect(
+      await validator.validate({
+        executionPlan: { ...reference, schemaVersion: plan.schemaVersion },
+        workspaceId: plan.correlation.workspaceId,
+        projectId: plan.correlation.projectId,
+        taskId: plan.correlation.taskId,
+        agentId: plan.correlation.agentId,
+      })
+    ).toBe(true)
+
+    await expect(
+      repository.put({
+        ...plan,
+        contentDigest: `sha256:${'f'.repeat(64)}`,
+      })
+    ).rejects.toThrow()
   })
 
   test('persists immutable evaluation evidence across repository restart', async () => {
