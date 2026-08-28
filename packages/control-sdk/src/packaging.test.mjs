@@ -29,7 +29,7 @@ describe('published SDK artifacts', () => {
     const archiveEntries = execFileSync('tar', ['-tzf', sdkTarball], { encoding: 'utf8' })
     expect(archiveEntries).toContain('package/dist/index.js')
     expect(archiveEntries).toContain('package/dist/testing.js')
-    expect(archiveEntries).toContain('package/openapi/control-plane.v1.json')
+    expect(archiveEntries).toContain('package/openapi/control-plane.v2.json')
     expect(archiveEntries).not.toContain('package/src/')
     expect(archiveEntries).not.toContain('compatibility/')
 

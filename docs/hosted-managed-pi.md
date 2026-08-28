@@ -16,6 +16,6 @@ Progress, usage, interactions, errors, and results flow through the ordinary `Ma
 
 ## Registration, readiness, and scaling
 
-Host inspection produces a normal `managed_cloud` RuntimeConnection at `managed_sandbox`, including verified capabilities, versions, health, freshness, and compatibility. Eligibility and routing therefore use the same Runtime SDK evaluation as every other runtime.
+Host inspection produces a normal `managed_cloud` RuntimeConnection at `agent_hq_cloud`, including verified capabilities, versions, health, freshness, and compatibility. Eligibility and routing therefore use the same Runtime SDK evaluation as every other runtime.
 
 `HostedManagedPiWorker` exposes provider-neutral readiness and capacity demand. The bootstrap composition refuses readiness when the host is unavailable or has no capacity and closes the host provider during graceful shutdown. Scaling output contains only current slots, active work, queued work, and desired capacity; a deployment adapter may translate that signal for any approved container or sandbox provider.

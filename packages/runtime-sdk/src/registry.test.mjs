@@ -72,7 +72,7 @@ describe('RuntimeConnection registry', () => {
         identityDigest: `sha256:${'3'.repeat(64)}`,
         connectionType: 'managed_cloud',
         runtimeNodeRefId: undefined,
-        location: 'managed_sandbox',
+        location: 'agent_hq_cloud',
         opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFJ',
       })
     )

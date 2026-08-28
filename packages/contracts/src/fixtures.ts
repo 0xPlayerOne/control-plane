@@ -1,4 +1,4 @@
-const contractVersion = { major: 1, minor: 0 } as const
+const contractVersion = { major: 2, minor: 0 } as const
 const requestId = 'req_01JABCDEF0123456789ABCDEFG'
 const commandId = 'cmd_01JABCDEF0123456789ABCDEFG'
 const workspaceId = 'wsp_01JABCDEF0123456789ABCDEFG'
@@ -48,6 +48,7 @@ export const PublicContractFixtures = Object.freeze({
       code: 'INVALID_REQUEST',
       message: 'The request is invalid',
       retryable: false,
+      source: 'client',
     },
   },
   event: {

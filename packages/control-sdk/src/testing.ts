@@ -182,7 +182,14 @@ function errorFixture(
     contractVersion: context?.contractVersion ?? fallback.contractVersion,
     requestId: context?.requestId ?? fallback.requestId,
     correlation: context?.correlation ?? fallback.correlation,
-    error: { class: errorClass, code, message, retryable: false },
+    error: {
+      class: errorClass,
+      code,
+      message,
+      retryable: false,
+      source:
+        errorClass === 'internal' ? 'system' : errorClass === 'authentication' ? 'auth' : 'client',
+    },
   }
 }
 

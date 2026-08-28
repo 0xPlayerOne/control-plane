@@ -3,6 +3,7 @@ import { ServiceCallerAssertionSchema } from './authentication.js'
 import { CorrelationMetadataSchema } from './envelopes.js'
 import { IdentifierSchemas } from './identifiers.js'
 import { ContractVersionSchema } from './versioning.js'
+import { CursorSchema, PageSchema } from './pagination.js'
 
 const TimestampSchema = z.iso.datetime()
 const CapabilityNameSchema = z
@@ -15,11 +16,6 @@ const DiagnosticCodeSchema = z
   .min(1)
   .max(128)
   .regex(/^[A-Z][A-Z0-9_]*$/)
-const CursorSchema = z
-  .string()
-  .min(8)
-  .max(512)
-  .regex(/^cur_[A-Za-z0-9_-]+$/)
 const SemanticVersionSchema = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)
 const unique = <Value>(values: Value[]) => new Set(values).size === values.length
 
@@ -62,12 +58,12 @@ export const RuntimeConnectionDiscoveryReadModelSchema = z.object({
     .max(64)
     .regex(/^[a-z][a-z0-9-]*$/),
   connectionType: z.enum(['managed_cloud', 'managed_local', 'external_local']),
-  location: z.enum(['local_device', 'managed_sandbox']),
+  location: z.enum(['local_device', 'agent_hq_cloud']),
   status: z.enum(['available', 'degraded', 'unavailable', 'revoked']),
   node: z
     .object({
       runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId,
-      location: z.enum(['local_device', 'remote_host', 'managed_sandbox']),
+      location: z.enum(['local_device', 'remote_host', 'agent_hq_cloud']),
       status: z.enum(['online', 'offline', 'revoked']),
       health: z.enum(['online', 'offline', 'unknown', 'revoked']),
       observedAt: TimestampSchema,
@@ -202,8 +198,6 @@ export const RuntimeConnectionGetRequestSchema = ReadRequestContextSchema.extend
     runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId.optional(),
   }),
 })
-
-const PageSchema = z.object({ nextCursor: CursorSchema.optional() })
 
 export const RuntimeConnectionListResponseSchema = ResponseContextSchema.extend({
   data: z.object({

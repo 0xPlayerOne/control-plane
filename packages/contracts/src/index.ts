@@ -5,6 +5,7 @@ export * from './envelopes.js'
 export * from './fixtures.js'
 export * from './identifiers.js'
 export * from './memory-writeback.js'
+export * from './pagination.js'
 export * from './runtime-discovery.js'
 export * from './versioning.js'
 

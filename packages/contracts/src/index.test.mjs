@@ -13,6 +13,9 @@ import {
   PublicContractManifest,
   ReadRequestEnvelopeSchema,
   ResponseEnvelopeSchema,
+  CursorSchema,
+  decodeCursor,
+  encodeCursor,
   RuntimeReadModelEnvelopeSchema,
   ServiceCredentialClaimsSchema,
   ServicePrincipalSchema,
@@ -70,6 +73,24 @@ describe('canonical identifiers', () => {
   })
 })
 
+describe('opaque cursor pagination', () => {
+  test('round-trips a deterministic cursor without exposing transport fields', () => {
+    const cursor = encodeCursor({
+      sortKey: '2026-08-28T00:00:00.000Z',
+      id: 'rtc_01JABCDEF0123456789ABCDEFG',
+    })
+    expect(cursor).toBe(
+      encodeCursor({ sortKey: '2026-08-28T00:00:00.000Z', id: 'rtc_01JABCDEF0123456789ABCDEFG' })
+    )
+    expect(CursorSchema.parse(cursor)).toBe(cursor)
+    expect(decodeCursor(cursor)).toEqual({
+      sortKey: '2026-08-28T00:00:00.000Z',
+      id: 'rtc_01JABCDEF0123456789ABCDEFG',
+    })
+    expect(() => decodeCursor('cur_invalid')).toThrow()
+  })
+})
+
 describe('contract version compatibility', () => {
   test('classifies same-major additive versions in both consumption directions', () => {
     expect(
@@ -119,8 +140,11 @@ describe('contract version compatibility', () => {
   test('publishes the supported boundary and rejects an inverted deprecation window', () => {
     expect(PublicContractManifest).toEqual({
       name: 'agent-hq-control-plane',
-      current: { major: 1, minor: 0 },
-      supported: [{ major: 1, minor: 0 }],
+      current: { major: 2, minor: 0 },
+      supported: [
+        { major: 1, minor: 0 },
+        { major: 2, minor: 0 },
+      ],
     })
     expect(
       ContractDeprecationSchema.safeParse({

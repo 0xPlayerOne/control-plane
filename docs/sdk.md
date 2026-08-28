@@ -9,7 +9,7 @@ The public boundary is distributed through versioned contract and SDK packages. 
 
 Neither package may export database models/Drizzle schemas, application modules, Restate or historical Temporal workflow types, LangGraph state, runtime adapters/drivers/transports, Railway/Neon/R2 implementation types, provider credentials, or secret-management implementations.
 
-M9.10 #210 owns the v1 public-contract freeze. M10 transports the same semantic envelopes over Local/remote profile boundaries without defining a second API.
+M9.10 #210 owns the v2 public-contract freeze. The location vocabulary change is a deliberate major boundary; M10 transports the same semantic envelopes over Cloud/Hosted/Local profile boundaries without defining a second API.
 
 ## Client boundary
 
@@ -27,7 +27,7 @@ The client must:
 
 ## Current implementation status
 
-The repository contains historical SDK operations and deterministic stubs from earlier milestones. They remain useful independent-build fixtures. M9.10 reconciles those exports with the final v1 Zod/OpenAPI/event/error contracts, and M11 verifies every claimed operation is reachable through supported composition roots.
+The repository contains historical SDK operations and deterministic stubs from earlier milestones. They remain useful independent-build fixtures. M9.10 reconciles those exports with the final v2 Zod/OpenAPI/event/error contracts, and M11 verifies every claimed operation is reachable through supported composition roots.
 
 A stub/fake is never evidence that the concrete Railway, Local or Hosted implementation is production-ready.
 

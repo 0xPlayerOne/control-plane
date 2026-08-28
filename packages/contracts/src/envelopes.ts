@@ -84,7 +84,21 @@ export const NormalizedErrorSchema = z.object({
     .regex(/^[A-Z][A-Z0-9_]*$/),
   message: z.string().min(1).max(512),
   retryable: z.boolean(),
-  details: z.record(z.string(), z.unknown()).optional(),
+  source: z.enum([
+    'client',
+    'auth',
+    'policy',
+    'runtime',
+    'provider',
+    'persistence',
+    'workflow',
+    'system',
+  ]),
+  remediation: z.string().min(1).max(256).optional(),
+  details: z
+    .record(z.string().max(64), z.unknown())
+    .refine((details) => Object.keys(details).length <= 32)
+    .optional(),
 })
 
 export type NormalizedError = z.infer<typeof NormalizedErrorSchema>

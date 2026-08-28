@@ -156,6 +156,7 @@ describe('Control Plane SDK public client', () => {
               code: 'SERVICE_CREDENTIAL_REVOKED',
               message: 'Service credential is not accepted',
               retryable: false,
+              source: 'auth',
             },
           },
           { status: 401 }
@@ -196,7 +197,7 @@ describe('Control Plane SDK public client', () => {
       fetch: async () =>
         globalThis.Response.json({
           ...ControlApiFixtures.runtimeList.response,
-          contractVersion: { major: 2, minor: 0 },
+          contractVersion: { major: 1, minor: 0 },
         }),
     })
     await expect(
@@ -221,7 +222,7 @@ describe('Control Plane SDK public client', () => {
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/)
     expect(manifest.version).toBe(releaseManifest['packages/control-sdk'])
     expect(manifest.private).toBeUndefined()
-    expect(PublicContractManifest.current).toEqual({ major: 1, minor: 0 })
+    expect(PublicContractManifest.current).toEqual({ major: 2, minor: 0 })
     for (const prohibited of [
       'database',
       'drizzle',
@@ -239,7 +240,7 @@ describe('Control Plane SDK public client', () => {
 function runtimeDiscoveryRequest() {
   return {
     caller: { servicePrincipalId: 'svc_agent-hq' },
-    contractVersion: { major: 1, minor: 0 },
+    contractVersion: { major: 2, minor: 0 },
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     operation: 'runtime-connection.list',
     parameters: { limit: 50, states: [], requiredCapabilities: [] },
@@ -252,7 +253,7 @@ function runtimeDiscoveryRequest() {
 
 function runtimeDiscoveryResponse() {
   return {
-    contractVersion: { major: 1, minor: 0 },
+    contractVersion: { major: 2, minor: 0 },
     requestId: 'req_01JABCDEF0123456789ABCDEFG',
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     data: {
@@ -262,7 +263,7 @@ function runtimeDiscoveryResponse() {
           runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
           family: 'codex',
           connectionType: 'managed_cloud',
-          location: 'managed_sandbox',
+          location: 'agent_hq_cloud',
           status: 'available',
           connection: { status: 'connected', health: 'healthy', availability: 'healthy' },
           freshness: {
@@ -303,7 +304,7 @@ function externalSessionDiscoveryRequest() {
 
 function externalSessionDiscoveryResponse() {
   return {
-    contractVersion: { major: 1, minor: 0 },
+    contractVersion: { major: 2, minor: 0 },
     requestId: 'req_01JABCDEF0123456789ABCDEFG',
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     data: {

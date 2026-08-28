@@ -19,7 +19,7 @@ const ids = {
 
 const requestContext = {
   caller: { servicePrincipalId: 'svc_agent-hq' },
-  contractVersion: { major: 1, minor: 0 },
+  contractVersion: { major: 2, minor: 0 },
   requestId: ids.requestId,
   workspaceId: ids.workspaceId,
   projectId: ids.projectId,

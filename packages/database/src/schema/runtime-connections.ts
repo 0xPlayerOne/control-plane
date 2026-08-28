@@ -18,7 +18,7 @@ export const runtimeConnectionType = pgEnum('runtime_connection_type', [
 ])
 export const runtimeConnectionLocation = pgEnum('runtime_connection_location', [
   'local_device',
-  'managed_sandbox',
+  'agent_hq_cloud',
 ])
 export const runtimeConnectionStatus = pgEnum('runtime_connection_status', [
   'connected',
@@ -118,7 +118,7 @@ export const runtimeConnections = pgTable(
     index('runtime_connections_definition_index').on(table.runtimeDefinitionId),
     check(
       'runtime_connections_location_check',
-      sql`(${table.connectionType} = 'managed_cloud' and ${table.location} = 'managed_sandbox' and ${table.runtimeNodeRefId} is null) or (${table.connectionType} <> 'managed_cloud' and ${table.location} = 'local_device' and ${table.runtimeNodeRefId} is not null)`
+      sql`(${table.connectionType} = 'managed_cloud' and ${table.location} = 'agent_hq_cloud' and ${table.runtimeNodeRefId} is null) or (${table.connectionType} <> 'managed_cloud' and ${table.location} = 'local_device' and ${table.runtimeNodeRefId} is not null)`
     ),
     check(
       'runtime_connections_native_ref_check',

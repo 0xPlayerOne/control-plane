@@ -157,7 +157,7 @@
                 "enum": ["linux", "macos", "windows", "portable"]
               },
               "architecture": { "type": "string", "enum": ["x64", "arm64", "portable"] },
-              "location": { "type": "string", "enum": ["local_device", "managed_sandbox"] },
+              "location": { "type": "string", "enum": ["local_device", "agent_hq_cloud"] },
               "environment": { "type": "string", "minLength": 1, "maxLength": 128 }
             },
             "required": ["operatingSystem", "architecture", "location", "environment"],

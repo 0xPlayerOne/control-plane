@@ -11,7 +11,7 @@ describe('Control API generated contract', () => {
   test('matches the committed OpenAPI artifact deterministically', async () => {
     const generated = createControlApiOpenApiDocument()
     const committed = JSON.parse(
-      await readFile(new URL('../openapi/control-plane.v1.json', import.meta.url), 'utf8')
+      await readFile(new URL('../openapi/control-plane.v2.json', import.meta.url), 'utf8')
     )
 
     expect(generated).toEqual(committed)
@@ -30,7 +30,7 @@ describe('Control API generated contract', () => {
     ])
   })
 
-  test('allows additive optional fields while rejecting breaking v1 changes', () => {
+  test('allows additive optional fields while rejecting breaking v2 changes', () => {
     const baseline = createControlApiOpenApiDocument()
     const additive = globalThis.structuredClone(baseline)
     additive.paths['/v1/profiles/resolve'].post.responses['200'].content[
