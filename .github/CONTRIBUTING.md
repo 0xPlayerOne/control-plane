@@ -46,7 +46,7 @@ docs/*  test/*  refactor/*         │
 | `main`                                                         | Protected release branch | Merge through pull requests only. No direct pushes.    |
 | `feat/*`, `fix/*`, `chore/*`, `refactor/*`, `docs/*`, `test/*` | Focused work             | Branch from `main`; keep changes small and reviewable. |
 
-The Git workflow is `direct`: topic branches **squash** directly into `main`, and the Release Please version PR **rebases** into `main` (`release_merge_strategy: rebase`). Release automation never defaults to a merge method and never merges with `--admin`; `code-foundry doctor` and `code-foundry sync` fail closed on any other release merge strategy. Feature branches never touch `staging`; repositories with a preview/staging environment opt into `git_workflow: staging-release` explicitly.
+The Git workflow is `direct`: topic branches and the Release Please version PR **rebase** into `main` (`merge_strategy: rebase` and `release_merge_strategy: rebase`). Release automation never defaults to a merge method and never merges with `--admin`; `code-foundry doctor` and `code-foundry sync` fail closed on any other configured strategy. Feature branches never touch `staging`; repositories with a preview/staging environment opt into `git_workflow: staging-release` explicitly.
 
 ## Before you start
 
@@ -105,7 +105,7 @@ For maintainers, trusted contributors, and automation agents:
 
 8. Push the branch and open a pull request into `main`.
 9. Address review feedback and failed checks on the same branch.
-10. Merge with a squash after required checks pass and the change is ready; feature PRs land on `main` with squash merges.
+10. Merge with a rebase after required checks pass and the change is ready; feature PRs land on `main` with rebase merges.
 
 ### Internal agent handoff
 
@@ -177,7 +177,7 @@ Security checks can be skipped when repository visibility or the GitHub plan doe
 
 | Change | Target | Merge method | Merge gate |
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Working branch | `main` | Squash | All applicable required checks pass |
+| Working branch | `main` | Rebase | All applicable required checks pass |
 | Release Please version PR | `main` | Rebase (`release_merge_strategy`, fails closed) | Validation gate and release policy pass |
 Reviewers focus on correctness, security, maintainability, test coverage, operational impact, and compatibility. Authors remain responsible for responding to feedback and verifying the final commit.
 

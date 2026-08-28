@@ -24,10 +24,10 @@ The gate covers:
 - dependency auditing that does not require production or vendor credentials.
 - repository credential-pattern scanning through `bun run security:scan` without echoing matches.
 
-Repository settings allow squash and rebase merges but disable merge commits.
-Feature branches must squash into `main`. Release Please version pull requests
-must rebase into `main`; Code Foundry fails closed for any other configured
-release merge strategy.
+Repository settings allow rebase merges and disable squash and merge commits.
+Feature branches must rebase into `main`. Release Please version pull requests
+must also rebase into `main`; Code Foundry fails closed for any other configured
+merge strategy.
 
 ## Public-repository security gates
 
