@@ -162,6 +162,13 @@
       "when": 1787909876687,
       "tag": "0022_gorgeous_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787937116575,
+      "tag": "0023_rapid_celestials",
+      "breakpoints": true
     }
   ]
 }

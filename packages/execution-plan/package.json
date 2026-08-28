@@ -16,6 +16,11 @@
       "types": "./dist/index.d.ts",
       "node": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "node": "./dist/testing.js",
+      "default": "./dist/testing.js"
     }
   },
   "scripts": {

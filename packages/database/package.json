@@ -40,6 +40,7 @@
     "@control-plane/credential-vault": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/events": "workspace:*",
+    "@control-plane/execution-plan": "workspace:*",
     "@control-plane/contracts": "workspace:*",
     "@control-plane/memory-writeback": "workspace:*",
     "@control-plane/orchestration": "workspace:*",
