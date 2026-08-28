@@ -8,7 +8,7 @@ export default defineRailway((context) => {
   const production = context.isEnvironment('production')
   const applicationEnvironment = production ? 'production' : 'staging'
   const sourceBranch = production ? 'main' : 'staging'
-  const restateData = volume('restate-data')
+  const restateData = volume('restate-data', { sizeMB: 500, region: 'ams' })
 
   const controlApi = service('@control-plane/control-api', {
     source: github(repository, { branch: sourceBranch }),
