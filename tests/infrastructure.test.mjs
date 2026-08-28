@@ -11,7 +11,7 @@ test('defines the Railway cloud service and migration manifest', async () => {
 
   assert.deepEqual(
     services.map(({ name }) => name),
-    ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
+    ['control-api', 'workflow-worker']
   )
   assert.deepEqual(
     services.filter(({ public: isPublic }) => isPublic).map(({ name }) => name),

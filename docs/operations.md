@@ -27,7 +27,11 @@ Keep runtime database credentials separate from migration/admin authority. Keep 
 
 ## Current M9 state
 
-The current Railway project exists, but its initial five service deployments failed during monorepo build resolution and the services do not yet have Control Plane application configuration. The separate Neon `control-plane` project exists but has not yet received the Control Plane Drizzle/domain schema and is not wired to Railway. M9.7–M9.9 own those fixes; M9.6 #73 is the final live activation/certification gate.
+The Railway project and isolated staging environment exist. The active Cloud application topology is
+`control-api` plus the private `workflow-worker` Restate endpoint; the separately pinned `restate`
+runtime still requires live provisioning. A dedicated Neon staging branch has the Control Plane
+schema and least-privilege roles, while Neon main remains untouched. R2 service credentials and the
+remaining live deployment/recovery evidence are still required before M9.6 #73 can close.
 
 Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
 

@@ -45,19 +45,7 @@
       "R2_REGION",
       "R2_ACCESS_KEY_ID",
       "R2_SECRET_ACCESS_KEY"
-    ],
-    "runtime-worker": [
-      "DATABASE_URL",
-      "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
-      "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
-      "R2_ENDPOINT",
-      "R2_BUCKET",
-      "R2_REGION",
-      "R2_ACCESS_KEY_ID",
-      "R2_SECRET_ACCESS_KEY"
-    ],
-    "runtime-gateway": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"],
-    "tool-gateway": ["CONTROL_PLANE_SERVICE_AUTH_TOKEN"]
+    ]
   },
   "objectStore": {
     "provider": "cloudflare-r2",

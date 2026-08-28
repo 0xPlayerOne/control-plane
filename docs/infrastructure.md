@@ -35,12 +35,12 @@ before the selected service.
 
 ## Current external-resource state
 
-As of the current M9 planning baseline:
+As of the current M9 activation baseline:
 
-- a Railway `control-plane` project exists with the five historical server/cloud service targets;
-- their initial deployments have failed before runtime because the monorepo build path does not build/resolve internal workspace packages correctly;
-- the Railway services do not yet have Control Plane application variables configured;
-- a separate Neon project named `control-plane` exists, but the Control Plane Drizzle/domain schema has not yet been applied and no Railway service is currently wired to it;
+- a Railway `control-plane` project and isolated staging environment exist;
+- dependency-aware monorepo builds are fixed and the active Cloud application topology is `control-api` plus `workflow-worker`;
+- the private Restate runtime is separately pinned in `restate.json` and requires live provisioning;
+- a dedicated Neon staging branch has the complete Control Plane schema and least-privilege runtime/migration roles; Neon main remains untouched;
 - existing `neon_auth` tables in that Neon project are not Control Plane identity authority and must not become an application dependency;
 - a Cloudflare R2 bucket named **`ctrl-plane`** already exists for the Control Plane managed-cloud ObjectStore, with logical Wrangler binding **`ctrl_plane`**;
 - an authenticated Wrangler CLI is available to implementation agents for non-destructive R2 inspection/configuration and synthetic smoke tests;
@@ -51,15 +51,22 @@ Configuration shape or resource existence is not deployment evidence. M9.6 requi
 
 ## Railway service composition
 
-The historical server/cloud composition roots remain:
+The active Cloud application services are:
 
-- `control-api`
-- `workflow-worker`
-- `runtime-worker`
-- `runtime-gateway`
-- `tool-gateway`
+- `control-api` — public authenticated API plus health/readiness;
+- `workflow-worker` — private Restate service endpoint.
 
-`workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring. M9.8 may still change the service topology where an old boundary exists only because of the former Temporal runtime. Do not preserve a five-service topology merely for historical symmetry.
+The private `restate` server is a separately pinned infrastructure runtime, not a Control Plane
+application build target.
+
+`runtime-worker`, `runtime-gateway`, and `tool-gateway` remain source packages with their contracts
+and tests intact, but are not always-on Railway services. The current runtime worker and tool gateway
+have no persistent production loop, while Runtime Gateway requires a real remote-node identity and
+coordination composition. They may be added to a future topology only when that topology has an
+implemented use case and lifecycle; a placeholder process that marks ready and exits is not a cloud
+service.
+
+`workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring.
 
 The Railway staging Restate runtime is a private single node pinned to Restate 1.7.7 by immutable
 multi-platform image digest. Railway must mount a persistent volume at `/restate-data` and preserve
