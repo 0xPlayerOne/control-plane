@@ -76,21 +76,21 @@ export async function createRuntimeFabricAcceptanceHarness() {
     runtimeConnectionId: runtimeFabricIds.cloud,
     runtimeDefinitionId: runtimeFabricIds.cloudDefinition,
     connectionType: 'managed_cloud',
-    location: 'managed_sandbox',
+    location: 'agent_hq_cloud',
     capabilities: [capability('stream.output'), capability('tool.call')],
   })
   const denied = await registerConnection(registry, {
     runtimeConnectionId: runtimeFabricIds.denied,
     runtimeDefinitionId: runtimeFabricIds.deniedDefinition,
     connectionType: 'managed_cloud',
-    location: 'managed_sandbox',
+    location: 'agent_hq_cloud',
     capabilities: [capability('stream.output'), capability('tool.call')],
   })
   const missing = await registerConnection(registry, {
     runtimeConnectionId: runtimeFabricIds.missing,
     runtimeDefinitionId: runtimeFabricIds.missingDefinition,
     connectionType: 'managed_cloud',
-    location: 'managed_sandbox',
+    location: 'agent_hq_cloud',
     capabilities: [capability('stream.output')],
   })
   const stale = {
@@ -394,7 +394,7 @@ function eligibilityFor(connection, requirements, policyOverrides = {}) {
         digest: `sha256:${'8'.repeat(64)}`,
       },
       allowedFamilies: ['mock'],
-      allowedLocations: ['local_device', 'managed_sandbox'],
+      allowedLocations: ['local_device', 'agent_hq_cloud'],
       deniedRuntimeConnectionIds: [],
       requireVerifiedCapabilities: true,
       security: { status: 'allowed' },
