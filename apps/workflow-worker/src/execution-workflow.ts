@@ -37,6 +37,8 @@ export interface ExecutionLifecycleActivities {
     attemptId?: string
     state: string
     effectKey: string
+    failure?: { classification: string; code: string }
+    resultReference?: string
   }): Promise<void>
   dispatch(input: {
     executionId: string
@@ -70,7 +72,9 @@ export interface WorkflowInteractionResponse {
 }
 
 export type WorkflowRuntimeOutcome =
-  | { readonly outcome: 'completed' | 'failed' | 'cancelled'; readonly resultReference?: string }
+  | { readonly outcome: 'completed'; readonly resultReference?: string }
+  | { readonly outcome: 'failed'; readonly failureCode: string; readonly retryable: boolean }
+  | { readonly outcome: 'cancelled' }
   | { readonly outcome: 'awaiting_input'; readonly interactionId: string }
   | GraphActivityOutcome
 
@@ -195,6 +199,17 @@ export async function runExecutionLifecycle(
     attemptId,
     state: status,
     effectKey: key(status),
+    ...(status === 'failed'
+      ? {
+          failure: {
+            classification: 'runtime_error',
+            code: 'failureCode' in runtimeOutcome ? runtimeOutcome.failureCode : 'RUNTIME_FAILED',
+          },
+        }
+      : {}),
+    ...('resultReference' in runtimeOutcome && runtimeOutcome.resultReference
+      ? { resultReference: runtimeOutcome.resultReference }
+      : {}),
   })
   await activities.cleanup({ executionId: input.executionId, attemptId, effectKey: key('cleanup') })
   return {

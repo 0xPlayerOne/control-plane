@@ -17,14 +17,19 @@ Restate durable workflow state is separate from Control Plane domain persistence
 
 ## Current managed-cloud Neon state
 
-A separate Neon project named `control-plane` exists. It is distinct from the Agent HQ Neon project. At the current M9 planning baseline:
+A separate Neon project named `control-plane` exists. It is distinct from the Agent HQ Neon project.
+The repository-owned managed-cloud compositions now connect both `control-api` and
+`workflow-worker` to PostgreSQL using application-role credentials. The Control API persists plans,
+commands, executions, ProjectState, and ContextPackages; the workflow worker persists execution and
+attempt lifecycle transitions and loads the exact accepted plan before runtime dispatch.
 
-- the Control Plane Drizzle/domain schema has not yet been applied;
-- no Railway Control Plane service is currently wired to the Neon database;
-- current inspection shows only an unrelated `neon_auth` schema;
-- Control Plane application code must not depend on that `neon_auth` schema because Agent HQ owns product user authentication.
+This composition is not live-environment evidence. M9.6 #73 still owns explicit migration of the
+current repository schema into the isolated Neon staging branch, deployed-service connectivity,
+least-privilege verification, reconnect/recovery evidence, and later promotion. Any unrelated
+`neon_auth` schema remains non-authoritative and unused by Control Plane application code.
 
-M9.9 #217 owns initialization/wiring. Production/staging tables must be created from repository-owned Drizzle migrations, not manual console SQL. M9.6 #73 verifies the resulting schema and live service connectivity.
+Production/staging tables must be created from repository-owned Drizzle migrations, not manual
+console SQL.
 
 ## PostgreSQL development and integration fixtures
 

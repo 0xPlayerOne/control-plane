@@ -1166,6 +1166,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       transitionedAt: '2026-08-24T11:01:00.000Z',
     })
     expect(processing).toMatchObject({ status: 'processing', version: record.version + 1 })
+    expect(await repository.getByExecutionId(processing.executionId)).toEqual(processing)
     expect((await service.acceptExecution(input)).command).toEqual(processing)
   })
 
