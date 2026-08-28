@@ -38,6 +38,7 @@ Key documentation:
 - [`docs/infrastructure.md`](docs/infrastructure.md): Railway/Neon/R2/Restate M9 target, migration/rollback flow, and M10 portability boundaries.
 - [`docs/configuration.md`](docs/configuration.md): typed service bootstrap/configuration.
 - [`docs/database.md`](docs/database.md): Neon/PostgreSQL managed-cloud/server persistence and M10 SQLite Local/simple persistence.
+- [`docs/object-store.md`](docs/object-store.md): provider-neutral object storage and the Cloudflare R2 Cloud adapter.
 - [`docs/api.md`](docs/api.md): Control API transport, validation, and error conventions.
 - [`docs/contracts.md`](docs/contracts.md): service authentication, canonical identifiers, envelopes, and compatibility policy.
 - [`docs/profiles-and-skills.md`](docs/profiles-and-skills.md): immutable AgentProfile/Skill ownership and lifecycle.
