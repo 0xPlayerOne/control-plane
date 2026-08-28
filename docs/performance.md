@@ -1,56 +1,74 @@
 # Performance, capacity, and cost baseline
 
-The M9 release gate runs `bun run test:load` with the repository-pinned Bun runtime. It
-executes 2,000 operations at concurrency 32 for each production-shaped profile:
+Performance evidence is profile-specific. The repository's existing M9 synthetic load harness remains a useful regression baseline, but it is **not** a substitute for the live Railway, Local, or Self-hosted measurements required by the current milestone plan.
 
-- control API command reads;
-- workflow replay and durable event delivery;
-- runtime gateway commands and runtime routing;
-- model/tool streaming and multi-agent fan-out;
-- an uninstrumented telemetry control and the equivalent instrumented trace path.
+## Existing synthetic baseline
 
-Every profile must satisfy all of these budgets:
+`bun run test:load` / `bun run test:m9-acceptance` exercises representative Control API, workflow/event, Runtime Gateway/routing, model/tool, orchestration, and telemetry paths with bounded admission. Existing budgets and historical local results remain regression evidence for the implementation they exercise.
 
-| Measure                   |                     Release budget |
-| ------------------------- | ---------------------------------: |
-| p95 latency               |                     at most 100 ms |
-| throughput                |   at least 1,000 operations/second |
-| error rate                |                                  0 |
-| resident-memory increase  |                     at most 64 MiB |
-| unit cost                 |            at most $0.02/operation |
-| attempts                  | exactly 1 (no retry amplification) |
-| telemetry median overhead |                       at most 2 ms |
+Do not reinterpret a synthetic/developer-host pass as proof that Railway, Neon, R2, Restate, SQLite, or a VPS profile meets production capacity requirements.
 
-The harness counts only successful operations toward throughput and fails on invalid cost,
-attempt, clock, or memory evidence. `BoundedAdmissionController` provides immediate overload rejection
-with a retry delay instead of an unbounded in-memory queue. Candidate releases can also be
-compared with an explicit prior baseline for latency, throughput, memory, cost, and error-rate
-regressions. Invalid or non-finite operation and comparison evidence fails closed instead of being
-absorbed by a permitted error budget.
+## M9 managed-cloud evidence
 
-## Measured local baseline
+M9.6 #73 requires measurements from the accepted Railway + Neon + R2 + Restate staging candidate after M9.7–M9.13 configuration is complete.
 
-Three consecutive runs passed on 2026-08-25 using Bun 1.3.14, macOS 26.5.2, an Apple M2
-Max, and 64 GiB RAM. Across the final run, p95 latency ranged from 0.21 ms to 84.60 ms,
-throughput ranged from 2,771 to 398,313 operations/second, memory growth remained below
-11 MiB, the error rate was zero, and no operation retried. Instrumentation added 0.15 ms
-to the paired median latency. These numbers are a repeatable developer-host regression
-baseline, not a substitute for environment-specific production capacity tests.
+Record at minimum:
 
-## Production capacity procedure
+- clean build/deploy/startup/readiness time;
+- Railway CPU/RAM/network and service saturation;
+- execution acceptance and time-to-first-progress;
+- Restate invocation/wait/recovery overhead and state growth;
+- Neon query/pool/connection behavior and migration/reconnect impact;
+- R2 request/storage/network behavior where used;
+- Runtime Gateway connection/ACK overhead where used;
+- event/tool/model/provider throughput and backpressure;
+- p50/p95/p99/max latency;
+- retry/redelivery/error counts;
+- idle and representative active cost.
 
-1. Run the same gate against the release candidate and its immediate production baseline
-   on identical instance classes with production telemetry settings.
-2. Ramp concurrency gradually while watching admission rejection, queue depth, database
-   saturation, gateway/provider latency, reconciliation backlog, and budget consumption.
-3. Stop before provider quotas or cost ceilings are approached. A capacity increase must
-   preserve the zero-error and no-retry-amplification budgets.
-4. Record the immutable candidate and baseline digests with the evaluation release-gate
-   decision. Promote only after every required profile passes; roll back on a material
-   regression.
-5. Re-establish the baseline after an approved instance, database, provider, or telemetry
-   configuration change. Never compare measurements from dissimilar environments.
+M9.6 records the initial cloud baseline only after live staging is healthy. M11 later reruns it from the frozen release candidate.
 
-Application workers reject overload through bounded admission. Infrastructure scaling and
-database/provider operating limits are documented in `docs/operations.md`; those limits
-remain authoritative when they are lower than a synthetic benchmark result.
+## M10 Local evidence
+
+Measure the all-in-one Local profile using SQLite + single-node Restate + filesystem storage + direct RuntimeTransport:
+
+- clean start/readiness;
+- idle CPU/RSS/disk;
+- active execution CPU/RSS/disk;
+- SQLite query/lock/WAL growth and backup overhead;
+- direct-local RuntimeTransport latency;
+- Restate process/runtime overhead;
+- managed Pi/ACP resource use;
+- filesystem Artifact behavior;
+- restart/recovery latency.
+
+Local release budgets must fit ordinary developer hardware and cannot assume Docker/PostgreSQL/Redis/Runtime Gateway are running.
+
+## M10 Self-hosted evidence
+
+Measure both supported profiles:
+
+- `simple`: all-in-one + Restate + SQLite + filesystem on a small VPS;
+- `server`: PostgreSQL-backed composition with split services/remote Runtime Gateway only where required.
+
+Record minimum/recommended CPU, memory and disk, idle/active consumption, saturation/backpressure, database/storage behavior, remote-control overhead, restart/backup/restore impact, and monthly infrastructure cost for the reference classes tested.
+
+## Cross-profile conformance
+
+Performance differences are allowed; semantic differences are not. M10.9 runs equivalent versioned fixtures across the accepted M9 cloud candidate, Local, Self-hosted `simple`, and Self-hosted `server`.
+
+Permitted differences include latency, capacity, availability, infrastructure cost and location-specific capabilities. Retry/idempotency/cancellation/approval/state/result semantics must remain compatible.
+
+## Optimization rules
+
+1. Pin candidate/baseline commits, runtime versions, deployment configuration, persistence schema, environment class, dataset and concurrency.
+2. Profile before optimizing.
+3. Run cold/warm, steady, ramp, spike, stress, soak and restart/recovery cases where appropriate.
+4. Preserve raw profiles and environment manifests.
+5. Caching/batching/backpressure cannot weaken workspace isolation, durability, idempotency, privacy, or provider scope.
+6. Re-establish baselines after an approved infrastructure/runtime/database configuration change.
+7. Never compare unlike deployment profiles as if they were the same capacity class.
+
+## M11 release gate
+
+M11 owns final absolute and regression budgets after real M9/M10 data exists. It can block release for unbounded resource growth, unsafe retry amplification, database saturation, excessive deployment overhead, unacceptable cost, or profile-specific behavior that cannot be operated reliably.

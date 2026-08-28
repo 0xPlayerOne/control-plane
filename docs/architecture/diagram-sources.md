@@ -1,18 +1,18 @@
 # Control Plane Diagram Sources
 
-Status: Canonical repository source
-Owner: Control Plane architecture
-Last reviewed: 2026-08-23
+Status: Canonical repository companion source
+Last reviewed: 2026-08-28
 
-These Mermaid definitions are the version-controlled source for the rendered diagrams in the canonical Google Docs.
+These Mermaid definitions are the version-controlled Control Plane companion to the canonical Google Drive diagram catalog. If the two sources diverge, update both in the same architecture reconciliation pass.
 
 ## Editing and rendering rules
 
-1. Edit the Mermaid definition here first.
-2. Render and inspect the diagram before replacing the image in its owning document.
-3. Keep the heading aligned with the owning Google Doc and figure purpose.
-4. Do not hand-edit rendered diagram images.
-5. Cross-repository definitions owned by Agent HQ remain in that repository's companion diagram-source file.
+1. Edit Mermaid source before replacing a rendered image.
+2. Validate/render the diagram before updating an embedded figure.
+3. Keep ownership boundaries consistent with the canonical PRDs/TDDs/ADRs.
+4. Do not conflate Agent HQ Remote Relay with Control Plane Runtime Gateway.
+5. Co-located Local runtime/provider access must not traverse Runtime Gateway.
+6. M9 managed cloud is Railway + Neon + R2 + Restate; M10 adds Local/Self-hosted adapters without changing core semantics.
 
 ## Control Plane TDD: Execution & Orchestration
 
@@ -21,17 +21,22 @@ flowchart TB
     RQ[Execution Request] --> AUTH[Validate Authorization]
     AUTH --> RES[Resolve AgentProfile / Skills / Context]
     RES --> EP[Compile immutable ExecutionPlan]
-    EP --> TW[Temporal Workflow]
-    TW --> C{Graph semantics required?}
-    C -->|No| RA[Runtime Adapter]
-    C -->|Yes| LG[LangGraph.js Segment]
+    EP --> RS[Restate Durable Lifecycle]
+    RS --> C{Graph semantics required?}
+    C -->|No| RA[RuntimeAdapter]
+    C -->|Yes| LG[Bounded LangGraph.js Segment]
     LG --> RA
-    RA --> RT{Runtime}
+    RA --> TR{RuntimeTransport}
+    TR -->|Co-located| DL[DirectLocalRuntimeTransport]
+    TR -->|Non-co-located| RG[RemoteRuntimeGatewayTransport]
+    DL --> RD[RuntimeDriver]
+    RG --> GW[Runtime Gateway]
+    GW --> RD
+    RD --> RT{Runtime family}
     RT -->|Managed| PI[Managed Pi]
-    RT -->|External| ACP[ACP Adapter]
-    ACP --> EXT[External Harness]
+    RT -->|External| ACP[ACP-connected Harness]
     PI --> OUT[Normalized Result / Events]
-    EXT --> OUT
+    ACP --> OUT
     OUT --> REC[Reconciliation]
     REC --> PS[(ProjectState)]
 ```
@@ -39,9 +44,18 @@ flowchart TB
 ## Control Plane TDD: Context & Delegation Lifecycle
 
 ```mermaid
-flowchart LR
+flowchart TB
     PS[(ProjectState)] --> SEL[Relevance Selection]
-    SEL --> CP[ContextPackage]
+    EXT[Authorized caller / Artifact / LocalProjectGrant refs] --> SEL
+    SEL --> PSEL{ContextProvider policy}
+    PSEL -->|Disabled / none| CP[ContextPackage]
+    PSEL -->|Preferred / required| CPA[ContextProviderAdapter]
+    CPA --> CPD{Provider transport}
+    CPD -->|Co-located| DIR[ContextProviderDriver / direct local-service boundary]
+    CPD -->|Remote when required| REM[Approved remote provider transport]
+    DIR --> CC[Validated ContextContribution]
+    REM --> CC
+    CC --> CP
     CP --> P[Parent Execution]
     P --> D{Delegate?}
     D -->|No| R[Result]
@@ -72,6 +86,13 @@ classDiagram
     }
     class ManagedPiAdapter
     class ACPAdapter
+    class RuntimeTransport {
+      +send(command)
+      +cancel(commandId)
+      +reconcile(commandId)
+    }
+    class DirectLocalRuntimeTransport
+    class RemoteRuntimeGatewayTransport
     class RuntimeGateway
     class RuntimeDriver {
       +describeOperations()
@@ -83,15 +104,67 @@ classDiagram
     class ACPDriver
     class ManagedPi
     class ExternalHarness
+
     RuntimeAdapter <|-- ManagedPiAdapter
     RuntimeAdapter <|-- ACPAdapter
-    ManagedPiAdapter --> RuntimeGateway : versioned commands
-    ACPAdapter --> RuntimeGateway : versioned commands
+    ManagedPiAdapter --> RuntimeTransport
+    ACPAdapter --> RuntimeTransport
+    RuntimeTransport <|-- DirectLocalRuntimeTransport
+    RuntimeTransport <|-- RemoteRuntimeGatewayTransport
+    DirectLocalRuntimeTransport --> RuntimeDriver
+    RemoteRuntimeGatewayTransport --> RuntimeGateway
     RuntimeGateway --> RuntimeDriver
     RuntimeDriver <|-- ManagedPiDriver
     RuntimeDriver <|-- ACPDriver
     ManagedPiDriver --> ManagedPi
     ACPDriver --> ExternalHarness
+```
+
+## Managed Cloud and Portability Profiles
+
+```mermaid
+flowchart TB
+    CORE[Shared Control Plane Core / Public Contracts]
+
+    subgraph Cloud["M9 Managed Cloud Reference"]
+      RAIL[Railway Compute]
+      NEON[(Neon PostgreSQL)]
+      R2[(Cloudflare R2)]
+      RSC[Restate]
+    end
+
+    subgraph Local["M10 Local"]
+      LCP[All-in-one Control Plane]
+      SQL[(node:sqlite)]
+      LRS[Single-node Restate]
+      FS[(Filesystem ObjectStore)]
+      DRT[Direct RuntimeTransport]
+    end
+
+    subgraph Hosted["M10 Self-hosted"]
+      HCP[Compose Control Plane]
+      HP[(SQLite simple / PostgreSQL server)]
+      HRS[Restate]
+      HOS[(Filesystem / S3-compatible ObjectStore)]
+      HRT[Direct or Remote RuntimeTransport]
+    end
+
+    CORE --> RAIL
+    RAIL --> NEON
+    RAIL --> R2
+    RAIL --> RSC
+
+    CORE --> LCP
+    LCP --> SQL
+    LCP --> LRS
+    LCP --> FS
+    LCP --> DRT
+
+    CORE --> HCP
+    HCP --> HP
+    HCP --> HRS
+    HCP --> HOS
+    HCP --> HRT
 ```
 
 ## ProjectState Concurrency and Promotion

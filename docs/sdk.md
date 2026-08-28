@@ -1,116 +1,60 @@
 # Control Plane public SDK
 
-The Agent HQ-facing boundary is distributed as two Apache-2.0 npm packages:
+The public boundary is distributed through versioned contract and SDK packages. It is deployment-neutral: the same semantic API/events must work against the accepted M9 managed-cloud profile and the M10 Local/Self-hosted compositions.
 
-- `@control-plane/contracts` contains the versioned Zod schemas, public request/response/event/error
-  types, compatibility rules, and deterministic fixtures.
-- `@control-plane/sdk` depends on the contracts package and contains the typed HTTP client, operation
-  registry, generated OpenAPI document, and `@control-plane/sdk/testing` stub harness.
+## Package boundary
 
-Both packages are server-only. Their unreleased manifests remain `0.0.0`; Release Please tracks both
-packages and owns the coordinated first `1.0.0` bump. Neither package exports Control Plane
-database models, Drizzle schemas, application modules, Temporal workflows, policy evaluators,
-ExecutionPlan compilers, runtime adapters, provider credentials, or secret-management code. ESLint
-and package-surface tests enforce that dependency direction.
+- `@control-plane/contracts` contains canonical versioned Zod request/response/event/error schemas, compatibility rules and deterministic fixtures.
+- `@control-plane/sdk` depends on the contracts package and provides the typed client, operation registry, generated OpenAPI artifact and deterministic testing harness.
+
+Neither package may export database models/Drizzle schemas, application modules, Restate or historical Temporal workflow types, LangGraph state, runtime adapters/drivers/transports, Railway/Neon/R2 implementation types, provider credentials, or secret-management implementations.
+
+M9.10 #210 owns the v1 public-contract freeze. M10 transports the same semantic envelopes over Local/remote profile boundaries without defining a second API.
 
 ## Client boundary
 
-`ControlPlaneClient` accepts a Control Plane base URL and a service credential or async credential
-provider. Remote URLs must use HTTPS; loopback HTTP is accepted only for deterministic tests. The
-client validates every request before transport, rejects redirects, sets request/correlation headers,
-uses a bounded timeout, validates every response, rejects incompatible API majors, and throws
-`ControlPlaneClientError` for normalized failures without retaining the bearer credential.
+Remote server endpoints use authenticated HTTPS. M10 may additionally expose an approved loopback/IPC/local client boundary, but Local transport does not change operation semantics, schemas, normalized errors, idempotency or compatibility rules.
 
-| Client method              | Operation                 | HTTP path                      |
-| -------------------------- | ------------------------- | ------------------------------ |
-| `verifyAuthentication`     | `authentication.verify`   | `/v1/authentication/verify`    |
-| `resolveProfile`           | `profile.resolve`         | `/v1/profiles/resolve`         |
-| `resolveProjectState`      | `project-state.resolve`   | `/v1/project-states/resolve`   |
-| `resolveContextPackage`    | `context-package.resolve` | `/v1/context-packages/resolve` |
-| `listRuntimes`             | `runtime.list`            | `/v1/runtimes/list`            |
-| `validateExecutionRequest` | `execution.validate`      | `/v1/executions/validate`      |
+The client must:
 
-Execution validation consumes exact profile/skill, ProjectState, ContextPackage, policy, runtime,
-and output-contract references. Its public success result is only the immutable
-`{ executionPlanId, contentDigest }` reference defined by issue #17; compiler inputs and internal plan
-contents remain server-owned.
+- validate requests and responses at the versioned contract boundary;
+- reject incompatible contract majors before unsafe dispatch;
+- use stable request/idempotency/correlation identifiers;
+- enforce bounded request timeouts for synchronous operations;
+- reject unsafe redirects for credential-bearing remote calls;
+- avoid retaining/logging bearer credentials or protected payloads;
+- expose deployment/runtime metadata only as normalized fields rather than provider-specific internals.
 
-```ts
-import { ControlApiFixtures, ControlPlaneClient } from '@control-plane/sdk'
+## Current implementation status
 
-const client = new ControlPlaneClient({
-  baseUrl: 'https://control-plane.example',
-  credential: async () => serviceCredentialProvider.current(),
-})
+The repository contains historical SDK operations and deterministic stubs from earlier milestones. They remain useful independent-build fixtures. M9.10 reconciles those exports with the final v1 Zod/OpenAPI/event/error contracts, and M11 verifies every claimed operation is reachable through supported composition roots.
 
-const result = await client.validateExecutionRequest(ControlApiFixtures.executionValidation.request)
-```
-
-The current Control API application does not yet mount these domain operations. Agent HQ integration
-must use the stub until the corresponding provider endpoints land; this prevents the SDK from
-pretending M3 execution exists.
+A stub/fake is never evidence that the concrete Railway, Local or Self-hosted implementation is production-ready.
 
 ## Deterministic contract tests
 
-The loopback-only stub implements every public SDK operation with the same schemas and deterministic
-fixtures used by provider tests:
+The SDK testing surface must remain runnable without Agent HQ, Cortana, Railway, Neon, R2, Restate cloud infrastructure, paid model providers, or user credentials. Fixtures validate the same public schemas/compatibility behavior consumed by real deployments.
 
-```ts
-import { ControlPlaneClient } from '@control-plane/sdk'
-import { createControlPlaneStub } from '@control-plane/sdk/testing'
+Cross-repository references are compatibility targets, not ordinary implementation dependencies. Live Agent HQ/Cortana composition occurs only in M12.
 
-const stub = await createControlPlaneStub()
-const client = new ControlPlaneClient({
-  baseUrl: stub.url,
-  credential: 'stub-agent-hq-token',
-})
+## OpenAPI and schema generation
 
-try {
-  // Exercise Agent HQ integration against client methods here.
-} finally {
-  await stub.close()
-}
-```
+Canonical executable public schemas are Zod definitions in versioned contract packages. JSON Schema/OpenAPI artifacts are generated deterministically and fail CI on drift.
 
-The harness validates authentication and payloads, caps bodies at 1 MiB, returns normalized errors,
-records only operation/request metadata, and never records authorization values. Packed-tarball tests
-install both packages into an isolated temporary consumer, type-check usage, and import both public
-entry points without monorepo source access.
+Compatibility rules:
 
-## OpenAPI generation and compatibility
+- public API/contracts use explicit major/minor compatibility;
+- breaking semantic/schema changes require a new major;
+- minor releases are additive/backward-compatible only;
+- opaque cursor pagination and normalized error envelopes follow M9.10;
+- public schemas cannot expose SQLite/PostgreSQL, Restate, Railway, R2, ACP/Pi implementation objects or other adapter internals.
 
-The operation registry is the source for both client methods and
-`packages/control-sdk/openapi/control-plane.v1.json`. Run:
+## Publishing and deprecation
 
-```sh
-bun run --cwd packages/control-sdk openapi:generate
-bun run --cwd packages/control-sdk openapi:initialize-baseline # only for a new contract major
-bun run openapi:check
-```
+Contract/SDK releases remain independently consumable by third-party/self-hosted clients. Publishing must preserve Apache-2.0 packaging and cannot require Agent HQ private packages.
 
-`openapi:generate` never rewrites a compatibility baseline. The first commit for a new contract
-major uses the explicit `openapi:initialize-baseline` command; it fails if that major already exists
-on the target branch.
+Deprecations remain available through their supported major until the documented sunset. Clients with no compatible major fail before dispatch rather than attempting best-effort coercion.
 
-The repository-wide check regenerates the document in memory, detects artifact drift, and compares it
-with the immutable v1 compatibility baseline. Removing operations or fields, adding required request
-fields, removing required response fields, changing types/constants, or changing a closed enum fails
-the v1 gate. Such changes require a new contract major and a new versioned baseline. Additive optional
-fields remain compatible within the current major.
+## Deployment portability rule
 
-## Publishing and deprecation policy
-
-Publish `@control-plane/contracts` before `@control-plane/sdk`; after the first release, the packed SDK
-converts its workspace dependency to `@control-plane/contracts@^1.0.0`. Registry scope ownership and
-provenance-enabled CI must be configured before setting Code Foundry's `npm_publish` toggle to true.
-Local validation and the current CI configuration do not publish packages.
-
-Contract and SDK majors match the public API major. Additive schema changes increment the contract
-minor and both package minors. Implementation-only client or harness fixes may increment only the SDK
-patch. Breaking schema or behavior changes require a new major, a new versioned OpenAPI boundary, and
-an Agent HQ compatibility update.
-
-Deprecations must use `ContractDeprecationSchema` with an effective time, documentation, optional
-replacement, and a sunset later than deprecation. Deprecated exports remain available through their
-current major. A supported major is removed only in a later major after its announced sunset; clients
-with no common supported major fail before dispatch.
+A change from managed cloud to Local/Self-hosted may change base URL/IPC transport, availability, latency and deployment metadata. It must not require callers to rewrite Task/Execution/Profile/Skill/ProjectState/ContextProvider semantics. M10 conformance and M11 audit enforce that rule.

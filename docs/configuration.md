@@ -1,51 +1,77 @@
 # Service configuration and bootstrap
 
-All deployable services enter through `@control-plane/bootstrap`, which loads their typed
-configuration from `@control-plane/config`, installs shutdown and fatal-error handlers, and exposes
-common health and readiness state.
+All deployable services enter through `@control-plane/bootstrap`, which loads typed configuration from `@control-plane/config`, installs shutdown/fatal-error handling, and exposes health/readiness state. Configuration is deployment-profile aware; request data is never allowed to choose infrastructure or environment settings.
 
-## Environments
+## Environments and profiles
 
-`APP_ENV` accepts exactly `development`, `test`, `staging`, or `production`. It is resolved once from
-the server process environment during startup; request data is never an environment selector.
+`APP_ENV` accepts exactly `development`, `test`, `staging`, or `production`.
 
-Development and test load local files in this order, with later files taking precedence:
+Deployment profile is a separate concept from application environment:
 
-1. `.env`
-2. `.env.local`
-3. `.env.<environment>`
-4. `.env.<environment>.local`
-5. Variables already present in the process environment
+- managed cloud — Railway services using Neon, R2 and Restate;
+- Local — all-in-one composition using SQLite, local Restate and direct RuntimeTransport;
+- Self-hosted `simple` — containerized all-in-one with SQLite;
+- Self-hosted `server` — PostgreSQL-backed server composition.
 
-Staging and production never load dotenv files. Their configuration must be injected by the runtime,
-container orchestrator, or secrets manager. `SERVICE_VERSION` and `COMMIT_SHA` are mandatory in both
-modes. Invalid startup configuration reports only missing or invalid variable names, never values.
+The same public/domain behavior must not depend on an environment-specific variable name.
 
-Copy the relevant `apps/<service>/.env.example` to `.env.local` inside that service for local
-development. Example files contain only non-secret values and are safe to commit. Never commit a
-populated `.env`, `.env.local`, key, token, credential, or production connection string.
+Development and test may load local dotenv files. Staging and production do not load dotenv files automatically; configuration comes from the deployment/runtime secret/configuration boundary.
 
-## Service surfaces
+## Managed-cloud configuration — M9
 
-| Service           | Variable                      | Default | Constraint                   |
-| ----------------- | ----------------------------- | ------- | ---------------------------- |
-| `control-api`     | `CONTROL_API_PORT`            | `3000`  | Integer from 1 through 65535 |
-| `runtime-gateway` | `RUNTIME_GATEWAY_PORT`        | `3001`  | Integer from 1 through 65535 |
-| `tool-gateway`    | `TOOL_GATEWAY_PORT`           | `3002`  | Integer from 1 through 65535 |
-| `workflow-worker` | `WORKFLOW_WORKER_CONCURRENCY` | `1`     | Integer from 1 through 256   |
-| `runtime-worker`  | `RUNTIME_WORKER_CONCURRENCY`  | `1`     | Integer from 1 through 256   |
+Railway service/shared variables are the accepted initial source for **service/bootstrap configuration** such as:
 
-Every service publishes application metadata containing its service name, version, commit SHA,
-environment, and instance ID. HTTP services expose the metadata through the `/health` and `/ready`
-conventions. Workers expose equivalent `health()` and `readiness()` hooks on their service runtime.
-Neither surface includes raw environment variables or secrets.
+- service version/commit/environment;
+- service-to-service endpoints/credentials;
+- Neon runtime connection reference;
+- separately scoped Neon migration/admin reference for the migration job only;
+- Restate endpoint/runtime configuration;
+- R2 endpoint/bucket/credential references;
+- bootstrap/master references for other deployment services.
 
-## Shutdown and diagnostics
+M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency.
 
-`SIGINT` and `SIGTERM` mark the service unready and close registered resources in reverse order.
-Unhandled rejections, uncaught exceptions, and startup failures use the same shutdown path and set a
-failed process exit code. Resource shutdown is idempotent.
+Railway's injected `PORT` must be honored by HTTP services or mapped explicitly through repository-owned Railway configuration. Do not assume the historical fixed development ports are the cloud ingress contract.
 
-Structured diagnostics pass through redaction before serialization. Keys containing token, secret,
-password, credential, authorization, cookie, private key, or API key are replaced with
-`[REDACTED]`; callers can provide additional sensitive keys for service-specific configuration.
+## Dynamic credentials are separate
+
+Railway environment variables are not the storage model for arbitrary user-scoped connector/provider credentials. Those remain behind the audited credential-vault secret-provider boundary. Service/bootstrap secrets and dynamic user/provider credentials are separate classes with separate lifecycle and least-privilege rules.
+
+The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. M9.9 must explicitly select and verify the accepted managed-cloud dynamic credential-vault provider behind the stable interface, or explicitly justify retaining an external AWS Secrets Manager dependency. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
+
+## Local and Self-hosted configuration — M10
+
+Local and Self-hosted compositions consume the same typed configuration model through different adapters:
+
+- packaged Local: host-secure handles for reusable secrets plus local data/component paths selected by the trusted launcher;
+- standalone Local: owner-controlled environment/private-file references where supported;
+- Self-hosted: environment/Docker/private-file or external secret-manager references;
+- cloud-only provider identifiers such as Railway/Neon/R2 cannot be required by Local/Self-hosted core startup.
+
+Profile-specific configuration may select persistence, object store, secrets, runtime transport, process supervision and service discovery. It may not redefine Task/Execution/Profile/Skill/ProjectState/ContextProvider semantics.
+
+## Current service surfaces
+
+The historical server/cloud composition currently includes:
+
+| Service | Development/default surface |
+| --- | --- |
+| `control-api` | current development HTTP port contract |
+| `runtime-gateway` | current development gateway port contract |
+| `tool-gateway` | current development tool port contract |
+| `workflow-worker` | current worker concurrency contract; M9.8 may change Temporal-shaped topology |
+| `runtime-worker` | current server/cloud runtime worker contract |
+
+M9.7/M9.8 may alter cloud process topology where an existing process exists only because of AWS/Temporal assumptions. M10 Local is not required to run these five applications as separate processes.
+
+## Validation and diagnostics
+
+- Missing/invalid startup configuration reports names and safe classifications, never values.
+- Effective non-secret configuration/profile/version information is exposed for readiness/diagnostics.
+- Sensitive keys/values are redacted before serialization.
+- Optional providers do not become startup dependencies unless the selected immutable policy explicitly requires them.
+- Schema/config incompatibility prevents readiness rather than allowing a partially configured revision to serve traffic.
+
+## Shutdown
+
+`SIGINT`/`SIGTERM` mark the process unready and close registered resources in reverse order. M9.13 owns the accepted graceful drain/cleanup defaults. Local launchers and Self-hosted supervisors must implement equivalent semantics without changing domain behavior.

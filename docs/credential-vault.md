@@ -1,30 +1,45 @@
 # Connector credential vault
 
-`@control-plane/credential-vault` separates provider credentials from Agent HQ sessions, runtime-node
-identity, and ordinary Control Plane service authentication. Public credential metadata contains a
-stable credential ID, workspace/connector ownership, provider name, status, revision, and lifecycle
-timestamps. Encrypted secret locators and KMS references remain internal vault records.
+`@control-plane/credential-vault` separates dynamic connector/provider credentials from Agent HQ sessions, RuntimeNode identity, ordinary Control Plane service authentication, and deployment bootstrap configuration.
 
-Long-lived values are stored through the provider-neutral `SecretProvider`. The initial
-`AwsSecretsManagerProvider` maps that port to a narrow AWS Secrets Manager client interface and a
-KMS key reference; core contracts contain no AWS SDK types. The in-memory provider exists only for
-deterministic tests.
+Public credential metadata contains a stable credential ID, workspace/connector ownership, provider name, status, revision, and lifecycle timestamps. Reusable secret values remain behind a provider-neutral secret boundary and never enter public contracts, ExecutionPlans, ContextPackages, Restate state, events, logs, traces, runtime messages, or ordinary errors.
+
+## Deployment configuration is not the credential vault
+
+The accepted M9 managed-cloud profile uses Railway variables for **service/bootstrap configuration** such as database connection references, service authentication, Restate configuration, object-store credentials, and bootstrap/master-secret references.
+
+Railway environment variables are **not** the storage model for arbitrary user-scoped OAuth refresh tokens, API keys, or connector credentials. Dynamic credentials require the audited credential-vault secret provider boundary.
+
+The existing `AwsSecretsManagerProvider` is a historical implementation from the prior AWS-first architecture. It may remain as an optional adapter, but it is no longer automatically the first-party managed-cloud provider merely because the code exists. **M9.9 #217 owns an explicit implementation decision and verification:** select/implement a Railway-compatible managed-cloud dynamic secret provider behind the stable vault contract, or explicitly retain AWS Secrets Manager as a separately justified external dependency. M9.6 cannot certify cloud credential handling while that provider is undefined or unverified.
+
+M10 then adds Local/Self-hosted secret-provider adapters without changing credential identity, scope, lease, rotation, revocation, or audit semantics.
 
 ## Scoped use
 
-Tool Gateway or another approved server-side adapter requests a short-lived lease after an explicit
-`credential:lease` PDP decision. A lease is pinned to one workspace, principal, credential revision,
-operation, resource, policy snapshot, and maximum five-minute lifetime. It exposes only an opaque
-`lease://` capability reference. Use is single-shot and rechecks expiry, revocation, and exact scope
-before decrypting.
+Tool Gateway or another approved server-side adapter requests a short-lived lease only after the required policy decision. A lease is pinned to one workspace, principal, credential revision, operation/resource scope, policy snapshot, and bounded lifetime. It exposes an opaque capability/reference rather than the reusable secret.
 
-The raw value exists only as the argument to the provider callback. The vault rejects callback
-results containing the secret or credential-shaped fields and normalizes callback/provider errors,
-so reusable credentials cannot flow into runtime/model results or ordinary errors. Audit events
-record stable IDs, revisions, actors, policy reason codes, and timestamps only.
+Use rechecks expiry, revocation, credential revision, and exact scope before the secret provider makes the value available to the approved callback/executor. Callback/provider results must not be able to echo the reusable credential into normalized output.
 
-Rotation adds a new encrypted revision while preserving the stable credential and connector IDs.
-Existing revision-pinned leases remain explicit; new leases select the current revision. Revocation
-blocks new leases, invalidates active leases, and asks the secret provider to revoke every retained
-revision. Missing policy, PDP failure, scope mismatch, expiry, replay, or provider failure all fail
-closed.
+## Required secret-provider contract
+
+Every deployment-specific implementation must support the same high-level semantics:
+
+- create/store a new encrypted secret revision or secure reference;
+- resolve one authorized revision only inside the declared callback/use boundary;
+- rotate by creating a new active revision while preserving stable credential identity;
+- revoke current and retained revisions according to policy;
+- fail closed on unavailable provider, wrong scope, expired lease, replay, or revocation;
+- expose only opaque secret references/metadata outside the provider implementation;
+- support leak-canary tests across persistence, workflow state, events, logs, traces, exports, backups, and runtime/public surfaces.
+
+The concrete encryption/KMS/vault mechanism is deployment-specific and must not appear in the public credential contract.
+
+## Rotation and revocation
+
+Rotation adds a new encrypted/provider revision while preserving stable credential and connector IDs. Existing revision-pinned leases remain explicit; new leases select the current revision. Revocation blocks new leases and invalidates active/retained revisions according to the provider contract.
+
+Missing policy, policy-evaluator failure, scope mismatch, expiry, replay, or provider failure all fail closed.
+
+## Backup and migration
+
+Default Control Plane export/import never includes reusable credential values. It may include credential identity and unresolved secret references so an operator can rebind them explicitly at the destination. Cross-profile migration must never silently copy a cloud secret into Local/Self-hosted storage or vice versa.

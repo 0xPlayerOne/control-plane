@@ -1,81 +1,119 @@
 # Production security invariants
 
-Control Plane treats every HTTP request, Runtime Gateway frame, provider response, model/tool output,
-checkpoint payload, and event as untrusted. Authorization is derived only from authenticated
-principals, immutable ExecutionPlan constraints, scoped grants, and a versioned policy decision.
-Natural-language content is data and cannot grant authority.
+Control Plane treats every external request, RuntimeTransport frame, provider response, model/tool output, checkpoint payload, Artifact, database record imported from another profile, and event as untrusted data. Authorization derives only from authenticated principals, immutable ExecutionPlan constraints, scoped grants, and versioned policy decisions.
 
-## Trust boundaries and assets
+## Deployment-aware trust boundaries
 
-This threat model applies STRIDE categories at every boundary: spoofing, tampering, repudiation,
-information disclosure, denial of service, and elevation of privilege.
+| Boundary | Primary threats | Required controls |
+| --- | --- | --- |
+| Client / Agent HQ → Control Plane | spoofing, cross-workspace access, replay | purpose-bound credentials, workspace scope, idempotency, normalized denial |
+| Direct Local Control Plane → RuntimeDriver | local privilege confusion, path/process escape | trusted local IPC/in-process allowlist, capability/scope validation, no policy bypass because components are co-located |
+| Control Plane → non-co-located RuntimeNode | node/workspace substitution, replay, stale ownership | authenticated Runtime Gateway, command ID/digest/expiry, revocation, durable duplicate-effect ledger |
+| Agent HQ remote relay → Local/Self-hosted host | ciphertext replay/tamper/wrong recipient | HPKE recipient/AAD binding, expiry/replay checks, endpoint-only plaintext, cloud-safe metadata |
+| Model/tool/MCP/provider adapters | prompt injection, confused deputy, secret egress | policy before execution, exact pins, scoped leases, bounded output validation |
+| Persistence / Restate / events / telemetry | tenant leakage, tampering, secret/content leakage | workspace scope, integrity/idempotency, adapter-specific permissions, redaction, audit |
+| Sandbox | path traversal, metadata access, ambient credentials, resource exhaustion | bounded paths/network/resources/time/output, ephemeral capability references |
 
-| Boundary                                   | Primary threats                                                           | Required controls                                                                                   |
-| ------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Agent HQ to Control API                    | spoofing, cross-workspace access, replay                                  | purpose-bound service credentials, audience and scope checks, generic not-found denial              |
-| RuntimeNode to Runtime Gateway             | node/workspace substitution, replay, stale ownership                      | device proof, generation claim, revocation, payload hash, durable duplicate-effect ledger           |
-| Model, tool, MCP, and connector adapters   | prompt injection, confused deputy, secret egress                          | policy decision before execution, exact tool/model pins, scoped leases, output validation           |
-| Sandbox                                    | path traversal, metadata access, ambient credentials, resource exhaustion | absolute bounded paths, deny-all/allowlist network, ephemeral leases, CPU/memory/time/output limits |
-| PostgreSQL, events, checkpoints, telemetry | tenant leakage, tampering, repudiation                                    | workspace-scoped repositories, immutable evidence, idempotency keys, redaction, audit records       |
+## Credential classes
 
-The protected assets are workspace data, execution authority, connector/provider credentials,
-runtime identity, immutable plans and version pins, authoritative usage/cost records, artifacts, and
-release evidence. Cache and telemetry remain non-authoritative.
+Credential roles are deliberately separate:
+
+- human/browser/desktop sessions;
+- Agent HQ ↔ Control Plane service credentials;
+- RuntimeNode authentication/signing credentials;
+- RuntimeNode/host E2E content-encryption keys;
+- deployment/service bootstrap secrets;
+- dynamic connector/provider credentials;
+- local/private content encryption keys;
+- external harness/provider-native credentials.
+
+One class cannot substitute for another.
+
+### Managed-cloud bootstrap configuration
+
+M9 uses Railway service/shared variables for service/bootstrap configuration such as Neon connection references, service credentials, Restate configuration, R2 credentials, and bootstrap/master-secret references. Values never belong in source, images, issue bodies, public schemas, or ordinary logs.
+
+### Dynamic connector/provider credentials
+
+Arbitrary user-scoped OAuth refresh tokens, API keys, and connector credentials remain behind the audited credential-vault/secret-provider boundary. They are **not** modeled as one Railway environment variable per user credential. The existing AWS Secrets Manager adapter is historical/optional. **M9.9 #217 must explicitly select/implement and verify the accepted managed-cloud dynamic secret provider behind the stable vault contract, or explicitly justify retaining AWS Secrets Manager as an external dependency.** M9.6 cannot certify cloud credential handling while that adapter remains undefined/unverified.
+
+M10 adds Local/Self-hosted secret-provider adapters while preserving credential identity, lease, scope, rotation, revocation, and audit semantics.
+
+## Persistence and workflow security
+
+- M9 managed cloud uses separate Control Plane Neon PostgreSQL; Agent HQ uses a different database.
+- M10 Local and Self-hosted `simple` use SQLite; Self-hosted `server` uses PostgreSQL.
+- Restate workflow state is separate from Control Plane domain persistence.
+- LangGraph checkpoint state is separate from Restate and ProjectState.
+- No deployment profile may widen workspace, provider, runtime, tool, model, secret, Artifact, or project authority merely because components are co-located.
+- Reusable secrets are references/leases in durable state, not raw values.
 
 ## Enforced invariants
 
-- Cross-workspace project, profile, context, runtime, tool, and usage reads or mutations fail closed
-  with the same public `RESOURCE_NOT_FOUND` classification used for absent resources.
-- Service, RuntimeNode, connector, and provider credentials are purpose- and audience-bound; one
-  credential class cannot substitute for another.
-- Child plans may narrow but never widen the parent's workspace, policy, runtime, model, tool,
-  context, sandbox, budget, or delegation limits.
-- Untrusted prompt, model, tool, MCP, and document content cannot create a grant or bypass approval.
-- Secret material is used only inside a declared provider callback. It is prohibited from logs,
-  traces, events, errors, model context, graph checkpoints, public APIs, and durable eval evidence.
-- Gateway traffic is bound to the authenticated node, workspace, channel generation, command ID,
-  and payload digest. Revoked, replayed, conflicting, and stale traffic is rejected before effects.
-- Sandbox network access denies cloud metadata and undeclared hosts; path, resource, duration, and
-  output bounds are checked before provider execution.
+- Cross-workspace reads/writes fail closed without leaking existence.
+- Child/delegated work may narrow but never widen parent authority.
+- Prompt/model/tool/provider/memory content cannot create grants or bypass approval.
+- Provider retrieval cannot mutate ProjectState or provider memory.
+- Non-idempotent ambiguous effects enter `reconciliation_required`; missing acknowledgements do not authorize blind retry.
+- Runtime Gateway applies only to non-co-located RuntimeNodes; Local direct execution cannot use a gateway hop as an implicit privilege/recovery bypass.
+- LocalProjectGrant path scope remains canonical after symlink/path resolution.
+- Sensitive local/private execution content remains on the selected user-controlled location unless an explicit transfer/promotion policy authorizes movement.
+- Cloud/relay systems do not require plaintext HPKE-protected remote content.
 
-`bun run security:scan` scans tracked and untracked repository files for common production
-credential formats without printing discovered secret material. Code Foundry separately runs the
-native dependency audit, Dependency Review, and CodeQL. `bun audit` is the local lockfile advisory
-gate; forced audit remediation is prohibited.
+## M9 security evidence
 
-## Automated boundary evidence
+Existing M9 isolation, secret-canary, production-readiness, dependency, and CodeQL evidence remains useful. M9.6 must rerun applicable security controls against the actual Railway + Neon + R2 + Restate staging candidate.
 
-The M9 gate runs `bun run test:isolation-matrix`. That command fails closed unless every required
-workspace, project, profile, context, runtime, tool, and usage read/mutation cell names an existing
-production test, then executes every referenced test file. The boundary evidence includes:
+Required cloud checks include:
 
-- `apps/control-api/src/application.test.mjs` for service credential class, audience, operation, and
-  workspace enforcement plus scoped runtime-discovery responses;
-- `apps/runtime-gateway/src/authentication.test.mjs` and
-  `apps/runtime-gateway/src/reconnect-reconciliation.test.mjs` for node/workspace binding, replay,
-  revocation, and reconnect ownership;
-- `tests/m2-core-domain.test.mjs`, `packages/context/src/provider.test.mjs`, and
-  `packages/memory-writeback/src/index.test.mjs` for project, profile, context, and memory scope;
-- `packages/policy/src/index.test.mjs` and `apps/tool-gateway/src/tool-registry.test.mjs` for
-  policy/tool confused-deputy and cross-workspace denial;
-- `packages/credential-vault/src/index.test.mjs` and `packages/usage-ledger/src/index.test.mjs` for
-  purpose-bound credential leases and workspace-bound usage mutation.
+- Railway public/private ingress and service identity;
+- Neon runtime versus migration authority;
+- Restate endpoint/access/logging boundaries;
+- R2 bucket/credential scope;
+- the selected dynamic credential-vault provider, lease/rotation/revocation and leak-canary behavior;
+- build/deploy logs for secret leakage;
+- provider/tool/model optionality and no-provider startup;
+- Runtime Gateway authentication/reconnect where used.
 
-`packages/production-readiness/src/security.test.mjs` separately verifies that the generic matrix
-runner rejects any supplied probe that grants cross-scope access or leaks resource existence; it is
-not treated as proof of the production repositories above.
+Historical AWS/IAM/ECS controls do not substitute for Railway evidence.
 
-The gate also runs `bun run test:secret-canaries`. It exercises the production redaction paths for
-structured logs, traces, persisted events, normalized errors, LangGraph checkpoints and node
-inputs, credential-to-model boundaries, and public API responses. The command fails if any named
-sink lacks executable evidence or if its canary reaches the observed output.
+## M10 security evidence
+
+M10 adds tests for:
+
+- Local IPC/direct RuntimeTransport authorization;
+- SQLite file/WAL/backup permissions and secret exclusion;
+- OS-secure secret handles and standalone-local secret references;
+- Self-hosted environment/Docker/private-file/external-manager secret references;
+- Compose/TLS/reverse-proxy boundaries;
+- host-side HPKE decrypt/response/key rotation/revocation;
+- Local/Self-hosted export/import validation;
+- no silent cloud failover or content upload.
+
+## Secret-canary sinks
+
+Canaries must cover at least:
+
+- Railway builds/deploy logs and service diagnostics;
+- Neon migration/runtime errors;
+- Restate inputs/state/logs;
+- R2 metadata/errors;
+- SQLite/PostgreSQL databases and backups;
+- public APIs/SDK/events;
+- Runtime Gateway/direct RuntimeTransport;
+- credential-vault callbacks/leases;
+- HPKE relay persistence/telemetry;
+- LangGraph checkpoints;
+- Artifact metadata;
+- exports/imports;
+- incident reports and ordinary telemetry.
 
 ## Incident evidence
 
-Preserve the normalized request/correlation/execution/attempt IDs, actor and credential kind (never
-the credential), workspace and resource scope, policy decision ID/version, immutable plan and
-adapter/runtime/tool/model versions, command and payload digests, event sequence, reconciliation
-classification, affected release digest, first/last observed timestamps, and containment actions.
-Do not copy prompts, file contents, provider payloads, tokens, cookies, or raw secrets into tickets or
-telemetry. Rotate any exposed credential before history cleanup, and preserve the audit trail for the
-rotation and revocation.
+Preserve stable request/workspace/execution/attempt/workflow/runtime identifiers, credential **kind** rather than value, policy/version/digest, command/event IDs, affected release/configuration, first/last observed timestamps, reconciliation classification, containment actions, and recovery result.
+
+Do not copy prompts, repository/file content, provider payloads, memory values, HPKE plaintext/private keys, cookies, tokens, or reusable secrets into tickets or telemetry. Rotate/revoke exposed credentials before history cleanup and retain the sanitized audit trail.
+
+## Milestone release rule
+
+M9 certifies managed-cloud security, M10 adds Local/Self-hosted security/conformance, and M11 independently audits all profiles. A historical passing test cannot waive a security control whose implementation boundary changed during M9/M10.
