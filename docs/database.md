@@ -1,119 +1,119 @@
-# PostgreSQL persistence
+# Control Plane persistence
 
-PostgreSQL is the authoritative durable store for Control Plane domain state. The server-only
-`@control-plane/database` package owns Drizzle schemas, migrations, live connections, serializable
-transaction helpers, and isolated integration-test databases. Durable correctness must not depend on
-Valkey or Redis.
+Control Plane domain persistence is deployment-profile aware behind `PersistenceProvider`. PostgreSQL remains the server-grade/cloud relational implementation; embedded SQLite is the accepted Local and Self-hosted `simple` implementation. Durable correctness must not depend on Valkey/Redis.
 
-## Local database
+## Accepted profiles
 
-Start the pinned PostgreSQL service without deleting existing local data:
+| Profile | Persistence | Milestone ownership |
+| --- | --- | --- |
+| Managed cloud | Separate Control Plane Neon PostgreSQL + Drizzle | M9 |
+| Local desktop | Node 24 `node:sqlite` + Drizzle | M10.3 |
+| Self-hosted `simple` | SQLite + Drizzle | M10 |
+| Self-hosted `server` | PostgreSQL + Drizzle | M10 |
+
+Physical schema/index choices may differ by adapter. Logical IDs, revision behavior, idempotency, lifecycle transitions, ordering, provenance, and public contracts must remain equivalent.
+
+Restate durable workflow state is separate from Control Plane domain persistence. LangGraph graph/checkpoint state is also separate. Neither is ProjectState.
+
+## Current managed-cloud Neon state
+
+A separate Neon project named `control-plane` exists. It is distinct from the Agent HQ Neon project. At the current M9 planning baseline:
+
+- the Control Plane Drizzle/domain schema has not yet been applied;
+- no Railway Control Plane service is currently wired to the Neon database;
+- current inspection shows only an unrelated `neon_auth` schema;
+- Control Plane application code must not depend on that `neon_auth` schema because Agent HQ owns product user authentication.
+
+M9.9 #217 owns initialization/wiring. Production/staging tables must be created from repository-owned Drizzle migrations, not manual console SQL. M9.6 #73 verifies the resulting schema and live service connectivity.
+
+## PostgreSQL development and integration fixtures
+
+The repository's existing local PostgreSQL Compose service remains the development/integration fixture for PostgreSQL-backed code and server-profile tests. It is **not** the Local product persistence architecture introduced in M10.
+
+Start the pinned PostgreSQL test/development service without deleting existing local data:
 
 ```sh
 bun run db:up
 ```
 
-The local service listens only on `127.0.0.1:54329`. Copy
-`packages/database/.env.example` to `packages/database/.env.local`, then export those values for the
-migration or integration command being run. The committed values are local-only and must never be
-reused outside a developer machine.
-
-Stop the service without deleting its volume:
+Stop it without deleting its volume:
 
 ```sh
 bun run db:stop
 ```
 
-The local roles are deliberately separate:
+The PostgreSQL roles remain deliberately separate:
 
-| Role                     | Environment variable     | Permitted purpose                                               |
-| ------------------------ | ------------------------ | --------------------------------------------------------------- |
-| `control_plane_app`      | `DATABASE_URL`           | Ordinary application queries and domain transactions            |
-| `control_plane_migrator` | `DATABASE_MIGRATION_URL` | Schema migrations and grants on owned objects                   |
-| `control_plane_admin`    | `DATABASE_ADMIN_URL`     | Local provisioning, backup/restore, and isolated test databases |
+| Role | Environment variable | Permitted purpose |
+| --- | --- | --- |
+| application/runtime | `DATABASE_URL` | Ordinary application queries and domain transactions |
+| migrator | `DATABASE_MIGRATION_URL` | Schema migrations and owned-object grants |
+| admin/test/recovery | `DATABASE_ADMIN_URL` | Provisioning, isolated tests, backup/restore and recovery operations |
 
-Production credentials must be injected by the deployment platform or secrets manager. Application
-processes receive only `DATABASE_URL`; migration and administrative credentials belong in separate
-one-shot jobs or operator sessions. URLs are loaded through `@control-plane/config` and are never
-included in diagnostics.
+Managed-cloud values are injected through the M9 Railway/Neon configuration boundary. Application services receive only the authority they need; migration/admin credentials are never sprayed across all Railway services.
+
+## SQLite Local persistence
+
+M10.3 #202 owns the Local adapter using Node 24's built-in `node:sqlite` with Drizzle. It must support the durable Control Plane entities required by the Local product profile, including ProjectState, ContextPackage/ExecutionPlan metadata, Executions/Attempts, CommandInbox, interactions, ExecutionEvents, runtime/provider metadata, usage and audit records.
+
+Requirements include:
+
+- explicit local data directory and permissions;
+- WAL/transaction behavior suitable for the single-host profile;
+- deterministic migrations/version checks;
+- online backup and tested restore;
+- corruption/recovery fixtures;
+- secret references only, never reusable credential values;
+- conformance against PostgreSQL for deployment-independent domain semantics.
 
 ## Schema and naming conventions
 
-Schemas are grouped by domain boundary under `packages/database/src/schema`, not one file per table.
-Tables and columns use plural `snake_case` names. Identifiers are database-generated UUIDs; timestamps
-use `timestamp with time zone`; structured payloads use JSONB; revisions are bigint values beginning
-at one; enums are native PostgreSQL enums; and soft deletion uses a nullable `deleted_at` timestamp.
-
-The foundation migration creates inbox and outbox tables for atomic domain mutation and event
-publication. `withDomainTransaction` uses a serializable, read-write transaction so domain records,
-inbox acknowledgements, and outbox events can commit or roll back together.
+The PostgreSQL implementation remains grouped by domain boundary under `packages/database/src/schema`. Schema details are implementation-owned and must not leak into the public API/SDK. SQLite may use a physically different representation where PostgreSQL-only features have no equivalent, but adapter conformance must preserve the public/domain behavior.
 
 ## CommandInbox retention and replay
 
-`command_inbox` deduplicates state-changing requests by service principal, operation, workspace,
-project, and idempotency key. The first accepted record and its logical execution commit in one
-transaction. Identical retries return the stored execution and current accepted, processing,
-terminal, or reconciliation-required status. Reusing the key with another canonical payload hash
-fails closed and increments durable conflict audit metadata; raw command payloads are not retained.
+`CommandInbox` is the durable Control Plane idempotency boundary for state-changing commands. The accepted operational policy is defined in M9.13 #213 and applies semantically across persistence adapters.
 
-Every record has an explicit `retention_expires_at`. It must extend beyond the upstream outbox retry
-and reconciliation window. Retries after that deadline fail closed rather than creating another
-logical execution. Operators may purge expired records only after the upstream replay window has
-also expired; an idempotency key must not be reused while either side can still replay it.
+Key rules:
 
-## ExecutionEvent log and outbox
+- identical retries converge on one logical result;
+- reuse of an idempotency key with a different canonical payload hash fails closed;
+- idempotency records remain available for the declared replay/reconciliation window;
+- persistence cleanup may not remove a record while an upstream/downstream component can still legitimately redeliver the protected command.
 
-`execution_events` is the authoritative append-only execution event log and publication outbox. Events
-receive a unique per-execution sequence under a transaction-scoped lock, replay in sequence order,
-and retain the same event ID across delivery retries. Required execution transitions and their events
-commit in one transaction; a failed event insert rolls the state mutation back.
+## ExecutionEvent persistence
 
-Payloads are normalized, redacted before persistence, and limited to 16 KiB. Raw harness, prompt,
-model, tool, credential, and file payloads are prohibited. Publication attempts update delivery
-metadata without creating another semantic event. Events remain replayable until their explicit
-retention deadline and are hidden from ordinary replay only after archival.
+Execution events are durable, ordered, redacted records. Required state transitions and their durable event/outbox records must commit atomically within the owning persistence adapter's transaction semantics. Raw prompt, credential, file, provider, or unrestricted runtime payloads are not event-log content.
 
 ## Migration workflow
 
-Generate and review migrations from the database package:
+Repository-owned migrations are authoritative.
+
+PostgreSQL:
 
 ```sh
 cd packages/database
 bun run db:generate
 bun run db:check
-```
-
-Review every generated SQL statement, schema snapshot, lock impact, index strategy, and data rewrite.
-Never edit an applied migration. Correct production mistakes with a new forward-fix migration. Apply
-migrations from a dedicated job with `DATABASE_MIGRATION_URL`:
-
-```sh
-cd packages/database
 bun run db:migrate
 ```
 
-The migrator records applied files in Drizzle's migration journal, making repeated runs deterministic.
-Ordinary application startup neither imports the migration entrypoint nor requires migration or admin
-credentials.
+Managed-cloud migrations run through an explicit M9 migration/pre-deploy path with separate migration authority. Ordinary service startup must not silently mutate production schema.
+
+SQLite migration/bootstrap is implemented in M10.3 and must have an equally explicit schema-version/compatibility contract.
+
+Never edit an applied migration. Correct mistakes with a reviewed forward repair or, where data recovery is required, a separately reviewed restore procedure.
 
 ## Integration databases
 
-Integration tests generate names with the `control_plane_test_` prefix, create each database with the
-administrative credential, migrate it from zero, grant DML-only access to the application role, and
-dispose it after the suite. The lifecycle refuses reused role identities and never accepts a caller-
-chosen database name.
-
-```sh
-cd packages/database
-bun run test:integration
-```
-
-Only run integration tests against the local Compose service or a dedicated disposable PostgreSQL
-instance. The lifecycle terminates connections and drops only the random database it created.
+Integration tests may continue to create isolated PostgreSQL databases for PostgreSQL-adapter and server-profile validation. M10 adds SQLite adapter tests and cross-adapter conformance. Tests must use disposable resources and cannot depend on a developer's persistent production-like database.
 
 ## Backup and restore
 
-Before a risky migration, take a provider snapshot and a logical backup with an administrative backup
-role. Encrypt backups, restrict access, record retention, and test restores regularly. Restore into a
-new database first, run migrations and integrity checks there, then switch traffic through the normal
-change process. Never validate restore procedures by overwriting the active production database.
+Recovery is profile-specific:
+
+- **Managed cloud:** Neon backup/PITR or equivalent provider recovery plus logical/export procedures validated in M9/M11.
+- **Local/Self-hosted `simple`:** SQLite backup/restore validated in M10/M11.
+- **Self-hosted `server`:** PostgreSQL backup/restore owned by the operator/reference deployment and validated in M10/M11.
+
+Restore into an isolated destination first, verify schema/integrity/reconciliation, then switch through the normal change process. Never validate recovery by overwriting the active database.
