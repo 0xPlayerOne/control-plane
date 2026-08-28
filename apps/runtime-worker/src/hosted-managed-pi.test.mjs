@@ -246,7 +246,7 @@ describe('hosted managed Pi runtime worker', () => {
       policy: {
         snapshot: plan().policySnapshot,
         allowedFamilies: ['pi'],
-        allowedLocations: ['managed_sandbox'],
+        allowedLocations: ['agent_hq_cloud'],
         deniedRuntimeConnectionIds: [],
         requireVerifiedCapabilities: true,
         security: { status: 'allowed' },
@@ -294,7 +294,7 @@ describe('hosted managed Pi runtime worker', () => {
 
     expect(connection).toMatchObject({
       connectionType: 'managed_cloud',
-      location: 'managed_sandbox',
+      location: 'agent_hq_cloud',
       status: 'connected',
       health: 'healthy',
     })

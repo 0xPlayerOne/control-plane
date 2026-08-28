@@ -1,0 +1,3 @@
+ALTER TABLE "runtime_connections" DROP CONSTRAINT "runtime_connections_location_check";--> statement-breakpoint
+ALTER TYPE "public"."runtime_connection_location" RENAME VALUE 'managed_sandbox' TO 'agent_hq_cloud';--> statement-breakpoint
+ALTER TABLE "runtime_connections" ADD CONSTRAINT "runtime_connections_location_check" CHECK (("runtime_connections"."connection_type" = 'managed_cloud' and "runtime_connections"."location" = 'agent_hq_cloud' and "runtime_connections"."runtime_node_ref_id" is null) or ("runtime_connections"."connection_type" <> 'managed_cloud' and "runtime_connections"."location" = 'local_device' and "runtime_connections"."runtime_node_ref_id" is not null));

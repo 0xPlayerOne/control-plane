@@ -254,7 +254,7 @@ export class GenericRuntimeReferenceClient {
           policy: {
             snapshot: { policyId: 'm6-acceptance', version: 1, digest: digest('8') },
             allowedFamilies: ['pi', 'acp'],
-            allowedLocations: ['local_device', 'managed_sandbox'],
+            allowedLocations: ['local_device', 'agent_hq_cloud'],
             deniedRuntimeConnectionIds: [],
             requireVerifiedCapabilities: true,
             security: { status: 'allowed' },
@@ -358,7 +358,7 @@ function connectionFromFixture(fixture, inspection, overrides = {}) {
     ...(local ? { runtimeNodeRefId: runtimeAdapterAcceptanceIds.nodeId } : {}),
     runtimeDefinitionId:
       fixture.family === 'pi' ? 'rtd_01JABCDEF0123456789ABCDEFG' : 'rtd_01JBBCDEF0123456789ABCDEFG',
-    location: local ? 'local_device' : 'managed_sandbox',
+    location: local ? 'local_device' : 'agent_hq_cloud',
     opaqueNativeRef: fixture.runtimeConnectionId.replace('rtc_', 'nref_'),
     adapterVersion: inspection.metadata.adapterVersion,
     driverVersion: inspection.metadata.driverVersion,

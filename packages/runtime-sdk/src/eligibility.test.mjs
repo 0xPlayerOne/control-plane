@@ -223,10 +223,10 @@ describe('runtime eligibility', () => {
           connection: {
             ...managedConnection,
             connectionType: 'managed_cloud',
-            location: 'managed_sandbox',
+            location: 'agent_hq_cloud',
           },
         },
-        policy: { ...input().policy, allowedLocations: ['managed_sandbox'] },
+        policy: { ...input().policy, allowedLocations: ['agent_hq_cloud'] },
         localProjectGrant: { required: false, status: 'not_required' },
       })
     )

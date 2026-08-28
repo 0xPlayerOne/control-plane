@@ -146,7 +146,7 @@ export const RuntimeReadModelSchema = z.object({
   runtimeConnectionId: IdentifierSchemas.runtimeConnectionId.optional(),
   runtimeDefinitionId: IdentifierSchemas.runtimeDefinitionId,
   family: z.string().min(1).max(64),
-  location: z.enum(['local_device', 'remote_host', 'managed_sandbox']),
+  location: z.enum(['local_device', 'remote_host', 'agent_hq_cloud']),
   status: z.enum(['available', 'degraded', 'unavailable', 'revoked']),
   observedAt: TimestampSchema,
   capabilities: z.array(CapabilityNameSchema).max(128),
@@ -253,7 +253,7 @@ export type ExecutionRequestValidationResponse = z.output<
 export type ExecutionAcceptanceRequest = z.input<typeof ExecutionAcceptanceRequestSchema>
 export type ExecutionAcceptanceResponse = z.output<typeof ExecutionAcceptanceResponseSchema>
 
-const contractVersion = { major: 1, minor: 0 } as const
+const contractVersion = { major: 2, minor: 0 } as const
 const requestId = 'req_01JABCDEF0123456789ABCDEFG'
 const commandId = 'cmd_01JABCDEF0123456789ABCDEFG'
 const workspaceId = 'wsp_01JABCDEF0123456789ABCDEFG'
@@ -390,7 +390,7 @@ export const ControlApiFixtures: ControlApiFixtureSet = Object.freeze({
             runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
             runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
             family: 'mock',
-            location: 'managed_sandbox',
+            location: 'agent_hq_cloud',
             status: 'available',
             observedAt: '2026-08-23T12:00:00.000Z',
             capabilities: ['tool.call'],

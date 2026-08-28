@@ -19,7 +19,7 @@ const RuntimeFamilySchema = z
 const uniqueCapabilities = (capabilities: RuntimeCapability[]) =>
   new Set(capabilities.map((capability) => capability.name)).size === capabilities.length
 
-export const RuntimeLocationSchema = z.enum(['local_device', 'remote_host', 'managed_sandbox'])
+export const RuntimeLocationSchema = z.enum(['local_device', 'remote_host', 'agent_hq_cloud'])
 export const RuntimeHealthSchema = z.enum(['healthy', 'degraded', 'unavailable'])
 export const RuntimeLifecycleSchema = z.enum(['active', 'deprecated', 'revoked'])
 
@@ -59,7 +59,7 @@ export const RuntimeNodeRefSchema = z.object({
   observedAt: RuntimeTimestampSchema,
 })
 
-export const RuntimeConnectionLocationSchema = z.enum(['local_device', 'managed_sandbox'])
+export const RuntimeConnectionLocationSchema = z.enum(['local_device', 'agent_hq_cloud'])
 export const RuntimeConnectionTypeSchema = z.enum([
   'managed_cloud',
   'managed_local',
@@ -145,7 +145,7 @@ export const RuntimeConnectionSchema = z
     if (local !== (connection.runtimeNodeRefId !== undefined)) {
       context.addIssue({ code: 'custom', message: 'Only local connections require a RuntimeNode' })
     }
-    const expectedLocation = local ? 'local_device' : 'managed_sandbox'
+    const expectedLocation = local ? 'local_device' : 'agent_hq_cloud'
     if (connection.location !== expectedLocation) {
       context.addIssue({ code: 'custom', message: 'Connection type and location must agree' })
     }

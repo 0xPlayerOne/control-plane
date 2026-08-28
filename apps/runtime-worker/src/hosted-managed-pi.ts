@@ -655,7 +655,7 @@ export function buildHostedManagedPiRuntimeConnection(input: {
     identityDigest,
     connectionType: 'managed_cloud',
     runtimeDefinitionId: input.runtimeDefinitionId,
-    location: 'managed_sandbox',
+    location: 'agent_hq_cloud',
     adapterVersion: '1.0.0',
     driverVersion: host.driverVersion,
     harnessVersion: host.harnessVersion,
