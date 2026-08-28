@@ -131,6 +131,10 @@
       "release-type": "node",
       "package-name": "@control-plane/model-gateway"
     },
+    "packages/object-store": {
+      "release-type": "node",
+      "package-name": "@control-plane/object-store"
+    },
     "packages/orchestration": {
       "release-type": "node",
       "package-name": "@control-plane/orchestration"
