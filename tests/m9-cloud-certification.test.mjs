@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { createHash, generateKeyPairSync, verify } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { TextEncoder } from 'node:util'
 import { describe, expect, test } from 'bun:test'
 import {
@@ -18,6 +19,13 @@ const runSuffix = '01JZBCDEF0123456789ABCDEFG'
 const now = new Date('2026-08-28T21:00:00.000Z')
 
 describe('M9 live cloud certification harness', () => {
+  test('declares the runtime workspace packages required by the executable entrypoint', async () => {
+    const rootPackage = JSON.parse(await readFile(new URL('../package.json', import.meta.url)))
+
+    expect(rootPackage.devDependencies['@control-plane/database']).toBe('workspace:*')
+    expect(rootPackage.devDependencies['@control-plane/object-store']).toBe('workspace:*')
+  })
+
   test('creates a current, scope-consistent certification plan and acceptance request', () => {
     const plan = createCertificationPlan({ runSuffix, compiledAt: now.toISOString() })
     const request = createCertificationRequest({ plan, runSuffix, now })
