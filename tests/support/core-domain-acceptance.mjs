@@ -182,7 +182,7 @@ export async function createCoreDomainAcceptanceHarness() {
 
   const submitIntent = async ({
     mutatePublicRequest = () => undefined,
-    responseContractVersion = { major: 1, minor: 0 },
+    responseContractVersion = { major: 2, minor: 0 },
   } = {}) => {
     const principal = await authenticate()
     const profileResolution = await catalog.resolveAgentProfile(
