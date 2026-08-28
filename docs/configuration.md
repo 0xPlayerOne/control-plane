@@ -37,7 +37,7 @@ Railway's injected `PORT` must be honored by HTTP services or mapped explicitly 
 
 Railway environment variables are not the storage model for arbitrary user-scoped connector/provider credentials. Those remain behind the audited credential-vault secret-provider boundary. Service/bootstrap secrets and dynamic user/provider credentials are separate classes with separate lifecycle and least-privilege rules.
 
-The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. M9.9 must explicitly select and verify the accepted managed-cloud dynamic credential-vault provider behind the stable interface, or explicitly justify retaining an external AWS Secrets Manager dependency. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
+The repository currently contains an AWS Secrets Manager implementation from the earlier AWS-first architecture. It is migration residue, not a supported managed-cloud dependency. M9.9 must select, implement, and verify the accepted Railway-compatible managed-cloud dynamic credential-vault provider behind the stable interface. Until that decision is implemented and tested, documentation must not imply Railway variables replace the dynamic credential vault.
 
 ## Local and Hosted configuration — M10
 
