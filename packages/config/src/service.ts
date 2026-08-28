@@ -102,7 +102,10 @@ export async function loadServiceConfiguration<Service extends ServiceName>(
   const applicationEnvironment = resolveApplicationEnvironment(environment)
   const metadataResult = parseApplicationMetadata(serviceName, applicationEnvironment, environment)
   const field = fields[serviceName]
-  const parsedValue = parseInteger(environment[field.environmentVariable], field)
+  const configuredValue =
+    environment[field.environmentVariable] ??
+    (serviceName === 'control-api' ? environment['PORT'] : undefined)
+  const parsedValue = parseInteger(configuredValue, field)
   const invalid = [
     ...metadataResult.invalid,
     ...(parsedValue === undefined ? [field.environmentVariable] : []),

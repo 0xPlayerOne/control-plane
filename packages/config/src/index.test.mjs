@@ -104,6 +104,26 @@ describe('loadServiceConfiguration', () => {
     expect(api.metadata.serviceName).toBe('control-api')
     expect(worker.metadata.serviceName).toBe('workflow-worker')
   })
+
+  test('uses Railway PORT for Control API unless the explicit service port wins', async () => {
+    const metadata = {
+      APP_ENV: 'test',
+      SERVICE_VERSION: '1.2.3',
+      COMMIT_SHA: 'abc123',
+      INSTANCE_ID: 'test-instance',
+      PORT: '4200',
+    }
+
+    expect((await loadServiceConfiguration('control-api', metadata)).values).toEqual({ port: 4200 })
+    expect(
+      (
+        await loadServiceConfiguration('control-api', {
+          ...metadata,
+          CONTROL_API_PORT: '4300',
+        })
+      ).values
+    ).toEqual({ port: 4300 })
+  })
 })
 
 describe('loadEnvironment', () => {

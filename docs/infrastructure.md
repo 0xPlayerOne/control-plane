@@ -76,6 +76,12 @@ health. This single-node shape is the M9 staging baseline, not a claim of high a
 
 The per-service variable and credential-role contract is versioned in `infrastructure/railway/environment.json`. It contains names, classifications, and provider-neutral purposes only; secret values remain in Railway's secret boundary.
 
+`.railway/railway.ts` is the executable Railway Infrastructure as Code definition. It owns the
+project graph, sources, build/start commands, health checks, restart behavior, private endpoints,
+and Restate volume attachment. Secret values remain provider-managed through `preserve()`; planning
+must never use the CLI option that reveals variable values. The deprecated per-service
+`railway.json`/`railway.toml` format is not used.
+
 M9.7 should use a dependency-aware, reproducible container build from the monorepo. The existing `infrastructure/containers` build pipeline may be adapted for Railway. AWS/ECS-specific image platform assumptions, ECR publication requirements, task definitions, Terraform roots, IAM roles, CloudWatch/SNS wiring, and ECS rollout mechanics are no longer the first-party deployment contract.
 
 ## Neon PostgreSQL
