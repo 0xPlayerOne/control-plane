@@ -75,3 +75,10 @@ M9.7/M9.8 may alter cloud process topology where an existing process exists only
 ## Shutdown
 
 `SIGINT`/`SIGTERM` mark the process unready and close registered resources in reverse order. M9.13 owns the accepted graceful drain/cleanup defaults. Local launchers and Hosted supervisors must implement equivalent semantics without changing domain behavior.
+
+The managed-cloud operational policy is versioned in `@control-plane/config`. Its defaults are a
+15-second heartbeat, degraded after two missed heartbeats, offline after three, 60-second inventory
+freshness, 30-day CommandInbox and event retention, 7-day terminal command retention, 24-hour
+maximum command lifetime, 256 KiB remote metadata, 1 MiB encrypted content/frame limits, 30-second
+public request deadlines, and a 30-second graceful drain. Overrides must remain inside the schema's
+safe bounds and are included in the effective configuration digest.

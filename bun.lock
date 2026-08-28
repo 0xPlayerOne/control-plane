@@ -123,6 +123,9 @@
     "packages/config": {
       "name": "@control-plane/config",
       "version": "1.1.1",
+      "dependencies": {
+        "zod": "4.4.3",
+      },
     },
     "packages/context": {
       "name": "@control-plane/context",
