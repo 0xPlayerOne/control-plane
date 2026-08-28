@@ -70,6 +70,11 @@ A database migration failure blocks rollout. Never hide a broken revision behind
 ## Restate operations
 
 - Restate is the only required durable workflow runtime for the accepted release path.
+- Railway staging runs the immutable Restate image recorded in `infrastructure/railway/restate.json`,
+  with a persistent `/restate-data` volume and stable node name. Never replace it with a floating
+  image tag or an ephemeral filesystem deployment.
+- Keep ingress, Admin API, and fabric ports private. Register `workflow-worker` through its Railway
+  private-network endpoint and verify that the registration survives a Restate service restart.
 - M9.8 replaces active Temporal cloud configuration with Restate and defines its Railway networking, persistence, health/readiness, restart, upgrade, and observability behavior.
 - On Restate degradation, stop unsafe new admission where required, preserve durable command/domain state, and recover using the accepted Restate lifecycle guarantees.
 - LangGraph graph/checkpoint mechanics remain subordinate to the Restate lifecycle; ProjectState remains separately authoritative.

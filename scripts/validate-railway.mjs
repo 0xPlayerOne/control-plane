@@ -31,6 +31,24 @@ if (
   throw new Error('Railway Restate contract is incomplete or points at the wrong service.')
 }
 
+const restateServer = restate.server
+if (
+  restateServer?.service !== 'restate' ||
+  restateServer.version !== '1.7.7' ||
+  !restateServer.image.endsWith(
+    '@sha256:dd1695b61c9de877d24bf9afe8a0ac5fb0f66d175c1bc397975d2252bd784eb2'
+  ) ||
+  restateServer.nodeName !== restateServer.environment?.RESTATE_NODE_NAME ||
+  restateServer.environment?.RESTATE_AUTO_PROVISION !== 'true' ||
+  restateServer.dataMount !== '/restate-data' ||
+  restateServer.healthPath !== '/health' ||
+  JSON.stringify(restateServer.privatePorts) !==
+    JSON.stringify({ ingress: 8080, admin: 9070, fabric: 5122 }) ||
+  restateServer.public !== false
+) {
+  throw new Error('Railway Restate server must be immutable, private, and durably mounted.')
+}
+
 if (
   environment.schemaVersion !== 1 ||
   environment.provider !== 'railway' ||

@@ -61,6 +61,12 @@ The historical server/cloud composition roots remain:
 
 `workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring. M9.8 may still change the service topology where an old boundary exists only because of the former Temporal runtime. Do not preserve a five-service topology merely for historical symmetry.
 
+The Railway staging Restate runtime is a private single node pinned to Restate 1.7.7 by immutable
+multi-platform image digest. Railway must mount a persistent volume at `/restate-data` and preserve
+the configured `control-plane-staging-1` node name across restarts. Restate ingress (8080), Admin API
+(9070), and fabric (5122) remain private; only the Admin API `/health` route is used for service
+health. This single-node shape is the M9 staging baseline, not a claim of high availability.
+
 The per-service variable and credential-role contract is versioned in `infrastructure/railway/environment.json`. It contains names, classifications, and provider-neutral purposes only; secret values remain in Railway's secret boundary.
 
 M9.7 should use a dependency-aware, reproducible container build from the monorepo. The existing `infrastructure/containers` build pipeline may be adapted for Railway. AWS/ECS-specific image platform assumptions, ECR publication requirements, task definitions, Terraform roots, IAM roles, CloudWatch/SNS wiring, and ECS rollout mechanics are no longer the first-party deployment contract.
