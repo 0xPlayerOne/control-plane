@@ -153,6 +153,7 @@ describe('Cortana-compatible context adapter', () => {
       status: 'disabled',
       contributions: [],
       pins: [],
+      decisionReasons: ['POLICY_DISABLED'],
     })
   })
 })

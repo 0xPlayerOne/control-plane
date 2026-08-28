@@ -78,6 +78,7 @@ export interface ContextProviderResolution {
   status: 'disabled' | 'omitted' | 'awaiting_input' | 'included' | 'degraded'
   contributions: ContextContribution[]
   pins: ContextProviderPin[]
+  decisionReasons: string[]
 }
 
 export class ContextProviderResolver {
@@ -93,7 +94,7 @@ export class ContextProviderResolver {
 
   async resolve(input: unknown): Promise<ContextProviderResolution> {
     const request = RequestSchema.parse(input)
-    if (request.policy.mode === 'disabled') return empty('disabled')
+    if (request.policy.mode === 'disabled') return empty('disabled', ['POLICY_DISABLED'])
     const providers = this.#eligible(request)
     let lastError: ContextProviderResolutionError | undefined
     for (const provider of providers) {
@@ -106,7 +107,10 @@ export class ContextProviderResolver {
         const cached = await this.#cache?.get(cacheKey)
         if (cached) {
           const normalizedCached = this.#validate(provider, request, cached)
-          return this.#included(provider, normalizedCached)
+          return this.#included(provider, normalizedCached, [
+            'CACHE_HIT',
+            ...this.#selectionReasons(provider, request),
+          ])
         }
         const contributions = await withTimeout(
           provider.retrieve(request),
@@ -114,7 +118,10 @@ export class ContextProviderResolver {
         )
         const normalized = this.#validate(provider, request, contributions)
         await this.#cache?.set(cacheKey, normalized)
-        return this.#included(provider, normalized)
+        return this.#included(provider, normalized, [
+          'PROVIDER_SELECTED',
+          ...this.#selectionReasons(provider, request),
+        ])
       } catch (error) {
         lastError = normalizeError(error)
       }
@@ -124,7 +131,8 @@ export class ContextProviderResolver {
 
   #included(
     provider: ContextProviderDriver,
-    normalized: ContextContribution[]
+    normalized: ContextContribution[],
+    decisionReasons: string[]
   ): ContextProviderResolution {
     return {
       status:
@@ -133,6 +141,7 @@ export class ContextProviderResolver {
           ? 'degraded'
           : 'included',
       contributions: normalized,
+      decisionReasons,
       pins: normalized.map((entry) => ({
         providerId: entry.providerId,
         connectionId: entry.connectionId,
@@ -173,29 +182,73 @@ export class ContextProviderResolver {
     )
   }
 
+  #selectionReasons(provider: ContextProviderDriver, request: ContextProviderRequest): string[] {
+    const reasons: string[] = []
+    if (request.policy.connectionIds.includes(provider.readModel.connection.connectionId)) {
+      reasons.push('EXPLICIT_CONNECTION')
+    } else if (request.policy.providerIds.includes(provider.readModel.definition.providerId)) {
+      reasons.push('PREFERRED_PROVIDER')
+    }
+    if (provider.readModel.connection.reachability === 'direct') reasons.push('DIRECT_REACHABILITY')
+    if (provider.readModel.health.status === 'healthy') reasons.push('HEALTHY_PROVIDER')
+    return reasons
+  }
+
   #eligible(request: ContextProviderRequest): ContextProviderDriver[] {
-    const preference = new Map(request.policy.providerIds.map((id, index) => [id, index]))
+    const providerPreference = new Map(request.policy.providerIds.map((id, index) => [id, index]))
+    const connectionPreference = new Map(
+      request.policy.connectionIds.map((id, index) => [id, index])
+    )
     return this.#providers
       .filter(({ readModel }) => {
         const { connection, definition } = readModel
+        const healthAgeMs = Date.parse(request.now) - Date.parse(readModel.health.checkedAt)
         return (
           connection.workspaceId === request.workspaceId &&
           connection.scopeDigest === request.scopeDigest &&
           connection.principalRef === request.principalRef &&
           connection.executionLocations.includes(request.executionLocation) &&
+          healthAgeMs >= 0 &&
+          healthAgeMs <= request.policy.maximumProviderHealthAgeSeconds * 1_000 &&
+          readModel.health.status !== 'unavailable' &&
           definition.capabilities[request.capability] &&
+          (request.policy.connectionIds.length === 0 ||
+            request.policy.connectionIds.includes(connection.connectionId)) &&
           (request.policy.providerIds.length === 0 ||
             request.policy.providerIds.includes(definition.providerId))
         )
       })
       .sort((left, right) => {
         const leftRank =
-          preference.get(left.readModel.definition.providerId) ?? Number.MAX_SAFE_INTEGER
+          connectionPreference.get(left.readModel.connection.connectionId) ??
+          Number.MAX_SAFE_INTEGER
         const rightRank =
-          preference.get(right.readModel.definition.providerId) ?? Number.MAX_SAFE_INTEGER
+          connectionPreference.get(right.readModel.connection.connectionId) ??
+          Number.MAX_SAFE_INTEGER
+        const leftProviderRank =
+          providerPreference.get(left.readModel.definition.providerId) ?? Number.MAX_SAFE_INTEGER
+        const rightProviderRank =
+          providerPreference.get(right.readModel.definition.providerId) ?? Number.MAX_SAFE_INTEGER
+        const healthRank = (status: ContextProviderReadModel['health']['status']) =>
+          status === 'healthy' ? 0 : 1
+        const freshness = (provider: ContextProviderDriver) =>
+          Date.parse(request.now) - Date.parse(provider.readModel.health.checkedAt)
+        const latencyRank = (provider: ContextProviderDriver) =>
+          ({ low: 0, standard: 1, high: 2 })[provider.readModel.definition.latencyClass]
+        const costRank = (provider: ContextProviderDriver) =>
+          ({ low: 0, standard: 1, premium: 2 })[provider.readModel.definition.costClass]
         return (
           leftRank - rightRank ||
-          left.readModel.definition.providerId.localeCompare(right.readModel.definition.providerId)
+          leftProviderRank - rightProviderRank ||
+          Number(left.readModel.connection.reachability !== 'direct') -
+            Number(right.readModel.connection.reachability !== 'direct') ||
+          healthRank(left.readModel.health.status) - healthRank(right.readModel.health.status) ||
+          freshness(left) - freshness(right) ||
+          latencyRank(left) - latencyRank(right) ||
+          costRank(left) - costRank(right) ||
+          left.readModel.connection.connectionId.localeCompare(
+            right.readModel.connection.connectionId
+          )
         )
       })
   }
@@ -248,8 +301,10 @@ export class ContextProviderResolver {
     if (request.policy.failureBehavior === 'fail' || request.policy.mode === 'required') {
       if (request.policy.failureBehavior !== 'await_input') throw resolvedError
     }
-    if (request.policy.failureBehavior === 'await_input') return empty('awaiting_input')
-    return empty('omitted')
+    if (request.policy.failureBehavior === 'await_input') {
+      return empty('awaiting_input', ['NO_ELIGIBLE_PROVIDER', resolvedError.code])
+    }
+    return empty('omitted', ['NO_ELIGIBLE_PROVIDER', resolvedError.code])
   }
 }
 
@@ -266,6 +321,9 @@ export interface FakeContextProviderOptions {
   delayMs?: number
   expiresAt?: string
   degraded?: boolean
+  reachability?: 'direct' | 'remote'
+  latencyClass?: 'low' | 'standard' | 'high'
+  costClass?: 'low' | 'standard' | 'premium'
 }
 
 export function createFakeContextProvider(
@@ -289,6 +347,8 @@ export function createFakeContextProvider(
       providerType: options.kind === 'memory' ? 'fake-memory' : 'fake-evidence',
       displayName: `Fake ${options.suffix}`,
       contractVersion: '1.0.0',
+      latencyClass: options.latencyClass,
+      costClass: options.costClass,
       capabilities,
     },
     connection: {
@@ -298,6 +358,7 @@ export function createFakeContextProvider(
       principalRef: 'principal://test/user',
       scopeDigest: options.scopeDigest,
       executionLocations: ['cloud', 'runtime_node'],
+      reachability: options.reachability,
       state: options.state,
     },
     health: { status: options.health, checkedAt: '2026-08-25T11:59:00.000Z' },
@@ -360,8 +421,11 @@ function normalizeError(error: unknown): ContextProviderResolutionError {
     : new ContextProviderResolutionError('PROVIDER_UNAVAILABLE')
 }
 
-function empty(status: ContextProviderResolution['status']): ContextProviderResolution {
-  return { status, contributions: [], pins: [] }
+function empty(
+  status: ContextProviderResolution['status'],
+  decisionReasons = ['NO_ELIGIBLE_PROVIDER']
+): ContextProviderResolution {
+  return { status, contributions: [], pins: [], decisionReasons }
 }
 
 function digest(value: string): string {

@@ -21,6 +21,8 @@ export const ContextProviderDefinitionSchema = z.object({
   providerType: z.string().min(1).max(128),
   displayName: z.string().min(1).max(256),
   contractVersion: SemverSchema,
+  latencyClass: z.enum(['low', 'standard', 'high']).default('standard'),
+  costClass: z.enum(['low', 'standard', 'premium']).default('standard'),
   capabilities: ContextProviderCapabilitiesSchema,
 })
 
@@ -31,16 +33,19 @@ export const ContextProviderConnectionSchema = z.object({
   principalRef: z.string().min(1).max(256),
   scopeDigest: DigestSchema,
   executionLocations: z.array(z.enum(['cloud', 'runtime_node'])).min(1),
+  reachability: z.enum(['direct', 'remote']).default('remote'),
   state: z.enum(['active', 'revoked']),
 })
 
 export const ContextProviderPolicySchema = z.object({
   mode: z.enum(['disabled', 'preferred', 'required']),
   providerIds: z.array(ProviderIdSchema),
+  connectionIds: z.array(ConnectionIdSchema).default([]),
   includeEvidence: z.boolean(),
   includeMemory: z.boolean(),
   maximumTokens: z.number().int().nonnegative(),
   maximumAgeSeconds: z.number().int().nonnegative(),
+  maximumProviderHealthAgeSeconds: z.number().int().nonnegative().default(60),
   maximumLatencyMs: z.number().int().positive(),
   failureBehavior: z.enum(['continue_without', 'fail', 'await_input']).default('continue_without'),
 })
