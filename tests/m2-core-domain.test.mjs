@@ -403,7 +403,7 @@ describe('M2 core-domain acceptance', () => {
     await expectCoreError(
       () =>
         driftHarness.dispatchAfter(() =>
-          driftHarness.submitIntent({ responseContractVersion: { major: 2, minor: 0 } })
+          driftHarness.submitIntent({ responseContractVersion: { major: 1, minor: 0 } })
         ),
       ControlPlaneClientError,
       'INCOMPATIBLE_CONTRACT_VERSION'
