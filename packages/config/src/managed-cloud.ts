@@ -20,10 +20,9 @@ export interface ManagedCloudObjectStoreConfiguration {
   readonly secretAccessKey: string
 }
 
-export interface ManagedCloudRestateConfiguration {
-  readonly ingressUrl: string
-  readonly serviceAuthToken: string
-}
+export type ManagedCloudRestateConfiguration =
+  | { readonly role: 'caller'; readonly ingressUrl: string }
+  | { readonly role: 'endpoint'; readonly requestIdentityPublicKey: string }
 
 export interface ManagedCloudConfiguration {
   readonly service: ManagedCloudService
@@ -44,13 +43,13 @@ const requiredVariables: Record<ManagedCloudService, readonly string[]> = {
     'R2_REGION',
     'R2_ACCESS_KEY_ID',
     'R2_SECRET_ACCESS_KEY',
+    'RESTATE_INGRESS_URL',
   ],
   'workflow-worker': [
     'DATABASE_URL',
     'CONTROL_PLANE_SECRET_ENCRYPTION_KEY',
     'CONTROL_PLANE_SERVICE_AUTH_TOKEN',
-    'RESTATE_INGRESS_URL',
-    'RESTATE_SERVICE_AUTH_TOKEN',
+    'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
     'R2_ENDPOINT',
     'R2_BUCKET',
     'R2_REGION',
@@ -106,9 +105,12 @@ export function loadManagedCloudConfiguration(
   const objectStore = requiredVariables[service].includes('R2_ENDPOINT')
     ? loadObjectStoreConfiguration(environment)
     : undefined
-  const restate = requiredVariables[service].includes('RESTATE_INGRESS_URL')
-    ? loadRestateConfiguration(environment)
-    : undefined
+  const restate =
+    service === 'control-api'
+      ? loadRestateIngressConfiguration(environment)
+      : service === 'workflow-worker'
+        ? loadRestateEndpointConfiguration(environment)
+        : undefined
 
   return {
     service,
@@ -143,21 +145,47 @@ function loadObjectStoreConfiguration(
   return { endpoint, bucket, region: 'auto', accessKeyId, secretAccessKey }
 }
 
-function loadRestateConfiguration(environment: RawEnvironment): ManagedCloudRestateConfiguration {
+function loadRestateIngressConfiguration(
+  environment: RawEnvironment
+): ManagedCloudRestateConfiguration {
   const ingressUrl = environment['RESTATE_INGRESS_URL'] as string
-  const serviceAuthToken = environment['RESTATE_SERVICE_AUTH_TOKEN'] as string
-  if (!isHttpsUrl(ingressUrl) || serviceAuthToken.length < 32) {
+  if (!isRestateIngressUrl(ingressUrl)) {
     throw new ConfigurationError({
       code: 'INVALID_MANAGED_CLOUD_CONFIGURATION',
-      invalid: [
-        ...(!isHttpsUrl(ingressUrl) ? ['RESTATE_INGRESS_URL'] : []),
-        ...(serviceAuthToken.length < 32 ? ['RESTATE_SERVICE_AUTH_TOKEN'] : []),
-      ],
+      invalid: ['RESTATE_INGRESS_URL'],
       missing: [],
       component: 'restate',
     })
   }
-  return { ingressUrl, serviceAuthToken }
+  return { role: 'caller', ingressUrl }
+}
+
+function loadRestateEndpointConfiguration(
+  environment: RawEnvironment
+): ManagedCloudRestateConfiguration {
+  const requestIdentityPublicKey = environment['RESTATE_REQUEST_IDENTITY_PUBLIC_KEY'] as string
+  if (!/^publickeyv1_[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(requestIdentityPublicKey)) {
+    throw new ConfigurationError({
+      code: 'INVALID_MANAGED_CLOUD_CONFIGURATION',
+      invalid: ['RESTATE_REQUEST_IDENTITY_PUBLIC_KEY'],
+      missing: [],
+      component: 'restate',
+    })
+  }
+  return { role: 'endpoint', requestIdentityPublicKey }
+}
+
+function isRestateIngressUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.username || url.password || url.search || url.hash) return false
+    if (url.protocol === 'https:') return true
+    return (
+      url.protocol === 'http:' && url.hostname.endsWith('.railway.internal') && url.port === '8080'
+    )
+  } catch {
+    return false
+  }
 }
 
 function isHttpsUrl(value: string): boolean {

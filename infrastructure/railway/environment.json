@@ -32,14 +32,14 @@
       "R2_BUCKET",
       "R2_REGION",
       "R2_ACCESS_KEY_ID",
-      "R2_SECRET_ACCESS_KEY"
+      "R2_SECRET_ACCESS_KEY",
+      "RESTATE_INGRESS_URL"
     ],
     "workflow-worker": [
       "DATABASE_URL",
       "CONTROL_PLANE_SECRET_ENCRYPTION_KEY",
       "CONTROL_PLANE_SERVICE_AUTH_TOKEN",
-      "RESTATE_INGRESS_URL",
-      "RESTATE_SERVICE_AUTH_TOKEN",
+      "RESTATE_REQUEST_IDENTITY_PUBLIC_KEY",
       "R2_ENDPOINT",
       "R2_BUCKET",
       "R2_REGION",
@@ -59,8 +59,9 @@
   },
   "restate": {
     "contract": "restate.json",
-    "endpointVariable": "RESTATE_INGRESS_URL",
-    "authVariable": "RESTATE_SERVICE_AUTH_TOKEN"
+    "ingressVariable": "RESTATE_INGRESS_URL",
+    "requestIdentityPublicKeyVariable": "RESTATE_REQUEST_IDENTITY_PUBLIC_KEY",
+    "requestIdentityPrivateKeyFileVariable": "RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE"
   },
   "secrets": {
     "valuesCommitted": false,

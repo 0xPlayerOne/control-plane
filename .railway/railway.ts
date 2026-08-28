@@ -36,6 +36,7 @@ export default defineRailway((context) => {
       R2_REGION: 'auto',
       R2_ACCESS_KEY_ID: preserve(),
       R2_SECRET_ACCESS_KEY: preserve(),
+      RESTATE_INGRESS_URL: 'http://control-planerestate.railway.internal:8080',
     },
   })
 
@@ -61,8 +62,7 @@ export default defineRailway((context) => {
       DATABASE_URL: preserve(),
       CONTROL_PLANE_SECRET_ENCRYPTION_KEY: preserve(),
       CONTROL_PLANE_SERVICE_AUTH_TOKEN: preserve(),
-      RESTATE_INGRESS_URL: preserve(),
-      RESTATE_SERVICE_AUTH_TOKEN: preserve(),
+      RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve(),
       R2_ENDPOINT: preserve(),
       R2_BUCKET: 'ctrl-plane',
       R2_REGION: 'auto',
@@ -84,6 +84,7 @@ export default defineRailway((context) => {
       RESTATE_CLUSTER_NAME: `control-plane-${applicationEnvironment}`,
       RESTATE_NODE_NAME: `control-plane-${applicationEnvironment}-1`,
       RESTATE_AUTO_PROVISION: 'true',
+      RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE: '/restate-data/request-identity-private.pem',
     },
     volumeMounts: { '/restate-data': restateData },
   })

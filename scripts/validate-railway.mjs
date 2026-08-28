@@ -41,6 +41,8 @@ if (
   ) ||
   restateServer.nodeName !== restateServer.environment?.RESTATE_NODE_NAME ||
   restateServer.environment?.RESTATE_AUTO_PROVISION !== 'true' ||
+  restateServer.environment?.RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE !==
+    '/restate-data/request-identity-private.pem' ||
   restateServer.dataMount !== '/restate-data' ||
   restateServer.healthPath !== '/health' ||
   JSON.stringify(restateServer.privatePorts) !==
@@ -66,16 +68,29 @@ if (
   throw new Error('Railway environment manifest is incomplete or contains committed secrets.')
 }
 
+if (
+  environment.services?.['control-api']?.includes('RESTATE_INGRESS_URL') !== true ||
+  environment.services?.['workflow-worker']?.includes('RESTATE_REQUEST_IDENTITY_PUBLIC_KEY') !==
+    true ||
+  JSON.stringify(environment).includes('RESTATE_SERVICE_AUTH_TOKEN')
+) {
+  throw new Error('Railway Restate dependency ownership or request identity is invalid.')
+}
+
 for (const requiredFragment of [
   "service('@control-plane/control-api'",
   "service('@control-plane/workflow-worker'",
   "service('restate'",
   "volume('restate-data'",
   'preserve()',
+  'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
 ]) {
   if (!railwayIac.includes(requiredFragment)) {
     throw new Error(`Railway IaC is missing required project intent: ${requiredFragment}.`)
   }
+}
+if (railwayIac.includes('RESTATE_SERVICE_AUTH_TOKEN')) {
+  throw new Error('Railway IaC must not retain the unsupported Restate service token contract.')
 }
 if (
   railwayIac.includes("service('@control-plane/runtime-worker'") ||

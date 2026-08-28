@@ -68,6 +68,11 @@ service.
 
 `workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring.
 
+The endpoint validates Restate native request identity with the environment-specific public key.
+The matching ED25519 private key is stored only on the Restate data volume and referenced by file;
+it is never committed or copied to application services. `control-api` owns the private port-8080
+ingress URL. The worker does not receive an ingress URL or a fabricated self-hosted bearer token.
+
 The Railway staging Restate runtime is a private single node pinned to Restate 1.7.7 by immutable
 multi-platform image digest. Railway must mount a persistent volume at `/restate-data` and preserve
 the configured `control-plane-staging-1` node name across restarts. Restate ingress (8080), Admin API

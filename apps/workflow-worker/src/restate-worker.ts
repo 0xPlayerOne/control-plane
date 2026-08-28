@@ -127,14 +127,12 @@ export function createRestateEndpointFactory(
   options: {
     readonly port?: number
     readonly activities?: ExecutionLifecycleActivities
+    readonly requestIdentityPublicKey?: string
   } = {}
 ): RestateEndpointFactory {
   return {
     async create() {
-      const restateHandler = restate.createEndpointHandler({
-        services: [createRestateWorkflowDefinition(options.activities)],
-        bidirectional: false,
-      })
+      const restateHandler = restate.createEndpointHandler(createRestateEndpointOptions(options))
       const server = http.createServer((request, response) => {
         if (request.url === '/health' || request.url === '/ready') {
           response.writeHead(200, { 'content-type': 'application/json' })
@@ -159,5 +157,20 @@ export function createRestateEndpointFactory(
           }),
       }
     },
+  }
+}
+
+export function createRestateEndpointOptions(
+  options: {
+    readonly activities?: ExecutionLifecycleActivities
+    readonly requestIdentityPublicKey?: string
+  } = {}
+) {
+  return {
+    services: [createRestateWorkflowDefinition(options.activities)],
+    bidirectional: false,
+    ...(options.requestIdentityPublicKey === undefined
+      ? {}
+      : { identityKeys: [options.requestIdentityPublicKey] }),
   }
 }
