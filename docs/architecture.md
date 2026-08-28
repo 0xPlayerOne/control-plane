@@ -72,11 +72,11 @@ Control Plane R2 storage and Agent HQ Artifact storage are separate authorities 
 | TypeScript        | accepted                                   | Primary application and package language under strict workspace settings.                                                                             |
 | NestJS            | accepted                                   | HTTP/service composition and dependency-injection framework where server composition requires it.                                                     |
 | Fastify           | accepted                                   | HTTP adapter beneath NestJS and for lightweight transport boundaries.                                                                                 |
-| PostgreSQL        | accepted server/cloud adapter              | Neon for the M9 managed-cloud profile; recommended for Hosted `server`.                                                                          |
-| SQLite            | accepted Local/simple adapter              | Node 24 `node:sqlite` + Drizzle for M10 Local and Hosted `simple`.                                                                               |
+| PostgreSQL        | accepted server/cloud adapter              | Neon for the M9 managed-cloud profile; recommended for Hosted `server`.                                                                               |
+| SQLite            | accepted Local/simple adapter              | Node 24 `node:sqlite` + Drizzle for M10 Local and Hosted `simple`.                                                                                    |
 | Drizzle           | accepted                                   | Persistence schema/migration layer behind deployment-specific adapters.                                                                               |
-| Restate           | accepted canonical workflow runtime        | M9.8 establishes the Railway implementation; M10.1 ports the same workflow semantics to Local/Hosted.                                            |
-| Temporal          | historical migration provenance            | Not an accepted release dependency or active runtime.                                                   |
+| Restate           | accepted canonical workflow runtime        | M9.8 establishes the Railway implementation; M10.1 ports the same workflow semantics to Local/Hosted.                                                 |
+| Temporal          | historical migration provenance            | Not an accepted release dependency or active runtime.                                                                                                 |
 | LangGraph         | adapter-bound                              | Optional bounded graph/multi-agent execution inside a Restate-owned durable lifecycle.                                                                |
 | Pi                | adapter-bound                              | Default managed harness behind RuntimeAdapter/RuntimeDriver contracts.                                                                                |
 | ACP               | adapter-bound                              | External-harness interoperability protocol.                                                                                                           |
@@ -86,7 +86,7 @@ Control Plane R2 storage and Agent HQ Artifact storage are separate authorities 
 | Railway           | accepted initial managed-cloud compute     | M9 first-party cloud target; provider-specific details remain outside domain contracts.                                                               |
 | Neon              | accepted managed-cloud PostgreSQL provider | Separate Control Plane project/database; explicit migrations and least-privilege runtime authority.                                                   |
 | Cloudflare R2     | accepted managed-cloud object store        | Control Plane current bucket `ctrl-plane`; explicit cloud storage only, behind `ObjectStore`, with product/environment credentials separately scoped. |
-| AWS/ECS/Terraform | removed migration provenance              | No longer present in the active deployment path or supported as a provider option.                                                                    |
+| AWS/ECS/Terraform | removed migration provenance               | No longer present in the active deployment path or supported as a provider option.                                                                    |
 
 ## Persistence and data ownership
 

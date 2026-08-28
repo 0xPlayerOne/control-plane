@@ -54,13 +54,13 @@ Profile-specific configuration may select persistence, object store, secrets, ru
 
 The historical server/cloud composition currently includes:
 
-| Service           | Development/default surface                                                   |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `control-api`     | current development HTTP port contract                                        |
-| `runtime-gateway` | current development gateway port contract                                     |
-| `tool-gateway`    | current development tool port contract                                        |
+| Service           | Development/default surface                                     |
+| ----------------- | --------------------------------------------------------------- |
+| `control-api`     | current development HTTP port contract                          |
+| `runtime-gateway` | current development gateway port contract                       |
+| `tool-gateway`    | current development tool port contract                          |
 | `workflow-worker` | Restate HTTP endpoint and workflow-runtime concurrency contract |
-| `runtime-worker`  | current server/cloud runtime worker contract                                  |
+| `runtime-worker`  | current server/cloud runtime worker contract                    |
 
 M9.7/M9.8 may alter cloud process topology where an existing process exists only because of the former AWS/Temporal assumptions. M10 Local is not required to run these five applications as separate processes.
 

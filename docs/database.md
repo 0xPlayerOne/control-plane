@@ -4,10 +4,10 @@ Control Plane domain persistence is deployment-profile aware behind `Persistence
 
 ## Accepted profiles
 
-| Profile              | Persistence                                      | Milestone ownership |
-| -------------------- | ------------------------------------------------ | ------------------- |
-| Managed cloud        | Separate Control Plane Neon PostgreSQL + Drizzle | M9                  |
-| Local desktop        | Node 24 `node:sqlite` + Drizzle                  | M10.3               |
+| Profile         | Persistence                                      | Milestone ownership |
+| --------------- | ------------------------------------------------ | ------------------- |
+| Managed cloud   | Separate Control Plane Neon PostgreSQL + Drizzle | M9                  |
+| Local desktop   | Node 24 `node:sqlite` + Drizzle                  | M10.3               |
 | Hosted `simple` | SQLite + Drizzle                                 | M10                 |
 | Hosted `server` | PostgreSQL + Drizzle                             | M10                 |
 

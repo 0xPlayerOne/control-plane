@@ -47,15 +47,14 @@ export function createRestateWorkflowDefinition(
       run: async (
         ctx: restate.WorkflowContext,
         input: ExecutionWorkflowInput
-      ): Promise<ExecutionWorkflowResult> =>
-        runRestateExecution(ctx, input, activities),
+      ): Promise<ExecutionWorkflowResult> => runRestateExecution(ctx, input, activities),
       respondToInteraction: async (
         ctx: restate.WorkflowSharedContext,
         response: WorkflowInteractionResponse
       ): Promise<void> => {
-        await ctx.promise<WorkflowInteractionResponse>(
-          interactionPromiseName(response.interactionId)
-        ).resolve(response)
+        await ctx
+          .promise<WorkflowInteractionResponse>(interactionPromiseName(response.interactionId))
+          .resolve(response)
       },
       cancelExecution: async (ctx: restate.WorkflowSharedContext): Promise<void> => {
         await ctx.promise<TerminalControl>(terminalControlPromiseName).resolve({ cancelled: true })
@@ -73,14 +72,19 @@ async function runRestateExecution(
 ): Promise<ExecutionWorkflowResult> {
   const deadlineDelay = Math.max(0, Date.parse(input.deadlineAt) - (await ctx.date.now()))
   const terminalControl = ctx.promise<TerminalControl>(terminalControlPromiseName)
-  const waitForInteraction = async (interactionId: string): Promise<WorkflowInteractionResponse> => {
+  const waitForInteraction = async (
+    interactionId: string
+  ): Promise<WorkflowInteractionResponse> => {
     const outcome = await restate.RestatePromise.race([
       ctx.promise<WorkflowInteractionResponse>(interactionPromiseName(interactionId)).get(),
       terminalControl.get(),
-      ctx.sleep(deadlineDelay, 'execution-deadline').map(() => ({ deadlineReached: true } as const)),
+      ctx
+        .sleep(deadlineDelay, 'execution-deadline')
+        .map(() => ({ deadlineReached: true }) as const),
     ])
     if ('cancelled' in outcome) throw new RestateTerminalControlError({ cancelled: true })
-    if ('deadlineReached' in outcome) throw new RestateTerminalControlError({ deadlineReached: true })
+    if ('deadlineReached' in outcome)
+      throw new RestateTerminalControlError({ deadlineReached: true })
     return outcome
   }
   try {
@@ -107,18 +111,24 @@ function createDurableActivities(
     ensureAttempt: (input) => ctx.run('ensure-attempt', () => activities.ensureAttempt(input)),
     persistStatus: (input) => ctx.run('persist-status', () => activities.persistStatus(input)),
     dispatch: (input) => ctx.run('dispatch', () => activities.dispatch(input)),
-    applyInteraction: (input) => ctx.run('apply-interaction', () => activities.applyInteraction(input)),
-    runGraphSegment: (input) => ctx.run('run-graph-segment', () => activities.runGraphSegment(input)),
-    resumeGraphSegment: (input) => ctx.run('resume-graph-segment', () => activities.resumeGraphSegment(input)),
-    continueGraphSegment: (input) => ctx.run('continue-graph-segment', () => activities.continueGraphSegment(input)),
+    applyInteraction: (input) =>
+      ctx.run('apply-interaction', () => activities.applyInteraction(input)),
+    runGraphSegment: (input) =>
+      ctx.run('run-graph-segment', () => activities.runGraphSegment(input)),
+    resumeGraphSegment: (input) =>
+      ctx.run('resume-graph-segment', () => activities.resumeGraphSegment(input)),
+    continueGraphSegment: (input) =>
+      ctx.run('continue-graph-segment', () => activities.continueGraphSegment(input)),
     cleanup: (input) => ctx.run('cleanup', () => activities.cleanup(input)),
   }
 }
 
-export function createRestateEndpointFactory(options: {
-  readonly port?: number
-  readonly activities?: ExecutionLifecycleActivities
-} = {}): RestateEndpointFactory {
+export function createRestateEndpointFactory(
+  options: {
+    readonly port?: number
+    readonly activities?: ExecutionLifecycleActivities
+  } = {}
+): RestateEndpointFactory {
   return {
     async create() {
       const restateHandler = restate.createEndpointHandler({
