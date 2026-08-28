@@ -10,7 +10,7 @@ Do not reinterpret a synthetic/developer-host pass as proof that Railway, Neon, 
 
 ## M9 managed-cloud evidence
 
-M9.6 requires measurements from the accepted Railway + Neon + R2 + Restate staging candidate after M9.7–M9.13 configuration is complete.
+M9.6 #73 requires measurements from the accepted Railway + Neon + R2 + Restate staging candidate after M9.7–M9.13 configuration is complete.
 
 Record at minimum:
 
@@ -26,7 +26,7 @@ Record at minimum:
 - retry/redelivery/error counts;
 - idle and representative active cost.
 
-M9.6 records the initial cloud baseline. M11 later reruns it from the frozen release candidate.
+M9.6 records the initial cloud baseline only after live staging is healthy. M11 later reruns it from the frozen release candidate.
 
 ## M10 Local evidence
 
