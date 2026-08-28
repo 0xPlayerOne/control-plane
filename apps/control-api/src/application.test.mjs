@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { contextPackageSerializationFixtures } from '@control-plane/context'
+import { ControlApiFixtures } from '@control-plane/contracts'
+import { executionConstraintFixtures } from '@control-plane/domain'
 import { withTestApplication } from '@control-plane/testing'
 import { createControlApiApplication, createOpenApiDocument } from './application.ts'
 import {
@@ -6,6 +9,7 @@ import {
   createInternalServicePrincipal,
 } from './auth/service-authentication.ts'
 import { start } from './index.ts'
+import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
 class FakeProcessAdapter {
@@ -40,12 +44,18 @@ const metadata = {
 }
 const applications = []
 
-async function createApplication(logs = [], serviceAuthenticator, runtimeDiscoveryRepository) {
+async function createApplication(
+  logs = [],
+  serviceAuthenticator,
+  runtimeDiscoveryRepository,
+  executionValidationService
+) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
     logger: { write: (entry) => logs.push(entry) },
     metadata,
     readiness: () => ({ status: 'ready', metadata }),
+    executionValidationService,
     serviceAuthenticator,
     runtimeDiscoveryRepository,
   })
@@ -191,6 +201,129 @@ describe('Control API', () => {
 
     expect(response.statusCode).toBe(503)
     expect(response.json().error.code).toBe('SERVICE_AUTH_NOT_CONFIGURED')
+  })
+
+  test('fails closed when execution validation is not configured', async () => {
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['execution:validate'] },
+      })
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/executions/validate',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.executionValidation.request,
+    })
+
+    expect(response.statusCode).toBe(503)
+    expect(response.json().error.code).toBe('EXECUTION_VALIDATION_NOT_CONFIGURED')
+  })
+
+  test('resolves durable evidence and persists the execution plan before returning success', async () => {
+    const contextPackage = contextPackageSerializationFixtures.futurePi
+    const constraints = executionConstraintFixtures.write
+    const profile = executionProfile(constraints)
+    const skill = executionSkill()
+    const persistedPlans = []
+    const service = new DurableExecutionValidationService({
+      compilerVersion: '1.0.0',
+      contextPackages: {
+        get: async () => globalThis.structuredClone(contextPackage),
+      },
+      plans: {
+        get: async () => undefined,
+        put: async (plan) => {
+          persistedPlans.push(globalThis.structuredClone(plan))
+          return {
+            executionPlanId: plan.executionPlanId,
+            contentDigest: plan.contentDigest,
+          }
+        },
+      },
+      profiles: { getAgentProfileVersion: async () => globalThis.structuredClone(profile) },
+      projectStates: {
+        getAtRevision: async () => ({
+          schemaVersion: 1,
+          workspaceId: contextPackage.projectState.workspaceId,
+          projectId: contextPackage.projectState.projectId,
+          revision: contextPackage.projectState.revision,
+          items: [],
+          createdAt: '2026-08-23T11:00:00.000Z',
+          updatedAt: '2026-08-23T11:00:00.000Z',
+        }),
+      },
+      skills: { getSkillVersion: async () => globalThis.structuredClone(skill) },
+    })
+    const request = executionValidationRequest(contextPackage, constraints)
+
+    const response = await service.validate(request)
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['execution:validate'] },
+      }),
+      undefined,
+      service
+    )
+    const httpResponse = await application.inject({
+      method: 'POST',
+      url: '/v1/executions/validate',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: request,
+    })
+
+    expect(response.data.valid).toBe(true)
+    expect(response.data.executionPlan).toEqual({
+      executionPlanId: persistedPlans[0].executionPlanId,
+      contentDigest: persistedPlans[0].contentDigest,
+    })
+    expect(persistedPlans[0].correlation).toMatchObject({
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      taskId: request.payload.taskId,
+      agentId: request.payload.agentId,
+    })
+    expect(httpResponse.statusCode).toBe(200)
+    expect(httpResponse.json().data.executionPlan).toEqual(response.data.executionPlan)
+    expect(persistedPlans).toHaveLength(2)
+
+    await expect(
+      service.validate({
+        ...request,
+        payload: {
+          ...request.payload,
+          policySnapshot: { ...request.payload.policySnapshot, revision: 999 },
+        },
+      })
+    ).rejects.toMatchObject({ status: 422 })
+    expect(persistedPlans).toHaveLength(2)
+  })
+
+  test('rejects malformed and unauthorized execution validation requests before composition', async () => {
+    const wrongScope = await createApplication(
+      [],
+      policyAuthenticator({ claims: validServiceClaims() })
+    )
+    const forbidden = await wrongScope.inject({
+      method: 'POST',
+      url: '/v1/executions/validate',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.executionValidation.request,
+    })
+    const malformed = await wrongScope.inject({
+      method: 'POST',
+      url: '/v1/executions/validate',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: { operation: 'execution.validate' },
+    })
+
+    expect(forbidden.statusCode).toBe(403)
+    expect(forbidden.json().error.code).toBe('SERVICE_CREDENTIAL_SCOPE_MISMATCH')
+    expect(malformed.statusCode).toBe(400)
+    expect(malformed.json().error.code).toBe('SERVICE_REQUEST_ENVELOPE_INVALID')
   })
 
   test('authenticates an Agent HQ service principal and enforces envelope scope', async () => {
@@ -497,6 +630,7 @@ describe('Control API', () => {
 
     expect(document.openapi).toStartWith('3.')
     expect(document.paths).toHaveProperty('/v1/system/echo')
+    expect(document.paths).toHaveProperty('/v1/executions/validate')
     expect(document.paths).toHaveProperty('/v1/runtime-connections/list')
     expect(document.paths).toHaveProperty('/v1/external-sessions/list')
     expect(document.paths).toHaveProperty('/health')
@@ -586,6 +720,77 @@ function scopedRequest() {
     requestId: 'req_01JABCDEF0123456789ABCDEFG',
     requestedAt: '2026-08-23T12:00:00.000Z',
     workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+  }
+}
+
+function executionValidationRequest(contextPackage, constraints) {
+  return {
+    ...ControlApiFixtures.executionValidation.request,
+    payload: {
+      ...ControlApiFixtures.executionValidation.request.payload,
+      contextPackage: {
+        contextPackageId: contextPackage.contextPackageId,
+        contentDigest: contextPackage.contentDigest,
+        schemaVersion: contextPackage.schemaVersion,
+        compilerVersion: contextPackage.compiler.version,
+      },
+      projectState: contextPackage.projectState,
+      policySnapshot: {
+        policySnapshotId: constraints.policySnapshot.policyId,
+        revision: constraints.policySnapshot.version,
+        contentDigest: constraints.policySnapshot.digest,
+      },
+      runtimeRequirements: ['stream.output'],
+      outputContractRef: 'contract://execution-result/v1',
+    },
+  }
+}
+
+function executionProfile(constraints) {
+  return {
+    profileVersionId: 'pfv_01JABCDEF0123456789ABCDEFG',
+    profileId: 'prf_01JABCDEF0123456789ABCDEFG',
+    version: 3,
+    revision: 2,
+    lifecycle: 'published',
+    contentDigest: `sha256:${'a'.repeat(64)}`,
+    definition: {
+      schemaVersion: 1,
+      roleInstructions: 'Complete the assigned task safely.',
+      skills: [
+        {
+          skillId: 'skl_01JABCDEF0123456789ABCDEFG',
+          skillVersionId: 'skv_01JABCDEF0123456789ABCDEFG',
+          contentDigest: `sha256:${'b'.repeat(64)}`,
+        },
+      ],
+      capabilityRequirements: ['filesystem.read'],
+      executionConstraints: globalThis.structuredClone(constraints),
+      outputContractRefs: ['contract://execution-result/v1'],
+    },
+    createdAt: '2026-08-22T12:00:00.000Z',
+    lifecycleMetadata: { publishedAt: '2026-08-22T12:00:00.000Z' },
+  }
+}
+
+function executionSkill() {
+  return {
+    skillVersionId: 'skv_01JABCDEF0123456789ABCDEFG',
+    skillId: 'skl_01JABCDEF0123456789ABCDEFG',
+    revision: 4,
+    lifecycle: 'published',
+    manifest: {
+      schemaVersion: 1,
+      semanticVersion: '2.1.0',
+      contentDigest: `sha256:${'b'.repeat(64)}`,
+      requiredCapabilities: ['filesystem.read'],
+      requiredTools: [{ toolId: 'project-files', versionRange: '^1.0.0' }],
+      compatibleProfileSchemaVersions: [1],
+      compatibleContractMajorVersions: [1],
+    },
+    content: { instructions: 'Inspect and update project files.', artifactRefs: [] },
+    createdAt: '2026-08-22T12:00:00.000Z',
+    lifecycleMetadata: { publishedAt: '2026-08-22T12:00:00.000Z' },
   }
 }
 

@@ -1,0 +1,140 @@
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common'
+import type { ContextPackageRepository } from '@control-plane/context'
+import {
+  ExecutionRequestValidationRequestSchema,
+  ExecutionRequestValidationResponseSchema,
+  type ExecutionRequestValidationResponse,
+} from '@control-plane/contracts'
+import {
+  ProjectStateSchema,
+  type AgentProfileRepository,
+  type ProjectStateRepository,
+  type SkillRepository,
+} from '@control-plane/domain'
+import {
+  ExecutionPlanCompiler,
+  ExecutionPlanError,
+  type ExecutionPlanRepository,
+} from '@control-plane/execution-plan'
+
+export const EXECUTION_VALIDATION_SERVICE = Symbol('EXECUTION_VALIDATION_SERVICE')
+
+export interface ExecutionValidationService {
+  validate(envelope: unknown): Promise<ExecutionRequestValidationResponse>
+}
+
+export interface DurableExecutionValidationServiceOptions {
+  readonly compilerVersion: string
+  readonly contextPackages: ContextPackageRepository
+  readonly plans: ExecutionPlanRepository
+  readonly profiles: Pick<AgentProfileRepository, 'getAgentProfileVersion'>
+  readonly projectStates: Pick<ProjectStateRepository, 'getAtRevision'>
+  readonly skills: Pick<SkillRepository, 'getSkillVersion'>
+}
+
+export class DurableExecutionValidationService implements ExecutionValidationService {
+  readonly #compiler: ExecutionPlanCompiler
+
+  constructor(readonly options: DurableExecutionValidationServiceOptions) {
+    this.#compiler = new ExecutionPlanCompiler(options.compilerVersion)
+  }
+
+  async validate(input: unknown): Promise<ExecutionRequestValidationResponse> {
+    const request = ExecutionRequestValidationRequestSchema.parse(input)
+    const projectId = request.projectId
+    if (projectId === undefined) reject()
+
+    const [profile, projectState, contextPackage, ...skills] = await Promise.all([
+      this.options.profiles.getAgentProfileVersion(request.payload.profileVersionId),
+      this.options.projectStates.getAtRevision(
+        request.workspaceId,
+        projectId,
+        request.payload.projectState.revision
+      ),
+      this.options.contextPackages.get({
+        contextPackageId: request.payload.contextPackage.contextPackageId,
+        contentDigest: request.payload.contextPackage.contentDigest,
+      }),
+      ...request.payload.skillVersionIds.map((skillVersionId) =>
+        this.options.skills.getSkillVersion(skillVersionId)
+      ),
+    ])
+    if (!profile || !projectState || !contextPackage || skills.some((skill) => !skill)) reject()
+
+    const state = ProjectStateSchema.parse(projectState)
+    if (
+      state.workspaceId !== request.workspaceId ||
+      state.projectId !== projectId ||
+      contextPackage.projectState.workspaceId !== request.workspaceId ||
+      contextPackage.projectState.projectId !== projectId ||
+      contextPackage.projectState.revision !== state.revision ||
+      contextPackage.schemaVersion !== request.payload.contextPackage.schemaVersion ||
+      contextPackage.compiler.version !== request.payload.contextPackage.compilerVersion
+    ) {
+      reject()
+    }
+    const policy = profile.definition.executionConstraints.policySnapshot
+    if (
+      policy.policyId !== request.payload.policySnapshot.policySnapshotId ||
+      policy.version !== request.payload.policySnapshot.revision ||
+      policy.digest !== request.payload.policySnapshot.contentDigest
+    ) {
+      reject()
+    }
+
+    try {
+      const plan = this.#compiler.compile({
+        correlation: {
+          workspaceId: request.workspaceId,
+          projectId,
+          taskId: request.payload.taskId,
+          agentId: request.payload.agentId,
+          requestId: request.requestId,
+        },
+        profile,
+        skills,
+        contextPackage,
+        constraints: profile.definition.executionConstraints,
+        requestConstraints: [],
+        runtimeRequirements: request.payload.runtimeRequirements.map((capability) => ({
+          capability,
+          necessity: 'required' as const,
+          minimumSupport: 'supported' as const,
+        })),
+        outputContract: { contractRef: request.payload.outputContractRef },
+        compiledAt: request.issuedAt,
+      })
+      const executionPlan = await this.options.plans.put(plan)
+      return ExecutionRequestValidationResponseSchema.parse({
+        contractVersion: request.contractVersion,
+        requestId: request.requestId,
+        correlation: request.correlation,
+        data: { valid: true, executionPlan },
+      })
+    } catch (error) {
+      if (error instanceof ExecutionPlanError) reject()
+      throw error
+    }
+  }
+}
+
+@Injectable()
+export class UnavailableExecutionValidationService implements ExecutionValidationService {
+  async validate(): Promise<ExecutionRequestValidationResponse> {
+    throw new ServiceUnavailableException({
+      code: 'EXECUTION_VALIDATION_NOT_CONFIGURED',
+      message: 'Execution validation is unavailable',
+    })
+  }
+}
+
+function reject(): never {
+  throw new UnprocessableEntityException({
+    code: 'EXECUTION_VALIDATION_REJECTED',
+    message: 'Execution request validation failed',
+  })
+}

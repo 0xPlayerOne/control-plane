@@ -9,6 +9,7 @@ import type { RawEnvironment } from '@control-plane/config'
 import type { NestFastifyApplication } from '@nestjs/platform-fastify'
 import { createControlApiApplication } from './application.js'
 import type { ServiceAuthenticator } from './auth/service-authentication.js'
+import type { ExecutionValidationService } from './executions/execution-validation.service.js'
 import type { RuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.js'
 
 export const serviceName = 'control-api'
@@ -16,6 +17,7 @@ export const serviceName = 'control-api'
 export interface ControlApiStartOptions {
   readonly cwd?: string
   readonly environment?: RawEnvironment
+  readonly executionValidationService?: ExecutionValidationService
   readonly listen?: boolean
   readonly logger?: StructuredLogger
   readonly processAdapter?: ProcessAdapter
@@ -39,6 +41,9 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
     ...(options.processAdapter === undefined ? {} : { processAdapter: options.processAdapter }),
     start: async ({ config, health, markReady, metadata, readiness, registerResource }) => {
       application = await createControlApiApplication({
+        ...(options.executionValidationService === undefined
+          ? {}
+          : { executionValidationService: options.executionValidationService }),
         health,
         logger,
         metadata,
