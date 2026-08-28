@@ -4,7 +4,11 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { loadManagedCloudConfiguration } from '@control-plane/config'
 import { contextPackageSerializationFixtures } from '@control-plane/context'
 import { ControlApiFixtures } from '@control-plane/contracts'
-import { executionConstraintFixtures } from '@control-plane/domain'
+import {
+  CommandInboxService,
+  InMemoryCommandAcceptanceRepository,
+  executionConstraintFixtures,
+} from '@control-plane/domain'
 import { withTestApplication } from '@control-plane/testing'
 import { createControlApiApplication, createOpenApiDocument } from './application.ts'
 import {
@@ -14,6 +18,10 @@ import {
   createInternalServicePrincipal,
 } from './auth/service-authentication.ts'
 import { createManagedCloudControlApiComposition, start } from './index.ts'
+import {
+  DurableExecutionAcceptanceService,
+  RestateExecutionWorkflowDispatcher,
+} from './executions/execution-acceptance.service.ts'
 import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
@@ -53,13 +61,15 @@ async function createApplication(
   logs = [],
   serviceAuthenticator,
   runtimeDiscoveryRepository,
-  executionValidationService
+  executionValidationService,
+  executionAcceptanceService
 ) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
     logger: { write: (entry) => logs.push(entry) },
     metadata,
     readiness: () => ({ status: 'ready', metadata }),
+    executionAcceptanceService,
     executionValidationService,
     serviceAuthenticator,
     runtimeDiscoveryRepository,
@@ -329,6 +339,167 @@ describe('Control API', () => {
     expect(forbidden.json().error.code).toBe('SERVICE_CREDENTIAL_SCOPE_MISMATCH')
     expect(malformed.statusCode).toBe(400)
     expect(malformed.json().error.code).toBe('SERVICE_REQUEST_ENVELOPE_INVALID')
+  })
+
+  test('accepts one durable execution and submits one Restate workflow across replay', async () => {
+    const fixture = executionAcceptanceFixture()
+
+    const first = await fixture.service.accept(
+      ControlApiFixtures.executionAcceptance.request,
+      'svc_agent-hq'
+    )
+    const replay = await fixture.service.accept(
+      ControlApiFixtures.executionAcceptance.request,
+      'svc_agent-hq'
+    )
+
+    expect(first.data).toMatchObject({
+      executionId: fixture.executionId,
+      status: 'processing',
+      replayed: false,
+    })
+    expect(replay.data).toEqual({ ...first.data, replayed: true })
+    expect(fixture.submissions).toHaveLength(1)
+    expect(fixture.repository.executionCount).toBe(1)
+  })
+
+  test('rejects an acceptance payload conflict without another execution or workflow', async () => {
+    const fixture = executionAcceptanceFixture()
+    await fixture.service.accept(ControlApiFixtures.executionAcceptance.request, 'svc_agent-hq')
+
+    await expect(
+      fixture.service.accept(
+        { ...ControlApiFixtures.executionAcceptance.request, payloadHash: 'a'.repeat(64) },
+        'svc_agent-hq'
+      )
+    ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_PAYLOAD_CONFLICT' } })
+
+    expect(fixture.submissions).toHaveLength(1)
+    expect(fixture.repository.executionCount).toBe(1)
+  })
+
+  test.each([
+    ['at or before issuance', '2026-08-23T12:00:00.000Z', '2026-09-22T12:00:00.000Z'],
+    ['after command retention', '2026-08-24T11:00:00.000Z', '2026-08-24T10:00:00.000Z'],
+    ['after the managed command lifetime', '2026-08-24T12:00:00.001Z', '2026-09-22T12:00:00.000Z'],
+  ])('rejects a workflow deadline %s', async (_case, deadlineAt, retentionExpiresAt) => {
+    const fixture = executionAcceptanceFixture()
+    const request = {
+      ...ControlApiFixtures.executionAcceptance.request,
+      payload: {
+        ...ControlApiFixtures.executionAcceptance.request.payload,
+        deadlineAt,
+        retentionExpiresAt,
+      },
+    }
+
+    await expect(fixture.service.accept(request, 'svc_agent-hq')).rejects.toMatchObject({
+      response: { code: 'INVALID_EXECUTION_DEADLINE' },
+    })
+    expect(fixture.submissions).toHaveLength(0)
+    expect(fixture.repository.executionCount).toBe(0)
+  })
+
+  test('records reconciliation-required when Restate delivery is uncertain after acceptance', async () => {
+    const fixture = executionAcceptanceFixture({ dispatchFailure: true })
+
+    await expect(
+      fixture.service.accept(ControlApiFixtures.executionAcceptance.request, 'svc_agent-hq')
+    ).rejects.toThrow('Restate workflow submission is unavailable')
+
+    const command = await fixture.repository.get({
+      callerPrincipalId: 'svc_agent-hq',
+      operation: 'execution.accept',
+      workspaceId: ControlApiFixtures.executionAcceptance.request.workspaceId,
+      projectId: ControlApiFixtures.executionAcceptance.request.projectId,
+      idempotencyKey: ControlApiFixtures.executionAcceptance.request.idempotencyKey,
+    })
+    expect(command).toMatchObject({
+      status: 'reconciliation_required',
+      errorReference: `restate://submission-unconfirmed/${fixture.executionId}`,
+    })
+  })
+
+  test('submits the workflow through private Restate ingress and accepts deterministic resubmission', async () => {
+    const calls = []
+    const dispatcher = new RestateExecutionWorkflowDispatcher({
+      ingressUrl: 'http://control-planerestate.railway.internal:8080',
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init })
+        return {
+          status: 202,
+          text: async () => JSON.stringify({ invocationId: 'inv_01JABC', status: 'Accepted' }),
+        }
+      },
+    })
+    const input = workflowSubmissionInput()
+
+    await dispatcher.submit(input)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe(
+      `http://control-planerestate.railway.internal:8080/execution-lifecycle/${input.executionId}/run/send`
+    )
+    expect(calls[0].init).toMatchObject({
+      method: 'POST',
+      redirect: 'error',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+    })
+    expect(JSON.parse(calls[0].init.body)).toEqual(input)
+
+    const replay = new RestateExecutionWorkflowDispatcher({
+      ingressUrl: 'http://control-planerestate.railway.internal:8080',
+      fetch: async () => ({ status: 409 }),
+    })
+    await expect(replay.submit(input)).resolves.toBeUndefined()
+  })
+
+  test('requires execution:accept scope before invoking the acceptance service', async () => {
+    const calls = []
+    const acceptanceService = {
+      accept: async (envelope, principalId) => {
+        calls.push({ envelope, principalId })
+        return ControlApiFixtures.executionAcceptance.response
+      },
+    }
+    const forbiddenApplication = await createApplication(
+      [],
+      policyAuthenticator({ claims: validServiceClaims() }),
+      undefined,
+      undefined,
+      acceptanceService
+    )
+    const forbidden = await forbiddenApplication.inject({
+      method: 'POST',
+      url: '/v1/executions/accept',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.executionAcceptance.request,
+    })
+    expect(forbidden.statusCode).toBe(403)
+    expect(calls).toHaveLength(0)
+
+    const authorizedApplication = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['execution:accept'] },
+      }),
+      undefined,
+      undefined,
+      acceptanceService
+    )
+    const accepted = await authorizedApplication.inject({
+      method: 'POST',
+      url: '/v1/executions/accept',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.executionAcceptance.request,
+    })
+    expect(accepted.statusCode).toBe(202)
+    expect(calls).toEqual([
+      {
+        envelope: ControlApiFixtures.executionAcceptance.request,
+        principalId: 'svc_agent-hq',
+      },
+    ])
   })
 
   test('authenticates an Agent HQ service principal and enforces envelope scope', async () => {
@@ -659,6 +830,7 @@ describe('Control API', () => {
     expect(document.openapi).toStartWith('3.')
     expect(document.paths).toHaveProperty('/v1/system/echo')
     expect(document.paths).toHaveProperty('/v1/executions/validate')
+    expect(document.paths).toHaveProperty('/v1/executions/accept')
     expect(document.paths).toHaveProperty('/v1/runtime-connections/list')
     expect(document.paths).toHaveProperty('/v1/external-sessions/list')
     expect(document.paths).toHaveProperty('/health')
@@ -785,9 +957,46 @@ describe('Control API', () => {
     )
 
     expect(composition.executionValidationService).toBeInstanceOf(DurableExecutionValidationService)
+    expect(composition.executionAcceptanceService).toBeInstanceOf(DurableExecutionAcceptanceService)
     expect(composition.serviceAuthenticator).toBeInstanceOf(PolicyServiceAuthenticator)
   })
 })
+
+function executionAcceptanceFixture(options = {}) {
+  const executionId = 'exe_01JABCDEF0123456789ABCDEFG'
+  const repository = new InMemoryCommandAcceptanceRepository()
+  const submissions = []
+  const now = () => '2026-08-23T12:00:01.000Z'
+  const service = new DurableExecutionAcceptanceService({
+    commands: new CommandInboxService({
+      repository,
+      executionIdFactory: () => executionId,
+      executionPlanValidator: { validate: async () => true },
+      now,
+    }),
+    dispatcher: {
+      submit: async (input) => {
+        submissions.push(globalThis.structuredClone(input))
+        if (options.dispatchFailure) throw new Error('private Restate details must not escape')
+      },
+    },
+    now,
+  })
+  return { executionId, repository, service, submissions }
+}
+
+function workflowSubmissionInput() {
+  return {
+    executionId: 'exe_01JABCDEF0123456789ABCDEFG',
+    workflowId: 'wfl_01JABCDEF0123456789ABCDEFG',
+    executionPlan: {
+      executionPlanId: 'pln_01JABCDEF0123456789ABCDEFG',
+      contentDigest: `sha256:${'e'.repeat(64)}`,
+      schemaVersion: 1,
+    },
+    deadlineAt: '2026-08-23T13:00:00.000Z',
+  }
+}
 
 function managedCloudEnvironment() {
   const { publicKey } = generateKeyPairSync('ed25519')

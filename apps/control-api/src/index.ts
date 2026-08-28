@@ -14,6 +14,7 @@ import {
   type PostgresConnectionFactory,
 } from './cloud-composition.js'
 import type { ExecutionValidationService } from './executions/execution-validation.service.js'
+import type { ExecutionAcceptanceService } from './executions/execution-acceptance.service.js'
 import type { RuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.js'
 
 export const serviceName = 'control-api'
@@ -21,6 +22,7 @@ export const serviceName = 'control-api'
 export interface ControlApiStartOptions {
   readonly cwd?: string
   readonly environment?: RawEnvironment
+  readonly executionAcceptanceService?: ExecutionAcceptanceService
   readonly executionValidationService?: ExecutionValidationService
   readonly listen?: boolean
   readonly logger?: StructuredLogger
@@ -67,9 +69,12 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
       }
       const executionValidationService =
         options.executionValidationService ?? cloudComposition?.executionValidationService
+      const executionAcceptanceService =
+        options.executionAcceptanceService ?? cloudComposition?.executionAcceptanceService
       const serviceAuthenticator =
         options.serviceAuthenticator ?? cloudComposition?.serviceAuthenticator
       application = await createControlApiApplication({
+        ...(executionAcceptanceService === undefined ? {} : { executionAcceptanceService }),
         ...(executionValidationService === undefined ? {} : { executionValidationService }),
         health,
         logger,

@@ -1,4 +1,4 @@
-import type { GraphReference } from '@control-plane/orchestration'
+import type { ExecutionWorkflowInput } from '@control-plane/orchestration'
 import { managedCloudOperationalPolicy } from '@control-plane/config'
 import type { GraphActivityOutcome, GraphSegmentActivityPort } from './graph-segment-activity.js'
 
@@ -17,23 +17,6 @@ export const workflowPolicies = {
     heartbeatTimeout: '20 seconds',
   },
 } as const
-
-export interface ExecutionWorkflowInput {
-  readonly executionId: string
-  readonly workflowId: string
-  readonly executionPlan: {
-    readonly executionPlanId: string
-    readonly contentDigest: string
-    readonly schemaVersion: number
-  }
-  readonly deadlineAt: string
-  readonly graph?: {
-    readonly workspaceId: string
-    readonly reference: GraphReference
-    readonly threadId: string
-    readonly input: Readonly<Record<string, unknown>>
-  }
-}
 
 export interface ExecutionWorkflowResult {
   readonly executionId: string

@@ -121,6 +121,39 @@ export const GraphNodeOperationSchema = GraphCorrelationSchema.extend({
   idempotencyKey: SafeReferenceSchema,
 }).strict()
 
+export const ExecutionWorkflowInputSchema = z
+  .object({
+    executionId: IdentifierSchemas.executionId,
+    workflowId: IdentifierSchemas.workflowId,
+    executionPlan: z
+      .object({
+        executionPlanId: IdentifierSchemas.executionPlanId,
+        contentDigest: DigestSchema,
+        schemaVersion: z.number().int().positive(),
+      })
+      .strict(),
+    deadlineAt: TimestampSchema,
+    graph: z
+      .object({
+        workspaceId: IdentifierSchemas.workspaceId,
+        reference: GraphReferenceSchema,
+        threadId: SafeReferenceSchema,
+        input: JsonObjectSchema,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.workflowId !== `wfl_${input.executionId.slice(4)}`) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workflowId'],
+        message: 'Workflow identity must derive from the execution identity',
+      })
+    }
+  })
+
 export type GraphReference = z.output<typeof GraphReferenceSchema>
 export type GraphExecutionRequest = z.output<typeof GraphExecutionRequestSchema>
 export type GraphResumeRequest = z.output<typeof GraphResumeRequestSchema>
@@ -129,6 +162,7 @@ export type GraphCancellationRequest = z.output<typeof GraphCancellationRequestS
 export type GraphEvent = z.output<typeof GraphEventSchema>
 export type GraphSegmentResult = z.output<typeof GraphSegmentResultSchema>
 export type GraphNodeOperation = z.output<typeof GraphNodeOperationSchema>
+export type ExecutionWorkflowInput = z.output<typeof ExecutionWorkflowInputSchema>
 
 export interface GraphNodeOperationPort {
   invoke(operation: GraphNodeOperation): Promise<Readonly<Record<string, unknown>>>
