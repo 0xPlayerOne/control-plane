@@ -34,6 +34,61 @@ const productionEnvironment = {
 }
 
 describe('bootstrapService', () => {
+  test('provides validated managed-cloud dependencies to staging startup', async () => {
+    const logs = []
+    let startupConfiguration
+    const runtime = await bootstrapService({
+      serviceName: 'control-api',
+      environment: {
+        APP_ENV: 'staging',
+        SERVICE_VERSION: '1.2.3',
+        COMMIT_SHA: 'abc123',
+        INSTANCE_ID: 'staging-1',
+        DATABASE_URL:
+          'postgresql://app:database-secret@example.neon.tech/control_plane?sslmode=require',
+        CONTROL_PLANE_SECRET_ENCRYPTION_KEY:
+          '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        CONTROL_PLANE_SERVICE_AUTH_TOKEN: 'service-token-that-is-at-least-32-characters',
+        R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+        R2_BUCKET: 'ctrl-plane',
+        R2_REGION: 'auto',
+        R2_ACCESS_KEY_ID: 'access-key',
+        R2_SECRET_ACCESS_KEY: 'secret-key-that-is-not-logged',
+      },
+      logger: { write: (entry) => logs.push(entry) },
+      processAdapter: new FakeProcessAdapter(),
+      start: async ({ managedCloud, markReady }) => {
+        startupConfiguration = managedCloud
+        markReady()
+      },
+    })
+
+    expect(startupConfiguration).toMatchObject({
+      service: 'control-api',
+      database: { role: 'application' },
+      objectStore: { bucket: 'ctrl-plane', region: 'auto' },
+    })
+    expect(JSON.stringify(logs)).not.toContain('database-secret')
+    expect(JSON.stringify(logs)).not.toContain('secret-key-that-is-not-logged')
+    await runtime.shutdown('test-complete')
+  })
+
+  test('does not fabricate managed-cloud dependencies for test startup', async () => {
+    let startupConfiguration = 'not-observed'
+    const runtime = await bootstrapService({
+      serviceName: 'control-api',
+      environment: productionEnvironment,
+      processAdapter: new FakeProcessAdapter(),
+      start: async ({ managedCloud, markReady }) => {
+        startupConfiguration = managedCloud
+        markReady()
+      },
+    })
+
+    expect(startupConfiguration).toBeUndefined()
+    await runtime.shutdown('test-complete')
+  })
+
   test('fails closed for a staging service without managed-cloud dependencies', async () => {
     const processAdapter = new FakeProcessAdapter()
     await expect(
