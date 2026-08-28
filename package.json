@@ -30,6 +30,7 @@
     "test:recovery-matrix": "bun scripts/run-m9-recovery-matrix.mjs",
     "test:load": "bun scripts/run-m9-load.mjs",
     "test:m9-acceptance": "bun run build && bun test tests/m9-production-hardening.test.mjs && bun run security:scan && bun run test:load",
+    "certify:m9-cloud": "bun run build && bun scripts/certify-m9-cloud.mjs",
     "test:e2e": "bun run build && bun scripts/run-bun-test-group.mjs e2e --timeout 30000",
     "test:smoke": "bun run build && bun scripts/run-bun-test-group.mjs smoke --timeout 30000",
     "test:foundation": "bun run test && bun run test:integration",

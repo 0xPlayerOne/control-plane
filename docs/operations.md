@@ -66,6 +66,30 @@ For M9 staging certification, verify the retained `m9/certification/` result wit
 match its digest to the terminal execution/command state, and replay the same accepted command to
 confirm that no second logical artifact is created. Do not report this as managed Pi certification.
 
+Run the repository-owned live certification harness only against the isolated Railway/Neon/R2
+staging profile:
+
+```sh
+bun run certify:m9-cloud
+```
+
+The operator supplies `M9_CONTROL_API_URL`, `M9_SERVICE_AUTH_ISSUER`,
+`M9_SERVICE_AUTH_KEY_ID`, `M9_SERVICE_AUTH_PRIVATE_KEY_FILE`, `DATABASE_URL`, `R2_ENDPOINT`,
+`R2_BUCKET`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` through the local secret boundary. The
+private signing key is a short-lived staging-certification credential whose matching public key is
+configured in the staging Control API trust set; it is never committed or printed. `DATABASE_URL`
+uses the least-privilege staging application role because the harness seeds one immutable bounded
+certification plan through the same repository used by the service. The harness does not accept a
+migration/admin connection.
+
+A passing JSON record proves all of the following for one run: authenticated public acceptance,
+terminal command/execution/attempt state in Neon, an integrity-matched retained result through the
+R2 `ObjectStore`, and idempotent replay returning the original execution and artifact. The record
+contains identifiers, timestamps, state, and digests only. Keep deployment IDs, exact source commit,
+Railway build/readiness results, Restate registration/restart evidence, resource metrics, and the
+sanitized harness record together in the M9.6 evidence attachment. The harness is not by itself
+proof of rollback, restart recovery, load, isolation, secret-canary, or cost acceptance.
+
 ## Neon operations
 
 - Use the dedicated Control Plane Neon project/database, never Agent HQ's database.
