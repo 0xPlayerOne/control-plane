@@ -17,6 +17,8 @@
           "name": "workflow-worker",
           "app": "workflow-worker",
           "public": false,
+          "healthPath": "/health",
+          "readyPath": "/ready",
           "requires": ["DATABASE_URL"]
         },
         {
