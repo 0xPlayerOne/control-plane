@@ -1,64 +1,93 @@
 # Failure recovery and disaster-recovery runbook
 
-Control Plane authoritative state is PostgreSQL execution/event/usage/eval data and versioned object
-storage. ECS tasks, gateways, workers, local process memory, telemetry, and cache are replaceable.
-Recovery must never infer an uncertain external side effect: ambiguous provider/runtime outcomes enter
-`reconciliation_required` and preserve their command, payload, attempt, and policy identities.
+Control Plane recovery is profile-specific but preserves one semantic rule: committed logical work, idempotency state, ProjectState, execution/event/usage evidence, and approved artifacts must survive supported failure modes without guessing ambiguous external side effects. Ambiguous non-idempotent outcomes enter `reconciliation_required`.
 
-## Objectives
+## Ownership by milestone
 
-| State or service                    |                            RPO |        RTO | Recovery rule                                                     |
-| ----------------------------------- | -----------------------------: | ---------: | ----------------------------------------------------------------- |
-| Execution, event, and usage ledgers |         0 seconds after commit |  5 minutes | replay durable inbox/outbox and idempotency records               |
-| PostgreSQL service                  |                      5 minutes | 60 minutes | Multi-AZ failover, then PITR/restore if required                  |
-| Versioned object storage            | 0 seconds for accepted version | 60 minutes | select the last verified object version; never overwrite evidence |
-| API, workers, gateways, cache       |                      0 seconds | 10 minutes | replace tasks and rebuild projections from authoritative records  |
+- **M9** proves the managed-cloud Railway + Neon + R2 + Restate recovery path.
+- **M10** adds Local SQLite/Restate and Self-hosted SQLite/PostgreSQL recovery, backup, restart, and upgrade/rollback behavior.
+- **M11** independently reruns the recovery matrix across all accepted profiles and records measured RPO/RTO or equivalent recovery evidence.
 
-## Automated drill
+Historical AWS/RDS/ECS recovery text and scripts may remain as implementation provenance until M9.7 removes or archives them. They are not the current first-party cloud runbook.
 
-`bun run test:integration` runs the complete database/LangGraph integration suite, stops the local
-PostgreSQL service to prove active connection loss is detected, restarts it to prove committed
-evidence survives, and runs a custom-format `pg_dump`/`pg_restore` drill between two isolated
-non-production databases. The restore drill verifies exact evaluation, execution-plan, event, and
-usage evidence before disposing both databases through the shared isolated-database lifecycle.
-`bun run test:recovery` runs only the restore portion when the local PostgreSQL service is already
-healthy and the three scoped database URLs are present.
+## Managed-cloud recovery target — M9
 
-The integration/recovery lane runs `bun run test:recovery-matrix`. It fails closed unless every
-named `failureScenarios` entry maps to an existing production test or the real PostgreSQL/LangGraph
-integration and restore command, then executes all referenced evidence. Unit failure and replay
-coverage includes
-`apps/workflow-worker/src/execution-workflow.test.mjs`,
-`apps/runtime-gateway/src/reconnect-reconciliation.test.mjs`,
-`packages/events/src/delivery.test.mjs`, and `packages/langgraph-adapter/src/index.test.mjs`.
-PostgreSQL transaction rollback runs in `packages/database/src/integration.test.mjs`; active
-connection loss and service-restart persistence run in `scripts/run-postgres-disruption-drill.mjs`;
-checkpoint restart and the real restore drill remain in the integration lane. The local restart is a
-failover surrogate, not proof of AWS Multi-AZ failover. The scenario catalog and executable evidence
-mapping must remain one-to-one.
+The accepted cloud profile is Railway compute, separate Control Plane Neon PostgreSQL, Cloudflare R2, and Restate.
 
-For an AWS drill, restore the selected RDS recovery point into a new isolated instance, deny all
-application traffic, run schema/record/digest verification, and record observed RPO/RTO. Promotion
-requires an operator to repoint a canary task, validate readiness and reconciliation backlog, and
-then explicitly approve traffic movement. Never restore over the active production instance.
+Required M9 evidence includes:
 
-## Failure signatures and response
+- failed Railway deploy rollback/forward repair;
+- service restart/redeploy and draining behavior;
+- Neon connection loss/reconnect;
+- explicit migration failure behavior;
+- Neon backup/PITR or equivalent restore procedure validated against an isolated destination;
+- Restate restart/redeploy while durable work exists;
+- Runtime Gateway reconnect where a non-co-located RuntimeNode is used;
+- R2 operation failure/recovery where cloud object storage is used;
+- no duplicate logical execution, effect, Artifact, usage, or billing record after redelivery/restart;
+- content-redacted logs/traces throughout incidents.
 
-- `service.configuration_invalid` or startup failure: do not roll forward; compare digest-pinned task
-  definition, secret versions, schema/protocol/adapter compatibility, and environment validation.
-- PostgreSQL connection/failover errors: stop migrations, preserve inbox/outbox backlog, confirm RDS
-  failover status, then replay from durable offsets after readiness.
-- Temporal worker loss/replay: replace the worker; deterministic workflow replay must retain stable
-  effect keys. A nondeterminism error blocks deployment and requires the previous worker revision.
-- Runtime Gateway reconnect storm or ACK latency: apply admission/backpressure limits, retain command
-  identity, and replay only queued or provably unacknowledged commands.
-- Missing retained runtime outcome or partial provider response: mark reconciliation required; never
-  retry a non-idempotent effect merely because an ACK is absent.
-- Event delivery outage/dead letter: retain the ordered outbox record, repair the consumer, and replay
-  from the last durable acknowledgement. Duplicate consumers must converge through idempotency keys.
-- Checkpoint interruption: resume the exact graph/version/checkpoint lineage; incompatible graph code
-  blocks resume and returns to the last certified worker revision.
+M9.6 #73 cannot close from configuration shape alone. It requires live staging recovery evidence.
 
-Every drill or incident records timestamps, affected release and immutable versions, committed record
-counts/digests, reconciliation/manual-intervention counts, observed RPO/RTO, operator decisions, and
-cleanup evidence. Sensitive payloads and credentials are prohibited from the incident record.
+## Local recovery target — M10
+
+Local uses the all-in-one Control Plane composition, Node 24 `node:sqlite`, single-node Restate, filesystem storage, and direct RuntimeTransport.
+
+Required behavior:
+
+- Control Plane process crash/restart;
+- Restate process crash/restart;
+- full host restart and desktop sleep/wake where applicable;
+- SQLite WAL/transaction integrity;
+- SQLite backup/restore and corruption handling;
+- local filesystem Artifact availability/recovery;
+- RuntimeDriver/Pi/ACP restart/reconciliation;
+- no Runtime Gateway dependency for co-located execution;
+- no silent failover to Agent HQ Cloud when the selected Local node is unavailable.
+
+## Self-hosted recovery target — M10
+
+`simple` uses SQLite + Restate + filesystem storage. `server` uses PostgreSQL + Restate and filesystem or S3-compatible storage.
+
+Required behavior:
+
+- container recreation and host restart with persistent user-owned volumes;
+- backup/restore for SQLite `simple` and PostgreSQL `server`;
+- upgrade/rollback/forward repair;
+- TLS/reverse-proxy and outbound remote-control reconnection;
+- Runtime Gateway reconnect only where runtime topology requires it;
+- secret/key rotation and revocation;
+- operator-visible failure and explicit recovery rather than automatic movement to first-party cloud.
+
+## Common failure signatures and response
+
+- **Configuration/startup invalid:** refuse readiness; compare exact candidate, schema, service configuration, Restate version, public-contract versions, and required provider connectivity.
+- **Database connection loss:** stop schema mutation, preserve durable command/event state, restore/reconnect the owning persistence provider, then replay only from durable idempotency/reconciliation boundaries.
+- **Restate loss/restart:** recover from Restate durable state; a workflow incompatibility or nondeterministic migration blocks new promotion and requires the previous compatible application/runtime revision or explicit forward repair.
+- **Runtime Gateway reconnect storm:** apply admission/backpressure limits and preserve command identity; replay only commands that are queued or provably unresolved.
+- **Direct RuntimeDriver failure:** reconcile against driver/runtime authoritative status where possible; do not route through Runtime Gateway merely because the direct path failed.
+- **Missing runtime/provider outcome:** enter reconciliation rather than guessing or blindly retrying a non-idempotent effect.
+- **Event delivery outage:** retain durable event/outbox state and resume from durable acknowledgement/cursor; duplicate delivery must converge idempotently.
+- **LangGraph checkpoint interruption:** resume the exact graph/version/checkpoint lineage inside the Restate-owned lifecycle; ProjectState remains separately authoritative.
+- **ContextProvider outage:** follow the immutable disabled/preferred/required failure policy; never broaden scope or upload provider/local corpus data as an implicit recovery action.
+
+## Recovery evidence
+
+Every drill records:
+
+- exact commit/release and deployment profile;
+- application, Restate, persistence schema, adapter/driver/transport, and relevant provider versions;
+- timestamps and observed recovery duration;
+- committed record counts/digests where safe;
+- command/event replay and reconciliation counts;
+- operator decisions and rollback/forward-repair target;
+- cleanup evidence;
+- deviations from the declared guarantees.
+
+Sensitive prompt, file, provider, credential, or HPKE plaintext content is prohibited from incident evidence.
+
+## Current automated evidence
+
+Existing PostgreSQL/LangGraph/Temporal-era integration and recovery scripts are historical executable evidence and may remain useful while M9.8/M10 replace the underlying workflow/persistence topology. They do not by themselves certify the accepted Railway/Neon/R2/Restate cloud profile or the M10 Local/Self-hosted profiles.
+
+M9.7–M9.9 and M10 must update the executable recovery matrix so M11 can run one explicit profile-aware suite rather than treating historical AWS/Temporal fixtures as production proof.
