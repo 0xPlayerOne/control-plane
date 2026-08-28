@@ -1,9 +1,12 @@
 import http from 'node:http'
 import * as restate from '@restatedev/restate-sdk'
 import {
+  ExecutionWorkflowInputSchema,
+  type ExecutionWorkflowInput,
+} from '@control-plane/orchestration'
+import {
   runExecutionLifecycle,
   type ExecutionLifecycleActivities,
-  type ExecutionWorkflowInput,
   type ExecutionWorkflowResult,
   type WorkflowInteractionResponse,
 } from './execution-workflow.js'
@@ -44,10 +47,8 @@ export function createRestateWorkflowDefinition(
   return restate.workflow({
     name: restateWorkflowName,
     handlers: {
-      run: async (
-        ctx: restate.WorkflowContext,
-        input: ExecutionWorkflowInput
-      ): Promise<ExecutionWorkflowResult> => runRestateExecution(ctx, input, activities),
+      run: async (ctx: restate.WorkflowContext, input: unknown): Promise<ExecutionWorkflowResult> =>
+        runRestateExecution(ctx, input, activities),
       respondToInteraction: async (
         ctx: restate.WorkflowSharedContext,
         response: WorkflowInteractionResponse
@@ -67,9 +68,10 @@ type TerminalControl = { readonly cancelled: true } | { readonly deadlineReached
 
 async function runRestateExecution(
   ctx: restate.WorkflowContext,
-  input: ExecutionWorkflowInput,
+  inputValue: unknown,
   activities: ExecutionLifecycleActivities
 ): Promise<ExecutionWorkflowResult> {
+  const input: ExecutionWorkflowInput = ExecutionWorkflowInputSchema.parse(inputValue)
   const deadlineDelay = Math.max(0, Date.parse(input.deadlineAt) - (await ctx.date.now()))
   const terminalControl = ctx.promise<TerminalControl>(terminalControlPromiseName)
   const waitForInteraction = async (

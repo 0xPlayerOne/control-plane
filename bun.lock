@@ -43,6 +43,7 @@
         "@control-plane/database": "workspace:*",
         "@control-plane/domain": "workspace:*",
         "@control-plane/execution-plan": "workspace:*",
+        "@control-plane/orchestration": "workspace:*",
         "@control-plane/telemetry": "workspace:*",
         "@fastify/helmet": "13.1.1",
         "@nestjs/common": "11.2.1",

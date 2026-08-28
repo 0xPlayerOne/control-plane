@@ -12,6 +12,12 @@ import {
   type ServiceAuthenticator,
 } from './auth/service-authentication.js'
 import { HealthController } from './health/health.controller.js'
+import { ExecutionAcceptanceController } from './executions/execution-acceptance.controller.js'
+import {
+  EXECUTION_ACCEPTANCE_SERVICE,
+  UnavailableExecutionAcceptanceService,
+  type ExecutionAcceptanceService,
+} from './executions/execution-acceptance.service.js'
 import { ExecutionValidationController } from './executions/execution-validation.controller.js'
 import {
   EXECUTION_VALIDATION_SERVICE,
@@ -38,6 +44,7 @@ import {
 import { RuntimeDiscoveryService } from './runtime-discovery/runtime-discovery.service.js'
 
 export interface AppModuleOptions extends ApiRuntimeBindings {
+  readonly executionAcceptanceService?: ExecutionAcceptanceService
   readonly executionValidationService?: ExecutionValidationService
   readonly serviceAuthenticator?: ServiceAuthenticator
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
@@ -62,6 +69,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
   return {
     module: AppModule,
     controllers: [
+      ExecutionAcceptanceController,
       ExecutionValidationController,
       HealthController,
       RuntimeDiscoveryController,
@@ -73,6 +81,10 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       { provide: API_METADATA, useValue: options.metadata },
       { provide: API_READINESS, useValue: options.readiness },
       { provide: API_TELEMETRY, useValue: telemetry },
+      {
+        provide: EXECUTION_ACCEPTANCE_SERVICE,
+        useValue: options.executionAcceptanceService ?? new UnavailableExecutionAcceptanceService(),
+      },
       {
         provide: EXECUTION_VALIDATION_SERVICE,
         useValue: options.executionValidationService ?? new UnavailableExecutionValidationService(),
