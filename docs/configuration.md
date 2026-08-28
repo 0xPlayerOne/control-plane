@@ -21,7 +21,7 @@ Development and test may load local dotenv files. Staging and production do not 
 
 Railway service/shared variables are the accepted initial source for **service/bootstrap configuration** such as:
 
-- service version/commit/environment;
+- application environment and service configuration;
 - service-to-service endpoints/credentials;
 - Neon runtime connection reference;
 - separately scoped Neon migration/admin reference for the migration job only;
@@ -30,6 +30,8 @@ Railway service/shared variables are the accepted initial source for **service/b
 - bootstrap/master references for other deployment services.
 
 M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency. The repository-owned manifest is `infrastructure/railway/environment.json`; M9.8 publishes the Restate contract in `infrastructure/railway/restate.json`, and M9.9 wires and verifies both against Railway.
+
+Railway deployment metadata is consumed directly: `RAILWAY_GIT_COMMIT_SHA` supplies the source revision and `RAILWAY_DEPLOYMENT_ID` supplies the deployed service version. `COMMIT_SHA` and `SERVICE_VERSION` are provider-neutral explicit overrides for Hosted or other non-Railway supervisors; Railway services do not need redundant reference aliases for them.
 
 Railway's injected `PORT` must be honored by HTTP services or mapped explicitly through repository-owned Railway configuration. Do not assume the historical fixed development ports are the cloud ingress contract.
 
