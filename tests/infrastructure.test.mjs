@@ -41,6 +41,7 @@ test('pins a durable private Restate runtime for Railway cloud', async () => {
       RESTATE_CLUSTER_NAME: 'control-plane-staging',
       RESTATE_NODE_NAME: 'control-plane-staging-1',
       RESTATE_AUTO_PROVISION: 'true',
+      RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE: '/restate-data/request-identity-private.pem',
     },
   })
 })
@@ -57,6 +58,9 @@ test('owns the active Railway project graph as code without committed secrets', 
   assert.match(source, /healthcheckPath: '\/ready'/)
   assert.match(source, /['"]\/restate-data['"]: restateData/)
   assert.match(source, /DATABASE_URL: preserve\(\)/)
+  assert.match(source, /RESTATE_INGRESS_URL:/)
+  assert.match(source, /RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve\(\)/)
+  assert.doesNotMatch(source, /RESTATE_SERVICE_AUTH_TOKEN/)
   assert.doesNotMatch(source, /(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY):\s*['"][^'"]+['"]/)
   assert.doesNotMatch(
     source,

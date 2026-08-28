@@ -31,7 +31,7 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
     ...(options.environment === undefined ? {} : { environment: options.environment }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),
     ...(options.processAdapter === undefined ? {} : { processAdapter: options.processAdapter }),
-    start: async ({ markReady, metadata, registerResource }) => {
+    start: async ({ managedCloud, markReady, metadata, registerResource }) => {
       const traceAdapter =
         options.traceAdapter ??
         (metadata.environment === 'development'
@@ -56,7 +56,13 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
                     shutdown: async () => undefined,
                   }),
                 }
-              : createRestateEndpointFactory())
+              : createRestateEndpointFactory({
+                  ...(managedCloud?.restate?.role !== 'endpoint'
+                    ? {}
+                    : {
+                        requestIdentityPublicKey: managedCloud.restate.requestIdentityPublicKey,
+                      }),
+                }))
           const endpoint = await factory.create()
           registerResource('restate-endpoint', () => endpoint.shutdown())
           await endpoint.run()

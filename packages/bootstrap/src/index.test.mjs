@@ -54,6 +54,7 @@ describe('bootstrapService', () => {
         R2_REGION: 'auto',
         R2_ACCESS_KEY_ID: 'access-key',
         R2_SECRET_ACCESS_KEY: 'secret-key-that-is-not-logged',
+        RESTATE_INGRESS_URL: 'http://control-planerestate.railway.internal:8080',
       },
       logger: { write: (entry) => logs.push(entry) },
       processAdapter: new FakeProcessAdapter(),

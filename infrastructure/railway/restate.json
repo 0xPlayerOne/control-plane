@@ -18,7 +18,8 @@
     "environment": {
       "RESTATE_CLUSTER_NAME": "control-plane-staging",
       "RESTATE_NODE_NAME": "control-plane-staging-1",
-      "RESTATE_AUTO_PROVISION": "true"
+      "RESTATE_AUTO_PROVISION": "true",
+      "RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE": "/restate-data/request-identity-private.pem"
     }
   },
   "port": 9080,
@@ -33,5 +34,11 @@
     "deadlines": "durable timer race",
     "restarts": "replay from Restate journal"
   },
-  "requiredEnvironment": ["DATABASE_URL", "R2_ENDPOINT", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]
+  "requiredEnvironment": [
+    "DATABASE_URL",
+    "R2_ENDPOINT",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "RESTATE_REQUEST_IDENTITY_PUBLIC_KEY"
+  ]
 }

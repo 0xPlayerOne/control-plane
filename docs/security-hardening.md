@@ -75,6 +75,13 @@ Required cloud checks include:
 - Neon runtime versus migration authority;
 - Restate endpoint/access/logging boundaries;
 - R2 bucket/credential scope;
+
+The private Railway Restate server signs service-protocol requests with its volume-backed ED25519
+identity key, and `workflow-worker` validates the corresponding public key through the Restate SDK.
+Restate ingress and admin remain private. Self-hosted Restate has no application-level bearer-token
+control on those ports, so the Cloud profile does not model one; any future public ingress requires
+an authenticating proxy that strips infrastructure credentials before journaling.
+
 - the selected dynamic credential-vault provider, lease/rotation/revocation and leak-canary behavior;
 - build/deploy logs for secret leakage;
 - provider/tool/model optionality and no-provider startup;
