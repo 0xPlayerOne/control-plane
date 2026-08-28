@@ -166,6 +166,23 @@ test('configures the Code Foundry CI baseline for the public direct-flow reposit
   }
 })
 
+test('emits the required gate contexts and documents the enforced rebase policy', async () => {
+  const [config, contributing, ci, foundation, productionReadiness] = await Promise.all([
+    readFile(new URL('../.github/code-foundry.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/CONTRIBUTING.md', import.meta.url), 'utf8'),
+    readFile(new URL('../docs/ci.md', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/foundation-acceptance.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/m9-production-readiness.yml', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(config, /^merge_strategy: rebase$/m)
+  assert.match(foundation, /^\s{4}name: Foundation Acceptance \/ Gate$/m)
+  assert.match(productionReadiness, /^\s{4}name: M9 Production Readiness \/ Gate$/m)
+  assert.match(contributing, /feature PRs land on `main` with rebase merges/)
+  assert.match(ci, /Feature branches must rebase into `main`/)
+  assert.doesNotMatch(contributing, /feature PRs land on `main` with squash merges/)
+})
+
 test('generates only the direct-flow Code Foundry callers with parallel validation', async () => {
   const validation = await readFile(
     new URL('../.github/workflows/validation.yml', import.meta.url),
