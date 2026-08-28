@@ -70,6 +70,7 @@ test('owns the active Railway project graph as code without committed secrets', 
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: preserve\(\)/)
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: preserve\(\)/)
   assert.match(source, /volume\('restate-data', \{ sizeMB: 500, region: 'ams' \}\)/)
+  assert.match(source, /const workflowWorker = service[\s\S]*?env: \{[\s\S]*?PORT: '9080'/)
   assert.doesNotMatch(source, /CONTROL_PLANE_SERVICE_AUTH_TOKEN/)
   assert.doesNotMatch(source, /RESTATE_SERVICE_AUTH_TOKEN/)
   assert.doesNotMatch(source, /\bCOMMIT_SHA:\s*preserve\(\)/)

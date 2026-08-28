@@ -57,6 +57,7 @@ export default defineRailway((context) => {
     },
     networking: { privateNetworkEndpoint: 'control-planeworkflow-worker' },
     env: {
+      PORT: '9080',
       APP_ENV: applicationEnvironment,
       DATABASE_URL: preserve(),
       CONTROL_PLANE_SECRET_ENCRYPTION_KEY: preserve(),
