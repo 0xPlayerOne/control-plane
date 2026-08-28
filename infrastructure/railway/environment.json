@@ -3,6 +3,11 @@
   "provider": "railway",
   "profile": "cloud",
   "applicationEnvironment": "managed-cloud",
+  "deploymentMetadata": {
+    "commit": "RAILWAY_GIT_COMMIT_SHA",
+    "serviceVersion": "RAILWAY_DEPLOYMENT_ID",
+    "explicitOverrides": ["COMMIT_SHA", "SERVICE_VERSION"]
+  },
   "database": {
     "runtimeVariable": "DATABASE_URL",
     "migrationVariable": "DATABASE_MIGRATION_URL",

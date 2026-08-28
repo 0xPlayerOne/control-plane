@@ -22,16 +22,18 @@ export function parseApplicationMetadata<Service extends string>(
 ): MetadataParseResult<Service> {
   const productionLike =
     applicationEnvironment === 'staging' || applicationEnvironment === 'production'
+  const version = environment['SERVICE_VERSION'] ?? environment['RAILWAY_DEPLOYMENT_ID']
+  const commitSha = environment['COMMIT_SHA'] ?? environment['RAILWAY_GIT_COMMIT_SHA']
   const missing = [
-    ...(productionLike && !environment['SERVICE_VERSION'] ? ['SERVICE_VERSION'] : []),
-    ...(productionLike && !environment['COMMIT_SHA'] ? ['COMMIT_SHA'] : []),
+    ...(productionLike && !version ? ['SERVICE_VERSION'] : []),
+    ...(productionLike && !commitSha ? ['COMMIT_SHA'] : []),
   ]
-  const version = environment['SERVICE_VERSION'] ?? defaultVersion(applicationEnvironment)
-  const commitSha = environment['COMMIT_SHA'] ?? defaultCommit(applicationEnvironment)
+  const resolvedVersion = version ?? defaultVersion(applicationEnvironment)
+  const resolvedCommitSha = commitSha ?? defaultCommit(applicationEnvironment)
   const instanceId = environment['INSTANCE_ID'] ?? randomUUID()
   const invalid = [
-    ...(!isMetadataValue(version) ? ['SERVICE_VERSION'] : []),
-    ...(!isMetadataValue(commitSha) ? ['COMMIT_SHA'] : []),
+    ...(!isMetadataValue(resolvedVersion) ? ['SERVICE_VERSION'] : []),
+    ...(!isMetadataValue(resolvedCommitSha) ? ['COMMIT_SHA'] : []),
     ...(!isMetadataValue(instanceId) ? ['INSTANCE_ID'] : []),
   ]
   if (missing.length || invalid.length) return { invalid, missing }
@@ -41,8 +43,8 @@ export function parseApplicationMetadata<Service extends string>(
     missing,
     metadata: {
       serviceName,
-      version,
-      commitSha,
+      version: resolvedVersion,
+      commitSha: resolvedCommitSha,
       environment: applicationEnvironment,
       instanceId,
     },

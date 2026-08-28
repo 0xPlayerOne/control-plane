@@ -54,6 +54,35 @@ describe('loadServiceConfiguration', () => {
     }
   })
 
+  test('uses Railway deployment metadata when application aliases are absent', async () => {
+    const configuration = await loadServiceConfiguration('runtime-gateway', {
+      APP_ENV: 'staging',
+      RAILWAY_DEPLOYMENT_ID: 'railway-deployment-123',
+      RAILWAY_GIT_COMMIT_SHA: '0123456789abcdef',
+    })
+
+    expect(configuration.metadata).toEqual(
+      expect.objectContaining({
+        commitSha: '0123456789abcdef',
+        version: 'railway-deployment-123',
+      })
+    )
+  })
+
+  test('keeps explicit application metadata authoritative on Railway', async () => {
+    const configuration = await loadServiceConfiguration('runtime-gateway', {
+      APP_ENV: 'staging',
+      COMMIT_SHA: 'explicit-commit',
+      SERVICE_VERSION: 'explicit-version',
+      RAILWAY_DEPLOYMENT_ID: 'railway-deployment-123',
+      RAILWAY_GIT_COMMIT_SHA: '0123456789abcdef',
+    })
+
+    expect(configuration.metadata).toEqual(
+      expect.objectContaining({ commitSha: 'explicit-commit', version: 'explicit-version' })
+    )
+  })
+
   test('provides distinct typed configuration surfaces for HTTP services and workers', async () => {
     const metadata = {
       APP_ENV: 'test',
