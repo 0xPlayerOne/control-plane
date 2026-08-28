@@ -2,7 +2,7 @@ name: M9 Production Readiness
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, staging]
     types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '17 7 * * 3'
@@ -70,7 +70,7 @@ jobs:
 
   # Stable required check: M9 Production Readiness / Gate
   gate:
-    name: Gate
+    name: M9 Production Readiness / Gate
     if: always()
     needs: [containers, core, integration-recovery]
     runs-on: ubuntu-latest

@@ -40,7 +40,7 @@ As of the current M9 activation baseline:
 - a Railway `control-plane` project and isolated staging environment exist;
 - dependency-aware monorepo builds are fixed and the active Cloud application topology is `control-api` plus `workflow-worker`;
 - the private Restate runtime is separately pinned in `restate.json` and requires live provisioning;
-- a dedicated Neon staging branch has the complete Control Plane schema and least-privilege runtime/migration roles; Neon main remains untouched;
+- the Railway `staging` environment tracks Git `staging` and uses the dedicated Neon `staging` branch, while Railway `production` tracks Git `main` and uses Neon `main`; each environment has separate least-privilege runtime/migration roles;
 - existing `neon_auth` tables in that Neon project are not Control Plane identity authority and must not become an application dependency;
 - a Cloudflare R2 bucket named **`ctrl-plane`** already exists for the Control Plane managed-cloud ObjectStore, with logical Wrangler binding **`ctrl_plane`**;
 - an authenticated Wrangler CLI is available to implementation agents for non-destructive R2 inspection/configuration and synthetic smoke tests;
@@ -68,6 +68,18 @@ service.
 
 `workflow-worker` is the Restate HTTP endpoint for the `execution-lifecycle` workflow. Its endpoint contract is versioned in `infrastructure/railway/restate.json`; M9.9 owns the live Restate registration and dependency wiring.
 
+The worker probes Neon before readiness and composes durable execution/attempt activities from the
+PostgreSQL repositories. Railway staging selects the explicit Cloud certification runtime. That
+runtime receives the exact accepted plan identity through Restate, writes a deterministic terminal
+result under the `m9/certification/` R2 prefix, and verifies the stored body and metadata through
+`get` and `head` before reporting completion. Replay checks the same object and fails closed on a
+conflict. Railway production selects `disabled`, so certification traffic cannot be enabled in the
+future production environment by accident.
+
+The certification runtime proves the M9 Railway + Restate + Neon + R2 lifecycle; it is not a mock Pi
+provider and does not claim that the later Agent HQ `agent_hq_cloud` product runtime is certified.
+An injected concrete runtime activity port replaces it when that product capability is implemented.
+
 The endpoint validates Restate native request identity with the environment-specific public key.
 The matching ED25519 private key is stored only on the Restate data volume and referenced by file;
 it is never committed or copied to application services. `control-api` owns the private port-8080
@@ -92,6 +104,10 @@ M9.7 should use a dependency-aware, reproducible container build from the monore
 ## Neon PostgreSQL
 
 The Control Plane cloud database is external to Railway and independently owned.
+Railway does not share a connection string between environments: `staging` maps
+to the Neon `staging` branch and `production` maps to Neon `main`. The mapping is
+versioned in `infrastructure/railway/environment.json`; connection strings and
+credentials remain Railway-managed secrets.
 
 Requirements:
 

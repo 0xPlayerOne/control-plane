@@ -6,9 +6,11 @@
     "@control-plane/bootstrap": "workspace:*",
     "@control-plane/config": "workspace:*",
     "@control-plane/contracts": "workspace:*",
+    "@control-plane/database": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/execution-plan": "workspace:*",
     "@control-plane/orchestration": "workspace:*",
+    "@control-plane/object-store": "workspace:*",
     "@control-plane/telemetry": "workspace:*",
     "@restatedev/restate-sdk": "1.16.9"
   },

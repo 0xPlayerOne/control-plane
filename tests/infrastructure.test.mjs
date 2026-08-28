@@ -18,6 +18,11 @@ test('defines the Railway cloud service and migration manifest', async () => {
     ['control-api']
   )
   assert.deepEqual(manifest.profiles.cloud.migration.requires, ['DATABASE_MIGRATION_URL'])
+  assert.ok(
+    services
+      .find(({ name }) => name === 'workflow-worker')
+      .requires.includes('CONTROL_PLANE_CLOUD_RUNTIME')
+  )
   assert.equal(
     manifest.profiles.cloud.migration.command,
     'bun --cwd=packages/database run db:migrate'
@@ -60,12 +65,43 @@ test('owns the active Railway project graph as code without committed secrets', 
   assert.match(source, /DATABASE_URL: preserve\(\)/)
   assert.match(source, /RESTATE_INGRESS_URL:/)
   assert.match(source, /RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve\(\)/)
+  assert.match(source, /CONTROL_PLANE_CLOUD_RUNTIME: production \? 'disabled' : 'certification'/)
+  assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_ISSUER: preserve\(\)/)
+  assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: preserve\(\)/)
+  assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: preserve\(\)/)
+  assert.doesNotMatch(source, /CONTROL_PLANE_SERVICE_AUTH_TOKEN/)
   assert.doesNotMatch(source, /RESTATE_SERVICE_AUTH_TOKEN/)
+  assert.doesNotMatch(source, /\bCOMMIT_SHA:\s*preserve\(\)/)
+  assert.doesNotMatch(source, /\bSERVICE_VERSION:\s*preserve\(\)/)
   assert.doesNotMatch(source, /(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY):\s*['"][^'"]+['"]/)
   assert.doesNotMatch(
     source,
     /service\('@control-plane\/(?:runtime-worker|runtime-gateway|tool-gateway)'/
   )
+})
+
+test('maps Railway staging and production to isolated Neon branches', async () => {
+  const environment = JSON.parse(
+    await readRepositoryFile('infrastructure/railway/environment.json')
+  )
+  const source = await readRepositoryFile('.railway/railway.ts')
+
+  assert.deepEqual(environment.environments, {
+    staging: {
+      railwayEnvironment: 'staging',
+      applicationEnvironment: 'staging',
+      sourceBranch: 'staging',
+      neon: { provider: 'neon', project: 'control-plane', branch: 'staging' },
+    },
+    production: {
+      railwayEnvironment: 'production',
+      applicationEnvironment: 'production',
+      sourceBranch: 'main',
+      neon: { provider: 'neon', project: 'control-plane', branch: 'main' },
+    },
+  })
+  assert.match(source, /const sourceBranch = production \? 'main' : 'staging'/)
+  assert.equal((source.match(/branch: sourceBranch/g) ?? []).length, 2)
 })
 
 test('uses a dependency-aware portable container build without AWS deployment assumptions', async () => {

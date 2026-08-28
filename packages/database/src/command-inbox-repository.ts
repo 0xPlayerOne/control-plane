@@ -77,6 +77,16 @@ export class PostgresCommandAcceptanceRepository implements CommandAcceptanceRep
     return row ? fromCommandRow(row) : undefined
   }
 
+  async getByExecutionId(executionId: string): Promise<CommandInboxRecord | undefined> {
+    const parsedId = ExecutionSchema.shape.executionId.parse(executionId)
+    const [row] = await this.database
+      .select()
+      .from(commandInbox)
+      .where(eq(commandInbox.executionId, parsedId))
+      .limit(1)
+    return row ? fromCommandRow(row) : undefined
+  }
+
   async getExecution(executionId: string): Promise<Execution | undefined> {
     const parsedId = ExecutionSchema.shape.executionId.parse(executionId)
     const [row] = await this.database

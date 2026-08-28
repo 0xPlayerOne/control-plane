@@ -259,8 +259,7 @@ export class InMemoryExecutionPlanRepository implements ExecutionPlanRepository 
   readonly #plans = new Map<string, ExecutionPlan>()
 
   async put(input: ExecutionPlan): Promise<ExecutionPlanReference> {
-    const plan = parsePlan(input)
-    assertPlanIntegrity(plan)
+    const plan = assertExecutionPlanIntegrity(input)
     const existing = this.#plans.get(plan.executionPlanId)
     if (existing && existing.contentDigest !== plan.contentDigest) {
       throw new Error('EXECUTION_PLAN_ID_CONFLICT')
@@ -275,6 +274,12 @@ export class InMemoryExecutionPlanRepository implements ExecutionPlanRepository 
     if (!plan || plan.contentDigest !== reference.contentDigest) return undefined
     return structuredClone(plan)
   }
+}
+
+export function assertExecutionPlanIntegrity(input: unknown): ExecutionPlan {
+  const plan = parsePlan(input)
+  assertPlanIntegrity(plan)
+  return plan
 }
 
 export class ExecutionPlanAcceptanceValidator {

@@ -27,11 +27,19 @@ Keep runtime database credentials separate from migration/admin authority. Keep 
 
 ## Current M9 state
 
-The Railway project and isolated staging environment exist. The active Cloud application topology is
-`control-api` plus the private `workflow-worker` Restate endpoint; the separately pinned `restate`
-runtime still requires live provisioning. A dedicated Neon staging branch has the Control Plane
-schema and least-privilege roles, while Neon main remains untouched. R2 service credentials and the
-remaining live deployment/recovery evidence are still required before M9.6 #73 can close.
+The Railway project has isolated `staging` and `production` environments. The active Cloud
+application topology is `control-api` plus the private `workflow-worker` Restate endpoint; the
+separately pinned `restate` runtime still requires live provisioning. Railway `staging` tracks Git
+`staging` and Neon `staging`, while Railway `production` tracks Git `main` and Neon `main`; each
+environment has separate least-privilege roles. R2 service credentials and the remaining live
+deployment/recovery evidence are still required before M9.6 #73 can close.
+
+The repository Cloud composition now persists accepted commands/executions in PostgreSQL and wires
+the workflow worker's lifecycle activities to the same authoritative execution and plan data.
+Staging uses the explicit `certification` runtime mode to persist and integrity-check a deterministic
+terminal result through R2. Production uses `disabled` and cannot accept certification executions.
+This path certifies the Control Plane cloud infrastructure only; later Agent HQ managed-runtime
+support requires its own runtime provider and certification.
 
 Do not treat the current Railway dashboard or existing AWS Terraform as production-readiness evidence.
 
@@ -53,6 +61,10 @@ revision.
 10. Run the existing M9 security, recovery, and performance tooling against the actual staging candidate and record measured evidence.
 
 A database migration failure blocks rollout. Never hide a broken revision behind a green process health check. Applied schema changes are repaired forward unless a reviewed restore operation is explicitly required.
+
+For M9 staging certification, verify the retained `m9/certification/` result with `get` and `head`,
+match its digest to the terminal execution/command state, and replay the same accepted command to
+confirm that no second logical artifact is created. Do not report this as managed Pi certification.
 
 ## Neon operations
 

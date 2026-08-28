@@ -57,6 +57,8 @@ if (
   environment.provider !== 'railway' ||
   environment.profile !== 'cloud' ||
   environment.applicationEnvironment !== 'managed-cloud' ||
+  environment.database?.provider !== 'neon' ||
+  environment.database?.project !== 'control-plane' ||
   environment.database?.runtimeVariable !== 'DATABASE_URL' ||
   environment.database?.migrationVariable !== 'DATABASE_MIGRATION_URL' ||
   environment.database?.administrationVariable !== 'DATABASE_ADMIN_URL' ||
@@ -68,10 +70,44 @@ if (
   throw new Error('Railway environment manifest is incomplete or contains committed secrets.')
 }
 
+const expectedEnvironments = {
+  staging: {
+    railwayEnvironment: 'staging',
+    applicationEnvironment: 'staging',
+    sourceBranch: 'staging',
+    neonBranch: 'staging',
+  },
+  production: {
+    railwayEnvironment: 'production',
+    applicationEnvironment: 'production',
+    sourceBranch: 'main',
+    neonBranch: 'main',
+  },
+}
+for (const [name, expectedEnvironment] of Object.entries(expectedEnvironments)) {
+  const configuredEnvironment = environment.environments?.[name]
+  if (
+    configuredEnvironment?.railwayEnvironment !== expectedEnvironment.railwayEnvironment ||
+    configuredEnvironment?.applicationEnvironment !== expectedEnvironment.applicationEnvironment ||
+    configuredEnvironment?.sourceBranch !== expectedEnvironment.sourceBranch ||
+    configuredEnvironment?.neon?.provider !== 'neon' ||
+    configuredEnvironment?.neon?.project !== 'control-plane' ||
+    configuredEnvironment?.neon?.branch !== expectedEnvironment.neonBranch
+  ) {
+    throw new Error(`Railway environment mapping is incomplete or crosses Neon branches: ${name}.`)
+  }
+}
+if (
+  environment.environments.staging.neon.branch === environment.environments.production.neon.branch
+) {
+  throw new Error('Railway staging and production must use distinct Neon branches.')
+}
+
 if (
   environment.services?.['control-api']?.includes('RESTATE_INGRESS_URL') !== true ||
   environment.services?.['workflow-worker']?.includes('RESTATE_REQUEST_IDENTITY_PUBLIC_KEY') !==
     true ||
+  environment.services?.['workflow-worker']?.includes('CONTROL_PLANE_CLOUD_RUNTIME') !== true ||
   JSON.stringify(environment).includes('RESTATE_SERVICE_AUTH_TOKEN')
 ) {
   throw new Error('Railway Restate dependency ownership or request identity is invalid.')
@@ -84,6 +120,12 @@ for (const requiredFragment of [
   "volume('restate-data'",
   'preserve()',
   'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
+  "const sourceBranch = production ? 'main' : 'staging'",
+  'branch: sourceBranch',
+  'CONTROL_PLANE_CLOUD_RUNTIME',
+  'CONTROL_PLANE_SERVICE_AUTH_ISSUER',
+  'CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS',
+  'CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS',
 ]) {
   if (!railwayIac.includes(requiredFragment)) {
     throw new Error(`Railway IaC is missing required project intent: ${requiredFragment}.`)
@@ -91,6 +133,9 @@ for (const requiredFragment of [
 }
 if (railwayIac.includes('RESTATE_SERVICE_AUTH_TOKEN')) {
   throw new Error('Railway IaC must not retain the unsupported Restate service token contract.')
+}
+if (railwayIac.includes('CONTROL_PLANE_SERVICE_AUTH_TOKEN')) {
+  throw new Error('Railway IaC must not retain the removed shared service-auth token.')
 }
 if (
   railwayIac.includes("service('@control-plane/runtime-worker'") ||

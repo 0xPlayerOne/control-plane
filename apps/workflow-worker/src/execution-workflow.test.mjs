@@ -16,19 +16,24 @@ function fakeActivities({ failDispatchOnce = false } = {}) {
   const attempts = new Map()
   const effects = new Set()
   const states = []
+  const statusUpdates = []
   let dispatchCalls = 0
   const interactionEffects = []
   return {
     attempts,
     effects,
     states,
+    statusUpdates,
     interactionEffects,
     activities: {
       ensureAttempt: async ({ executionId, effectKey }) => {
         if (!attempts.has(effectKey)) attempts.set(effectKey, `att_${executionId.slice(4)}`)
         return { attemptId: attempts.get(effectKey) }
       },
-      persistStatus: async ({ state }) => states.push(state),
+      persistStatus: async (update) => {
+        statusUpdates.push(globalThis.structuredClone(update))
+        states.push(update.state)
+      },
       dispatch: async ({ effectKey }) => {
         dispatchCalls += 1
         if (failDispatchOnce && dispatchCalls === 1) throw new Error('transient')
@@ -88,6 +93,23 @@ describe('Restate execution lifecycle', () => {
     })
     expect(timeout.status).toBe('timed_out')
     expect(timedOut.states.at(-1)).toBe('timed_out')
+  })
+
+  test('persists bounded runtime failure metadata', async () => {
+    const fake = fakeActivities()
+    fake.activities.dispatch = async () => ({
+      outcome: 'failed',
+      failureCode: 'MANAGED_RUNTIME_FAILED',
+      retryable: false,
+    })
+
+    await expect(runExecutionLifecycle(input, fake.activities)).resolves.toMatchObject({
+      status: 'failed',
+    })
+    expect(fake.statusUpdates.at(-1)).toMatchObject({
+      state: 'failed',
+      failure: { classification: 'runtime_error', code: 'MANAGED_RUNTIME_FAILED' },
+    })
   })
 
   test('waits durably for a normalized interaction response before resuming', async () => {

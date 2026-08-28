@@ -7,10 +7,11 @@ const restateImage =
 export default defineRailway((context) => {
   const production = context.isEnvironment('production')
   const applicationEnvironment = production ? 'production' : 'staging'
+  const sourceBranch = production ? 'main' : 'staging'
   const restateData = volume('restate-data')
 
   const controlApi = service('@control-plane/control-api', {
-    source: github(repository, { branch: 'main' }),
+    source: github(repository, { branch: sourceBranch }),
     build: {
       builder: 'RAILPACK',
       buildCommand: 'bun run build --filter=@control-plane/control-api...',
@@ -26,11 +27,11 @@ export default defineRailway((context) => {
     networking: { privateNetworkEndpoint: 'control-planecontrol-api' },
     env: {
       APP_ENV: applicationEnvironment,
-      COMMIT_SHA: preserve(),
-      SERVICE_VERSION: preserve(),
       DATABASE_URL: preserve(),
       CONTROL_PLANE_SECRET_ENCRYPTION_KEY: preserve(),
-      CONTROL_PLANE_SERVICE_AUTH_TOKEN: preserve(),
+      CONTROL_PLANE_SERVICE_AUTH_ISSUER: preserve(),
+      CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: preserve(),
+      CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: preserve(),
       R2_ENDPOINT: preserve(),
       R2_BUCKET: 'ctrl-plane',
       R2_REGION: 'auto',
@@ -41,7 +42,7 @@ export default defineRailway((context) => {
   })
 
   const workflowWorker = service('@control-plane/workflow-worker', {
-    source: github(repository, { branch: 'main' }),
+    source: github(repository, { branch: sourceBranch }),
     build: {
       builder: 'RAILPACK',
       buildCommand: 'bun run build --filter=@control-plane/workflow-worker...',
@@ -57,17 +58,15 @@ export default defineRailway((context) => {
     networking: { privateNetworkEndpoint: 'control-planeworkflow-worker' },
     env: {
       APP_ENV: applicationEnvironment,
-      COMMIT_SHA: preserve(),
-      SERVICE_VERSION: preserve(),
       DATABASE_URL: preserve(),
       CONTROL_PLANE_SECRET_ENCRYPTION_KEY: preserve(),
-      CONTROL_PLANE_SERVICE_AUTH_TOKEN: preserve(),
       RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve(),
       R2_ENDPOINT: preserve(),
       R2_BUCKET: 'ctrl-plane',
       R2_REGION: 'auto',
       R2_ACCESS_KEY_ID: preserve(),
       R2_SECRET_ACCESS_KEY: preserve(),
+      CONTROL_PLANE_CLOUD_RUNTIME: production ? 'disabled' : 'certification',
     },
   })
 

@@ -2,7 +2,7 @@ name: Foundation Acceptance
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, staging]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
@@ -55,7 +55,7 @@ jobs:
 
   # Stable required check: Foundation Acceptance / Gate
   gate:
-    name: Gate
+    name: Foundation Acceptance / Gate
     if: always()
     needs: [core, containers]
     runs-on: ubuntu-latest

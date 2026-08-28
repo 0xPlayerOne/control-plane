@@ -9,6 +9,8 @@ export type {
   ManagedCloudConfiguration,
   ManagedCloudObjectStoreConfiguration,
   ManagedCloudRestateConfiguration,
+  ManagedCloudRuntimeConfiguration,
+  ManagedCloudServiceAuthenticationConfiguration,
   ManagedCloudService,
 } from './managed-cloud.js'
 export {

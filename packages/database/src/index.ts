@@ -4,15 +4,21 @@ export {
   DatabaseConnectionError,
 } from './connection.js'
 export { PostgresCommandAcceptanceRepository } from './command-inbox-repository.js'
+export { PostgresContextPackageRepository } from './context-package-repository.js'
 export { PostgresCatalogRepository } from './catalog-repository.js'
 export { PostgresEncryptedSecretStore } from './credential-secret-store.js'
 export { PostgresDelegationRepository } from './delegation-repository.js'
 export { PostgresExecutionEventRepository } from './execution-event-repository.js'
+export { PostgresExecutionPlanRepository } from './execution-plan-repository.js'
 export { PostgresExternalSessionRepository } from './external-session-repository.js'
 export { PostgresExecutionRepository } from './execution-repository.js'
 export { PostgresEvaluationRepository } from './evaluation-repository.js'
 export { PostgresInteractionRepository } from './interaction-repository.js'
 export { PostgresMemoryWriteProposalRepository } from './memory-write-proposal-repository.js'
+export {
+  PostgresProjectStateRepository,
+  PostgresStatePromotionProposalRepository,
+} from './project-state-repository.js'
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
 export { PostgresReleaseAuditRepository } from './release-audit-repository.js'
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
@@ -28,6 +34,7 @@ export type {
 export {
   commandInbox,
   commandInboxStatus,
+  contextPackages,
   agentProfileVersions,
   agentProfiles,
   catalogVersionLifecycle,
