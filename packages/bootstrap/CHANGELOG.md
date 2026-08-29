@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/bootstrap-v1.1.0...bootstrap-v1.2.0) (2026-08-29)
+
+
+### Features
+
+* **bootstrap:** expose managed cloud startup config ([#235](https://github.com/0xPlayerOne/control-plane/issues/235)) ([d07654b](https://github.com/0xPlayerOne/control-plane/commit/d07654be42b893a82bbd87ad3a14b848b728191e))
+* **control-api:** verify signed service credentials ([585777d](https://github.com/0xPlayerOne/control-plane/commit/585777d32f7c8f44c90053236175e35b21c1eef5))
+
+
+### Bug Fixes
+
+* **bootstrap:** enforce managed cloud startup configuration ([#233](https://github.com/0xPlayerOne/control-plane/issues/233)) ([d186b3a](https://github.com/0xPlayerOne/control-plane/commit/d186b3afa9072d9124168dfc3e15f41dd129a066))
+* **infra:** secure Restate service boundary ([#247](https://github.com/0xPlayerOne/control-plane/issues/247)) ([667eb58](https://github.com/0xPlayerOne/control-plane/commit/667eb58e95886eca5327367ca083f90c13fd5ff2))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/bootstrap-v1.0.0...bootstrap-v1.1.0) (2026-08-25)
 
 

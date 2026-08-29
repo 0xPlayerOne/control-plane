@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/control-api-v1.1.2...control-api-v1.2.0) (2026-08-29)
+
+
+### Features
+
+* **control-api:** accept cloud executions ([242f599](https://github.com/0xPlayerOne/control-plane/commit/242f59960b24b7355f88bf1eda6343f14ed5c5f0))
+* **control-api:** compose managed cloud startup ([a99ef72](https://github.com/0xPlayerOne/control-plane/commit/a99ef727554463834ee10c7651158da6bc7ce848))
+* **control-api:** validate execution requests ([3ab0636](https://github.com/0xPlayerOne/control-plane/commit/3ab0636aeba30f15676fd09c85ca079b25130486))
+* **control-api:** verify signed service credentials ([585777d](https://github.com/0xPlayerOne/control-plane/commit/585777d32f7c8f44c90053236175e35b21c1eef5))
+* harden M9 production foundations ([#185](https://github.com/0xPlayerOne/control-plane/issues/185)) ([453d4c8](https://github.com/0xPlayerOne/control-plane/commit/453d4c8afb63ad8c78c00537f3858a4a75637fce))
+
+
+### Bug Fixes
+
+* **operations:** apply cloud policy defaults at boundaries ([#231](https://github.com/0xPlayerOne/control-plane/issues/231)) ([d95ac2f](https://github.com/0xPlayerOne/control-plane/commit/d95ac2f030a1f791676845b7e15e75d6edcc24e4))
+
 ## [1.1.2](https://github.com/0xPlayerOne/control-plane/compare/control-api-v1.1.1...control-api-v1.1.2) (2026-08-25)
 
 

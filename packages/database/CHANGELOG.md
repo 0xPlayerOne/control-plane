@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.5.0...database-v1.6.0) (2026-08-29)
+
+
+### Features
+
+* **catalog:** finalize profile and skill resolution ([#223](https://github.com/0xPlayerOne/control-plane/issues/223)) ([aeff4ff](https://github.com/0xPlayerOne/control-plane/commit/aeff4ff5d78f39cb6a8d5b38e37f05c57354fb6c))
+* **contracts:** freeze managed cloud public boundary ([#222](https://github.com/0xPlayerOne/control-plane/issues/222)) ([e6aa0f1](https://github.com/0xPlayerOne/control-plane/commit/e6aa0f11122eee37aeb2c3116c3a646fc7753333))
+* **control-api:** compose managed cloud startup ([a99ef72](https://github.com/0xPlayerOne/control-plane/commit/a99ef727554463834ee10c7651158da6bc7ce848))
+* **database:** persist context packages ([30e3f81](https://github.com/0xPlayerOne/control-plane/commit/30e3f81527de595ad2235fcd5cfa46f5a80d149b))
+* **database:** persist execution plans ([233895c](https://github.com/0xPlayerOne/control-plane/commit/233895c96091701cf8d1dd89480a5ee4ec5198b2))
+* **database:** persist project state ([659fc9b](https://github.com/0xPlayerOne/control-plane/commit/659fc9b20883267ab9f971c21b9ecfdcce144037))
+* harden M9 production foundations ([#185](https://github.com/0xPlayerOne/control-plane/issues/185)) ([453d4c8](https://github.com/0xPlayerOne/control-plane/commit/453d4c8afb63ad8c78c00537f3858a4a75637fce))
+* **infrastructure:** wire managed cloud dependencies ([#221](https://github.com/0xPlayerOne/control-plane/issues/221)) ([ff809b0](https://github.com/0xPlayerOne/control-plane/commit/ff809b0445f29fec2c47ce19745b9092ec8fca38))
+* **workflow-worker:** persist cloud execution lifecycle ([79b9bfe](https://github.com/0xPlayerOne/control-plane/commit/79b9bfe203a91193c2457c3e3357f6bc100090fd))
+
 ## [1.5.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.4.0...database-v1.5.0) (2026-08-25)
 
 

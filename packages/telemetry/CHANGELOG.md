@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/telemetry-v1.1.1...telemetry-v1.2.0) (2026-08-29)
+
+
+### Features
+
+* harden M9 production foundations ([#185](https://github.com/0xPlayerOne/control-plane/issues/185)) ([453d4c8](https://github.com/0xPlayerOne/control-plane/commit/453d4c8afb63ad8c78c00537f3858a4a75637fce))
+
 ## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/telemetry-v1.1.0...telemetry-v1.1.1) (2026-08-25)
 
 

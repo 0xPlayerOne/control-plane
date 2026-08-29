@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.2.0...workflow-worker-v1.3.0) (2026-08-29)
+
+
+### Features
+
+* **control-api:** accept cloud executions ([242f599](https://github.com/0xPlayerOne/control-plane/commit/242f59960b24b7355f88bf1eda6343f14ed5c5f0))
+* **operations:** centralize managed cloud policy defaults ([#225](https://github.com/0xPlayerOne/control-plane/issues/225)) ([096b17a](https://github.com/0xPlayerOne/control-plane/commit/096b17ab9921784ce6cf4ced34d5f82d0f08c961))
+* **workflow-worker:** add cloud certification runtime ([c47e830](https://github.com/0xPlayerOne/control-plane/commit/c47e8309a8ea71342d8dda0cc79c91d9b400b20d))
+* **workflow-worker:** persist cloud execution lifecycle ([79b9bfe](https://github.com/0xPlayerOne/control-plane/commit/79b9bfe203a91193c2457c3e3357f6bc100090fd))
+* **workflows:** migrate managed cloud runtime to Restate ([#220](https://github.com/0xPlayerOne/control-plane/issues/220)) ([99c85ee](https://github.com/0xPlayerOne/control-plane/commit/99c85ee71c382de6f597a7c08b79f9068ba7a5fb))
+
+
+### Bug Fixes
+
+* **infra:** secure Restate service boundary ([#247](https://github.com/0xPlayerOne/control-plane/issues/247)) ([667eb58](https://github.com/0xPlayerOne/control-plane/commit/667eb58e95886eca5327367ca083f90c13fd5ff2))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.1.0...workflow-worker-v1.2.0) (2026-08-25)
 
 
