@@ -186,6 +186,9 @@ proof of rollback, restart recovery, load, isolation, secret-canary, or cost acc
   image tag or an ephemeral filesystem deployment.
 - Keep ingress, Admin API, and fabric ports private. Register `workflow-worker` through its Railway
   private-network endpoint and verify that the registration survives a Restate service restart.
+- Treat the volume-backed Restate node as a singleton during replacement: remove its active Railway
+  deployment and verify zero active revisions before starting the replacement. Two Restate
+  processes must never contend for the same RocksDB volume during a health-checked rollout.
 - M9.8 replaced active Temporal cloud configuration with Restate and defined its Railway networking, persistence, health/readiness, restart, upgrade, and observability behavior.
 - On Restate degradation, stop unsafe new admission where required, preserve durable command/domain state, and recover using the accepted Restate lifecycle guarantees.
 - LangGraph graph/checkpoint mechanics remain subordinate to the Restate lifecycle; ProjectState remains separately authoritative.
