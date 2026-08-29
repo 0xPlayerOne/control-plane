@@ -11,7 +11,14 @@ import {
 } from '../scripts/check-coverage.mjs'
 import { discoverTestFiles } from '../scripts/run-bun-test-group.mjs'
 
-const apps = ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
+const apps = [
+  'control-api',
+  'workflow-worker',
+  'runtime-worker',
+  'runtime-gateway',
+  'tool-gateway',
+  'local-control-plane',
+]
 const packages = readdirSync(new URL('../packages/', import.meta.url), { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
   .map(({ name }) => name)
