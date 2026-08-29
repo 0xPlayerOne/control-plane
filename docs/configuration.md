@@ -36,7 +36,10 @@ emergency-revocation set through `CONTROL_PLANE_SERVICE_AUTH_ISSUER`,
 `CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS`. There is no shared opaque service-token
 compatibility path.
 
-M9.7/M9.9 must define the exact variable manifest per service, validation rules, public/private networking, `PORT` behavior, health/readiness, restart/drain behavior, and which services actually require each dependency. The repository-owned manifest is `infrastructure/railway/environment.json`; M9.8 publishes the Restate contract in `infrastructure/railway/restate.json`, and M9.9 wires and verifies both against Railway.
+M9.7/M9.9 defined the exact variable manifest per service, validation rules, public/private
+networking, `PORT` behavior, health/readiness, restart/drain behavior, and dependency ownership. The
+repository-owned manifest is `infrastructure/railway/environment.json`; M9.8 published the Restate
+contract in `infrastructure/railway/restate.json`, and M9.9 wired and verified both against Railway.
 
 `control-api` owns `RESTATE_INGRESS_URL` because callers invoke workflows through Restate ingress.
 The Cloud value is the private Railway HTTP endpoint on port 8080; non-private endpoints must use
@@ -78,17 +81,17 @@ Profile-specific configuration may select persistence, object store, secrets, ru
 
 ## Current service surfaces
 
-The historical server/cloud composition currently includes:
+The accepted Cloud process topology has two application services plus one infrastructure runtime:
 
-| Service           | Development/default surface                                     |
+| Service           | Cloud surface                                                   |
 | ----------------- | --------------------------------------------------------------- |
-| `control-api`     | current development HTTP port contract                          |
-| `runtime-gateway` | current development gateway port contract                       |
-| `tool-gateway`    | current development tool port contract                          |
-| `workflow-worker` | Restate HTTP endpoint and workflow-runtime concurrency contract |
-| `runtime-worker`  | current server/cloud runtime worker contract                    |
+| `control-api`     | authenticated public API and health/readiness                   |
+| `workflow-worker` | private Restate endpoint and workflow-runtime concurrency       |
+| `restate`         | private pinned durable-workflow runtime with persistent storage |
 
-M9.7/M9.8 may alter cloud process topology where an existing process exists only because of the former AWS/Temporal assumptions. M10 Local is not required to run these five applications as separate processes.
+The former runtime-worker, runtime-gateway, and tool-gateway process split is not a compatibility
+requirement. Local uses an all-in-one Control Plane plus local Restate, and Hosted selects only the
+processes its implemented topology requires.
 
 ## Validation and diagnostics
 
@@ -100,7 +103,9 @@ M9.7/M9.8 may alter cloud process topology where an existing process exists only
 
 ## Shutdown
 
-`SIGINT`/`SIGTERM` mark the process unready and close registered resources in reverse order. M9.13 owns the accepted graceful drain/cleanup defaults. Local launchers and Hosted supervisors must implement equivalent semantics without changing domain behavior.
+`SIGINT`/`SIGTERM` mark the process unready and close registered resources in reverse order. M9.13
+froze the accepted graceful drain/cleanup defaults. Local launchers and Hosted supervisors must
+implement equivalent semantics without changing domain behavior.
 
 The managed-cloud operational policy is versioned in `@control-plane/config`. Its defaults are a
 15-second heartbeat, degraded after two missed heartbeats, offline after three, 60-second inventory

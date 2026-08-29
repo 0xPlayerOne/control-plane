@@ -22,4 +22,12 @@ When instructions conflict: system/user instructions > this file and explicit ta
 - [`.agents/ci.md`](.agents/ci.md) — GitHub workflow design rules (when editing CI)
 - [`.agents/conventions.md`](.agents/conventions.md) — documentation, dependencies, generated files
 
+## Branch and deployment flow
+
+Normal work branches from `staging` and opens a pull request targeting `staging`.
+Feature pull requests merge with squash after required checks pass. Code Foundry
+then opens a `staging` → `main` promotion pull request, which merges with rebase
+only after the promotion checks pass. Railway staging tracks Git `staging` and
+Railway production tracks Git `main`; their Neon database branches are separate.
+
 Nested `AGENTS.md` files and project documentation take precedence for their directory.

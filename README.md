@@ -9,10 +9,10 @@ Production-shaped TypeScript monorepo for the Control Plane. The repository is o
 - **M11 — Feature Completion & Production Audit:** independently audit managed cloud, Local, and Hosted.
 - **M12 — Cross-Product Integration & Release:** connect the approved Control Plane candidate to Agent HQ and optional Cortana release candidates.
 
-M9 is rewriting the former AWS/ECS/Terraform and Temporal implementation into the active Cloud
-profile: Railway + Neon + Cloudflare R2 + Restate. The product has exactly three deployment profiles:
-Cloud, Hosted, and Local. M10 ports the same application semantics to Hosted and Local; AWS/ECS/
-Terraform is historical context, not an active compatibility or portability target.
+M9 replaced the former AWS/ECS/Terraform and Temporal implementation with the active Cloud profile:
+Railway + Neon + Cloudflare R2 + Restate. The product has exactly three deployment profiles: Cloud,
+Hosted, and Local. M10 ports the same application semantics to Hosted and Local; AWS/ECS/Terraform
+is historical context, not an active compatibility or portability target.
 
 ## Prerequisites
 
@@ -77,17 +77,12 @@ local check is not Railway staging evidence until the M9.6 live activation gate 
 
 ## Architecture map
 
-### Server/cloud composition roots
+### Cloud composition roots
 
-The historical server/cloud applications are:
-
-- `apps/control-api`
-- `apps/workflow-worker`
-- `apps/runtime-worker`
-- `apps/runtime-gateway`
-- `apps/tool-gateway`
-
-M9.8 may change the workflow/service topology where the old shape is Temporal-specific. Applications are composition roots, not public product contracts.
+The accepted Cloud application services are `apps/control-api` and `apps/workflow-worker`, backed by
+the separately pinned Restate runtime. The former five-process AWS/Temporal-era split is not a
+compatibility target. Applications are composition roots, not public product contracts; Local and
+Hosted compose the same stable capabilities according to their supported topology.
 
 ### Stable interfaces and core domain
 

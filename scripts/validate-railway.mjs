@@ -12,7 +12,11 @@ const restate = JSON.parse(
 const environment = JSON.parse(
   await readFile(`${repositoryRoot}/infrastructure/railway/environment.json`, 'utf8')
 )
+const costPolicy = JSON.parse(
+  await readFile(`${repositoryRoot}/infrastructure/railway/cost-policy.json`, 'utf8')
+)
 const railwayIac = await readFile(`${repositoryRoot}/.railway/railway.ts`, 'utf8')
+const standbyScript = await readFile(`${repositoryRoot}/scripts/railway-standby.mjs`, 'utf8')
 
 if (manifest.schemaVersion !== 1 || manifest.provider !== 'railway') {
   throw new Error('Railway service manifest must use schemaVersion 1 and provider railway.')
@@ -57,6 +61,8 @@ if (
   environment.provider !== 'railway' ||
   environment.profile !== 'cloud' ||
   environment.applicationEnvironment !== 'managed-cloud' ||
+  environment.database?.provider !== 'neon' ||
+  environment.database?.project !== 'control-plane' ||
   environment.database?.runtimeVariable !== 'DATABASE_URL' ||
   environment.database?.migrationVariable !== 'DATABASE_MIGRATION_URL' ||
   environment.database?.administrationVariable !== 'DATABASE_ADMIN_URL' ||
@@ -66,6 +72,39 @@ if (
   environment.secrets?.valuesCommitted !== false
 ) {
   throw new Error('Railway environment manifest is incomplete or contains committed secrets.')
+}
+
+const expectedEnvironments = {
+  staging: {
+    railwayEnvironment: 'staging',
+    applicationEnvironment: 'staging',
+    sourceBranch: 'staging',
+    neonBranch: 'staging',
+  },
+  production: {
+    railwayEnvironment: 'production',
+    applicationEnvironment: 'production',
+    sourceBranch: 'main',
+    neonBranch: 'main',
+  },
+}
+for (const [name, expectedEnvironment] of Object.entries(expectedEnvironments)) {
+  const configuredEnvironment = environment.environments?.[name]
+  if (
+    configuredEnvironment?.railwayEnvironment !== expectedEnvironment.railwayEnvironment ||
+    configuredEnvironment?.applicationEnvironment !== expectedEnvironment.applicationEnvironment ||
+    configuredEnvironment?.sourceBranch !== expectedEnvironment.sourceBranch ||
+    configuredEnvironment?.neon?.provider !== 'neon' ||
+    configuredEnvironment?.neon?.project !== 'control-plane' ||
+    configuredEnvironment?.neon?.branch !== expectedEnvironment.neonBranch
+  ) {
+    throw new Error(`Railway environment mapping is incomplete or crosses Neon branches: ${name}.`)
+  }
+}
+if (
+  environment.environments.staging.neon.branch === environment.environments.production.neon.branch
+) {
+  throw new Error('Railway staging and production must use distinct Neon branches.')
 }
 
 if (
@@ -85,6 +124,8 @@ for (const requiredFragment of [
   "volume('restate-data'",
   'preserve()',
   'RESTATE_REQUEST_IDENTITY_PUBLIC_KEY',
+  "const sourceBranch = production ? 'main' : 'staging'",
+  'branch: sourceBranch',
   'CONTROL_PLANE_CLOUD_RUNTIME',
   'CONTROL_PLANE_SERVICE_AUTH_ISSUER',
   'CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS',
@@ -105,7 +146,45 @@ if (
   railwayIac.includes("service('@control-plane/runtime-gateway'") ||
   railwayIac.includes("service('@control-plane/tool-gateway'")
 ) {
-  throw new Error('Railway IaC must not deploy non-serving historical process targets.')
+  throw new Error('Railway IaC must not deploy non-serving process targets as Cloud services.')
+}
+
+if (
+  costPolicy.schemaVersion !== 1 ||
+  costPolicy.provider !== 'railway' ||
+  costPolicy.profile !== 'cloud-prelaunch'
+) {
+  throw new Error('Railway cost policy must define the versioned cloud-prelaunch profile.')
+}
+for (const environmentName of ['staging', 'production']) {
+  const configured = costPolicy.environments?.[environmentName]
+  if (
+    configured?.sourceConnected !== false ||
+    configured?.standbyAction !== 'remove-active-deployment' ||
+    configured?.activationBranch !== (environmentName === 'staging' ? 'staging' : 'main')
+  ) {
+    throw new Error(`Railway standby policy is incomplete: ${environmentName}.`)
+  }
+  for (const serviceName of ['control-api', 'workflow-worker', 'restate']) {
+    const service = configured.services?.[serviceName]
+    if (
+      service?.configuredReplicas !== 1 ||
+      service?.runningReplicas !== 0 ||
+      service?.serverless !== false
+    ) {
+      throw new Error(
+        `Railway standby service policy is invalid: ${environmentName}/${serviceName}.`
+      )
+    }
+  }
+}
+if (
+  !railwayIac.includes('const desiredReplicas = 1') ||
+  !railwayIac.includes('const applicationSource = production ? undefined : github') ||
+  !standbyScript.includes('deploymentRemove') ||
+  !standbyScript.includes('disconnect-source')
+) {
+  throw new Error('Railway activation and standby mechanisms are not reproducibly defined.')
 }
 
 const cloud = manifest.profiles?.cloud

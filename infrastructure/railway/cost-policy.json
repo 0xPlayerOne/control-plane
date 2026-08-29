@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "provider": "railway",
+  "profile": "cloud-prelaunch",
+  "environments": {
+    "production": {
+      "availability": "configured-not-running",
+      "sourceConnected": false,
+      "activationBranch": "main",
+      "standbyAction": "remove-active-deployment",
+      "services": {
+        "control-api": {
+          "configuredReplicas": 1,
+          "runningReplicas": 0,
+          "serverless": false
+        },
+        "workflow-worker": {
+          "configuredReplicas": 1,
+          "runningReplicas": 0,
+          "serverless": false
+        },
+        "restate": {
+          "configuredReplicas": 1,
+          "runningReplicas": 0,
+          "serverless": false,
+          "preserveVolume": true
+        }
+      }
+    },
+    "staging": {
+      "availability": "configured-on-demand-reference",
+      "sourceConnected": false,
+      "activationBranch": "staging",
+      "standbyAction": "remove-active-deployment",
+      "services": {
+        "control-api": {
+          "configuredReplicas": 1,
+          "runningReplicas": 0,
+          "serverless": false,
+          "cpuLimit": 0.25,
+          "memoryLimitBytes": 268435456,
+          "reason": "Local-first MVP baseline has no active deployment. Activate one replica for Cloud integration; Serverless remains off because cold-start and first-request 502 behavior are not accepted without a separate sleep certification."
+        },
+        "workflow-worker": {
+          "configuredReplicas": 1,
+          "runningReplicas": 0,
+          "serverless": false,
+          "cpuLimit": 0.25,
+          "memoryLimitBytes": 268435456,
+          "reason": "Local-first MVP baseline has no active deployment. Activate one replica with Restate for Cloud integration because the endpoint must remain registered and reachable while a Cloud test is active."
+        },
+        "restate": {
+          "configuredReplicas": 1,
+          "runningReplicas": 0,
+          "serverless": false,
+          "cpuLimit": 0.25,
+          "memoryLimitBytes": 1073741824,
+          "reason": "Local-first MVP baseline has no active deployment while the persistent volume is retained. Activate one replica for Cloud integration; sleeping during an active test would invalidate restart and registration semantics."
+        }
+      }
+    }
+  },
+  "usageControls": {
+    "resourceLimitsOwnedAsCode": true,
+    "zeroComputeMechanism": "disconnect application sources and remove active and reactivatable nonterminal deployments while preserving service configuration and volumes",
+    "workspaceUsageAlert": "unavailable on the current trial plan; the live CLI reported that usage limits require an active subscription on 2026-08-28",
+    "paidPlanPolicy": "When a paid subscription is activated, set a 5 USD soft alert and 10 USD hard workspace limit after confirming the workspace still contains only the Control Plane project.",
+    "hardLimitBehavior": "Reaching a configured hard limit stops workloads and is an availability event."
+  }
+}

@@ -9,12 +9,36 @@
     "explicitOverrides": ["COMMIT_SHA", "SERVICE_VERSION"]
   },
   "database": {
+    "provider": "neon",
+    "project": "control-plane",
     "runtimeVariable": "DATABASE_URL",
     "migrationVariable": "DATABASE_MIGRATION_URL",
     "administrationVariable": "DATABASE_ADMIN_URL",
     "runtimeRole": "control_plane_app",
     "migrationRole": "control_plane_migrator",
     "administrationRole": "control_plane_admin"
+  },
+  "environments": {
+    "staging": {
+      "railwayEnvironment": "staging",
+      "applicationEnvironment": "staging",
+      "sourceBranch": "staging",
+      "neon": {
+        "provider": "neon",
+        "project": "control-plane",
+        "branch": "staging"
+      }
+    },
+    "production": {
+      "railwayEnvironment": "production",
+      "applicationEnvironment": "production",
+      "sourceBranch": "main",
+      "neon": {
+        "provider": "neon",
+        "project": "control-plane",
+        "branch": "main"
+      }
+    }
   },
   "shared": [
     {
