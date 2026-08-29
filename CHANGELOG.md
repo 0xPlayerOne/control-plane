@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.4...workspace-v1.7.5) (2026-08-29)
+
+
+### Bug Fixes
+
+* **worker:** keep disabled cloud runtime healthy ([#305](https://github.com/0xPlayerOne/control-plane/issues/305)) ([85d32ce](https://github.com/0xPlayerOne/control-plane/commit/85d32ceb58370b2d3158293acc5f93eb64a2c162))
+
 ## [1.7.4](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.3...workspace-v1.7.4) (2026-08-29)
 
 
