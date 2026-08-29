@@ -45,7 +45,8 @@ if (
   ) ||
   restateServer.nodeName !== restateServer.environment?.RESTATE_NODE_NAME ||
   restateServer.environment?.RESTATE_AUTO_PROVISION !== 'true' ||
-  restateServer.environment?.RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE !==
+  restateServer.environment?.RESTATE_ROCKSDB_TOTAL_MEMORY_SIZE !== '384 MiB' ||
+  restateServer.environment?.RESTATE_WORKER__INVOKER__REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE !==
     '/restate-data/request-identity-private.pem' ||
   restateServer.dataMount !== '/restate-data' ||
   restateServer.healthPath !== '/health' ||
