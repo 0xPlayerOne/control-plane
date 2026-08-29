@@ -54,9 +54,11 @@ networking, and Restate-to-service request identity are separate controls.
 
 `workflow-worker` also requires `CONTROL_PLANE_CLOUD_RUNTIME`. Railway staging sets it to
 `certification`, which enables the bounded M9 runtime that writes and verifies a terminal result
-through the Control Plane R2 `ObjectStore`. Railway production sets it to `disabled`; production
-cannot execute certification traffic and remains unavailable until a separately implemented runtime
-is explicitly composed for launch. The certification runtime accepts only plans pinned to
+through the Control Plane R2 `ObjectStore`. Railway production sets it to `disabled`; the worker and
+Restate endpoint remain healthy, but execution and interaction activities fail closed with
+`CLOUD_RUNTIME_DISABLED` without opening R2. Production cannot execute certification traffic and
+execution availability remains disabled until a separately implemented runtime is explicitly
+composed for launch. The certification runtime accepts only plans pinned to
 `contract://control-plane/m9-cloud-certification/v1`; ordinary execution plans fail before R2
 access. Unknown modes fail configuration validation.
 
