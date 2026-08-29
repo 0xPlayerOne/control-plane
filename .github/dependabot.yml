@@ -24,22 +24,10 @@ updates:
       interval: weekly
       day: sunday
     open-pull-requests-limit: 99
-    ignore:
-      # Keep runtime and type declarations aligned with the supported Node line.
-      - dependency-name: '@types/node'
-        update-types: ['version-update:semver-major']
-      # typescript-eslint 8 currently declares TypeScript support below 6.1.
-      - dependency-name: 'typescript'
-        update-types: ['version-update:semver-major']
-      # Nest's Fastify adapter installs this exact version; a different direct
-      # version creates incompatible duplicate Fastify types.
-      - dependency-name: 'fastify'
-        versions: ['>5.11.3']
     groups:
       npm-dependencies:
         applies-to: version-updates
         patterns: ['*']
-        update-types: ['minor', 'patch']
   - package-ecosystem: pip
     directory: /
     target-branch: staging
