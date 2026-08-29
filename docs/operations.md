@@ -70,10 +70,10 @@ ordinary standby reconciliation command.
 
 The baseline is:
 
-| Environment | Git source                       | Running replicas                       | Persistent state                                                                  |
-| ----------- | -------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
-| staging     | application sources disconnected | 0 for each of the three Cloud services | Restate volume retained; Neon/R2 remain provider-managed                          |
-| production  | application sources disconnected | 0 for every instantiated Cloud service | Provider state retained only where already provisioned or required for activation |
+| Environment | Git source                       | Running replicas                       | Persistent state                                         |
+| ----------- | -------------------------------- | -------------------------------------- | -------------------------------------------------------- |
+| staging     | application sources disconnected | 0 for each of the three Cloud services | Restate volume retained; Neon/R2 remain provider-managed |
+| production  | application sources disconnected | 0 for each of the three Cloud services | Restate volume retained; Neon/R2 remain provider-managed |
 
 Railway Serverless remains disabled. Control API first-request failures/cold starts and the
 worker/Restate long-lived connection and registration behavior have not been accepted under a sleep
