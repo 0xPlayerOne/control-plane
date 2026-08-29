@@ -46,7 +46,9 @@ test('pins a durable private Restate runtime for Railway cloud', async () => {
       RESTATE_CLUSTER_NAME: 'control-plane-staging',
       RESTATE_NODE_NAME: 'control-plane-staging-1',
       RESTATE_AUTO_PROVISION: 'true',
-      RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE: '/restate-data/request-identity-private.pem',
+      RESTATE_ROCKSDB_TOTAL_MEMORY_SIZE: '384 MiB',
+      RESTATE_WORKER__INVOKER__REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE:
+        '/restate-data/request-identity-private.pem',
     },
   })
 })
@@ -65,6 +67,12 @@ test('owns the active Railway project graph as code without committed secrets', 
   assert.match(source, /DATABASE_URL: preserve\(\)/)
   assert.match(source, /RESTATE_INGRESS_URL:/)
   assert.match(source, /RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve\(\)/)
+  assert.match(source, /RESTATE_ROCKSDB_TOTAL_MEMORY_SIZE: '384 MiB'/)
+  assert.match(
+    source,
+    /RESTATE_WORKER__INVOKER__REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE:\s*'\/restate-data\/request-identity-private\.pem'/
+  )
+  assert.doesNotMatch(source, /\bRESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE:/)
   assert.match(source, /CONTROL_PLANE_CLOUD_RUNTIME: production \? 'disabled' : 'certification'/)
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_ISSUER: preserve\(\)/)
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: preserve\(\)/)
