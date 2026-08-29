@@ -77,13 +77,13 @@
     "@control-plane/usage-ledger": "workspace:*",
     "@eslint/js": "10.0.1",
     "@langchain/langgraph": "1.4.12",
-    "@types/node": "24.13.3",
-    "eslint": "10.8.1",
+    "@types/node": "26.3.0",
+    "eslint": "10.9.1",
     "prettier": "3.9.6",
     "railway": "3.11.0",
-    "turbo": "2.10.11",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.67.0"
+    "turbo": "2.10.12",
+    "typescript": "7.0.2",
+    "typescript-eslint": "8.68.0"
   },
   "overrides": {
     "esbuild": "0.28.2"
