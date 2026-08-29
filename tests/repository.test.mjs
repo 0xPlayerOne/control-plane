@@ -151,8 +151,8 @@ test('configures the Code Foundry CI baseline for the public staging-release rep
   assert.match(config, /^release_merge_strategy: rebase$/m)
   assert.match(config, /^codeql: auto$/m)
   assert.match(config, /^dependency_review: auto$/m)
-  assert.match(config, /^opencode_security: false$/m)
-  assert.match(config, /^runtime_ref: v0\.38\.2$/m)
+  assert.match(config, /^opencode_security: true$/m)
+  assert.match(config, /^runtime_ref: v0\.39\.0$/m)
   for (const runner of [
     'runner',
     'ci_runner',
@@ -201,7 +201,7 @@ test('generates the staging-release Code Foundry callers with parallel validatio
 
   assert.match(
     validation,
-    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.38\.2/
+    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.39\.0/
   )
   assert.equal((validation.match(/if: vars\.CI_BILLING_PAUSED != 'true'/g) ?? []).length, 2)
   assert.match(validation, /cancel-in-progress: true/)
@@ -209,7 +209,7 @@ test('generates the staging-release Code Foundry callers with parallel validatio
   assert.match(validation, /branches: \[main, staging\]/)
   assert.match(validation, /validation mode/)
   assert.match(validation, /mode: \$\{\{ needs\.mode\.outputs\.mode \}\}/)
-  assert.match(release, /release\.yml@v0\.38\.2/)
+  assert.match(release, /release\.yml@v0\.39\.0/)
   assert.match(release, /release-while-paused:/)
   assert.match(release, /billing-pause-bypass:/)
   assert.match(draftPr, /if: vars\.CI_BILLING_PAUSED != 'true'/)
@@ -221,10 +221,13 @@ test('generates the staging-release Code Foundry callers with parallel validatio
     'utf8'
   )
   assert.match(releasePr, /branches: \[staging\]/)
-  assert.match(releasePr, /release-pr\.yml@v0\.38\.2/)
-  await assert.rejects(
-    readFile(new URL('../.github/workflows/opencode-security.yml', import.meta.url))
+  assert.match(releasePr, /release-pr\.yml@v0\.39\.0/)
+  const opencodeSecurity = await readFile(
+    new URL('../.github/workflows/opencode-security.yml', import.meta.url),
+    'utf8'
   )
+  assert.match(opencodeSecurity, /OpenCode Security \/ Scan/)
+  assert.match(opencodeSecurity, /OPENCODE_API_KEY/)
 })
 
 test('documents required, public-repository, and future CI gates', async () => {
