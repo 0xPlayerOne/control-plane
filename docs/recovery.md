@@ -31,7 +31,8 @@ Required M9 evidence includes:
 - no duplicate logical execution, effect, Artifact, usage, or billing record after redelivery/restart;
 - content-redacted logs/traces throughout incidents.
 
-M9.6 #73 cannot close from configuration shape alone. It requires live staging recovery evidence.
+M9.6 #73 did not close from configuration shape alone; its live staging restart/recovery evidence is
+recorded in `docs/evidence/m9-cloud-certification-2026-08-28.md`.
 
 ## Local recovery target — M10
 
@@ -94,4 +95,6 @@ Sensitive prompt, file, provider, credential, or HPKE plaintext content is prohi
 
 Existing PostgreSQL/LangGraph/Temporal-era integration and recovery scripts are historical executable evidence. They do not by themselves certify the accepted Railway/Neon/R2/Restate cloud profile or the M10 Local/Hosted profiles.
 
-M9.7–M9.9 and M10 must update the executable recovery matrix so M11 can run one explicit profile-aware suite rather than treating historical AWS/Temporal fixtures as production proof.
+M9.7–M9.9 established the executable Cloud recovery matrix. M10 must extend that matrix for Local and
+Hosted so M11 can run one explicit profile-aware suite rather than treating historical AWS/Temporal
+fixtures as production proof.

@@ -69,12 +69,210 @@ test('owns the active Railway project graph as code without committed secrets', 
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_ISSUER: preserve\(\)/)
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_TRUSTED_KEYS: preserve\(\)/)
   assert.match(source, /CONTROL_PLANE_SERVICE_AUTH_REVOKED_CREDENTIAL_IDS: preserve\(\)/)
+  assert.match(source, /volume\('restate-data', \{ sizeMB: 500, region: 'ams' \}\)/)
+  assert.match(source, /const workflowWorker = service[\s\S]*?env: \{[\s\S]*?PORT: '9080'/)
   assert.doesNotMatch(source, /CONTROL_PLANE_SERVICE_AUTH_TOKEN/)
   assert.doesNotMatch(source, /RESTATE_SERVICE_AUTH_TOKEN/)
+  assert.doesNotMatch(source, /\bCOMMIT_SHA:\s*preserve\(\)/)
+  assert.doesNotMatch(source, /\bSERVICE_VERSION:\s*preserve\(\)/)
   assert.doesNotMatch(source, /(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY):\s*['"][^'"]+['"]/)
   assert.doesNotMatch(
     source,
     /service\('@control-plane\/(?:runtime-worker|runtime-gateway|tool-gateway)'/
+  )
+})
+
+test('maps Railway staging and production to isolated Neon branches', async () => {
+  const environment = JSON.parse(
+    await readRepositoryFile('infrastructure/railway/environment.json')
+  )
+  const source = await readRepositoryFile('.railway/railway.ts')
+
+  assert.deepEqual(environment.environments, {
+    staging: {
+      railwayEnvironment: 'staging',
+      applicationEnvironment: 'staging',
+      sourceBranch: 'staging',
+      neon: { provider: 'neon', project: 'control-plane', branch: 'staging' },
+    },
+    production: {
+      railwayEnvironment: 'production',
+      applicationEnvironment: 'production',
+      sourceBranch: 'main',
+      neon: { provider: 'neon', project: 'control-plane', branch: 'main' },
+    },
+  })
+  assert.match(source, /const sourceBranch = production \? 'main' : 'staging'/)
+  assert.equal((source.match(/branch: sourceBranch/g) ?? []).length, 1)
+})
+
+test('defines a zero-compute production standby and bounded staging cost posture', async () => {
+  const policy = JSON.parse(await readRepositoryFile('infrastructure/railway/cost-policy.json'))
+  const source = await readRepositoryFile('.railway/railway.ts')
+
+  assert.deepEqual(policy.environments.production, {
+    availability: 'configured-not-running',
+    sourceConnected: false,
+    activationBranch: 'main',
+    standbyAction: 'remove-active-deployment',
+    services: {
+      'control-api': { configuredReplicas: 1, runningReplicas: 0, serverless: false },
+      'workflow-worker': { configuredReplicas: 1, runningReplicas: 0, serverless: false },
+      restate: {
+        configuredReplicas: 1,
+        runningReplicas: 0,
+        serverless: false,
+        preserveVolume: true,
+      },
+    },
+  })
+  assert.equal(policy.environments.staging.availability, 'configured-on-demand-reference')
+  assert.equal(policy.environments.staging.sourceConnected, false)
+  assert.equal(policy.environments.staging.activationBranch, 'staging')
+  assert.equal(policy.environments.staging.standbyAction, 'remove-active-deployment')
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(policy.environments.staging.services).map(([name, value]) => [
+        name,
+        {
+          configuredReplicas: value.configuredReplicas,
+          runningReplicas: value.runningReplicas,
+          serverless: value.serverless,
+        },
+      ])
+    ),
+    {
+      'control-api': { configuredReplicas: 1, runningReplicas: 0, serverless: false },
+      'workflow-worker': { configuredReplicas: 1, runningReplicas: 0, serverless: false },
+      restate: { configuredReplicas: 1, runningReplicas: 0, serverless: false },
+    }
+  )
+  assert.match(source, /const desiredReplicas = 1/)
+  assert.equal((source.match(/numReplicas: desiredReplicas/g) ?? []).length, 3)
+  assert.equal((source.match(/sleepApplication: false/g) ?? []).length, 3)
+  assert.match(source, /const applicationSource = production \? undefined : github/)
+})
+
+test('plans a deterministic Railway standby transition without deleting services', async () => {
+  const {
+    main,
+    planStandbyActions,
+    railwayDisconnectArguments,
+    railwayRemoveArguments,
+    railwayRepoTriggersArguments,
+  } = await import('../scripts/railway-standby.mjs')
+
+  assert.deepEqual(railwayRepoTriggersArguments('service-id'), [
+    'api',
+    '--raw-var',
+    'id=service-id',
+    '--compact',
+    'query ServiceRepoTriggers($id: String!) { service(id: $id) { repoTriggers { edges { node { id } } } } }',
+  ])
+
+  assert.deepEqual(railwayDisconnectArguments('service-id'), [
+    'api',
+    '--raw-var',
+    'id=service-id',
+    '--compact',
+    'mutation Disconnect($id: String!) { serviceDisconnect(id: $id) { id } }',
+  ])
+
+  assert.deepEqual(railwayRemoveArguments('deployment-id'), [
+    'api',
+    '--raw-var',
+    'id=deployment-id',
+    '--compact',
+    'mutation Remove($id: String!) { deploymentRemove(id: $id) }',
+  ])
+
+  assert.throws(
+    () => main(['--environment', 'production', '--apply', '--confirm', 'staging']),
+    /requires --confirm to exactly match/
+  )
+  assert.throws(
+    () =>
+      planStandbyActions({
+        environment: 'staging',
+        services: [{ id: 'obsolete', name: '@control-plane/runtime-worker' }],
+      }),
+    /Unexpected Railway service/
+  )
+  assert.throws(
+    () => planStandbyActions({ environment: 'staging', services: [] }),
+    /Missing expected Railway service.*control-api.*workflow-worker.*restate/
+  )
+
+  assert.deepEqual(
+    planStandbyActions({
+      environment: 'staging',
+      services: [
+        {
+          id: 'control-service',
+          name: '@control-plane/control-api',
+          source: { repo: '0xPlayerOne/control-plane', image: null },
+          repoTriggerCount: 1,
+          deploymentId: 'control-deployment',
+          deploymentStopped: false,
+          replicas: { running: 0 },
+        },
+        {
+          id: 'worker-service',
+          name: '@control-plane/workflow-worker',
+          source: { repo: '0xPlayerOne/control-plane', image: null },
+          repoTriggerCount: 1,
+          deploymentId: 'worker-deployment',
+          replicas: { running: 1 },
+          deployments: [
+            { id: 'worker-pending-deployment', status: 'BUILDING' },
+            { id: 'worker-deployment', status: 'SUCCESS' },
+            { id: 'worker-crashed-deployment', status: 'CRASHED' },
+            { id: 'worker-failed-deployment', status: 'FAILED' },
+          ],
+        },
+        {
+          id: 'restate-service',
+          name: 'restate',
+          source: { repo: null, image: 'restate@sha256:fixture' },
+          deploymentId: 'restate-deployment',
+          replicas: { running: 1 },
+        },
+      ],
+    }),
+    [
+      {
+        type: 'disconnect-source',
+        environment: 'staging',
+        serviceId: 'control-service',
+        serviceName: '@control-plane/control-api',
+      },
+      {
+        type: 'remove-deployment',
+        deploymentId: 'control-deployment',
+        serviceName: '@control-plane/control-api',
+      },
+      {
+        type: 'disconnect-source',
+        environment: 'staging',
+        serviceId: 'worker-service',
+        serviceName: '@control-plane/workflow-worker',
+      },
+      {
+        type: 'remove-deployment',
+        deploymentId: 'worker-deployment',
+        serviceName: '@control-plane/workflow-worker',
+      },
+      {
+        type: 'remove-deployment',
+        deploymentId: 'worker-pending-deployment',
+        serviceName: '@control-plane/workflow-worker',
+      },
+      {
+        type: 'remove-deployment',
+        deploymentId: 'restate-deployment',
+        serviceName: 'restate',
+      },
+    ]
   )
 })
 

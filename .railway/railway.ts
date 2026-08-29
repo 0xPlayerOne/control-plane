@@ -7,10 +7,13 @@ const restateImage =
 export default defineRailway((context) => {
   const production = context.isEnvironment('production')
   const applicationEnvironment = production ? 'production' : 'staging'
-  const restateData = volume('restate-data')
+  const sourceBranch = production ? 'main' : 'staging'
+  const desiredReplicas = 1
+  const applicationSource = production ? undefined : github(repository, { branch: sourceBranch })
+  const restateData = volume('restate-data', { sizeMB: 500, region: 'ams' })
 
   const controlApi = service('@control-plane/control-api', {
-    source: github(repository, { branch: 'main' }),
+    ...(applicationSource === undefined ? {} : { source: applicationSource }),
     build: {
       builder: 'RAILPACK',
       buildCommand: 'bun run build --filter=@control-plane/control-api...',
@@ -18,16 +21,19 @@ export default defineRailway((context) => {
     },
     deploy: {
       startCommand: 'bun run --filter=@control-plane/control-api start',
+      numReplicas: desiredReplicas,
+      sleepApplication: false,
       healthcheckPath: '/ready',
       healthcheckTimeout: 60,
       restartPolicyType: 'ON_FAILURE',
       restartPolicyMaxRetries: 5,
+      limitOverride: {
+        containers: { cpu: 0.25, memoryBytes: 268_435_456 },
+      },
     },
     networking: { privateNetworkEndpoint: 'control-planecontrol-api' },
     env: {
       APP_ENV: applicationEnvironment,
-      COMMIT_SHA: preserve(),
-      SERVICE_VERSION: preserve(),
       DATABASE_URL: preserve(),
       CONTROL_PLANE_SECRET_ENCRYPTION_KEY: preserve(),
       CONTROL_PLANE_SERVICE_AUTH_ISSUER: preserve(),
@@ -43,7 +49,7 @@ export default defineRailway((context) => {
   })
 
   const workflowWorker = service('@control-plane/workflow-worker', {
-    source: github(repository, { branch: 'main' }),
+    ...(applicationSource === undefined ? {} : { source: applicationSource }),
     build: {
       builder: 'RAILPACK',
       buildCommand: 'bun run build --filter=@control-plane/workflow-worker...',
@@ -51,16 +57,20 @@ export default defineRailway((context) => {
     },
     deploy: {
       startCommand: 'bun run --filter=@control-plane/workflow-worker start',
+      numReplicas: desiredReplicas,
+      sleepApplication: false,
       healthcheckPath: '/ready',
       healthcheckTimeout: 60,
       restartPolicyType: 'ON_FAILURE',
       restartPolicyMaxRetries: 5,
+      limitOverride: {
+        containers: { cpu: 0.25, memoryBytes: 268_435_456 },
+      },
     },
     networking: { privateNetworkEndpoint: 'control-planeworkflow-worker' },
     env: {
+      PORT: '9080',
       APP_ENV: applicationEnvironment,
-      COMMIT_SHA: preserve(),
-      SERVICE_VERSION: preserve(),
       DATABASE_URL: preserve(),
       CONTROL_PLANE_SECRET_ENCRYPTION_KEY: preserve(),
       RESTATE_REQUEST_IDENTITY_PUBLIC_KEY: preserve(),
@@ -76,9 +86,14 @@ export default defineRailway((context) => {
   const restate = service('restate', {
     source: image(restateImage),
     deploy: {
+      numReplicas: desiredReplicas,
+      sleepApplication: false,
       healthcheckPath: '/health',
       healthcheckTimeout: 60,
       restartPolicyType: 'ALWAYS',
+      limitOverride: {
+        containers: { cpu: 0.25, memoryBytes: 1_073_741_824 },
+      },
     },
     networking: { privateNetworkEndpoint: 'control-planerestate' },
     env: {

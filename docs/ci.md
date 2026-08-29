@@ -1,14 +1,16 @@
 # Continuous integration
 
 Code Foundry v0.38.0 is the CI control plane for this repository. Its generated
-callers are pinned under `.github/workflows/` and target `main` directly; there
-is no staging branch.
+callers are pinned under `.github/workflows/` and use the staging-release
+topology: feature branches target `staging`, and validated `staging` changes are
+promoted to `main`.
 
 ## Required pull-request gate
 
-`Validation / Gate` is the single stable required check. For an ordinary pull
-request it fans out CI, tests, and security as independent parallel jobs, then
-aggregates their results. Each workflow cancels superseded work for the same
+`Validation / Gate` is the single stable Code Foundry check. Pull requests into
+`staging` use the fast CI and unit-test tier; pull requests into `main`, including
+the `staging` promotion, use the audit tier. Each tier fans out independent jobs
+and aggregates their results. Each workflow cancels superseded work for the same
 branch while unrelated pull requests, scheduled audits, and manual runs remain
 parallel. Turborepo schedules build work from its dependency graph, while Bun's
 `--parallel` mode is limited to the independent top-level test groups.
@@ -24,10 +26,10 @@ The gate covers:
 - dependency auditing that does not require production or vendor credentials.
 - repository credential-pattern scanning through `bun run security:scan` without echoing matches.
 
-Repository settings allow rebase merges and disable squash and merge commits.
-Feature branches must rebase into `main`. Release Please version pull requests
-must also rebase into `main`; Code Foundry fails closed for any other configured
-merge strategy.
+Repository settings allow squash and rebase merges but disable merge commits.
+Feature branches must squash into `staging`. The `staging` → `main` promotion
+and Release Please version pull requests must rebase; Code Foundry fails closed
+for any other configured merge strategy.
 
 ## Public-repository security gates
 
@@ -37,9 +39,10 @@ in parallel with Code Foundry's native dependency audit as part of the audit
 gate. OpenCode security remains disabled because it is an optional external
 integration and is not part of the repository's credential-free baseline.
 
-Maintainers must treat a successful `Validation / Gate` as required and merge
-only through a pull request. Repository rules should require that stable gate
-without enumerating its internal parallel jobs.
+Maintainers must treat successful `Validation / Gate`, `Foundation Acceptance /
+Gate`, and `M9 Production Readiness / Gate` checks as required and merge only
+through pull requests. Repository rules should require these stable gates without
+enumerating their internal parallel jobs.
 
 ## Reversible billing pause
 

@@ -9,7 +9,9 @@ The public boundary is distributed through versioned contract and SDK packages. 
 
 Neither package may export database models/Drizzle schemas, application modules, Restate or historical Temporal workflow types, LangGraph state, runtime adapters/drivers/transports, Railway/Neon/R2 implementation types, provider credentials, or secret-management implementations.
 
-M9.10 #210 owns the v2 public-contract freeze. The location vocabulary change is a deliberate major boundary; M10 transports the same semantic envelopes over Cloud/Hosted/Local profile boundaries without defining a second API.
+M9.10 #210 froze the v2 public contract. The location vocabulary change is a deliberate major
+boundary; M10 transports the same semantic envelopes over Cloud/Hosted/Local profile boundaries
+without defining a second API.
 
 ## Client boundary
 

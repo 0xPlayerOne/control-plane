@@ -23,10 +23,22 @@ The repository-owned managed-cloud compositions now connect both `control-api` a
 commands, executions, ProjectState, and ContextPackages; the workflow worker persists execution and
 attempt lifecycle transitions and loads the exact accepted plan before runtime dispatch.
 
-This composition is not live-environment evidence. M9.6 #73 still owns explicit migration of the
-current repository schema into the isolated Neon staging branch, deployed-service connectivity,
-least-privilege verification, reconnect/recovery evidence, and later promotion. Any unrelated
-`neon_auth` schema remains non-authoritative and unused by Control Plane application code.
+- the dedicated Control Plane Neon project has separate `staging` and `main`
+  branches; `staging` is the Railway staging database and `main` is the Railway
+  production database;
+- Railway's `staging` and `production` environments must each supply their own
+  `DATABASE_URL`, `DATABASE_MIGRATION_URL`, and `DATABASE_ADMIN_URL` values;
+- the Control Plane Drizzle/domain schema is applied to the staging branch by an
+  explicit migration job before staging traffic is accepted, while production
+  remains separately migrated through the release process;
+- any unrelated `neon_auth` schema is outside the Control Plane domain contract;
+- Control Plane application code must not depend on that `neon_auth` schema because Agent HQ owns product user authentication.
+
+Configuration shape alone is not live-environment evidence. M9.6 #73 completed the explicit staging
+migration, deployed-service connectivity, least-privilege verification, and bounded reconnect/
+recovery checks recorded in the certification evidence. Production migration and promotion remain
+separate release operations. Any unrelated `neon_auth` schema remains non-authoritative and unused
+by Control Plane application code.
 
 Production/staging tables must be created from repository-owned Drizzle migrations, not manual
 console SQL.
@@ -56,6 +68,17 @@ The PostgreSQL roles remain deliberately separate:
 | admin/test/recovery | `DATABASE_ADMIN_URL`     | Provisioning, isolated tests, backup/restore and recovery operations |
 
 Managed-cloud values are injected through the M9 Railway/Neon configuration boundary. Application services receive only the authority they need; migration/admin credentials are never sprayed across all Railway services.
+
+The environment mapping is intentionally explicit and credential-free in source:
+
+| Railway environment | Git source branch | Neon branch | Application environment |
+| ------------------- | ----------------- | ----------- | ----------------------- |
+| `staging`           | `staging`         | `staging`   | `staging`               |
+| `production`        | `main`            | `main`      | `production`            |
+
+Only the runtime URL is provided to application services. The migration URL is
+used by the explicit database migration job, and the admin URL is reserved for
+provisioning/recovery operations.
 
 ## SQLite Local persistence
 

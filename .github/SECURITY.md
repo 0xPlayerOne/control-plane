@@ -2,10 +2,11 @@
 
 ## Supported Versions
 
-The latest commit on `main` receives security patches.
+The latest commit on `staging` receives security patches. Patches are promoted to `main` through the next release cycle.
 
 | Branch           | Supported |
 | ---------------- | --------- |
+| `staging`        | ✅        |
 | `main`           | ✅        |
 | Feature branches | ❌        |
 
