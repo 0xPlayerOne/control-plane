@@ -24,6 +24,6 @@
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1113.0"
+    "@aws-sdk/client-s3": "3.1118.0"
   }
 }
