@@ -1,10 +1,10 @@
 {
-  ".": "1.7.4",
+  ".": "1.7.5",
   "apps/control-api": "1.2.1",
   "apps/runtime-gateway": "1.2.0",
   "apps/runtime-worker": "1.3.0",
   "apps/tool-gateway": "1.2.1",
-  "apps/workflow-worker": "1.3.0",
+  "apps/workflow-worker": "1.3.1",
   "packages/acp-adapter": "1.1.0",
   "packages/bootstrap": "1.2.0",
   "packages/config": "1.2.0",

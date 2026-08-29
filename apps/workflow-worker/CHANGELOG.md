@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.3.0...workflow-worker-v1.3.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **worker:** keep disabled cloud runtime healthy ([#305](https://github.com/0xPlayerOne/control-plane/issues/305)) ([85d32ce](https://github.com/0xPlayerOne/control-plane/commit/85d32ceb58370b2d3158293acc5f93eb64a2c162))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.2.0...workflow-worker-v1.3.0) (2026-08-29)
 
 
