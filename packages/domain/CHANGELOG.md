@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.4.0...domain-v1.5.0) (2026-08-29)
+
+
+### Features
+
+* **catalog:** finalize profile and skill resolution ([#223](https://github.com/0xPlayerOne/control-plane/issues/223)) ([aeff4ff](https://github.com/0xPlayerOne/control-plane/commit/aeff4ff5d78f39cb6a8d5b38e37f05c57354fb6c))
+* **database:** persist project state ([659fc9b](https://github.com/0xPlayerOne/control-plane/commit/659fc9b20883267ab9f971c21b9ecfdcce144037))
+* harden M9 production foundations ([#185](https://github.com/0xPlayerOne/control-plane/issues/185)) ([453d4c8](https://github.com/0xPlayerOne/control-plane/commit/453d4c8afb63ad8c78c00537f3858a4a75637fce))
+* **workflow-worker:** persist cloud execution lifecycle ([79b9bfe](https://github.com/0xPlayerOne/control-plane/commit/79b9bfe203a91193c2457c3e3357f6bc100090fd))
+
 ## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/domain-v1.3.0...domain-v1.4.0) (2026-08-25)
 
 
