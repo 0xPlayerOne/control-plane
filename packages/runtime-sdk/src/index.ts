@@ -12,5 +12,6 @@ export * from './models.js'
 export * from './registry.js'
 export * from './routing.js'
 export * from './sessions.js'
+export * from './transport.js'
 
 export const packageName = 'runtime-sdk'

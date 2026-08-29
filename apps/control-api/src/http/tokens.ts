@@ -11,7 +11,7 @@ export const API_TELEMETRY = Symbol('API_TELEMETRY')
 export interface ApiRuntimeBindings {
   readonly health: () => HealthResponse
   readonly logger: StructuredLogger
-  readonly metadata: ApplicationMetadata<'control-api'>
+  readonly metadata: ApplicationMetadata
   readonly readiness: () => ReadinessResponse
   readonly telemetry?: Telemetry
 }

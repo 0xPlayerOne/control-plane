@@ -48,6 +48,7 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly executionValidationService?: ExecutionValidationService
   readonly serviceAuthenticator?: ServiceAuthenticator
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
+  readonly componentManifest?: () => Promise<unknown>
 }
 
 @Module({})
