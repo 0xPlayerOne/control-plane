@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.7.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.6.0...workspace-v1.7.0) (2026-08-29)
+
+
+### Features
+
+* **bootstrap:** expose managed cloud startup config ([#235](https://github.com/0xPlayerOne/control-plane/issues/235)) ([d07654b](https://github.com/0xPlayerOne/control-plane/commit/d07654be42b893a82bbd87ad3a14b848b728191e))
+* **catalog:** finalize profile and skill resolution ([#223](https://github.com/0xPlayerOne/control-plane/issues/223)) ([aeff4ff](https://github.com/0xPlayerOne/control-plane/commit/aeff4ff5d78f39cb6a8d5b38e37f05c57354fb6c))
+* **context:** finalize deterministic provider selection ([#224](https://github.com/0xPlayerOne/control-plane/issues/224)) ([b0c17d5](https://github.com/0xPlayerOne/control-plane/commit/b0c17d5185b12137c12c8f0a251ebb196b6a9350))
+* **context:** finalize provider selection and cache policy ([b0c17d5](https://github.com/0xPlayerOne/control-plane/commit/b0c17d5185b12137c12c8f0a251ebb196b6a9350))
+* **contracts:** freeze managed cloud public boundary ([#222](https://github.com/0xPlayerOne/control-plane/issues/222)) ([e6aa0f1](https://github.com/0xPlayerOne/control-plane/commit/e6aa0f11122eee37aeb2c3116c3a646fc7753333))
+* **control-api:** accept cloud executions ([242f599](https://github.com/0xPlayerOne/control-plane/commit/242f59960b24b7355f88bf1eda6343f14ed5c5f0))
+* **control-api:** compose managed cloud startup ([a99ef72](https://github.com/0xPlayerOne/control-plane/commit/a99ef727554463834ee10c7651158da6bc7ce848))
+* **control-api:** validate execution requests ([3ab0636](https://github.com/0xPlayerOne/control-plane/commit/3ab0636aeba30f15676fd09c85ca079b25130486))
+* **control-api:** verify signed service credentials ([585777d](https://github.com/0xPlayerOne/control-plane/commit/585777d32f7c8f44c90053236175e35b21c1eef5))
+* **database:** persist context packages ([30e3f81](https://github.com/0xPlayerOne/control-plane/commit/30e3f81527de595ad2235fcd5cfa46f5a80d149b))
+* **database:** persist execution plans ([233895c](https://github.com/0xPlayerOne/control-plane/commit/233895c96091701cf8d1dd89480a5ee4ec5198b2))
+* **database:** persist project state ([659fc9b](https://github.com/0xPlayerOne/control-plane/commit/659fc9b20883267ab9f971c21b9ecfdcce144037))
+* harden M9 production foundations ([#185](https://github.com/0xPlayerOne/control-plane/issues/185)) ([453d4c8](https://github.com/0xPlayerOne/control-plane/commit/453d4c8afb63ad8c78c00537f3858a4a75637fce))
+* **infra:** codify Railway project ([#245](https://github.com/0xPlayerOne/control-plane/issues/245)) ([1944f4e](https://github.com/0xPlayerOne/control-plane/commit/1944f4e1d1cdaaef98d2a43762ff1e9395a397bc))
+* **infra:** pin durable Restate runtime ([#241](https://github.com/0xPlayerOne/control-plane/issues/241)) ([adfe83e](https://github.com/0xPlayerOne/control-plane/commit/adfe83e48feb033f318282ad52d4016c11dfbc91))
+* **infrastructure:** migrate cloud deployment baseline to Railway ([b4d71ff](https://github.com/0xPlayerOne/control-plane/commit/b4d71ffb6de76ad9bf97775d5de3d387c54325c9))
+* **infrastructure:** wire managed cloud dependencies ([#221](https://github.com/0xPlayerOne/control-plane/issues/221)) ([ff809b0](https://github.com/0xPlayerOne/control-plane/commit/ff809b0445f29fec2c47ce19745b9092ec8fca38))
+* **operations:** centralize managed cloud policy defaults ([#225](https://github.com/0xPlayerOne/control-plane/issues/225)) ([096b17a](https://github.com/0xPlayerOne/control-plane/commit/096b17ab9921784ce6cf4ced34d5f82d0f08c961))
+* **storage:** add Cloudflare R2 ObjectStore ([#239](https://github.com/0xPlayerOne/control-plane/issues/239)) ([3b259ed](https://github.com/0xPlayerOne/control-plane/commit/3b259ed0bbff16177208b45639ab37fc91c6b06c))
+* **workflow-worker:** add cloud certification runtime ([c47e830](https://github.com/0xPlayerOne/control-plane/commit/c47e8309a8ea71342d8dda0cc79c91d9b400b20d))
+* **workflow-worker:** persist cloud execution lifecycle ([79b9bfe](https://github.com/0xPlayerOne/control-plane/commit/79b9bfe203a91193c2457c3e3357f6bc100090fd))
+* **workflows:** migrate managed cloud runtime to Restate ([#220](https://github.com/0xPlayerOne/control-plane/issues/220)) ([99c85ee](https://github.com/0xPlayerOne/control-plane/commit/99c85ee71c382de6f597a7c08b79f9068ba7a5fb))
+
+
+### Bug Fixes
+
+* **bootstrap:** enforce managed cloud startup configuration ([#233](https://github.com/0xPlayerOne/control-plane/issues/233)) ([d186b3a](https://github.com/0xPlayerOne/control-plane/commit/d186b3afa9072d9124168dfc3e15f41dd129a066))
+* **ci:** emit required gate contexts ([0bf1389](https://github.com/0xPlayerOne/control-plane/commit/0bf1389dd0e4f59302946f60c521db5ee9de1e08))
+* **config:** consume Railway deployment metadata ([#237](https://github.com/0xPlayerOne/control-plane/issues/237)) ([dd6079b](https://github.com/0xPlayerOne/control-plane/commit/dd6079be7c2d660e2b15faf8b1b8bdb66ea1c0fa))
+* **context:** complete deterministic provider ranking ([#229](https://github.com/0xPlayerOne/control-plane/issues/229)) ([528a48d](https://github.com/0xPlayerOne/control-plane/commit/528a48d34eff1099cadba521ba1638d0c581167b))
+* **infra:** secure Restate service boundary ([#247](https://github.com/0xPlayerOne/control-plane/issues/247)) ([667eb58](https://github.com/0xPlayerOne/control-plane/commit/667eb58e95886eca5327367ca083f90c13fd5ff2))
+* **infrastructure:** make Railway builds dependency-aware ([#227](https://github.com/0xPlayerOne/control-plane/issues/227)) ([54930d0](https://github.com/0xPlayerOne/control-plane/commit/54930d0d81d88932ebe18c780e812486216ed237))
+* **operations:** apply cloud policy defaults at boundaries ([#231](https://github.com/0xPlayerOne/control-plane/issues/231)) ([d95ac2f](https://github.com/0xPlayerOne/control-plane/commit/d95ac2f030a1f791676845b7e15e75d6edcc24e4))
+
+
+### Documentation
+
+* reconcile Railway/Neon/R2/Restate and portable deployment architecture ([a024316](https://github.com/0xPlayerOne/control-plane/commit/a02431649b0ba446466ce47e0ec24a430731cce7))
+
+
+### Maintenance
+
+* **infra:** shrink Railway cloud topology ([8acf62a](https://github.com/0xPlayerOne/control-plane/commit/8acf62aef616f520b82b1204c2edc47464198720))
+* **infra:** shrink Railway Cloud topology ([#243](https://github.com/0xPlayerOne/control-plane/issues/243)) ([8acf62a](https://github.com/0xPlayerOne/control-plane/commit/8acf62aef616f520b82b1204c2edc47464198720))
+* promote M9 staging closeout ([f669880](https://github.com/0xPlayerOne/control-plane/commit/f669880d22087cd0dbe8cd1dbe0471a40bb31a11))
+* **toolchain:** update to Bun 1.4 ([#199](https://github.com/0xPlayerOne/control-plane/issues/199)) ([e1af2ba](https://github.com/0xPlayerOne/control-plane/commit/e1af2ba1845b2d01649b6ba27cf5b87e7106999f))
+
 ## [1.6.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.5.0...workspace-v1.6.0) (2026-08-25)
 
 
