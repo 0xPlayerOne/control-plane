@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.2...workspace-v1.7.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* **railway:** enforce production topology parity ([#295](https://github.com/0xPlayerOne/control-plane/issues/295)) ([ebc1e26](https://github.com/0xPlayerOne/control-plane/commit/ebc1e26525760f9571c93c751234638bbb270d8b))
+
 ## [1.7.2](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.1...workspace-v1.7.2) (2026-08-29)
 
 
