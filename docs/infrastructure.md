@@ -71,8 +71,9 @@ PostgreSQL repositories. Railway staging selects the explicit Cloud certificatio
 runtime receives the exact accepted plan identity through Restate, writes a deterministic terminal
 result under the `m9/certification/` R2 prefix, and verifies the stored body and metadata through
 `get` and `head` before reporting completion. Replay checks the same object and fails closed on a
-conflict. Railway production selects `disabled`, so certification traffic cannot be enabled in the
-future production environment by accident.
+conflict. Railway production selects `disabled`, so its worker can pass health and registration while
+runtime activities return `CLOUD_RUNTIME_DISABLED` without R2 access; certification traffic cannot
+be enabled in the production environment by accident.
 
 The certification runtime proves the M9 Railway + Restate + Neon + R2 lifecycle; it is not a mock Pi
 provider and does not claim that the later Agent HQ `agent_hq_cloud` product runtime is certified.
