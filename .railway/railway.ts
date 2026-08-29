@@ -101,7 +101,9 @@ export default defineRailway((context) => {
       RESTATE_CLUSTER_NAME: `control-plane-${applicationEnvironment}`,
       RESTATE_NODE_NAME: `control-plane-${applicationEnvironment}-1`,
       RESTATE_AUTO_PROVISION: 'true',
-      RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE: '/restate-data/request-identity-private.pem',
+      RESTATE_ROCKSDB_TOTAL_MEMORY_SIZE: '384 MiB',
+      RESTATE_WORKER__INVOKER__REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE:
+        '/restate-data/request-identity-private.pem',
     },
     volumeMounts: { '/restate-data': restateData },
   })

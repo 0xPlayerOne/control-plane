@@ -46,7 +46,9 @@ The Cloud value is the private Railway HTTP endpoint on port 8080; non-private e
 HTTPS. `workflow-worker` is the Restate service endpoint and instead requires
 `RESTATE_REQUEST_IDENTITY_PUBLIC_KEY`, which the Restate SDK uses to reject unsigned calls. The
 self-hosted runtime reads the matching private key from its persistent volume through
-`RESTATE_REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE`. There is no
+`RESTATE_WORKER__INVOKER__REQUEST_IDENTITY_PRIVATE_KEY_PEM_FILE`. Railway also pins
+`RESTATE_ROCKSDB_TOTAL_MEMORY_SIZE` below half of the effective Restate container limit so the
+server does not retain its 2 GiB default inside a 1 GiB container. There is no
 `RESTATE_SERVICE_AUTH_TOKEN` compatibility variable: self-hosted ingress authentication, private
 networking, and Restate-to-service request identity are separate controls.
 
