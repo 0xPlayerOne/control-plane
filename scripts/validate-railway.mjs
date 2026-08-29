@@ -12,7 +12,11 @@ const restate = JSON.parse(
 const environment = JSON.parse(
   await readFile(`${repositoryRoot}/infrastructure/railway/environment.json`, 'utf8')
 )
+const costPolicy = JSON.parse(
+  await readFile(`${repositoryRoot}/infrastructure/railway/cost-policy.json`, 'utf8')
+)
 const railwayIac = await readFile(`${repositoryRoot}/.railway/railway.ts`, 'utf8')
+const standbyScript = await readFile(`${repositoryRoot}/scripts/railway-standby.mjs`, 'utf8')
 
 if (manifest.schemaVersion !== 1 || manifest.provider !== 'railway') {
   throw new Error('Railway service manifest must use schemaVersion 1 and provider railway.')
@@ -142,7 +146,45 @@ if (
   railwayIac.includes("service('@control-plane/runtime-gateway'") ||
   railwayIac.includes("service('@control-plane/tool-gateway'")
 ) {
-  throw new Error('Railway IaC must not deploy non-serving historical process targets.')
+  throw new Error('Railway IaC must not deploy non-serving process targets as Cloud services.')
+}
+
+if (
+  costPolicy.schemaVersion !== 1 ||
+  costPolicy.provider !== 'railway' ||
+  costPolicy.profile !== 'cloud-prelaunch'
+) {
+  throw new Error('Railway cost policy must define the versioned cloud-prelaunch profile.')
+}
+for (const environmentName of ['staging', 'production']) {
+  const configured = costPolicy.environments?.[environmentName]
+  if (
+    configured?.sourceConnected !== false ||
+    configured?.standbyAction !== 'remove-active-deployment' ||
+    configured?.activationBranch !== (environmentName === 'staging' ? 'staging' : 'main')
+  ) {
+    throw new Error(`Railway standby policy is incomplete: ${environmentName}.`)
+  }
+  for (const serviceName of ['control-api', 'workflow-worker', 'restate']) {
+    const service = configured.services?.[serviceName]
+    if (
+      service?.configuredReplicas !== 1 ||
+      service?.runningReplicas !== 0 ||
+      service?.serverless !== false
+    ) {
+      throw new Error(
+        `Railway standby service policy is invalid: ${environmentName}/${serviceName}.`
+      )
+    }
+  }
+}
+if (
+  !railwayIac.includes('const desiredReplicas = 1') ||
+  !railwayIac.includes('const applicationSource = production ? undefined : github') ||
+  !standbyScript.includes('deploymentRemove') ||
+  !standbyScript.includes('disconnect-source')
+) {
+  throw new Error('Railway activation and standby mechanisms are not reproducibly defined.')
 }
 
 const cloud = manifest.profiles?.cloud

@@ -64,7 +64,9 @@ M10 adds Local/Hosted secret-provider adapters while preserving credential ident
 
 ## M9 security evidence
 
-Existing M9 isolation, secret-canary, production-readiness, dependency, and CodeQL evidence remains useful. M9.6 must rerun applicable security controls against the actual Railway + Neon + R2 + Restate staging candidate.
+Existing M9 isolation, secret-canary, production-readiness, dependency, and CodeQL evidence remains
+useful. M9.6 reran the applicable controls against the actual Railway + Neon + R2 + Restate staging
+candidate and recorded the results in the certification evidence.
 
 Required cloud checks include:
 

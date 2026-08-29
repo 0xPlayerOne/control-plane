@@ -34,10 +34,11 @@ attempt lifecycle transitions and loads the exact accepted plan before runtime d
 - any unrelated `neon_auth` schema is outside the Control Plane domain contract;
 - Control Plane application code must not depend on that `neon_auth` schema because Agent HQ owns product user authentication.
 
-This composition is not live-environment evidence. M9.6 #73 still owns explicit migration of the
-current repository schema into the isolated Neon staging branch, deployed-service connectivity,
-least-privilege verification, reconnect/recovery evidence, and later promotion. Any unrelated
-`neon_auth` schema remains non-authoritative and unused by Control Plane application code.
+Configuration shape alone is not live-environment evidence. M9.6 #73 completed the explicit staging
+migration, deployed-service connectivity, least-privilege verification, and bounded reconnect/
+recovery checks recorded in the certification evidence. Production migration and promotion remain
+separate release operations. Any unrelated `neon_auth` schema remains non-authoritative and unused
+by Control Plane application code.
 
 Production/staging tables must be created from repository-owned Drizzle migrations, not manual
 console SQL.

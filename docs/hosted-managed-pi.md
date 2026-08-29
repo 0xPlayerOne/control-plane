@@ -1,6 +1,9 @@
 # Hosted managed Pi
 
-`apps/runtime-worker` provides the managed-cloud execution path for `ManagedPiAdapter`. The adapter uses the same normalized and pinned configuration for local and hosted Pi; only the client boundary changes. A `RuntimeHostProvider` owns sandbox allocation, process lifecycle, and provider-specific implementation details.
+`apps/runtime-worker` is a separated Hosted/server composition for `ManagedPiAdapter`; it is not an
+active Railway Cloud service. The adapter uses the same normalized and pinned configuration for
+local and hosted Pi; only the client boundary changes. A `RuntimeHostProvider` owns sandbox
+allocation, process lifecycle, and provider-specific implementation details.
 
 ## Authority and isolation
 
