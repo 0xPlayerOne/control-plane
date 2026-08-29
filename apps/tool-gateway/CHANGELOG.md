@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/0xPlayerOne/control-plane/compare/tool-gateway-v1.2.0...tool-gateway-v1.2.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **operations:** apply cloud policy defaults at boundaries ([#231](https://github.com/0xPlayerOne/control-plane/issues/231)) ([d95ac2f](https://github.com/0xPlayerOne/control-plane/commit/d95ac2f030a1f791676845b7e15e75d6edcc24e4))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/tool-gateway-v1.1.0...tool-gateway-v1.2.0) (2026-08-25)
 
 

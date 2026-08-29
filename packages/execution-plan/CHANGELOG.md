@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/execution-plan-v1.1.0...execution-plan-v1.2.0) (2026-08-29)
+
+
+### Features
+
+* **database:** persist execution plans ([233895c](https://github.com/0xPlayerOne/control-plane/commit/233895c96091701cf8d1dd89480a5ee4ec5198b2))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/execution-plan-v1.0.0...execution-plan-v1.1.0) (2026-08-24)
 
 

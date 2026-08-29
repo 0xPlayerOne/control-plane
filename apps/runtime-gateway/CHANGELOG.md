@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-v1.1.1...runtime-gateway-v1.2.0) (2026-08-29)
+
+
+### Features
+
+* **control-api:** verify signed service credentials ([585777d](https://github.com/0xPlayerOne/control-plane/commit/585777d32f7c8f44c90053236175e35b21c1eef5))
+
+
+### Bug Fixes
+
+* **bootstrap:** enforce managed cloud startup configuration ([#233](https://github.com/0xPlayerOne/control-plane/issues/233)) ([d186b3a](https://github.com/0xPlayerOne/control-plane/commit/d186b3afa9072d9124168dfc3e15f41dd129a066))
+* **operations:** apply cloud policy defaults at boundaries ([#231](https://github.com/0xPlayerOne/control-plane/issues/231)) ([d95ac2f](https://github.com/0xPlayerOne/control-plane/commit/d95ac2f030a1f791676845b7e15e75d6edcc24e4))
+
 ## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/runtime-gateway-v1.1.0...runtime-gateway-v1.1.1) (2026-08-25)
 
 

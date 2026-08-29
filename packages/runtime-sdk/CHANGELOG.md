@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.3.0...runtime-sdk-v1.4.0) (2026-08-29)
+
+
+### Features
+
+* **contracts:** freeze managed cloud public boundary ([#222](https://github.com/0xPlayerOne/control-plane/issues/222)) ([e6aa0f1](https://github.com/0xPlayerOne/control-plane/commit/e6aa0f11122eee37aeb2c3116c3a646fc7753333))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-sdk-v1.2.0...runtime-sdk-v1.3.0) (2026-08-25)
 
 

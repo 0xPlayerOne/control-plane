@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/context-v1.2.0...context-v1.3.0) (2026-08-29)
+
+
+### Features
+
+* **context:** finalize deterministic provider selection ([#224](https://github.com/0xPlayerOne/control-plane/issues/224)) ([b0c17d5](https://github.com/0xPlayerOne/control-plane/commit/b0c17d5185b12137c12c8f0a251ebb196b6a9350))
+* **context:** finalize provider selection and cache policy ([b0c17d5](https://github.com/0xPlayerOne/control-plane/commit/b0c17d5185b12137c12c8f0a251ebb196b6a9350))
+* **database:** persist context packages ([30e3f81](https://github.com/0xPlayerOne/control-plane/commit/30e3f81527de595ad2235fcd5cfa46f5a80d149b))
+
+
+### Bug Fixes
+
+* **context:** complete deterministic provider ranking ([#229](https://github.com/0xPlayerOne/control-plane/issues/229)) ([528a48d](https://github.com/0xPlayerOne/control-plane/commit/528a48d34eff1099cadba521ba1638d0c581167b))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/context-v1.1.0...context-v1.2.0) (2026-08-25)
 
 
