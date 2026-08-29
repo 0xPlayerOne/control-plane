@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/production-readiness-v1.1.0...production-readiness-v1.1.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **ci:** adopt Code Foundry v0.39.3 ([#288](https://github.com/0xPlayerOne/control-plane/issues/288)) ([43baeb9](https://github.com/0xPlayerOne/control-plane/commit/43baeb9049daa76f422d83ce611bd39d4636c6a6))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/production-readiness-v1.0.0...production-readiness-v1.1.0) (2026-08-29)
 
 
