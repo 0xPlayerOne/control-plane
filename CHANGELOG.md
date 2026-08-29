@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.3...workspace-v1.7.4) (2026-08-29)
+
+
+### Bug Fixes
+
+* **railway:** harden Restate runtime limits ([#300](https://github.com/0xPlayerOne/control-plane/issues/300)) ([8c2c820](https://github.com/0xPlayerOne/control-plane/commit/8c2c820a1a683bb8cb7502723bf4ed2215e0cc8f))
+
 ## [1.7.3](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.2...workspace-v1.7.3) (2026-08-29)
 
 
