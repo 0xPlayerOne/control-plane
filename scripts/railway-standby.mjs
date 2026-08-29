@@ -39,10 +39,7 @@ export function planStandbyActions({ environment, services }) {
     }
     servicesByName.set(service.name, service)
   }
-  const requiredServices =
-    environment === 'staging'
-      ? shutdownOrder
-      : ['@control-plane/control-api', '@control-plane/workflow-worker']
+  const requiredServices = shutdownOrder
   const missingServices = requiredServices.filter((serviceName) => !servicesByName.has(serviceName))
   if (missingServices.length > 0) {
     throw new Error(`Missing expected Railway services: ${missingServices.join(', ')}.`)

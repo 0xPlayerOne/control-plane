@@ -202,6 +202,17 @@ test('plans a deterministic Railway standby transition without deleting services
     () => planStandbyActions({ environment: 'staging', services: [] }),
     /Missing expected Railway service.*control-api.*workflow-worker.*restate/
   )
+  assert.throws(
+    () =>
+      planStandbyActions({
+        environment: 'production',
+        services: [
+          { id: 'control-service', name: '@control-plane/control-api' },
+          { id: 'worker-service', name: '@control-plane/workflow-worker' },
+        ],
+      }),
+    /Missing expected Railway services: restate/
+  )
 
   assert.deepEqual(
     planStandbyActions({
