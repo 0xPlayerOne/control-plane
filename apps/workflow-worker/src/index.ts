@@ -22,6 +22,7 @@ import {
 import type { WorkflowRuntimeActivityPort } from './cloud-execution-activities.js'
 import type { GraphSegmentActivityPort } from './graph-segment-activity.js'
 import { CloudCertificationRuntime } from './cloud-certification-runtime.js'
+import { DisabledCloudRuntime } from './cloud-disabled-runtime.js'
 
 export const serviceName = 'workflow-worker'
 
@@ -63,11 +64,7 @@ export const start = (options: WorkflowWorkerStartOptions = {}) => {
           const cloudRuntime =
             managedCloud === undefined || options.workflowRuntime !== undefined
               ? options.workflowRuntime
-              : createCertificationRuntime(
-                  managedCloud,
-                  metadata.environment,
-                  options.objectStoreFactory
-                )
+              : createCloudRuntime(managedCloud, metadata.environment, options.objectStoreFactory)
           if (cloudRuntime instanceof CloudCertificationRuntime) {
             registerResource('workflow-worker-r2', () => cloudRuntime.objectStore.close())
           }
@@ -120,14 +117,14 @@ function requiredWorkflowRuntime(
   return runtime
 }
 
-function createCertificationRuntime(
+function createCloudRuntime(
   configuration: ManagedCloudConfiguration,
   environment: string,
   objectStoreFactory: typeof createR2ObjectStore = createR2ObjectStore
-): CloudCertificationRuntime {
-  if (configuration.runtime?.mode !== 'certification') {
+): WorkflowRuntimeActivityPort {
+  if (configuration.runtime?.mode === 'disabled') return new DisabledCloudRuntime()
+  if (configuration.runtime?.mode !== 'certification')
     throw new Error('MANAGED_CLOUD_RUNTIME_NOT_CONFIGURED')
-  }
   if (environment !== 'staging') throw new Error('CLOUD_CERTIFICATION_RUNTIME_STAGING_ONLY')
   if (configuration.objectStore === undefined) throw new Error('MANAGED_CLOUD_R2_NOT_CONFIGURED')
   const objectStore: ObjectStore = objectStoreFactory(configuration.objectStore, {

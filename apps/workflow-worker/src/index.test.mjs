@@ -148,6 +148,43 @@ describe('workflow worker telemetry', () => {
     ).rejects.toThrow('Service startup failed')
     expect(calls).toEqual([])
   })
+
+  test('keeps the production endpoint ready while Cloud execution is disabled', async () => {
+    const lifecycle = []
+    const runtime = await start({
+      environment: {
+        ...managedCloudEnvironment(),
+        APP_ENV: 'production',
+        CONTROL_PLANE_CLOUD_RUNTIME: 'disabled',
+      },
+      logger: { write: () => undefined },
+      processAdapter: new FakeProcessAdapter(),
+      restateEndpointFactory: {
+        create: async () => ({
+          run: async () => lifecycle.push('endpoint-ready'),
+          shutdown: async () => lifecycle.push('endpoint-closed'),
+        }),
+      },
+      postgresConnectionFactory: () => ({
+        database: {},
+        check: async () => lifecycle.push('postgres-ready'),
+        close: async () => lifecycle.push('postgres-closed'),
+      }),
+      objectStoreFactory: () => {
+        throw new Error('DISABLED_RUNTIME_MUST_NOT_OPEN_R2')
+      },
+    })
+
+    expect(runtime.readiness().status).toBe('ready')
+    expect(lifecycle).toEqual(['postgres-ready', 'endpoint-ready'])
+    await runtime.shutdown('test-complete')
+    expect(lifecycle).toEqual([
+      'postgres-ready',
+      'endpoint-ready',
+      'endpoint-closed',
+      'postgres-closed',
+    ])
+  })
 })
 
 function runtimePort() {

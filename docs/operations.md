@@ -50,7 +50,9 @@ activation, restart, execution, Neon, R2, security, resource, and bounded cost r
 The repository Cloud composition now persists accepted commands/executions in PostgreSQL and wires
 the workflow worker's lifecycle activities to the same authoritative execution and plan data.
 Staging uses the explicit `certification` runtime mode to persist and integrity-check a deterministic
-terminal result through R2. Production uses `disabled` and cannot accept certification executions.
+terminal result through R2. Production uses `disabled`: the worker remains healthy and discoverable,
+but runtime activities fail closed with `CLOUD_RUNTIME_DISABLED` and never open R2. It cannot accept
+certification executions or claim execution availability.
 This path certifies the Control Plane cloud infrastructure only; later Agent HQ managed-runtime
 support requires its own runtime provider and certification.
 
