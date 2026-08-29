@@ -1,12 +1,5 @@
 # Changelog
 
-## [1.7.1](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.0...workspace-v1.7.1) (2026-08-29)
-
-
-### Bug Fixes
-
-* **ci:** adopt Code Foundry v0.38.2 ([#280](https://github.com/0xPlayerOne/control-plane/issues/280)) ([d1e8917](https://github.com/0xPlayerOne/control-plane/commit/d1e89177446ffd132e868e6860ccddcb1e9c9a8a))
-
 ## [1.7.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.6.0...workspace-v1.7.0) (2026-08-29)
 
 
