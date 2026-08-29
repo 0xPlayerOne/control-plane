@@ -19,9 +19,9 @@ This is the no-cross-database-access rule.
 
 - `apps/control-api` owns synchronous API composition and health endpoints.
 - `apps/workflow-worker` is the Restate durable-workflow composition root for the managed-cloud profile.
-- `apps/runtime-worker` owns server/cloud runtime-worker composition where that topology is required.
+- `apps/runtime-worker` owns separated Hosted/server runtime-worker composition where that topology is required.
 - `apps/runtime-gateway` owns transport for non-co-located RuntimeNodes.
-- `apps/tool-gateway` owns tool-facing server composition where separated deployment is required.
+- `apps/tool-gateway` owns tool-facing Hosted/server composition where separated deployment is required.
 - `packages/domain`, `contracts`, `events`, `execution-plan`, `policy`, `context`, `runtime-sdk`, and `tool-sdk` own stable models and ports.
 - `packages/database`, `telemetry`, `bootstrap`, and named adapters own infrastructure details.
 
@@ -138,4 +138,7 @@ M10 must preserve the M9 Railway cloud implementation behind these ports while a
 
 ## Current implementation versus accepted target
 
-M9.7 removed the former AWS/ECS/Terraform deployment path, and M9.8 removes the former Temporal runtime from active code/configuration. M9.9 owns the live Neon/R2/Railway dependency wiring. Historical ADRs, changelogs, and issue records retain migration provenance; they are not supported deployment options or active runtime dependencies.
+M9.7 removed the former AWS/ECS/Terraform deployment path, M9.8 removed the former Temporal runtime
+from active code/configuration, and M9.9 established the live Neon/R2/Railway dependency wiring.
+Historical ADRs, changelogs, and issue records retain migration provenance; they are not supported
+deployment options or active runtime dependencies.

@@ -27,15 +27,16 @@ The following commands describe the repository as it exists today. M9.7/M9.8/M10
 - The M2-M6 acceptance flows remain available as historical feature acceptance evidence while M9/M10
   replace the deployment topology.
 - `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, and protocol matrix.
-- `bun run test:m9-acceptance` runs the existing production-hardening/security/load evidence. **It is not sufficient to close M9.6**: live Railway staging evidence is also required.
+- `bun run test:m9-acceptance` runs the production-hardening/security/load evidence. It remains a
+  local gate; M9.6 additionally completed the required live Railway staging certification.
 - `bun run test:recovery-matrix` runs current disposable recovery fixtures.
 
-The Railway manifest validator checks repository-owned service composition. A green local validation is
-not Railway staging evidence until the M9.6 live activation gate is completed.
+The Railway manifest validator checks repository-owned service composition. A green local validation
+is not Railway staging evidence; the completed M9.6 activation record is the live reference.
 
-## Required M9 validation additions
+## M9 validation record
 
-M9.7–M9.13 must leave a reproducible managed-cloud validation path covering:
+M9.7–M9.13 established a reproducible managed-cloud validation path covering:
 
 - dependency-aware Railway service builds from a clean clone;
 - repository-owned Railway service configuration;
@@ -53,7 +54,8 @@ M9.7–M9.13 must leave a reproducible managed-cloud validation path covering:
 - operational retry/heartbeat/expiry/retention/payload defaults;
 - M9.1–M9.5 observability/security/recovery/performance evidence rerun against the real staging candidate.
 
-M9.6 #73 closes only after the complete live cloud path passes.
+M9.6 #73 closed after the complete bounded live Cloud path passed. Production certification remains
+a separate release gate.
 
 ## Required M10 validation additions
 
