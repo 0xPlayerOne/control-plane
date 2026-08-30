@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.5...workspace-v1.8.0) (2026-08-30)
+
+
+### Features
+
+* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+
 ## [1.7.5](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.4...workspace-v1.7.5) (2026-08-29)
 
 
