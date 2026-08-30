@@ -24,6 +24,19 @@ describe('Hosted server composition', () => {
       databaseUrl: 'postgresql://app:secret@postgres/control_plane',
       connection,
       workflowRuntime: workflow,
+      remoteControlFactory: (acceptance) => {
+        expect(typeof acceptance.accept).toBe('function')
+        return {
+          start: async () => calls.push('relay:start'),
+          stop: () => calls.push('relay:stop'),
+          health: async () => ({
+            ready: true,
+            component: 'remote-control-relay',
+            version: '1',
+            details: { direction: 'outbound', listener: false },
+          }),
+        }
+      },
       endpointFactory: {
         create: async () => ({
           run: async () => calls.push('endpoint:start'),
@@ -40,6 +53,7 @@ describe('Hosted server composition', () => {
           persistence: 'postgresql',
           objectStore: 'filesystem',
           runtimeTransport: 'unconfigured',
+          remoteControl: 'outbound',
         },
       })
       expect((await composition.discovery.resolve('postgresql')).url.toString()).toBe(
@@ -49,6 +63,7 @@ describe('Hosted server composition', () => {
         'database:check',
         'endpoint:start',
         'workflow:start',
+        'relay:start',
         'database:check',
       ])
     } finally {
@@ -59,7 +74,9 @@ describe('Hosted server composition', () => {
       'database:check',
       'endpoint:start',
       'workflow:start',
+      'relay:start',
       'database:check',
+      'relay:stop',
       'workflow:stop',
       'endpoint:stop',
       'database:close',

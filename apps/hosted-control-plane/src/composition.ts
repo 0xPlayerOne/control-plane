@@ -32,6 +32,10 @@ import { CommandInboxService, ExecutionLifecycleService } from '@control-plane/d
 import { ExecutionPlanAcceptanceValidator } from '@control-plane/execution-plan'
 import { FilesystemObjectStore } from '@control-plane/object-store'
 import { RemoteRestateRuntime, RESTATE_SERVER_VERSION } from '@control-plane/restate-runtime'
+import type {
+  ExecutionAcceptancePort,
+  RemoteControlHostAdapter,
+} from '@control-plane/remote-control-relay'
 import {
   CompositeSecretsProvider,
   EnvironmentSecretsProvider,
@@ -64,6 +68,7 @@ export interface HostedServerManifest {
     readonly restateVersion: string
     readonly persistence: 'postgresql'
     readonly objectStore: 'filesystem'
+    readonly remoteControl: 'disabled' | 'outbound'
   }
 }
 
@@ -78,6 +83,10 @@ export interface HostedServerCompositionOptions {
   readonly connection?: PostgresConnection
   readonly secrets?: SecretsProvider
   readonly workflowRuntime?: WorkflowRuntime
+  readonly remoteControl?: RemoteControlHostAdapter<unknown>
+  readonly remoteControlFactory?: (
+    acceptance: ExecutionAcceptancePort
+  ) => RemoteControlHostAdapter<unknown>
 }
 
 export class HostedServerControlPlaneComposition {
@@ -86,6 +95,7 @@ export class HostedServerControlPlaneComposition {
   readonly objectStore: ObjectStore
   readonly secrets: SecretsProvider
   readonly workflow: WorkflowRuntime
+  readonly remoteControl: RemoteControlHostAdapter<unknown> | undefined
   readonly coordination = new LocalCoordinationProvider()
   readonly processes = new NodeProcessRuntimeProvider()
   readonly observability = new BufferedObservabilityProvider()
@@ -116,7 +126,6 @@ export class HostedServerControlPlaneComposition {
           rootDirectory: join(this.dataDirectory, 'secrets'),
         }),
       })
-
     const restateIngressUrl = options.restateIngressUrl ?? 'http://restate:8080'
     const plans = new PostgresExecutionPlanRepository(this.connection.database)
     const catalog = new PostgresCatalogRepository(this.connection.database)
@@ -128,6 +137,11 @@ export class HostedServerControlPlaneComposition {
       }),
       dispatcher: new RestateExecutionWorkflowDispatcher({ ingressUrl: restateIngressUrl }),
     })
+    if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
+      throw new Error('HOSTED_REMOTE_CONTROL_CONFIGURATION_CONFLICT')
+    }
+    this.remoteControl =
+      options.remoteControl ?? options.remoteControlFactory?.(this.executionAcceptanceService)
     this.executionValidationService = new DurableExecutionValidationService({
       compilerVersion: COMPONENT_VERSION,
       contextPackages: new PostgresContextPackageRepository(this.connection.database),
@@ -184,7 +198,10 @@ export class HostedServerControlPlaneComposition {
     await this.#endpoint.run()
     try {
       await this.workflow.start()
+      await this.remoteControl?.start()
     } catch (error) {
+      this.remoteControl?.stop()
+      await this.workflow.stop().catch(() => undefined)
       await this.#endpoint.shutdown().catch(() => undefined)
       this.#endpoint = undefined
       throw error
@@ -214,6 +231,7 @@ export class HostedServerControlPlaneComposition {
       this.workflow.health(),
       this.secrets.health(),
       this.observability.health(),
+      ...(this.remoteControl === undefined ? [] : [this.remoteControl.health()]),
     ])
     return {
       schemaVersion: 1,
@@ -227,12 +245,14 @@ export class HostedServerControlPlaneComposition {
         restateVersion: RESTATE_SERVER_VERSION,
         persistence: 'postgresql',
         objectStore: 'filesystem',
+        remoteControl: this.remoteControl === undefined ? 'disabled' : 'outbound',
       },
     }
   }
 
   async close(): Promise<void> {
     this.#started = false
+    this.remoteControl?.stop()
     await this.workflow.stop().catch(() => undefined)
     await this.#endpoint?.shutdown().catch(() => undefined)
     this.#endpoint = undefined

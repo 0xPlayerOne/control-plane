@@ -28,6 +28,7 @@
   "packages/orchestration": "1.1.0",
   "packages/policy": "1.2.0",
   "packages/production-readiness": "1.1.1",
+  "packages/remote-control-relay": "1.0.0",
   "packages/runtime-gateway-protocol": "1.2.0",
   "packages/runtime-sdk": "1.4.0",
   "packages/restate-runtime": "1.0.0",

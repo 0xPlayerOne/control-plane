@@ -74,6 +74,7 @@
         "@control-plane/domain": "workspace:*",
         "@control-plane/execution-plan": "workspace:*",
         "@control-plane/object-store": "workspace:*",
+        "@control-plane/remote-control-relay": "workspace:*",
         "@control-plane/restate-runtime": "workspace:*",
         "@control-plane/secrets": "workspace:*",
         "@control-plane/workflow-runtime": "workspace:*",
@@ -92,6 +93,7 @@
         "@control-plane/domain": "workspace:*",
         "@control-plane/execution-plan": "workspace:*",
         "@control-plane/object-store": "workspace:*",
+        "@control-plane/remote-control-relay": "workspace:*",
         "@control-plane/restate-runtime": "workspace:*",
         "@control-plane/runtime-sdk": "workspace:*",
         "@control-plane/secrets": "workspace:*",
@@ -356,6 +358,21 @@
         "zod": "4.4.3",
       },
     },
+    "packages/remote-control-relay": {
+      "name": "@control-plane/remote-control-relay",
+      "version": "1.0.0",
+      "dependencies": {
+        "@control-plane/contracts": "workspace:*",
+        "@control-plane/deployment": "workspace:*",
+        "@hpke/core": "1.9.0",
+        "@hpke/dhkem-x25519": "1.8.0",
+        "zod": "4.3.6",
+      },
+      "devDependencies": {
+        "@control-plane/control-api": "workspace:*",
+        "@control-plane/domain": "workspace:*",
+      },
+    },
     "packages/restate-runtime": {
       "name": "@control-plane/restate-runtime",
       "version": "1.0.0",
@@ -548,6 +565,8 @@
 
     "@control-plane/production-readiness": ["@control-plane/production-readiness@workspace:packages/production-readiness"],
 
+    "@control-plane/remote-control-relay": ["@control-plane/remote-control-relay@workspace:packages/remote-control-relay"],
+
     "@control-plane/restate-runtime": ["@control-plane/restate-runtime@workspace:packages/restate-runtime"],
 
     "@control-plane/runtime-gateway": ["@control-plane/runtime-gateway@workspace:apps/runtime-gateway"],
@@ -673,6 +692,12 @@
     "@fastify/proxy-addr": ["@fastify/proxy-addr@5.1.0", "", { "dependencies": { "@fastify/forwarded": "^3.0.0", "ipaddr.js": "^2.1.0" } }, "sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw=="],
 
     "@graphql-typed-document-node/core": ["@graphql-typed-document-node/core@3.2.0", "", { "peerDependencies": { "graphql": "^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0" } }, "sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ=="],
+
+    "@hpke/common": ["@hpke/common@1.10.1", "", {}, "sha512-moJwhmtLtuxiUzzNp1jpfBfx8yefKoO9D/RCR9dmwrnc7qjJqId1rEtQz+lSlU5cabX8daToMSx/7HayXOiaFw=="],
+
+    "@hpke/core": ["@hpke/core@1.9.0", "", { "dependencies": { "@hpke/common": "^1.10.0" } }, "sha512-pFxWl1nNJeQCSUFs7+GAblHvXBCjn9EPN65vdKlYQil2aURaRxfGMO6vBKGqm1YHTKwiAxJQNEI70PbSowMP9Q=="],
+
+    "@hpke/dhkem-x25519": ["@hpke/dhkem-x25519@1.8.0", "", { "dependencies": { "@hpke/common": "^1.10.0" } }, "sha512-S1MWWkAfu+TFxySgv5+2P3O4Mx/jk7BsoplzQaA1s3sfUJVJ2UsZsSzSsMc+FXJumLXncoJFlO6mK6mDGspfmA=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
 
@@ -1153,6 +1178,8 @@
     "yocto-queue": ["yocto-queue@0.1.0", "", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
+
+    "@control-plane/remote-control-relay/zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 

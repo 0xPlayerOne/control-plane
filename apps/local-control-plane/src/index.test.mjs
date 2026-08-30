@@ -63,6 +63,7 @@ describe('Local Control Plane composition', () => {
           runtimeTransport: 'direct-local',
           persistence: 'sqlite',
           objectStore: 'filesystem',
+          remoteControl: 'disabled',
         },
       })
       expect(manifest.components.every(({ ready }) => ready)).toBe(true)
@@ -87,6 +88,7 @@ describe('Local Control Plane composition', () => {
         restateVersion: '1.7.7',
         persistence: 'sqlite',
         objectStore: 'filesystem',
+        remoteControl: 'disabled',
       },
     }
     const server = new LocalApiServer({
@@ -103,6 +105,57 @@ describe('Local Control Plane composition', () => {
     } finally {
       await server.close()
     }
+  })
+
+  test('constructs and starts optional outbound remote control against durable acceptance', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-local-relay-'))
+    const calls = []
+    const composition = new LocalControlPlaneComposition({
+      dataDirectory: directory,
+      workflowRuntime: {
+        profile: 'local',
+        start: async () => calls.push('workflow:start'),
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => calls.push('workflow:stop'),
+      },
+      endpointFactory: {
+        create: async () => ({
+          run: async () => calls.push('endpoint:start'),
+          shutdown: async () => calls.push('endpoint:stop'),
+        }),
+      },
+      remoteControlFactory: (acceptance) => {
+        expect(typeof acceptance.accept).toBe('function')
+        return {
+          start: async () => calls.push('relay:start'),
+          stop: () => calls.push('relay:stop'),
+          health: async () => ({
+            ready: true,
+            component: 'remote-control-relay',
+            version: '1',
+            details: { direction: 'outbound', listener: false },
+          }),
+        }
+      },
+    })
+    try {
+      await composition.start()
+      expect(await composition.manifest()).toMatchObject({
+        topology: { remoteControl: 'outbound' },
+      })
+      expect(calls).toEqual(['endpoint:start', 'workflow:start', 'relay:start'])
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+    expect(calls).toEqual([
+      'endpoint:start',
+      'workflow:start',
+      'relay:start',
+      'relay:stop',
+      'workflow:stop',
+      'endpoint:stop',
+    ])
   })
 
   test('executes and replays a completed runtime effect through direct transport only', async () => {
