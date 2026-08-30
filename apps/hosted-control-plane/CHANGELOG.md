@@ -5,4 +5,7 @@
 
 ### Features
 
-* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+* **hosted:** ship Compose deployment profiles ([#311](https://github.com/0xPlayerOne/control-plane/pull/311)) ([2a4de56](https://github.com/0xPlayerOne/control-plane/commit/2a4de56d6e352155cf42c0b44302241f1b92442a))
+* **relay:** integrate encrypted remote control ([#312](https://github.com/0xPlayerOne/control-plane/pull/312)) ([09cebc6](https://github.com/0xPlayerOne/control-plane/commit/09cebc6341dbd8f3768d43d8b1318d2481f3cc85))
+* **portability:** publish hosted profile conformance ([#315](https://github.com/0xPlayerOne/control-plane/pull/315)) ([fefdba2](https://github.com/0xPlayerOne/control-plane/commit/fefdba2c454e99f7bbd73c14f25a08941286342a))
+* **operations:** add replaceable S3 storage and dependency readiness ([#317](https://github.com/0xPlayerOne/control-plane/pull/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))

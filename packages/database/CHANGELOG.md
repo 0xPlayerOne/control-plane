@@ -5,7 +5,7 @@
 
 ### Features
 
-* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+* **portability:** add PostgreSQL profile migration storage ([#316](https://github.com/0xPlayerOne/control-plane/pull/316)) ([1ae4b9f](https://github.com/0xPlayerOne/control-plane/commit/1ae4b9f2de1d0c3f0e73255b9db6aeade24b6426))
 
 ## [1.6.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.5.0...database-v1.6.0) (2026-08-29)
 
