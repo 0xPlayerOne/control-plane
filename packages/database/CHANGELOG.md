@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.6.0...database-v1.7.0) (2026-08-30)
+
+
+### Features
+
+* **portability:** add PostgreSQL profile migration storage ([#316](https://github.com/0xPlayerOne/control-plane/pull/316)) ([1ae4b9f](https://github.com/0xPlayerOne/control-plane/commit/1ae4b9f2de1d0c3f0e73255b9db6aeade24b6426))
+
 ## [1.6.0](https://github.com/0xPlayerOne/control-plane/compare/database-v1.5.0...database-v1.6.0) (2026-08-29)
 
 

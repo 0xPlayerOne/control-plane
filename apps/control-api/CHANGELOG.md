@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/control-api-v1.2.1...control-api-v1.3.0) (2026-08-30)
+
+
+### Features
+
+* **portability:** compose the local control API ([#309](https://github.com/0xPlayerOne/control-plane/pull/309)) ([4a27c47](https://github.com/0xPlayerOne/control-plane/commit/4a27c4746ca3ca1ab248871dd4bef8713d77ec36))
+* **hosted:** add private hosted authentication ([#311](https://github.com/0xPlayerOne/control-plane/pull/311)) ([2a4de56](https://github.com/0xPlayerOne/control-plane/commit/2a4de56d6e352155cf42c0b44302241f1b92442a))
+* **operations:** report dependency-aware readiness ([#317](https://github.com/0xPlayerOne/control-plane/pull/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+
 ## [1.2.1](https://github.com/0xPlayerOne/control-plane/compare/control-api-v1.2.0...control-api-v1.2.1) (2026-08-29)
 
 
