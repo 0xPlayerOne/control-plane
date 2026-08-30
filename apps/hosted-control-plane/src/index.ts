@@ -11,6 +11,7 @@ import {
   createControlApiApplication,
   createPrivateApiAuthentication,
 } from '@control-plane/control-api'
+import { createS3CompatibleObjectStore } from '@control-plane/object-store'
 import {
   HostedServerControlPlaneComposition,
   type HostedServerCompositionOptions,
@@ -45,6 +46,10 @@ export const start = (options: HostedControlPlaneStartOptions = {}) =>
         options.compositionOptions?.restateIngressUrl ?? environment['RESTATE_INGRESS_URL']
       const workflowDeploymentUri =
         options.compositionOptions?.workflowDeploymentUri ?? environment['WORKFLOW_DEPLOYMENT_URI']
+      const objectStoreConfiguration = resolveHostedObjectStore(
+        environment,
+        options.compositionOptions
+      )
       const composition =
         options.composition ??
         new HostedServerControlPlaneComposition({
@@ -58,6 +63,25 @@ export const start = (options: HostedControlPlaneStartOptions = {}) =>
           ...(options.compositionOptions?.workflowEndpointPort === undefined
             ? {}
             : { workflowEndpointPort: options.compositionOptions.workflowEndpointPort }),
+          ...objectStoreConfiguration,
+          ...(options.compositionOptions?.endpointFactory === undefined
+            ? {}
+            : { endpointFactory: options.compositionOptions.endpointFactory }),
+          ...(options.compositionOptions?.connection === undefined
+            ? {}
+            : { connection: options.compositionOptions.connection }),
+          ...(options.compositionOptions?.secrets === undefined
+            ? {}
+            : { secrets: options.compositionOptions.secrets }),
+          ...(options.compositionOptions?.workflowRuntime === undefined
+            ? {}
+            : { workflowRuntime: options.compositionOptions.workflowRuntime }),
+          ...(options.compositionOptions?.remoteControl === undefined
+            ? {}
+            : { remoteControl: options.compositionOptions.remoteControl }),
+          ...(options.compositionOptions?.remoteControlFactory === undefined
+            ? {}
+            : { remoteControlFactory: options.compositionOptions.remoteControlFactory }),
         })
       registerResource('hosted-control-plane-composition', () => composition.close())
       await composition.start()
@@ -67,6 +91,8 @@ export const start = (options: HostedControlPlaneStartOptions = {}) =>
         executionValidationService: composition.executionValidationService,
         serviceAuthenticator: authentication.authenticator,
         componentManifest: () => composition.manifest(),
+        dependencyReadiness: async () =>
+          (await composition.manifest()).components.every((component) => component.ready),
         health,
         logger: options.logger ?? jsonLogger,
         metadata: config.metadata,
@@ -93,6 +119,51 @@ function requiredEnvironment(environment: RawEnvironment, name: string): string 
   const value = environment[name]
   if (value === undefined || value === '') throw new Error(`HOSTED_CONFIGURATION_MISSING_${name}`)
   return value
+}
+
+export function resolveHostedObjectStore(
+  environment: RawEnvironment,
+  options: Partial<HostedServerCompositionOptions> | undefined
+): Partial<Pick<HostedServerCompositionOptions, 'objectStore' | 'objectStoreKind'>> {
+  if (options?.objectStore !== undefined) {
+    return {
+      objectStore: options.objectStore,
+      objectStoreKind: options.objectStoreKind ?? 'filesystem',
+    }
+  }
+  const kind = options?.objectStoreKind ?? environment['HOSTED_OBJECT_STORE'] ?? 'filesystem'
+  if (kind === 'filesystem') return {}
+  if (kind !== 's3-compatible') throw new Error('HOSTED_OBJECT_STORE_KIND_INVALID')
+  const endpoint = requiredEnvironment(environment, 'S3_ENDPOINT')
+  if (!validS3Endpoint(endpoint)) throw new Error('HOSTED_OBJECT_STORE_ENDPOINT_INVALID')
+  return {
+    objectStoreKind: 's3-compatible' as const,
+    objectStore: createS3CompatibleObjectStore(
+      {
+        endpoint,
+        bucket: requiredEnvironment(environment, 'S3_BUCKET'),
+        region: requiredEnvironment(environment, 'S3_REGION'),
+        accessKeyId: requiredEnvironment(environment, 'S3_ACCESS_KEY_ID'),
+        secretAccessKey: requiredEnvironment(environment, 'S3_SECRET_ACCESS_KEY'),
+      },
+      { maxObjectBytes: 64 * 1024 * 1024 }
+    ),
+  }
+}
+
+function validS3Endpoint(value: string): boolean {
+  try {
+    const endpoint = new URL(value)
+    return (
+      endpoint.protocol === 'https:' &&
+      endpoint.username === '' &&
+      endpoint.password === '' &&
+      endpoint.search === '' &&
+      endpoint.hash === ''
+    )
+  } catch {
+    return false
+  }
 }
 
 export * from './composition.js'

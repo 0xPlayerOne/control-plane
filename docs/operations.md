@@ -207,6 +207,9 @@ proof of rollback, restart recovery, load, isolation, secret-canary, or cost acc
 
 Local uses all-in-one Control Plane + SQLite + single-node Restate + filesystem storage + direct RuntimeTransport.
 
+The packaging, checkpoint, sleep/wake, upgrade, rollback, incident, host-loss, and measured resource
+contracts are executable from [`local-deployment.md`](local-deployment.md).
+
 Operational requirements include:
 
 - clean startup/shutdown and component health manifest;

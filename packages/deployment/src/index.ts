@@ -1,6 +1,7 @@
 import type { JsonValue } from './json.js'
 
 export type { JsonValue } from './json.js'
+export * from './checkpoint.js'
 export * from './process-runtime.js'
 export * from './local-adapters.js'
 

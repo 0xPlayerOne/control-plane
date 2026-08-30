@@ -97,6 +97,36 @@ describe('Control API', () => {
     })
   })
 
+  test('drops readiness when a live deployment dependency is unavailable', async () => {
+    const application = await createControlApiApplication({
+      health: () => ({ status: 'ok', metadata }),
+      logger: { write: () => undefined },
+      metadata,
+      readiness: () => ({ status: 'ready', metadata }),
+      dependencyReadiness: async () => false,
+    })
+    applications.push(application)
+    const response = await application.inject({ method: 'GET', url: '/ready' })
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toEqual({ status: 'not_ready', metadata })
+  })
+
+  test('keeps dependency probe failures on the readiness contract', async () => {
+    const application = await createControlApiApplication({
+      health: () => ({ status: 'ok', metadata }),
+      logger: { write: () => undefined },
+      metadata,
+      readiness: () => ({ status: 'ready', metadata }),
+      dependencyReadiness: async () => {
+        throw new Error('probe failed')
+      },
+    })
+    applications.push(application)
+    const response = await application.inject({ method: 'GET', url: '/ready' })
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toEqual({ status: 'not_ready', metadata })
+  })
+
   test('serves a versioned endpoint and propagates request context through responses and logs', async () => {
     const logs = []
     const application = await createApplication(logs)
