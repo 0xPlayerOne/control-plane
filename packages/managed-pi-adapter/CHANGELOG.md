@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/managed-pi-adapter-v1.1.0...managed-pi-adapter-v1.2.0) (2026-08-30)
+
+
+### Features
+
+* **runtime:** add direct-local adapter transport ([#313](https://github.com/0xPlayerOne/control-plane/pull/313)) ([1fac8e1](https://github.com/0xPlayerOne/control-plane/commit/1fac8e13184ed661f1df4853d63ffde0f56a79b2))
+
 ## [1.1.0](https://github.com/0xPlayerOne/control-plane/compare/managed-pi-adapter-v1.0.0...managed-pi-adapter-v1.1.0) (2026-08-29)
 
 

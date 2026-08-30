@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/object-store-v1.1.1...object-store-v1.2.0) (2026-08-30)
+
+
+### Features
+
+* **portability:** add filesystem object storage ([#309](https://github.com/0xPlayerOne/control-plane/pull/309)) ([4a27c47](https://github.com/0xPlayerOne/control-plane/commit/4a27c4746ca3ca1ab248871dd4bef8713d77ec36))
+* **operations:** add generic S3-compatible object storage ([#317](https://github.com/0xPlayerOne/control-plane/pull/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+
 ## [1.1.1](https://github.com/0xPlayerOne/control-plane/compare/object-store-v1.1.0...object-store-v1.1.1) (2026-08-29)
 
 

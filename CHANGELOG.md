@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.5...workspace-v1.8.0) (2026-08-30)
+
+
+### Features
+
+* **portability:** add local control plane foundation ([#309](https://github.com/0xPlayerOne/control-plane/pull/309)) ([4a27c47](https://github.com/0xPlayerOne/control-plane/commit/4a27c4746ca3ca1ab248871dd4bef8713d77ec36))
+* **hosted:** ship Compose deployment profiles ([#311](https://github.com/0xPlayerOne/control-plane/pull/311)) ([2a4de56](https://github.com/0xPlayerOne/control-plane/commit/2a4de56d6e352155cf42c0b44302241f1b92442a))
+* **relay:** add encrypted remote control ([#312](https://github.com/0xPlayerOne/control-plane/pull/312)) ([09cebc6](https://github.com/0xPlayerOne/control-plane/commit/09cebc6341dbd8f3768d43d8b1318d2481f3cc85))
+* **runtime:** add the direct-local adapter transport chain ([#313](https://github.com/0xPlayerOne/control-plane/pull/313)) ([1fac8e1](https://github.com/0xPlayerOne/control-plane/commit/1fac8e13184ed661f1df4853d63ffde0f56a79b2))
+* **remote-control:** complete encrypted relay delivery ([#314](https://github.com/0xPlayerOne/control-plane/pull/314)) ([4d275ca](https://github.com/0xPlayerOne/control-plane/commit/4d275ca711a3bbeb5fdb3ab75cbd6469aab0ff6d))
+* **portability:** add profile conformance and migration tooling ([#315](https://github.com/0xPlayerOne/control-plane/pull/315)) ([fefdba2](https://github.com/0xPlayerOne/control-plane/commit/fefdba2c454e99f7bbd73c14f25a08941286342a))
+* **portability:** complete the PostgreSQL profile migration adapter ([#316](https://github.com/0xPlayerOne/control-plane/pull/316)) ([1ae4b9f](https://github.com/0xPlayerOne/control-plane/commit/1ae4b9f2de1d0c3f0e73255b9db6aeade24b6426))
+* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/pull/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+
 ## [1.7.5](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.4...workspace-v1.7.5) (2026-08-29)
 
 

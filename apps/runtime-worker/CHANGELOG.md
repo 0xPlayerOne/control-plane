@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-worker-v1.3.0...runtime-worker-v1.4.0) (2026-08-30)
+
+
+### Features
+
+* **runtime:** certify the direct-local adapter transport chain ([#313](https://github.com/0xPlayerOne/control-plane/pull/313)) ([1fac8e1](https://github.com/0xPlayerOne/control-plane/commit/1fac8e13184ed661f1df4853d63ffde0f56a79b2))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-worker-v1.2.0...runtime-worker-v1.3.0) (2026-08-29)
 
 
