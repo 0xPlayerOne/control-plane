@@ -14,6 +14,7 @@ import {
   SqliteContextPackageRepository,
   SqliteExecutionEventRepository,
   SqliteExecutionPlanRepository,
+  SqliteExecutionRepository,
   SqliteProjectStateRepository,
   SqliteReconciliationCheckpointRepository,
   SqliteRuntimeCommandRepository,
@@ -26,9 +27,12 @@ import {
 } from '@control-plane/sqlite-persistence'
 
 export class LocalControlApiComposition {
+  readonly commandRepository: SqliteCommandAcceptanceRepository
+  readonly commands: CommandInboxService
   readonly catalog: SqliteVersionedCatalogRepository
   readonly contextPackages: SqliteContextPackageRepository
   readonly executionPlans: SqliteExecutionPlanRepository
+  readonly executions: SqliteExecutionRepository
   readonly executionEvents: SqliteExecutionEventRepository
   readonly projectStates: SqliteProjectStateRepository
   readonly statePromotionProposals: SqliteStatePromotionProposalRepository
@@ -44,9 +48,11 @@ export class LocalControlApiComposition {
   readonly runtimeDiscoveryRepository: SqliteRuntimeDiscoveryRepository
 
   constructor(persistence: SqlitePersistenceProvider, restateIngressUrl: string) {
+    this.commandRepository = new SqliteCommandAcceptanceRepository(persistence)
     this.catalog = new SqliteVersionedCatalogRepository(persistence)
     this.contextPackages = new SqliteContextPackageRepository(persistence)
     this.executionPlans = new SqliteExecutionPlanRepository(persistence)
+    this.executions = new SqliteExecutionRepository(persistence)
     this.executionEvents = new SqliteExecutionEventRepository(persistence)
     this.projectStates = new SqliteProjectStateRepository(persistence)
     this.statePromotionProposals = new SqliteStatePromotionProposalRepository(persistence)
@@ -55,12 +61,13 @@ export class LocalControlApiComposition {
     this.runtimeInventoryCheckpoints = new SqliteRuntimeInventoryCheckpointRepository(persistence)
     this.runtimeEventEffects = new SqliteRuntimeEventEffectSink(persistence)
     this.runtimeDiscoveryRepository = new SqliteRuntimeDiscoveryRepository(persistence)
+    this.commands = new CommandInboxService({
+      repository: this.commandRepository,
+      executionIdFactory: createExecutionId,
+      executionPlanValidator: new ExecutionPlanAcceptanceValidator(this.executionPlans),
+    })
     this.executionAcceptanceService = new DurableExecutionAcceptanceService({
-      commands: new CommandInboxService({
-        repository: new SqliteCommandAcceptanceRepository(persistence),
-        executionIdFactory: createExecutionId,
-        executionPlanValidator: new ExecutionPlanAcceptanceValidator(this.executionPlans),
-      }),
+      commands: this.commands,
       dispatcher: new RestateExecutionWorkflowDispatcher({ ingressUrl: restateIngressUrl }),
     })
     this.executionValidationService = new DurableExecutionValidationService({
