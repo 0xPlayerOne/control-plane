@@ -1115,28 +1115,28 @@
       "method": "POST",
       "path": "/v1/runtimes/list",
       "inOpenApi": true,
-      "controllerReachable": false,
-      "classification": "not_implemented",
+      "controllerReachable": true,
+      "classification": "partially_verified",
       "trace": {
-        "auth": "declared service bearer security",
-        "service": "no controller or application service",
-        "persistence": "unreachable",
-        "execution": "unreachable",
-        "delivery": "no response path",
-        "cleanup": "not applicable"
+        "auth": "service bearer with runtime:read scope",
+        "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
+        "persistence": "RuntimeDiscoveryRepository (currently empty in production compositions)",
+        "execution": "read-only projection from normalized runtime connections",
+        "delivery": "filtered normalized runtime node read models",
+        "cleanup": "no external side effect"
       },
-      "assessment": "RuntimeConnection discovery routes exist, but the separate runtime.list contract is unreachable.",
+      "assessment": "The declared runtime.list contract is reachable and tested, but production compositions still default to EmptyRuntimeDiscoveryRepository.",
       "evidence": [
         {
-          "kind": "contract",
-          "path": "packages/contracts/src/control-api.ts"
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
         }
       ],
       "gap": {
         "issue": 188,
         "severity": "high",
-        "owner": "control-api-runtime",
-        "disposition": "Implement the declared normalized runtime list or remove and migrate consumers to runtime-connection.list."
+        "owner": "runtime-discovery",
+        "disposition": "Wire concrete PostgreSQL and SQLite runtime/session discovery repositories in supported compositions."
       },
       "openApiOperationId": "runtime.list",
       "openApiResponseStatuses": ["200", "default"],

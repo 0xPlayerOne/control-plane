@@ -893,6 +893,15 @@ describe('Control API', () => {
         runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
       }),
     })
+    const runtimes = await application.inject({
+      method: 'POST',
+      url: '/v1/runtimes/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('runtime.list', {
+        status: 'unavailable',
+        requiredCapabilities: ['session.resume'],
+      }),
+    })
     const sessionList = await application.inject({
       method: 'POST',
       url: '/v1/external-sessions/list',
@@ -915,6 +924,20 @@ describe('Control API', () => {
       },
     })
     expect(runtimeGet.statusCode).toBe(200)
+    expect(runtimes.statusCode).toBe(200)
+    expect(runtimes.json().data.runtimes).toEqual([
+      {
+        runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
+        runtimeConnectionId: runtimeModel().runtimeConnectionId,
+        runtimeDefinitionId: runtimeModel().runtimeDefinitionId,
+        family: runtimeModel().family,
+        location: runtimeModel().node.location,
+        status: 'unavailable',
+        observedAt: runtimeModel().observedAt,
+        capabilities: runtimeModel().capabilities,
+        limitations: runtimeModel().limitations,
+      },
+    ])
     expect(sessionList.statusCode).toBe(200)
     expect(sessionList.json().data.externalSessions[0].capabilitySummary.controls.resume).toEqual({
       available: false,
@@ -1000,6 +1023,7 @@ describe('Control API', () => {
     expect(document.paths).toHaveProperty('/v1/executions/validate')
     expect(document.paths).toHaveProperty('/v1/executions/accept')
     expect(document.paths).toHaveProperty('/v1/runtime-connections/list')
+    expect(document.paths).toHaveProperty('/v1/runtimes/list')
     expect(document.paths).toHaveProperty('/v1/external-sessions/list')
     expect(document.paths).toHaveProperty('/health')
     expect(document.components?.securitySchemes).toHaveProperty('service-bearer')
