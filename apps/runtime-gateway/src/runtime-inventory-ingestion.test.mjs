@@ -28,6 +28,16 @@ describe('Runtime Gateway inventory ingestion', () => {
       nodeStatus: 'online',
       currentState: 'offline',
     })
+    expect(fixture.projections.runtimeConnections).toHaveLength(1)
+    expect(fixture.projections.runtimeConnections[0]).toMatchObject({
+      workspaceId,
+      model: {
+        runtimeConnectionId: first.updated[0].runtimeConnectionId,
+        family: 'reference-runtime',
+        node: { runtimeNodeRefId: nodeId, health: 'online' },
+        connection: { availability: 'offline' },
+      },
+    })
 
     const replay = await fixture.service.ingest(unhealthy, source(), 'online')
     expect(replay).toEqual({
@@ -221,17 +231,25 @@ function createFixture(options = {}) {
       }
     },
   }
+  const projections = {
+    runtimeConnections: [],
+    async putRuntimeConnection(workspaceId, model) {
+      this.runtimeConnections.push({ workspaceId, model })
+    },
+  }
   return {
     repository,
     checkpoints,
     registry,
     changes,
+    projections,
     service: new RuntimeInventoryIngestionService({
       registry,
       health,
       checkpoints,
       changes,
       normalizer,
+      projections,
       metrics,
       disappearanceTtlMs: 30_000,
     }),
