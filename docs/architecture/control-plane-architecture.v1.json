@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "candidate": {
-    "commit": "1e8b71f06e86b27665c74b185090e52ad9e8c946",
-    "ref": "feat/m11-requirements-ledger",
-    "recordedAt": "2026-08-30T15:00:00Z"
+    "commit": "d3e449471d02f791c52196ea296a5a8a653a4dd4",
+    "ref": "staging",
+    "recordedAt": "2026-08-30T17:50:10Z"
   },
   "packages": [
     {
