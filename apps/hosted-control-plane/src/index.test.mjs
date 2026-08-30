@@ -90,4 +90,64 @@ describe('Hosted server composition', () => {
       'HOSTED_CONTROL_PLANE_BIND_HOST_INVALID'
     )
   })
+
+  test('accepts an explicit S3-compatible ObjectStore without changing domain contracts', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-s3-'))
+    const calls = []
+    const objectStore = {
+      put: async () => {
+        throw new Error('unused')
+      },
+      get: async () => {
+        throw new Error('unused')
+      },
+      head: async () => {
+        throw new Error('unused')
+      },
+      delete: async () => undefined,
+      close: () => calls.push('object-store:close'),
+    }
+    const composition = new HostedServerControlPlaneComposition({
+      dataDirectory: directory,
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+      connection: {
+        database: {},
+        check: async () => undefined,
+        close: async () => undefined,
+      },
+      workflowRuntime: {
+        profile: 'hosted-server',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+      objectStore,
+      objectStoreKind: 's3-compatible',
+    })
+    try {
+      await composition.start()
+      expect(await composition.manifest()).toMatchObject({
+        topology: { objectStore: 's3-compatible' },
+      })
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+    expect(calls).toEqual(['object-store:close'])
+  })
+
+  test('fails closed when S3-compatible topology is declared without an adapter', async () => {
+    expect(
+      () =>
+        new HostedServerControlPlaneComposition({
+          dataDirectory: '/tmp/control-plane-invalid-object-store',
+          databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+          connection: { database: {}, check: async () => undefined, close: async () => undefined },
+          objectStoreKind: 's3-compatible',
+        })
+    ).toThrow('HOSTED_OBJECT_STORE_CONFIGURATION_INVALID')
+  })
 })

@@ -67,7 +67,7 @@ export interface HostedServerManifest {
     readonly runtimeTransport: 'unconfigured'
     readonly restateVersion: string
     readonly persistence: 'postgresql'
-    readonly objectStore: 'filesystem'
+    readonly objectStore: 'filesystem' | 's3-compatible'
     readonly remoteControl: 'disabled' | 'outbound'
   }
 }
@@ -83,6 +83,8 @@ export interface HostedServerCompositionOptions {
   readonly connection?: PostgresConnection
   readonly secrets?: SecretsProvider
   readonly workflowRuntime?: WorkflowRuntime
+  readonly objectStore?: ObjectStore
+  readonly objectStoreKind?: 'filesystem' | 's3-compatible'
   readonly remoteControl?: RemoteControlHostAdapter<unknown>
   readonly remoteControlFactory?: (
     acceptance: ExecutionAcceptancePort
@@ -103,6 +105,7 @@ export class HostedServerControlPlaneComposition {
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly #endpointFactory: RestateEndpointFactory
+  readonly #objectStoreKind: 'filesystem' | 's3-compatible'
   #endpoint: RestateEndpointHandle | undefined
   #started = false
 
@@ -114,10 +117,16 @@ export class HostedServerControlPlaneComposition {
         { role: 'application', url: options.databaseUrl },
         { maxConnections: 10 }
       )
-    this.objectStore = new FilesystemObjectStore({
-      rootDirectory: join(this.dataDirectory, 'artifacts'),
-      maxObjectBytes: MAX_ARTIFACT_BYTES,
-    })
+    if (options.objectStore === undefined && options.objectStoreKind === 's3-compatible') {
+      throw new Error('HOSTED_OBJECT_STORE_CONFIGURATION_INVALID')
+    }
+    this.objectStore =
+      options.objectStore ??
+      new FilesystemObjectStore({
+        rootDirectory: join(this.dataDirectory, 'artifacts'),
+        maxObjectBytes: MAX_ARTIFACT_BYTES,
+      })
+    this.#objectStoreKind = options.objectStoreKind ?? 'filesystem'
     this.secrets =
       options.secrets ??
       new CompositeSecretsProvider({
@@ -244,7 +253,7 @@ export class HostedServerControlPlaneComposition {
         runtimeTransport: 'unconfigured',
         restateVersion: RESTATE_SERVER_VERSION,
         persistence: 'postgresql',
-        objectStore: 'filesystem',
+        objectStore: this.#objectStoreKind,
         remoteControl: this.remoteControl === undefined ? 'disabled' : 'outbound',
       },
     }
