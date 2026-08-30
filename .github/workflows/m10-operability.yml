@@ -50,10 +50,18 @@ jobs:
             "$compose_root/server/control-plane" \
             "$compose_root/server/postgres" \
             "$compose_root/server/restate"
+          sudo chown -R 1000:1000 "$compose_root/simple" "$compose_root/server/control-plane"
           export CONTROL_PLANE_PORT=33300
 
           cleanup() {
+            exit_code="$?"
+            trap - EXIT
+            if [[ "$exit_code" != 0 ]]; then
+              docker compose --profile simple --profile server ps -a || true
+              docker compose --profile simple --profile server logs --no-color || true
+            fi
             docker compose --profile simple --profile server down || true
+            exit "$exit_code"
           }
           trap cleanup EXIT
 

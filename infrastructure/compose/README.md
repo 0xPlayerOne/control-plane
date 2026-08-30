@@ -10,6 +10,7 @@ The `simple` profile is the default small-VPS topology. One container runs the C
 cd infrastructure/compose
 cp .env.example .env
 mkdir -p data/simple
+sudo chown 1000:1000 data/simple
 chmod 700 data/simple
 docker compose --profile simple up --build -d
 docker compose --profile simple ps
@@ -29,12 +30,15 @@ cp .env.example .env
 password=$(openssl rand -hex 32)
 # Put the generated value in POSTGRES_PASSWORD in .env without printing it again.
 mkdir -p data/server/control-plane data/server/postgres data/server/restate
+sudo chown 1000:1000 data/server/control-plane
 chmod 700 data/server data/server/*
 docker compose --profile server up --build -d
 docker compose --profile server ps
 ```
 
 The server component manifest reports `hosted-server`, PostgreSQL persistence, filesystem artifacts, and the separate Restate dependency. An S3-compatible ObjectStore is optional and replaces only the object-store adapter; Neon is a supported PostgreSQL provider but is not required. To enable it, set `HOSTED_OBJECT_STORE=s3-compatible` plus `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. The endpoint must use HTTPS and all values are required together. Cloudflare R2 works through this seam with region `auto`.
+
+The hardened Control Plane image runs as the pinned non-root `bun` user, UID/GID 1000. On a native Linux Docker host, the Simple data directory and Server `control-plane` directory must therefore be owned by 1000:1000 and remain mode 0700. PostgreSQL and Restate start through their pinned image entrypoints and initialize their own bind-directory ownership. Do not make any data directory world-writable to bypass an ownership error.
 
 ## Persistence and backup
 

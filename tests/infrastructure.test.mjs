@@ -369,6 +369,8 @@ test('packages the hosted simple profile as one hardened user-owned composition'
   assert.match(compose, /S3_ENDPOINT: \$\{S3_ENDPOINT:-\}/)
   assert.match(runbook, /docker compose --profile simple up --build -d/)
   assert.match(runbook, /docker compose --profile server up --build -d/)
+  assert.match(runbook, /sudo chown 1000:1000 data\/simple/)
+  assert.match(runbook, /sudo chown 1000:1000 data\/server\/control-plane/)
   assert.match(runbook, /127\.0\.0\.1:3000/)
   assert.match(runbook, /Stop the container before a filesystem-level backup/)
 })
