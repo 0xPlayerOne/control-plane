@@ -96,6 +96,7 @@ export class LocalControlPlaneComposition {
   readonly reconciliationCheckpoints: LocalControlApiComposition['reconciliationCheckpoints']
   readonly runtimeCommands: LocalControlApiComposition['runtimeCommands']
   readonly runtimeInventoryCheckpoints: LocalControlApiComposition['runtimeInventoryCheckpoints']
+  readonly runtimeEventEffects: LocalControlApiComposition['runtimeEventEffects']
   readonly runtimeDiscoveryRepository: LocalControlApiComposition['runtimeDiscoveryRepository']
   readonly coordination = new LocalCoordinationProvider()
   readonly observability = new BufferedObservabilityProvider()
@@ -143,6 +144,7 @@ export class LocalControlPlaneComposition {
     this.reconciliationCheckpoints = controlApi.reconciliationCheckpoints
     this.runtimeCommands = controlApi.runtimeCommands
     this.runtimeInventoryCheckpoints = controlApi.runtimeInventoryCheckpoints
+    this.runtimeEventEffects = controlApi.runtimeEventEffects
     this.runtimeDiscoveryRepository = controlApi.runtimeDiscoveryRepository
     if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
       throw new Error('LOCAL_REMOTE_CONTROL_CONFIGURATION_CONFLICT')

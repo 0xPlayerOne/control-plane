@@ -19,6 +19,7 @@ import {
   SqliteRuntimeCommandRepository,
   SqliteRuntimeDiscoveryRepository,
   SqliteRuntimeInventoryCheckpointRepository,
+  SqliteRuntimeEventEffectSink,
   SqliteStatePromotionProposalRepository,
   SqliteVersionedCatalogRepository,
   type SqlitePersistenceProvider,
@@ -34,6 +35,7 @@ export class LocalControlApiComposition {
   readonly reconciliationCheckpoints: SqliteReconciliationCheckpointRepository
   readonly runtimeCommands: SqliteRuntimeCommandRepository
   readonly runtimeInventoryCheckpoints: SqliteRuntimeInventoryCheckpointRepository
+  readonly runtimeEventEffects: SqliteRuntimeEventEffectSink
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly profileResolutionService: RepositoryProfileResolutionService
@@ -51,6 +53,7 @@ export class LocalControlApiComposition {
     this.reconciliationCheckpoints = new SqliteReconciliationCheckpointRepository(persistence)
     this.runtimeCommands = new SqliteRuntimeCommandRepository(persistence)
     this.runtimeInventoryCheckpoints = new SqliteRuntimeInventoryCheckpointRepository(persistence)
+    this.runtimeEventEffects = new SqliteRuntimeEventEffectSink(persistence)
     this.runtimeDiscoveryRepository = new SqliteRuntimeDiscoveryRepository(persistence)
     this.executionAcceptanceService = new DurableExecutionAcceptanceService({
       commands: new CommandInboxService({

@@ -1251,7 +1251,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
       },
-      "sourceDigest": "sha256:baccb33c32020706cb0a5a212eac7a72ffb6b965cf0a975b1b5567a2b82f70df"
+      "sourceDigest": "sha256:3650a8d407a692c05c1ece806e8215855b0487aa7575e9e4a8fd1ca42258b5b7"
     },
     {
       "id": "local",
@@ -1286,7 +1286,7 @@
         "owner": "local-runtime",
         "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
       },
-      "sourceDigest": "sha256:baccb33c32020706cb0a5a212eac7a72ffb6b965cf0a975b1b5567a2b82f70df"
+      "sourceDigest": "sha256:3650a8d407a692c05c1ece806e8215855b0487aa7575e9e4a8fd1ca42258b5b7"
     }
   ],
   "ownership": [
@@ -1844,9 +1844,9 @@
     {
       "id": "PERSIST-RUNTIME-COMMANDS",
       "postgresql": "Runtime command, delivery attempt, receipt, and inventory checkpoint repositories",
-      "sqlite": "Runtime command and inventory checkpoint repositories with identity replay, CAS, and reopen durability",
-      "classification": "partially_verified",
-      "assessment": "SQLite now persists runtime commands and inventory checkpoints; a durable runtime-event receipt/effect sink is still required for full remote-event parity.",
+      "sqlite": "Runtime command, event receipt/effect, and inventory checkpoint repositories with identity replay, CAS, atomic terminal transitions, and reopen durability",
+      "classification": "verified",
+      "assessment": "Both adapters persist runtime commands, event receipts, and inventory checkpoints; SQLite proves duplicate, conflicting, out-of-order, and terminal replay across reopen.",
       "evidence": [
         {
           "kind": "source",
@@ -1856,13 +1856,7 @@
           "kind": "test",
           "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
         }
-      ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "sqlite-runtime",
-        "disposition": "Implement and restart-test the SQLite runtime-event receipt/effect sink, including terminal conflict and out-of-order replay."
-      }
+      ]
     }
   ],
   "lifecycleCoverage": [

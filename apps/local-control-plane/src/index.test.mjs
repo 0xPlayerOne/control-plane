@@ -73,6 +73,7 @@ describe('Local Control Plane composition', () => {
       expect(composition.reconciliationCheckpoints).toBeDefined()
       expect(composition.runtimeCommands).toBeDefined()
       expect(composition.runtimeInventoryCheckpoints).toBeDefined()
+      expect(composition.runtimeEventEffects).toBeDefined()
     } finally {
       await composition.close()
       await rm(directory, { recursive: true, force: true })

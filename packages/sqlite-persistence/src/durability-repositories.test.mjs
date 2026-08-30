@@ -2,13 +2,16 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
+import { ExecutionLifecycleService } from '@control-plane/domain'
 import { ExecutionEventService } from '@control-plane/events'
 import {
   SqliteExecutionEventRepository,
+  SqliteExecutionRepository,
   SqlitePersistenceProvider,
   SqliteReconciliationCheckpointRepository,
   SqliteRuntimeCommandRepository,
   SqliteRuntimeInventoryCheckpointRepository,
+  SqliteRuntimeEventEffectSink,
   SqliteStatePromotionProposalRepository,
 } from './index.ts'
 
@@ -111,6 +114,72 @@ describe('SQLite standalone durability repositories', () => {
       expect(await durableInventory.compareAndSet(2, { ...checkpoint, revision: 2 })).toBe(false)
     })
   })
+
+  test('atomically persists runtime event receipts and terminal state across reopen', async () => {
+    await withReopen(async ({ current, reopened }) => {
+      const executions = new SqliteExecutionRepository(current())
+      const lifecycle = new ExecutionLifecycleService(executions)
+      const execution = await lifecycle.createExecution(executionInput())
+      await lifecycle.createAttempt({
+        executionId: execution.executionId,
+        attemptId: ids.attemptId,
+        expectedExecutionVersion: execution.version,
+        queuedAt: '2026-08-30T12:00:01.000Z',
+      })
+      const effects = new SqliteRuntimeEventEffectSink(current())
+      const progress = {
+        commandId: ids.commandId,
+        eventSequence: 2,
+        frameHash: 'a'.repeat(64),
+        draft: eventDraft('evt_01BRZ3NDEKTSV4RRFFQ69G5FAV'),
+      }
+      expect(await effects.applyProgress(progress)).toMatchObject({ outcome: 'applied' })
+      expect(await effects.applyProgress(progress)).toMatchObject({ outcome: 'duplicate' })
+      expect(await effects.applyProgress({ ...progress, frameHash: 'b'.repeat(64) })).toEqual({
+        outcome: 'conflict',
+      })
+      expect(
+        await effects.applyProgress({
+          ...progress,
+          eventSequence: 1,
+          frameHash: 'c'.repeat(64),
+          draft: eventDraft('evt_01CRZ3NDEKTSV4RRFFQ69G5FAV'),
+        })
+      ).toEqual({ outcome: 'out_of_order' })
+
+      const currentExecution = await executions.getExecution(ids.executionId)
+      const currentAttempt = await executions.getAttempt(ids.attemptId)
+      const terminal = {
+        commandId: ids.commandId,
+        messageSequence: 3,
+        frameHash: 'd'.repeat(64),
+        execution: currentExecution,
+        attempt: currentAttempt,
+        state: 'completed',
+        resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        draft: {
+          ...eventDraft('evt_01DRZ3NDEKTSV4RRFFQ69G5FAV'),
+          type: 'execution.completed',
+          occurredAt: '2026-08-30T12:00:02.000Z',
+          recordedAt: '2026-08-30T12:00:02.000Z',
+        },
+      }
+      expect(await effects.applyTerminal(terminal)).toMatchObject({ outcome: 'applied' })
+
+      await reopened()
+      const durableEffects = new SqliteRuntimeEventEffectSink(current())
+      const durableExecutions = new SqliteExecutionRepository(current())
+      expect(await durableEffects.applyTerminal(terminal)).toMatchObject({ outcome: 'duplicate' })
+      expect(await durableExecutions.getExecution(ids.executionId)).toMatchObject({
+        state: 'completed',
+        terminalResultRef: terminal.resultReference,
+      })
+      expect(await durableExecutions.getAttempt(ids.attemptId)).toMatchObject({
+        state: 'completed',
+        terminalResultRef: terminal.resultReference,
+      })
+    })
+  })
 })
 
 async function withReopen(run) {
@@ -166,9 +235,9 @@ function promotionProposal() {
   }
 }
 
-function eventDraft() {
+function eventDraft(eventId = 'evt_01ARZ3NDEKTSV4RRFFQ69G5FAV') {
   return {
-    eventId: 'evt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    eventId,
     executionId: ids.executionId,
     type: 'execution.progressed',
     schemaVersion: 1,
@@ -185,6 +254,26 @@ function eventDraft() {
     occurredAt: now,
     recordedAt: now,
     retentionExpiresAt: '2026-11-30T12:00:00.000Z',
+  }
+}
+
+function executionInput() {
+  return {
+    executionId: ids.executionId,
+    correlation: {
+      workspaceId: ids.workspaceId,
+      projectId: ids.projectId,
+      taskId: 'tsk_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      requestId: 'req_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    },
+    executionPlan: {
+      executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      contentDigest: `sha256:${'e'.repeat(64)}`,
+      schemaVersion: 1,
+    },
+    acceptedAt: now,
+    deadlineAt: '2026-08-30T13:00:00.000Z',
   }
 }
 

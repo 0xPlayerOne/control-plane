@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import type { JsonValue, PersistenceProvider } from '@control-plane/deployment'
 import {
+  ExecutionAttemptSchema,
+  ExecutionSchema,
   ReconciliationCheckpointSchema,
   RuntimeCommandRecordSchema,
   StatePromotionProposalSchema,
@@ -21,6 +23,10 @@ import {
   type ExecutionEvent,
   type ExecutionEventDraft,
   type ExecutionEventRepository,
+  type RuntimeEventEffectResult,
+  type RuntimeEventEffectSink,
+  type RuntimeProgressEffect,
+  type RuntimeTerminalEffect,
 } from '@control-plane/events'
 import {
   RuntimeInventoryCheckpointSchema,
@@ -34,7 +40,10 @@ const namespaces = {
   reconciliation: 'reconciliation-checkpoints',
   runtimeCommands: 'runtime-commands',
   runtimeInventory: 'runtime-inventory-checkpoints',
+  runtimeEventReceipts: 'runtime-event-receipts',
 } as const
+
+type RecordTransaction = Parameters<Parameters<PersistenceProvider['transaction']>[0]>[0]
 
 export class SqliteStatePromotionProposalRepository implements StatePromotionProposalRepository {
   constructor(readonly provider: PersistenceProvider) {}
@@ -83,24 +92,7 @@ export class SqliteExecutionEventRepository implements ExecutionEventRepository 
 
   append(input: ExecutionEventDraft): Promise<ExecutionEvent | undefined> {
     const draft = ExecutionEventDraftSchema.parse(input)
-    return this.provider.transaction(async (transaction) => {
-      const id = recordId(draft.eventId)
-      if ((await transaction.get(namespaces.events, id)) !== undefined) return undefined
-      const sequence =
-        (await transaction.list(namespaces.events))
-          .map((record) => ExecutionEventSchema.parse(record.value))
-          .filter((event) => event.executionId === draft.executionId)
-          .reduce((maximum, event) => Math.max(maximum, event.sequence), 0) + 1
-      const event = ExecutionEventSchema.parse({
-        ...draft,
-        sequence,
-        payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
-        payloadHash: hashExecutionEventPayload(draft.payload),
-        publication: { status: 'pending', attempts: 0, version: 1 },
-      })
-      await transaction.put({ namespace: namespaces.events, id, value: json(event) })
-      return event
-    })
+    return this.provider.transaction((transaction) => appendEvent(transaction, draft))
   }
 
   get(eventId: string): Promise<ExecutionEvent | undefined> {
@@ -183,6 +175,129 @@ export class SqliteExecutionEventRepository implements ExecutionEventRepository 
         value: json(archived),
       })
       return archived
+    })
+  }
+}
+
+export class SqliteRuntimeEventEffectSink implements RuntimeEventEffectSink {
+  constructor(readonly provider: PersistenceProvider) {}
+
+  applyProgress(effect: RuntimeProgressEffect): Promise<RuntimeEventEffectResult> {
+    return this.provider.transaction(async (transaction) => {
+      const key = receiptKey(effect.commandId, 'progress', effect.eventSequence)
+      const replay = await replayReceipt(transaction, key, effect.frameHash)
+      if (replay !== undefined) return replay
+      const latest = (await transaction.list(namespaces.runtimeEventReceipts))
+        .map((record) => receipt(record.value))
+        .filter(
+          (candidate) =>
+            candidate.commandId === effect.commandId &&
+            candidate.messageKind === 'progress' &&
+            candidate.outcome === 'applied'
+        )
+        .reduce((maximum, candidate) => Math.max(maximum, candidate.messageSequence), 0)
+      if (effect.eventSequence <= latest) {
+        await writeReceipt(transaction, key, {
+          commandId: effect.commandId,
+          messageKind: 'progress',
+          messageSequence: effect.eventSequence,
+          frameHash: effect.frameHash,
+          outcome: 'out_of_order',
+        })
+        return { outcome: 'out_of_order' }
+      }
+      const event = await appendEvent(transaction, ExecutionEventDraftSchema.parse(effect.draft))
+      if (event === undefined) throw new Error('RUNTIME_PROGRESS_EVENT_CONFLICT')
+      await writeReceipt(transaction, key, {
+        commandId: effect.commandId,
+        messageKind: 'progress',
+        messageSequence: effect.eventSequence,
+        frameHash: effect.frameHash,
+        outcome: 'applied',
+        eventId: event.eventId,
+      })
+      return { outcome: 'applied', event }
+    })
+  }
+
+  applyTerminal(effect: RuntimeTerminalEffect): Promise<RuntimeEventEffectResult> {
+    return this.provider.transaction(async (transaction) => {
+      const key = receiptKey(effect.commandId, 'terminal', effect.messageSequence)
+      const replay = await replayReceipt(transaction, key, effect.frameHash)
+      if (replay !== undefined) return replay
+      const executionRecord = await transaction.get(
+        'executions',
+        recordId(effect.execution.executionId)
+      )
+      const attemptRecord = await transaction.get(
+        'execution-attempts',
+        recordId(effect.attempt.attemptId)
+      )
+      if (executionRecord === undefined || attemptRecord === undefined) {
+        throw new Error('RUNTIME_TERMINAL_CONTEXT_MISSING')
+      }
+      const execution = ExecutionSchema.parse(executionRecord.value)
+      const attempt = ExecutionAttemptSchema.parse(attemptRecord.value)
+      const terminal = new Set(['completed', 'failed', 'cancelled', 'timed_out'])
+      if (terminal.has(execution.state) || terminal.has(attempt.state)) {
+        const event = await eventById(transaction, effect.draft.eventId)
+        const duplicate =
+          execution.state === effect.state && attempt.state === effect.state && event !== undefined
+        await writeReceipt(transaction, key, {
+          commandId: effect.commandId,
+          messageKind: 'terminal',
+          messageSequence: effect.messageSequence,
+          frameHash: effect.frameHash,
+          outcome: duplicate ? 'applied' : 'terminal_conflict',
+          ...(event === undefined ? {} : { eventId: event.eventId }),
+        })
+        return duplicate ? { outcome: 'duplicate', event } : { outcome: 'terminal_conflict' }
+      }
+      const nextAttempt = ExecutionAttemptSchema.parse({
+        ...attempt,
+        state: effect.state,
+        version: attempt.version + 1,
+        terminalAt: effect.draft.occurredAt,
+        updatedAt: effect.draft.occurredAt,
+        ...(effect.failure === undefined ? {} : { failure: effect.failure }),
+        ...(effect.resultReference === undefined
+          ? {}
+          : { terminalResultRef: effect.resultReference }),
+      })
+      const nextExecution = ExecutionSchema.parse({
+        ...execution,
+        state: effect.state,
+        version: execution.version + 1,
+        terminalAt: effect.draft.occurredAt,
+        updatedAt: effect.draft.occurredAt,
+        ...(effect.failure === undefined ? {} : { failure: effect.failure }),
+        ...(effect.resultReference === undefined
+          ? {}
+          : { terminalResultRef: effect.resultReference }),
+      })
+      await transaction.put({
+        namespace: 'execution-attempts',
+        id: attemptRecord.id,
+        expectedRevision: attemptRecord.revision,
+        value: json(nextAttempt),
+      })
+      await transaction.put({
+        namespace: 'executions',
+        id: executionRecord.id,
+        expectedRevision: executionRecord.revision,
+        value: json(nextExecution),
+      })
+      const event = await appendEvent(transaction, ExecutionEventDraftSchema.parse(effect.draft))
+      if (event === undefined) throw new Error('RUNTIME_TERMINAL_EVENT_CONFLICT')
+      await writeReceipt(transaction, key, {
+        commandId: effect.commandId,
+        messageKind: 'terminal',
+        messageSequence: effect.messageSequence,
+        frameHash: effect.frameHash,
+        outcome: 'applied',
+        eventId: event.eventId,
+      })
+      return { outcome: 'applied', event }
     })
   }
 }
@@ -372,6 +487,93 @@ function sameEventIdentity(left: ExecutionEvent, right: ExecutionEvent): boolean
     left.recordedAt === right.recordedAt &&
     isDeepStrictEqual(left.correlation, right.correlation)
   )
+}
+
+async function appendEvent(
+  transaction: RecordTransaction,
+  draft: ExecutionEventDraft
+): Promise<ExecutionEvent | undefined> {
+  const id = recordId(draft.eventId)
+  if ((await transaction.get(namespaces.events, id)) !== undefined) return undefined
+  const sequence =
+    (await transaction.list(namespaces.events))
+      .map((record) => ExecutionEventSchema.parse(record.value))
+      .filter((event) => event.executionId === draft.executionId)
+      .reduce((maximum, event) => Math.max(maximum, event.sequence), 0) + 1
+  const event = ExecutionEventSchema.parse({
+    ...draft,
+    sequence,
+    payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
+    payloadHash: hashExecutionEventPayload(draft.payload),
+    publication: { status: 'pending', attempts: 0, version: 1 },
+  })
+  await transaction.put({ namespace: namespaces.events, id, value: json(event) })
+  return event
+}
+
+interface RuntimeEventReceipt {
+  readonly commandId: string
+  readonly messageKind: 'progress' | 'terminal'
+  readonly messageSequence: number
+  readonly frameHash: string
+  readonly outcome: 'applied' | 'out_of_order' | 'terminal_conflict'
+  readonly eventId?: string
+}
+
+function receipt(value: JsonValue): RuntimeEventReceipt {
+  const candidate = value as unknown as RuntimeEventReceipt
+  if (
+    typeof candidate.commandId !== 'string' ||
+    !['progress', 'terminal'].includes(candidate.messageKind) ||
+    !Number.isSafeInteger(candidate.messageSequence) ||
+    typeof candidate.frameHash !== 'string' ||
+    !['applied', 'out_of_order', 'terminal_conflict'].includes(candidate.outcome)
+  ) {
+    throw new Error('RUNTIME_EVENT_RECEIPT_INVALID')
+  }
+  return structuredClone(candidate)
+}
+
+function receiptKey(
+  commandId: string,
+  messageKind: 'progress' | 'terminal',
+  sequence: number
+): string {
+  return `${commandId}\u001f${messageKind}\u001f${sequence}`
+}
+
+async function writeReceipt(
+  transaction: RecordTransaction,
+  key: string,
+  value: RuntimeEventReceipt
+): Promise<void> {
+  await transaction.put({
+    namespace: namespaces.runtimeEventReceipts,
+    id: recordId(key),
+    value: json(value),
+  })
+}
+
+async function replayReceipt(
+  transaction: RecordTransaction,
+  key: string,
+  frameHash: string
+): Promise<RuntimeEventEffectResult | undefined> {
+  const record = await transaction.get(namespaces.runtimeEventReceipts, recordId(key))
+  if (record === undefined) return undefined
+  const stored = receipt(record.value)
+  if (stored.frameHash !== frameHash) return { outcome: 'conflict' }
+  const event =
+    stored.eventId === undefined ? undefined : await eventById(transaction, stored.eventId)
+  return { outcome: 'duplicate', ...(event === undefined ? {} : { event }) }
+}
+
+async function eventById(
+  transaction: RecordTransaction,
+  eventId: string
+): Promise<ExecutionEvent | undefined> {
+  const record = await transaction.get(namespaces.events, recordId(eventId))
+  return record === undefined ? undefined : ExecutionEventSchema.parse(record.value)
 }
 
 function validLimit(limit: number): void {
