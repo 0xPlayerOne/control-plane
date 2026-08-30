@@ -268,6 +268,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
 
     const restarted = new PostgresContextPackageRepository(isolated.application)
     expect(await restarted.get(reference)).toEqual(package_)
+    expect(await restarted.getById(package_.contextPackageId)).toEqual(package_)
     expect(
       await restarted.get({ ...reference, contentDigest: `sha256:${'0'.repeat(64)}` })
     ).toBeUndefined()
@@ -276,6 +277,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       sql`update context_packages set context_package = jsonb_set(context_package, '{objective}', '"tampered"'::jsonb)`
     )
     await expect(restarted.get(reference)).rejects.toThrow()
+    await expect(restarted.getById(package_.contextPackageId)).rejects.toThrow()
     expect(await isolated.application.select().from(contextPackages)).toHaveLength(1)
   })
 

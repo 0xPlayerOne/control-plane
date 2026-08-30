@@ -6,6 +6,7 @@ import {
   RestateExecutionWorkflowDispatcher,
   RepositoryProfileResolutionService,
   RepositoryProjectStateResolutionService,
+  RepositoryContextPackageResolutionService,
   createExecutionId,
 } from '@control-plane/control-api'
 import {
@@ -108,6 +109,7 @@ export class HostedServerControlPlaneComposition {
   readonly executionValidationService: DurableExecutionValidationService
   readonly profileResolutionService: RepositoryProfileResolutionService
   readonly projectStateResolutionService: RepositoryProjectStateResolutionService
+  readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
   readonly #endpointFactory: RestateEndpointFactory
   readonly #objectStoreKind: 'filesystem' | 's3-compatible'
   #endpoint: RestateEndpointHandle | undefined
@@ -143,6 +145,7 @@ export class HostedServerControlPlaneComposition {
     const plans = new PostgresExecutionPlanRepository(this.connection.database)
     const catalog = new PostgresCatalogRepository(this.connection.database)
     const projectStates = new PostgresProjectStateRepository(this.connection.database)
+    const contextPackages = new PostgresContextPackageRepository(this.connection.database)
     this.executionAcceptanceService = new DurableExecutionAcceptanceService({
       commands: new CommandInboxService({
         repository: new PostgresCommandAcceptanceRepository(this.connection.database),
@@ -158,7 +161,7 @@ export class HostedServerControlPlaneComposition {
       options.remoteControl ?? options.remoteControlFactory?.(this.executionAcceptanceService)
     this.executionValidationService = new DurableExecutionValidationService({
       compilerVersion: COMPONENT_VERSION,
-      contextPackages: new PostgresContextPackageRepository(this.connection.database),
+      contextPackages,
       plans,
       profiles: catalog,
       projectStates,
@@ -166,6 +169,9 @@ export class HostedServerControlPlaneComposition {
     })
     this.profileResolutionService = new RepositoryProfileResolutionService(catalog)
     this.projectStateResolutionService = new RepositoryProjectStateResolutionService(projectStates)
+    this.contextPackageResolutionService = new RepositoryContextPackageResolutionService(
+      contextPackages
+    )
 
     const activities = new DurableExecutionLifecycleActivities({
       lifecycle: new ExecutionLifecycleService(

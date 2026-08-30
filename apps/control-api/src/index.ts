@@ -18,6 +18,7 @@ import type { ExecutionAcceptanceService } from './executions/execution-acceptan
 import type { RuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.js'
 import type { ProfileResolutionService } from './queries/profile-resolution.service.js'
 import type { ProjectStateResolutionService } from './queries/project-state-resolution.service.js'
+import type { ContextPackageResolutionService } from './queries/context-package-resolution.service.js'
 
 export const serviceName = 'control-api'
 
@@ -33,6 +34,7 @@ export interface ControlApiStartOptions {
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
   readonly profileResolutionService?: ProfileResolutionService
   readonly projectStateResolutionService?: ProjectStateResolutionService
+  readonly contextPackageResolutionService?: ContextPackageResolutionService
   readonly serviceAuthenticator?: ServiceAuthenticator
 }
 
@@ -81,6 +83,8 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         options.profileResolutionService ?? cloudComposition?.profileResolutionService
       const projectStateResolutionService =
         options.projectStateResolutionService ?? cloudComposition?.projectStateResolutionService
+      const contextPackageResolutionService =
+        options.contextPackageResolutionService ?? cloudComposition?.contextPackageResolutionService
       application = await createControlApiApplication({
         ...(executionAcceptanceService === undefined ? {} : { executionAcceptanceService }),
         ...(executionValidationService === undefined ? {} : { executionValidationService }),
@@ -90,6 +94,9 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         readiness,
         ...(profileResolutionService === undefined ? {} : { profileResolutionService }),
         ...(projectStateResolutionService === undefined ? {} : { projectStateResolutionService }),
+        ...(contextPackageResolutionService === undefined
+          ? {}
+          : { contextPackageResolutionService }),
         ...(options.runtimeDiscoveryRepository === undefined
           ? {}
           : { runtimeDiscoveryRepository: options.runtimeDiscoveryRepository }),
@@ -122,6 +129,10 @@ export {
   RepositoryProjectStateResolutionService,
   type ProjectStateResolutionService,
 } from './queries/project-state-resolution.service.js'
+export {
+  RepositoryContextPackageResolutionService,
+  type ContextPackageResolutionService,
+} from './queries/context-package-resolution.service.js'
 export type { ServiceAuthenticator } from './auth/service-authentication.js'
 export {
   createPrivateApiAuthentication,

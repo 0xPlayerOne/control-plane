@@ -91,6 +91,7 @@ export const start = (options: HostedControlPlaneStartOptions = {}) =>
         executionValidationService: composition.executionValidationService,
         profileResolutionService: composition.profileResolutionService,
         projectStateResolutionService: composition.projectStateResolutionService,
+        contextPackageResolutionService: composition.contextPackageResolutionService,
         serviceAuthenticator: authentication.authenticator,
         componentManifest: () => composition.manifest(),
         dependencyReadiness: async () =>

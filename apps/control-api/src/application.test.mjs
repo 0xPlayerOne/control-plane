@@ -25,6 +25,7 @@ import {
 import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
 import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.ts'
 import { RepositoryProjectStateResolutionService } from './queries/project-state-resolution.service.ts'
+import { RepositoryContextPackageResolutionService } from './queries/context-package-resolution.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
 class FakeProcessAdapter {
@@ -66,7 +67,8 @@ async function createApplication(
   executionValidationService,
   executionAcceptanceService,
   profileResolutionService,
-  projectStateResolutionService
+  projectStateResolutionService,
+  contextPackageResolutionService
 ) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
@@ -77,6 +79,7 @@ async function createApplication(
     executionValidationService,
     profileResolutionService,
     projectStateResolutionService,
+    contextPackageResolutionService,
     serviceAuthenticator,
     runtimeDiscoveryRepository,
   })
@@ -176,6 +179,46 @@ describe('Control API', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual(ControlApiFixtures.projectStateResolution.response)
+  })
+
+  test('resolves a scoped ContextPackage reference through the public contract', async () => {
+    const package_ = contextPackageSerializationFixtures.futurePi
+    const service = new RepositoryContextPackageResolutionService({
+      getById: async () => package_,
+    })
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['context:read'] },
+      }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      service
+    )
+    const request = {
+      ...ControlApiFixtures.contextPackageResolution.request,
+      workspaceId: package_.projectState.workspaceId,
+      projectId: package_.projectState.projectId,
+      parameters: { contextPackageId: package_.contextPackageId },
+    }
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/context-packages/resolve',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: request,
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().data.contextPackage).toEqual({
+      contextPackageId: package_.contextPackageId,
+      contentDigest: package_.contentDigest,
+      schemaVersion: package_.schemaVersion,
+      compilerVersion: package_.compiler.version,
+    })
   })
 
   test('exposes health, readiness, and security headers', async () => {

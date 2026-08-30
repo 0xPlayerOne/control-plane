@@ -56,6 +56,12 @@ import {
   UnavailableProjectStateResolutionService,
   type ProjectStateResolutionService,
 } from './queries/project-state-resolution.service.js'
+import { ContextPackageResolutionController } from './queries/context-package-resolution.controller.js'
+import {
+  CONTEXT_PACKAGE_RESOLUTION_SERVICE,
+  UnavailableContextPackageResolutionService,
+  type ContextPackageResolutionService,
+} from './queries/context-package-resolution.service.js'
 
 export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly executionAcceptanceService?: ExecutionAcceptanceService
@@ -65,6 +71,7 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly componentManifest?: () => Promise<unknown>
   readonly profileResolutionService?: ProfileResolutionService
   readonly projectStateResolutionService?: ProjectStateResolutionService
+  readonly contextPackageResolutionService?: ContextPackageResolutionService
 }
 
 @Module({})
@@ -87,6 +94,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
     module: AppModule,
     controllers: [
       AuthenticationController,
+      ContextPackageResolutionController,
       ExecutionAcceptanceController,
       ExecutionValidationController,
       HealthController,
@@ -105,6 +113,12 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       { provide: API_METADATA, useValue: options.metadata },
       { provide: API_READINESS, useValue: options.readiness },
       { provide: API_TELEMETRY, useValue: telemetry },
+      {
+        provide: CONTEXT_PACKAGE_RESOLUTION_SERVICE,
+        useValue:
+          options.contextPackageResolutionService ??
+          new UnavailableContextPackageResolutionService(),
+      },
       {
         provide: EXECUTION_ACCEPTANCE_SERVICE,
         useValue: options.executionAcceptanceService ?? new UnavailableExecutionAcceptanceService(),

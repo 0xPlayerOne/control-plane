@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { CommandInboxService } from '@control-plane/domain'
-import { SqliteCommandAcceptanceRepository, SqlitePersistenceProvider } from './index.ts'
+import { contextPackageSerializationFixtures } from '@control-plane/context'
+import {
+  SqliteCommandAcceptanceRepository,
+  SqliteContextPackageRepository,
+  SqlitePersistenceProvider,
+} from './index.ts'
 
 const ids = {
   commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -53,6 +58,27 @@ function service(provider) {
 }
 
 describe('SQLite domain repositories', () => {
+  test('resolves an immutable ContextPackage by stable ID after reopen', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-sqlite-context-'))
+    const path = join(directory, 'control-plane.sqlite')
+    let provider = new SqlitePersistenceProvider({ path })
+    try {
+      await provider.migrate()
+      const package_ = contextPackageSerializationFixtures.futurePi
+      await new SqliteContextPackageRepository(provider).put(package_)
+      provider.close()
+
+      provider = new SqlitePersistenceProvider({ path })
+      await provider.migrate()
+      const repository = new SqliteContextPackageRepository(provider)
+      expect(await repository.getById(package_.contextPackageId)).toEqual(package_)
+      expect(await repository.getById('ctx_01JABCDEF0123456789ABCDEFG')).toBeUndefined()
+    } finally {
+      provider.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('serializes concurrent acceptance and replays it after a full reopen', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-sqlite-domain-'))
     const path = join(directory, 'control-plane.sqlite')

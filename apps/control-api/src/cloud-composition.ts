@@ -24,6 +24,7 @@ import {
 } from './executions/execution-acceptance.service.js'
 import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.js'
 import { RepositoryProjectStateResolutionService } from './queries/project-state-resolution.service.js'
+import { RepositoryContextPackageResolutionService } from './queries/context-package-resolution.service.js'
 
 const executionPlanCompilerVersion = '1.0.0'
 
@@ -36,6 +37,7 @@ export interface ManagedCloudControlApiComposition {
   readonly serviceAuthenticator: PolicyServiceAuthenticator
   readonly profileResolutionService: RepositoryProfileResolutionService
   readonly projectStateResolutionService: RepositoryProjectStateResolutionService
+  readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
 }
 
 export class ControlApiCloudCompositionError extends Error {
@@ -73,6 +75,7 @@ export function createManagedCloudControlApiComposition(
   const catalog = new PostgresCatalogRepository(connection.database)
   const plans = new PostgresExecutionPlanRepository(connection.database)
   const projectStates = new PostgresProjectStateRepository(connection.database)
+  const contextPackages = new PostgresContextPackageRepository(connection.database)
 
   return {
     connection,
@@ -88,7 +91,7 @@ export function createManagedCloudControlApiComposition(
     }),
     executionValidationService: new DurableExecutionValidationService({
       compilerVersion: executionPlanCompilerVersion,
-      contextPackages: new PostgresContextPackageRepository(connection.database),
+      contextPackages,
       plans,
       profiles: catalog,
       projectStates,
@@ -96,6 +99,7 @@ export function createManagedCloudControlApiComposition(
     }),
     profileResolutionService: new RepositoryProfileResolutionService(catalog),
     projectStateResolutionService: new RepositoryProjectStateResolutionService(projectStates),
+    contextPackageResolutionService: new RepositoryContextPackageResolutionService(contextPackages),
     serviceAuthenticator,
   }
 }

@@ -90,6 +90,7 @@ export class LocalControlPlaneComposition {
   readonly executionValidationService: LocalControlApiComposition['executionValidationService']
   readonly profileResolutionService: LocalControlApiComposition['profileResolutionService']
   readonly projectStateResolutionService: LocalControlApiComposition['projectStateResolutionService']
+  readonly contextPackageResolutionService: LocalControlApiComposition['contextPackageResolutionService']
   readonly coordination = new LocalCoordinationProvider()
   readonly observability = new BufferedObservabilityProvider()
   readonly discovery: StaticServiceDiscovery
@@ -130,6 +131,7 @@ export class LocalControlPlaneComposition {
     this.executionValidationService = controlApi.executionValidationService
     this.profileResolutionService = controlApi.profileResolutionService
     this.projectStateResolutionService = controlApi.projectStateResolutionService
+    this.contextPackageResolutionService = controlApi.contextPackageResolutionService
     if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
       throw new Error('LOCAL_REMOTE_CONTROL_CONFIGURATION_CONFLICT')
     }

@@ -806,29 +806,31 @@
       "method": "POST",
       "path": "/v1/context-packages/resolve",
       "inOpenApi": true,
-      "controllerReachable": false,
-      "classification": "not_implemented",
+      "controllerReachable": true,
+      "classification": "verified",
       "trace": {
-        "auth": "declared service bearer security",
-        "service": "no controller or application service",
-        "persistence": "unreachable",
-        "execution": "unreachable",
-        "delivery": "no response path",
-        "cleanup": "not applicable"
+        "auth": "service bearer with context:read scope and workspace/project authority",
+        "service": "ContextPackageResolutionController -> RepositoryContextPackageResolutionService",
+        "persistence": "stable-ID lookup in the PostgreSQL or SQLite ContextPackage repository",
+        "execution": "read-only integrity-checked lookup and scope comparison",
+        "delivery": "immutable ContextPackage public reference without provider or native state",
+        "cleanup": "no external side effect"
       },
-      "assessment": "Concrete context repositories exist, but the public resolve operation is unreachable.",
+      "assessment": "Every supported profile exposes the same scoped resolver; in-memory, PostgreSQL, and SQLite repositories implement stable-ID lookup.",
       "evidence": [
         {
-          "kind": "contract",
-          "path": "packages/contracts/src/control-api.ts"
+          "kind": "service",
+          "path": "apps/control-api/src/queries/context-package-resolution.service.ts"
+        },
+        {
+          "kind": "controller",
+          "path": "apps/control-api/src/queries/context-package-resolution.controller.ts"
+        },
+        {
+          "kind": "adapter-tests",
+          "path": "packages/sqlite-persistence/src/repositories.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "control-api-context",
-        "disposition": "Implement a scoped context resolution controller/service over the configured repository or remove the operation."
-      },
       "openApiOperationId": "context-package.resolve",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
@@ -1176,7 +1178,7 @@
         "owner": "managed-cloud-runtime",
         "disposition": "Wire a production RuntimeTransport/activity implementation and concrete discovery/provider ports before claiming general Cloud execution readiness."
       },
-      "sourceDigest": "sha256:cac3709bfd78af7e05a2f8afc76912d8acdfc444b3eedcbf79744e444ce980aa"
+      "sourceDigest": "sha256:7cd3546ba05b5c2ee934df685d5362330385f51d85410e07e0b8ab831492606d"
     },
     {
       "id": "hosted-server",
@@ -1211,7 +1213,7 @@
         "owner": "hosted-runtime",
         "disposition": "Inject and certify a real remote RuntimeTransport/activity port before Hosted Server is a supported execution profile."
       },
-      "sourceDigest": "sha256:5b893670cb9e7f60b56e2fcf142acb8b28fb2907dbff91125d44115cbdb96265"
+      "sourceDigest": "sha256:c71e3dc9fb5e79b3b437a6bc18442a18eda0c42ee15c3e224a4d0957dd574331"
     },
     {
       "id": "hosted-simple",
@@ -1246,7 +1248,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
       },
-      "sourceDigest": "sha256:393ac1503432b5749abbe25a95d1caf0544abffca144fd82cbeedab2e3c1b4c1"
+      "sourceDigest": "sha256:a1ab6e3d61ba8dc9cbc9877dd7a7c2ee15b9073c62100288ef0e912039794345"
     },
     {
       "id": "local",
@@ -1281,7 +1283,7 @@
         "owner": "local-runtime",
         "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
       },
-      "sourceDigest": "sha256:393ac1503432b5749abbe25a95d1caf0544abffca144fd82cbeedab2e3c1b4c1"
+      "sourceDigest": "sha256:a1ab6e3d61ba8dc9cbc9877dd7a7c2ee15b9073c62100288ef0e912039794345"
     }
   ],
   "ownership": [
