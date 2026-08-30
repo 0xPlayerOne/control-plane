@@ -371,6 +371,9 @@ test('packages the hosted simple profile as one hardened user-owned composition'
   assert.match(runbook, /docker compose --profile server up --build -d/)
   assert.match(runbook, /sudo chown 1000:1000 data\/simple/)
   assert.match(runbook, /sudo chown 1000:1000 data\/server\/control-plane/)
+  assert.match(runbook, /sudo chown 70:70 data\/server\/postgres/)
+  assert.match(runbook, /sudo chown 0:0 data\/server\/restate/)
+  assert.match(runbook, /Re-check these image ownership contracts/)
   assert.match(runbook, /127\.0\.0\.1:3000/)
   assert.match(runbook, /Stop the container before a filesystem-level backup/)
 })
@@ -383,6 +386,8 @@ test('checks hosted credential persistence without weakening owner-only file per
     /docker compose exec -T control-plane-simple sha256sum \/var\/lib\/control-plane\/auth\/local-api\.token/g
   )
   assert.doesNotMatch(workflow, /sha256sum "\$compose_root\/simple\/auth\/local-api\.token"/)
+  assert.match(workflow, /sudo chown -R 70:70 "\$compose_root\/server\/postgres"/)
+  assert.match(workflow, /sudo chown -R 0:0 "\$compose_root\/server\/restate"/)
 })
 
 test('does not retain the former AWS deployment tree', async () => {
