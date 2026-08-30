@@ -27,8 +27,21 @@ export interface OpaqueRelayRecord {
   readonly acknowledged: boolean
 }
 
+export interface RelayMetadataRecord {
+  readonly deliveryId: string
+  readonly hostId: string
+  readonly workspaceId: string
+  readonly commandId: string
+  readonly receivedAt: string
+  readonly command: RelayMetadataCommand
+  readonly attempts: number
+  readonly acknowledged: boolean
+}
+
 export class FakeOpaqueRelay {
   readonly #records = new Map<string, OpaqueRelayRecord>()
+  readonly #metadata = new Map<string, RelayMetadataRecord>()
+  readonly #results = new Map<string, EncryptedRelayEnvelope>()
   readonly #registrations = new Map<string, HostEncryptionPublicKey>()
   readonly #projections: RelayStatusProjection[] = []
   #sequence = 0
@@ -78,10 +91,83 @@ export class FakeOpaqueRelay {
     if (record !== undefined) this.#records.set(deliveryId, { ...record, acknowledged: true })
   }
 
+  publishMetadata(
+    commandInput: RelayMetadataCommand,
+    receivedAt: Date = new Date()
+  ): RelayMetadataRecord {
+    const command = RelayMetadataCommandSchema.parse(commandInput)
+    const identity = `${command.hostId}:${command.workspaceId}:${command.commandId}`
+    const duplicate = this.#metadata.get(identity)
+    if (duplicate !== undefined) {
+      if (JSON.stringify(duplicate.command) !== JSON.stringify(command)) {
+        throw new Error('RELAY_COMMAND_CONFLICT')
+      }
+      return duplicate
+    }
+    this.#sequence += 1
+    const record = {
+      deliveryId: `metadata-delivery-${this.#sequence}`,
+      hostId: command.hostId,
+      workspaceId: command.workspaceId,
+      commandId: command.commandId,
+      receivedAt: receivedAt.toISOString(),
+      command,
+      attempts: 0,
+      acknowledged: false,
+    }
+    this.#metadata.set(identity, record)
+    return record
+  }
+
+  pullMetadata(hostId: string, limit = 100): readonly RelayMetadataRecord[] {
+    return [...this.#metadata.entries()]
+      .filter(([, record]) => record.hostId === hostId && !record.acknowledged)
+      .slice(0, limit)
+      .map(([identity, record]) => {
+        const delivered = { ...record, attempts: record.attempts + 1 }
+        this.#metadata.set(identity, delivered)
+        return delivered
+      })
+  }
+
+  acknowledgeMetadata(deliveryId: string): void {
+    for (const [identity, record] of this.#metadata) {
+      if (record.deliveryId === deliveryId) {
+        this.#metadata.set(identity, { ...record, acknowledged: true })
+        return
+      }
+    }
+  }
+
+  publishResult(envelopeInput: EncryptedRelayEnvelope): void {
+    const envelope = EncryptedRelayEnvelopeSchema.parse(envelopeInput)
+    if (
+      envelope.payloadType !== 'execution_result' &&
+      envelope.payloadType !== 'interaction_result'
+    ) {
+      throw new Error('RELAY_RESULT_TYPE_INVALID')
+    }
+    const identity = `${envelope.hostId}:${envelope.workspaceId}:${envelope.commandId}:${envelope.payloadType}`
+    const existing = this.#results.get(identity)
+    if (existing !== undefined) {
+      if (existing.contentDigest !== envelope.contentDigest) {
+        throw new Error('RELAY_COMMAND_CONFLICT')
+      }
+      return
+    }
+    this.#results.set(identity, envelope)
+  }
+
+  results(): readonly EncryptedRelayEnvelope[] {
+    return [...this.#results.values()].map((envelope) => ({ ...envelope }))
+  }
+
   snapshot(): string {
     return JSON.stringify({
       registrations: [...this.#registrations.values()],
       records: [...this.#records.values()],
+      metadata: [...this.#metadata.values()],
+      results: [...this.#results.values()],
       projections: this.#projections,
     })
   }
@@ -222,11 +308,56 @@ export interface RelayMetadataCommandResult<Result> {
   readonly result: Result
 }
 
-export class RelayMetadataCommandProcessor<Result> {
+export type RelayMetadataCommandErrorCode =
+  | 'RELAY_COMMAND_INVALID'
+  | 'RELAY_COMMAND_SCOPE_MISMATCH'
+  | 'RELAY_COMMAND_EXPIRED'
+  | 'RELAY_COMMAND_CONFLICT'
+
+export class RelayMetadataCommandError extends Error {
+  constructor(readonly code: RelayMetadataCommandErrorCode) {
+    super('Remote-control metadata command was rejected')
+    this.name = 'RelayMetadataCommandError'
+  }
+}
+
+export interface RelayMetadataCommandResultRepository<Result> {
+  get(commandId: string): Promise<
+    | {
+        readonly command: string
+        readonly result: RelayMetadataCommandResult<Result>
+      }
+    | undefined
+  >
+  put(commandId: string, command: string, result: RelayMetadataCommandResult<Result>): Promise<void>
+}
+
+export class InMemoryRelayMetadataCommandResultRepository<
+  Result,
+> implements RelayMetadataCommandResultRepository<Result> {
   readonly #results = new Map<
     string,
     { readonly command: string; readonly result: RelayMetadataCommandResult<Result> }
   >()
+
+  get(commandId: string) {
+    return Promise.resolve(this.#results.get(commandId))
+  }
+
+  put(
+    commandId: string,
+    command: string,
+    result: RelayMetadataCommandResult<Result>
+  ): Promise<void> {
+    if (this.#results.has(commandId)) {
+      throw new RelayMetadataCommandError('RELAY_COMMAND_CONFLICT')
+    }
+    this.#results.set(commandId, { command, result })
+    return Promise.resolve()
+  }
+}
+
+export class RelayMetadataCommandProcessor<Result> {
   readonly #inFlight = new Map<
     string,
     { readonly command: string; readonly operation: Promise<RelayMetadataCommandResult<Result>> }
@@ -235,16 +366,19 @@ export class RelayMetadataCommandProcessor<Result> {
   constructor(
     readonly hostId: string,
     readonly workspaceId: string,
-    readonly accept: (command: RelayMetadataCommand) => Promise<Result>
+    readonly accept: (command: RelayMetadataCommand) => Promise<Result>,
+    readonly repository: RelayMetadataCommandResultRepository<Result> = new InMemoryRelayMetadataCommandResultRepository<Result>()
   ) {}
 
   async process(
     commandInput: RelayMetadataCommand,
     now: Date = new Date()
   ): Promise<RelayMetadataCommandResult<Result>> {
-    const command = RelayMetadataCommandSchema.parse(commandInput)
+    const parsed = RelayMetadataCommandSchema.safeParse(commandInput)
+    if (!parsed.success) throw new RelayMetadataCommandError('RELAY_COMMAND_INVALID')
+    const command = parsed.data
     if (command.hostId !== this.hostId || command.workspaceId !== this.workspaceId) {
-      throw new Error('RELAY_COMMAND_SCOPE_MISMATCH')
+      throw new RelayMetadataCommandError('RELAY_COMMAND_SCOPE_MISMATCH')
     }
     const issued = Date.parse(command.issuedAt)
     const expires = Date.parse(command.expiresAt)
@@ -254,17 +388,21 @@ export class RelayMetadataCommandProcessor<Result> {
       issued > now.getTime() + MAX_RELAY_CLOCK_SKEW_MS ||
       expires <= now.getTime()
     ) {
-      throw new Error('RELAY_COMMAND_EXPIRED')
+      throw new RelayMetadataCommandError('RELAY_COMMAND_EXPIRED')
     }
     const canonical = JSON.stringify(command)
-    const replay = this.#results.get(command.commandId)
+    const replay = await this.repository.get(command.commandId)
     if (replay !== undefined) {
-      if (replay.command !== canonical) throw new Error('RELAY_COMMAND_CONFLICT')
+      if (replay.command !== canonical) {
+        throw new RelayMetadataCommandError('RELAY_COMMAND_CONFLICT')
+      }
       return { ...replay.result, outcome: 'duplicate' }
     }
     const inFlight = this.#inFlight.get(command.commandId)
     if (inFlight !== undefined) {
-      if (inFlight.command !== canonical) throw new Error('RELAY_COMMAND_CONFLICT')
+      if (inFlight.command !== canonical) {
+        throw new RelayMetadataCommandError('RELAY_COMMAND_CONFLICT')
+      }
       return { ...(await inFlight.operation), outcome: 'duplicate' }
     }
     const operation = this.#accept(command)
@@ -282,7 +420,7 @@ export class RelayMetadataCommandProcessor<Result> {
       commandId: command.commandId,
       result: await this.accept(command),
     }
-    this.#results.set(command.commandId, { command: JSON.stringify(command), result: accepted })
+    await this.repository.put(command.commandId, JSON.stringify(command), accepted)
     return accepted
   }
 }

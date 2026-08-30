@@ -57,6 +57,14 @@ export interface RelayReturnKey {
   readonly publicKey: string
 }
 
+export interface EncryptRelayReturnPayloadInput extends Omit<
+  EncryptRelayPayloadInput,
+  'recipient' | 'returnKey'
+> {
+  readonly hostId: string
+  readonly recipient: RelayReturnKey
+}
+
 export interface EncryptRelayPayloadInput {
   readonly recipient: HostEncryptionPublicKey
   readonly workspaceId: string
@@ -69,7 +77,8 @@ export interface EncryptRelayPayloadInput {
   readonly returnKey?: RelayReturnKey
 }
 
-interface EncryptRelayPayloadInternalInput extends EncryptRelayPayloadInput {
+interface EncryptRelayPayloadInternalInput extends Omit<EncryptRelayPayloadInput, 'recipient'> {
+  readonly recipient: Pick<HostEncryptionPublicKey, 'keyId' | 'hostId' | 'publicKey'>
   readonly testingEphemeralKeyMaterial?: Uint8Array
 }
 
@@ -103,6 +112,16 @@ export async function encryptRelayPayload(
   input: EncryptRelayPayloadInput
 ): Promise<EncryptedRelayEnvelope> {
   return encryptRelayPayloadInternal(input)
+}
+
+/** Encrypt a host response to the requester's ephemeral return key. */
+export async function encryptRelayReturnPayload(
+  input: EncryptRelayReturnPayloadInput
+): Promise<EncryptedRelayEnvelope> {
+  return encryptRelayPayloadInternal({
+    ...input,
+    recipient: { ...input.recipient, hostId: input.hostId },
+  })
 }
 
 export async function encryptRelayPayloadForTesting(

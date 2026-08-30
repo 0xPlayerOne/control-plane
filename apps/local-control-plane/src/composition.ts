@@ -181,7 +181,7 @@ export class LocalControlPlaneComposition {
       await this.workflow.start()
       await this.remoteControl?.start()
     } catch (error) {
-      this.remoteControl?.stop()
+      await this.remoteControl?.stop()
       await this.workflow.stop().catch(() => undefined)
       await this.#endpoint.shutdown().catch(() => undefined)
       this.#endpoint = undefined
@@ -223,7 +223,7 @@ export class LocalControlPlaneComposition {
   async close(): Promise<void> {
     if (!this.#started && this.#endpoint === undefined) return
     this.#started = false
-    this.remoteControl?.stop()
+    await this.remoteControl?.stop()
     await this.workflow.stop().catch(() => undefined)
     await this.#endpoint?.shutdown().catch(() => undefined)
     this.#endpoint = undefined

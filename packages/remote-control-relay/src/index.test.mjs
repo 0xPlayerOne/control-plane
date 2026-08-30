@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readFile } from 'node:fs/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 import { URL } from 'node:url'
 import { TextDecoder, TextEncoder } from 'node:util'
 import { DurableExecutionAcceptanceService } from '@control-plane/control-api'
@@ -11,6 +12,7 @@ import {
   FakeOpaqueRelay,
   HostEncryptionKeyRing,
   InMemoryRelayCommandResultRepository,
+  InMemoryRelayMetadataCommandResultRepository,
   MAX_RELAY_CIPHERTEXT_BYTES,
   RELAY_ENVELOPE_VERSION,
   RELAY_HPKE_SUITE,
@@ -21,6 +23,7 @@ import {
   RemoteControlHostAdapter,
   assertRelayCannotDecrypt,
   canonicalRelayAssociatedData,
+  createRelayExecutionMetadataCommandProcessor,
   decodeBase64Url,
   decryptRelayPayload,
   encryptRelayPayload,
@@ -350,7 +353,7 @@ describe('durable execution acceptance bridge', () => {
     expect(submissions).toHaveLength(1)
     expect(relay.pull(hostId)).toEqual([])
     expect(plaintext).toEqual(new TextEncoder().encode(JSON.stringify(request)))
-    adapter.stop()
+    await adapter.stop()
   })
 
   test('rejects a validly encrypted request whose command scope differs from its envelope', async () => {
@@ -482,8 +485,47 @@ describe('opaque delivery and durable command idempotency', () => {
     await adapter.revoke(key.keyId)
     expect(relay.registration(hostId)).toBeUndefined()
     expect(() => keys.decryptKey(key.keyId, observedAt)).toThrow(RelayEnvelopeError)
-    adapter.stop()
+    await adapter.stop()
     expect((await adapter.health()).ready).toBe(false)
+  })
+
+  test('continuously polls after startup without overlapping command effects', async () => {
+    const { key, envelope } = await fixture()
+    const keys = new HostEncryptionKeyRing(hostId)
+    keys.import(key, 'active')
+    const relay = new FakeOpaqueRelay()
+    let effects = 0
+    const processor = new RelayCommandProcessor(
+      hostId,
+      workspaceId,
+      (keyId, now) => keys.decryptKey(keyId, now),
+      new InMemoryRelayCommandResultRepository(),
+      async () => {
+        effects += 1
+        await delay(125)
+        return { executionId: 'execution-1' }
+      }
+    )
+    const adapter = new RemoteControlHostAdapter({
+      workspaceId,
+      hostId,
+      keys,
+      relay,
+      commands: processor,
+      now: () => observedAt,
+      pollIntervalMs: 100,
+    })
+    relay.publish(envelope)
+    await adapter.start()
+    await delay(350)
+    await adapter.stop()
+
+    expect(effects).toBe(1)
+    expect(relay.pull(hostId)).toEqual([])
+    expect(relay.projections().map((projection) => projection.state)).toEqual([
+      'received',
+      'accepted',
+    ])
   })
 
   test('bounds and deduplicates authenticated metadata commands', async () => {
@@ -510,7 +552,7 @@ describe('opaque delivery and durable command idempotency', () => {
     expect(effects).toBe(1)
     await expect(
       processor.process({ ...command, commandId: 'metadata-expired' }, new Date(expiresAt))
-    ).rejects.toThrow('RELAY_COMMAND_EXPIRED')
+    ).rejects.toMatchObject({ code: 'RELAY_COMMAND_EXPIRED' })
     await expect(
       processor.process(
         {
@@ -521,15 +563,242 @@ describe('opaque delivery and durable command idempotency', () => {
         },
         observedAt
       )
-    ).rejects.toThrow('RELAY_COMMAND_EXPIRED')
+    ).rejects.toMatchObject({ code: 'RELAY_COMMAND_EXPIRED' })
     await expect(
       processor.process({ ...command, operation: 'approve', targetId: 'interaction-2' }, observedAt)
-    ).rejects.toThrow('RELAY_COMMAND_CONFLICT')
+    ).rejects.toMatchObject({ code: 'RELAY_COMMAND_CONFLICT' })
     await expect(
       processor.process(
         { ...command, commandId: 'metadata-cross-scope', hostId: 'host-2' },
         observedAt
       )
-    ).rejects.toThrow('RELAY_COMMAND_SCOPE_MISMATCH')
+    ).rejects.toMatchObject({ code: 'RELAY_COMMAND_SCOPE_MISMATCH' })
+    await expect(
+      processor.process({ ...command, operation: 'destroy' }, observedAt)
+    ).rejects.toMatchObject({
+      code: 'RELAY_COMMAND_INVALID',
+    })
+  })
+
+  test('publishes only encrypted results to an ephemeral client return key', async () => {
+    const hostKey = await generateHostEncryptionKeyPair(hostId, new Date(issuedAt))
+    const clientKey = {
+      ...(await generateHostEncryptionKeyPair(hostId, new Date(issuedAt))),
+      keyId: `rpk_${'b'.repeat(32)}`,
+    }
+    const request = ControlApiFixtures.executionAcceptance.request
+    const envelope = await encryptRelayPayload({
+      recipient: publicEncryptionKey(hostKey),
+      workspaceId: request.workspaceId,
+      commandId: request.commandId,
+      payloadType: 'create_execution',
+      payloadSchemaVersion: 1,
+      issuedAt,
+      expiresAt,
+      plaintext: new TextEncoder().encode(JSON.stringify(request)),
+      returnKey: { keyId: clientKey.keyId, publicKey: clientKey.publicKey },
+    })
+    const keys = new HostEncryptionKeyRing(hostId)
+    keys.import(hostKey, 'active')
+    const relay = new FakeOpaqueRelay()
+    relay.publish(envelope)
+    const processor = new RelayExecutionCommandProcessor({
+      hostId,
+      workspaceId: request.workspaceId,
+      callerPrincipalId: request.caller.servicePrincipalId,
+      keyResolver: () => hostKey,
+      acceptance: { accept: async () => ControlApiFixtures.executionAcceptance.response },
+    })
+    const adapter = new RemoteControlHostAdapter({
+      hostId,
+      workspaceId: request.workspaceId,
+      keys,
+      relay,
+      commands: processor,
+      encodeResult: (result) => new TextEncoder().encode(JSON.stringify(result)),
+      now: () => observedAt,
+    })
+
+    await adapter.start()
+    await adapter.poll()
+    const [resultEnvelope] = relay.results()
+    const plaintext = await decryptRelayPayload({
+      envelope: resultEnvelope,
+      recipient: clientKey,
+      expectedWorkspaceId: request.workspaceId,
+      expectedHostId: hostId,
+      now: observedAt,
+    })
+
+    expect(JSON.parse(new TextDecoder().decode(plaintext))).toEqual(
+      ControlApiFixtures.executionAcceptance.response
+    )
+    expect(relay.snapshot()).not.toContain(
+      ControlApiFixtures.executionAcceptance.response.data.executionId
+    )
+    assertRelayCannotDecrypt(relay.snapshot(), request.idempotencyKey)
+    await adapter.stop()
+  })
+
+  test('routes encrypted input and durable metadata replay without duplicate effects', async () => {
+    const hostKey = await generateHostEncryptionKeyPair(hostId, new Date(issuedAt))
+    const keys = new HostEncryptionKeyRing(hostId)
+    keys.import(hostKey, 'active')
+    const effects = new Map()
+    const contentRepository = new InMemoryRelayCommandResultRepository()
+    const control = {
+      submitInput: async (request) => {
+        const replayed = effects.has(request.commandId)
+        effects.set(request.commandId, request)
+        return {
+          schemaVersion: 1,
+          commandId: request.commandId,
+          targetId: request.interactionId,
+          state: 'running',
+          replayed,
+        }
+      },
+      applyMetadata: async (command) => {
+        const replayed = effects.has(command.commandId)
+        effects.set(command.commandId, command)
+        return {
+          schemaVersion: 1,
+          commandId: command.commandId,
+          targetId: command.targetId,
+          state: command.operation === 'cancel' ? 'cancelled' : 'running',
+          replayed,
+        }
+      },
+    }
+    const input = {
+      schemaVersion: 1,
+      workspaceId,
+      commandId: 'input-command-1',
+      executionId: 'execution-1',
+      interactionId: 'interaction-1',
+      callerPrincipalId: 'service-agent-hq',
+      text: 'continue with the approved operation',
+    }
+    const inputEnvelope = await encryptRelayPayload({
+      recipient: publicEncryptionKey(hostKey),
+      workspaceId,
+      commandId: input.commandId,
+      payloadType: 'submit_input',
+      payloadSchemaVersion: 1,
+      issuedAt,
+      expiresAt,
+      plaintext: new TextEncoder().encode(JSON.stringify(input)),
+    })
+    const processor = new RelayExecutionCommandProcessor({
+      hostId,
+      workspaceId,
+      callerPrincipalId: input.callerPrincipalId,
+      keyResolver: () => hostKey,
+      acceptance: { accept: async () => ControlApiFixtures.executionAcceptance.response },
+      control,
+      results: contentRepository,
+    })
+    await expect(processor.process(inputEnvelope, observedAt)).resolves.toMatchObject({
+      outcome: 'accepted',
+      result: { targetId: input.interactionId, state: 'running' },
+    })
+    const restartedProcessor = new RelayExecutionCommandProcessor({
+      hostId,
+      workspaceId,
+      callerPrincipalId: input.callerPrincipalId,
+      keyResolver: () => hostKey,
+      acceptance: { accept: async () => ControlApiFixtures.executionAcceptance.response },
+      control,
+      results: contentRepository,
+    })
+    await expect(restartedProcessor.process(inputEnvelope, observedAt)).resolves.toMatchObject({
+      outcome: 'duplicate',
+    })
+
+    const metadataRepository = new InMemoryRelayMetadataCommandResultRepository()
+    const metadata = {
+      schemaVersion: 1,
+      workspaceId,
+      hostId,
+      commandId: 'cancel-command-1',
+      operation: 'cancel',
+      issuedAt,
+      expiresAt,
+      targetId: input.executionId,
+    }
+    const firstRelay = new FakeOpaqueRelay()
+    firstRelay.publishMetadata(metadata)
+    const firstAdapter = new RemoteControlHostAdapter({
+      workspaceId,
+      hostId,
+      keys,
+      relay: firstRelay,
+      commands: processor,
+      metadataCommands: createRelayExecutionMetadataCommandProcessor({
+        hostId,
+        workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        control,
+        repository: metadataRepository,
+      }),
+      now: () => observedAt,
+    })
+    await firstAdapter.start()
+    await expect(firstAdapter.poll()).resolves.toMatchObject({ delivered: 1, accepted: 1 })
+    expect(firstRelay.projections().at(-1)).toMatchObject({
+      commandId: metadata.commandId,
+      state: 'cancelled',
+    })
+
+    const replayRelay = new FakeOpaqueRelay()
+    replayRelay.publishMetadata(metadata)
+    const replayAdapter = new RemoteControlHostAdapter({
+      workspaceId,
+      hostId,
+      keys,
+      relay: replayRelay,
+      commands: processor,
+      metadataCommands: createRelayExecutionMetadataCommandProcessor({
+        hostId,
+        workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        control,
+        repository: metadataRepository,
+      }),
+      now: () => observedAt,
+    })
+    await replayAdapter.start()
+    await expect(replayAdapter.poll()).resolves.toMatchObject({ delivered: 1, duplicates: 1 })
+    await firstAdapter.stop()
+    await replayAdapter.stop()
+
+    const operationProcessor = createRelayExecutionMetadataCommandProcessor({
+      hostId,
+      workspaceId,
+      callerPrincipalId: input.callerPrincipalId,
+      control,
+    })
+    for (const [index, operation] of ['resume', 'approve', 'deny', 'status'].entries()) {
+      const operationCommand = {
+        ...metadata,
+        commandId: `metadata-${operation}-${index}`,
+        operation,
+        targetId: operation === 'status' ? input.executionId : input.interactionId,
+      }
+      await expect(operationProcessor.process(operationCommand, observedAt)).resolves.toMatchObject(
+        {
+          outcome: 'accepted',
+          result: { commandId: operationCommand.commandId, targetId: operationCommand.targetId },
+        }
+      )
+    }
+    expect([...effects.keys()]).toEqual([
+      input.commandId,
+      metadata.commandId,
+      'metadata-resume-0',
+      'metadata-approve-1',
+      'metadata-deny-2',
+      'metadata-status-3',
+    ])
   })
 })
