@@ -40,6 +40,74 @@ export interface LocalRestateRuntimeOptions {
   readonly deploymentUri?: string
 }
 
+export interface RemoteRestateRuntimeOptions {
+  readonly profile: 'hosted-server'
+  readonly adminUrl: string
+  readonly ingressUrl: string
+  readonly deploymentUri: string
+  readonly readinessTimeoutMs?: number
+  readonly pollIntervalMs?: number
+  readonly fetch?: typeof fetch
+}
+
+export class RemoteRestateRuntime implements WorkflowRuntime {
+  readonly profile: 'hosted-server'
+  readonly adminUrl: URL
+  readonly ingressUrl: URL
+  readonly #deploymentUri: URL
+  readonly #readinessTimeoutMs: number
+  readonly #pollIntervalMs: number
+  readonly #fetch: typeof fetch
+  #deploymentId: string | undefined
+
+  constructor(options: RemoteRestateRuntimeOptions) {
+    this.profile = options.profile
+    this.adminUrl = privateHttpUrl(options.adminUrl)
+    this.ingressUrl = privateHttpUrl(options.ingressUrl)
+    this.#deploymentUri = privateHttpUrl(options.deploymentUri)
+    this.#readinessTimeoutMs = options.readinessTimeoutMs ?? 60_000
+    this.#pollIntervalMs = options.pollIntervalMs ?? 250
+    this.#fetch = options.fetch ?? globalThis.fetch
+  }
+
+  async start(): Promise<void> {
+    if (this.#deploymentId !== undefined) {
+      throw new RestateRuntimeError('RESTATE_ALREADY_RUNNING')
+    }
+    await waitForRestate(this.adminUrl, this.#fetch, this.#readinessTimeoutMs, this.#pollIntervalMs)
+    this.#deploymentId = await registerDeployment(this.adminUrl, this.#deploymentUri, this.#fetch)
+  }
+
+  async health(): Promise<DeploymentComponentHealth> {
+    try {
+      const response = await this.#fetch(new URL('/health', this.adminUrl), {
+        signal: AbortSignal.timeout(2_000),
+      })
+      return {
+        ready: response.ok && this.#deploymentId !== undefined,
+        component: 'restate',
+        version: RESTATE_SERVER_VERSION,
+        details: {
+          profile: this.profile,
+          ...(this.#deploymentId === undefined ? {} : { deploymentId: this.#deploymentId }),
+        },
+      }
+    } catch {
+      return {
+        ready: false,
+        component: 'restate',
+        version: RESTATE_SERVER_VERSION,
+        details: { profile: this.profile },
+      }
+    }
+  }
+
+  stop(): Promise<void> {
+    this.#deploymentId = undefined
+    return Promise.resolve()
+  }
+}
+
 export class LocalRestateRuntime implements WorkflowRuntime {
   readonly profile: 'local' | 'hosted-simple' | 'hosted-server'
   readonly adminUrl: URL
@@ -148,18 +216,7 @@ export class LocalRestateRuntime implements WorkflowRuntime {
   }
 
   async #registerDeployment(uri: URL): Promise<void> {
-    const response = await this.#fetch(new URL('/deployments', this.adminUrl), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ uri: uri.toString(), force: false, use_http_11: true }),
-      signal: AbortSignal.timeout(10_000),
-    })
-    if (!response.ok) throw new RestateRuntimeError('RESTATE_DEPLOYMENT_REGISTRATION_FAILED')
-    const body: unknown = await response.json()
-    if (!isRegisteredWorkflowDeployment(body)) {
-      throw new RestateRuntimeError('RESTATE_DEPLOYMENT_REGISTRATION_FAILED')
-    }
-    this.#deploymentId = body.id
+    this.#deploymentId = await registerDeployment(this.adminUrl, uri, this.#fetch)
   }
 
   async #waitUntilReady(): Promise<void> {
@@ -170,6 +227,46 @@ export class LocalRestateRuntime implements WorkflowRuntime {
     }
     throw new RestateRuntimeError('RESTATE_READINESS_TIMEOUT')
   }
+}
+
+async function registerDeployment(
+  adminUrl: URL,
+  deploymentUri: URL,
+  fetchImplementation: typeof fetch
+): Promise<string> {
+  const response = await fetchImplementation(new URL('/deployments', adminUrl), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ uri: deploymentUri.toString(), force: false, use_http_11: true }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!response.ok) throw new RestateRuntimeError('RESTATE_DEPLOYMENT_REGISTRATION_FAILED')
+  const body: unknown = await response.json()
+  if (!isRegisteredWorkflowDeployment(body)) {
+    throw new RestateRuntimeError('RESTATE_DEPLOYMENT_REGISTRATION_FAILED')
+  }
+  return body.id
+}
+
+async function waitForRestate(
+  adminUrl: URL,
+  fetchImplementation: typeof fetch,
+  timeoutMs: number,
+  pollIntervalMs: number
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() <= deadline) {
+    try {
+      const response = await fetchImplementation(new URL('/health', adminUrl), {
+        signal: AbortSignal.timeout(2_000),
+      })
+      if (response.ok) return
+    } catch {
+      // Dependency ordering is advisory; tolerate Restate startup races until the deadline.
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, pollIntervalMs))
+  }
+  throw new RestateRuntimeError('RESTATE_READINESS_TIMEOUT')
 }
 
 async function inspectRestateVersion(executablePath: string): Promise<string> {
@@ -185,6 +282,21 @@ async function inspectRestateVersion(executablePath: string): Promise<string> {
 function loopbackUrl(value: string): URL {
   const url = new URL(value)
   if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) {
+    throw new RestateRuntimeError('RESTATE_NOT_RUNNING')
+  }
+  return url
+}
+
+function privateHttpUrl(value: string): URL {
+  const url = new URL(value)
+  if (
+    url.protocol !== 'http:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    url.pathname !== '/'
+  ) {
     throw new RestateRuntimeError('RESTATE_NOT_RUNNING')
   }
   return url

@@ -105,3 +105,7 @@ export {
 } from './executions/execution-acceptance.service.js'
 export { DurableExecutionValidationService } from './executions/execution-validation.service.js'
 export type { ServiceAuthenticator } from './auth/service-authentication.js'
+export {
+  createPrivateApiAuthentication,
+  type PrivateApiAuthentication,
+} from './auth/private-api-authentication.js'

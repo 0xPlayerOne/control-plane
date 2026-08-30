@@ -14,6 +14,7 @@ export const serviceNames = [
   'runtime-gateway',
   'tool-gateway',
   'local-control-plane',
+  'hosted-control-plane',
 ] as const
 
 export type ServiceName = (typeof serviceNames)[number]
@@ -25,6 +26,7 @@ type ServiceValues = {
   readonly 'runtime-gateway': { readonly port: number }
   readonly 'tool-gateway': { readonly port: number }
   readonly 'local-control-plane': { readonly port: number }
+  readonly 'hosted-control-plane': { readonly port: number }
 }
 
 export interface ServiceConfiguration<Service extends ServiceName> {
@@ -74,6 +76,12 @@ const fields = {
     environmentVariable: 'LOCAL_CONTROL_PLANE_PORT',
     property: 'port',
     defaultValue: 3210,
+    maximum: 65_535,
+  },
+  'hosted-control-plane': {
+    environmentVariable: 'HOSTED_CONTROL_PLANE_PORT',
+    property: 'port',
+    defaultValue: 3000,
     maximum: 65_535,
   },
 } as const satisfies Record<ServiceName, IntegerField>
