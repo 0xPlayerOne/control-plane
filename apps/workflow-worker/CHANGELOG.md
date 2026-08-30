@@ -5,7 +5,8 @@
 
 ### Features
 
-* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+* **portability:** support the local Restate execution path ([#309](https://github.com/0xPlayerOne/control-plane/pull/309)) ([4a27c47](https://github.com/0xPlayerOne/control-plane/commit/4a27c4746ca3ca1ab248871dd4bef8713d77ec36))
+* **hosted:** support hosted composition startup ([#311](https://github.com/0xPlayerOne/control-plane/pull/311)) ([2a4de56](https://github.com/0xPlayerOne/control-plane/commit/2a4de56d6e352155cf42c0b44302241f1b92442a))
 
 ## [1.3.1](https://github.com/0xPlayerOne/control-plane/compare/workflow-worker-v1.3.0...workflow-worker-v1.3.1) (2026-08-29)
 

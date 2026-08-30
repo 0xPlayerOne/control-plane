@@ -5,7 +5,7 @@
 
 ### Features
 
-* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+* **runtime:** certify the direct-local adapter transport chain ([#313](https://github.com/0xPlayerOne/control-plane/pull/313)) ([1fac8e1](https://github.com/0xPlayerOne/control-plane/commit/1fac8e13184ed661f1df4853d63ffde0f56a79b2))
 
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/runtime-worker-v1.2.0...runtime-worker-v1.3.0) (2026-08-29)
 

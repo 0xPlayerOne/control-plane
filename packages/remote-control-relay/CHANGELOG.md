@@ -5,4 +5,5 @@
 
 ### Features
 
-* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+* **relay:** add encrypted remote control ([#312](https://github.com/0xPlayerOne/control-plane/pull/312)) ([09cebc6](https://github.com/0xPlayerOne/control-plane/commit/09cebc6341dbd8f3768d43d8b1318d2481f3cc85))
+* **remote-control:** complete encrypted relay delivery ([#314](https://github.com/0xPlayerOne/control-plane/pull/314)) ([4d275ca](https://github.com/0xPlayerOne/control-plane/commit/4d275ca711a3bbeb5fdb3ab75cbd6469aab0ff6d))
