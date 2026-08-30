@@ -91,6 +91,11 @@ export class LocalControlPlaneComposition {
   readonly profileResolutionService: LocalControlApiComposition['profileResolutionService']
   readonly projectStateResolutionService: LocalControlApiComposition['projectStateResolutionService']
   readonly contextPackageResolutionService: LocalControlApiComposition['contextPackageResolutionService']
+  readonly executionEvents: LocalControlApiComposition['executionEvents']
+  readonly statePromotionProposals: LocalControlApiComposition['statePromotionProposals']
+  readonly reconciliationCheckpoints: LocalControlApiComposition['reconciliationCheckpoints']
+  readonly runtimeCommands: LocalControlApiComposition['runtimeCommands']
+  readonly runtimeInventoryCheckpoints: LocalControlApiComposition['runtimeInventoryCheckpoints']
   readonly runtimeDiscoveryRepository: LocalControlApiComposition['runtimeDiscoveryRepository']
   readonly coordination = new LocalCoordinationProvider()
   readonly observability = new BufferedObservabilityProvider()
@@ -133,6 +138,11 @@ export class LocalControlPlaneComposition {
     this.profileResolutionService = controlApi.profileResolutionService
     this.projectStateResolutionService = controlApi.projectStateResolutionService
     this.contextPackageResolutionService = controlApi.contextPackageResolutionService
+    this.executionEvents = controlApi.executionEvents
+    this.statePromotionProposals = controlApi.statePromotionProposals
+    this.reconciliationCheckpoints = controlApi.reconciliationCheckpoints
+    this.runtimeCommands = controlApi.runtimeCommands
+    this.runtimeInventoryCheckpoints = controlApi.runtimeInventoryCheckpoints
     this.runtimeDiscoveryRepository = controlApi.runtimeDiscoveryRepository
     if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
       throw new Error('LOCAL_REMOTE_CONTROL_CONFIGURATION_CONFLICT')

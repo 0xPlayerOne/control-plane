@@ -12,9 +12,14 @@ import { ExecutionPlanAcceptanceValidator } from '@control-plane/execution-plan'
 import {
   SqliteCommandAcceptanceRepository,
   SqliteContextPackageRepository,
+  SqliteExecutionEventRepository,
   SqliteExecutionPlanRepository,
   SqliteProjectStateRepository,
+  SqliteReconciliationCheckpointRepository,
+  SqliteRuntimeCommandRepository,
   SqliteRuntimeDiscoveryRepository,
+  SqliteRuntimeInventoryCheckpointRepository,
+  SqliteStatePromotionProposalRepository,
   SqliteVersionedCatalogRepository,
   type SqlitePersistenceProvider,
 } from '@control-plane/sqlite-persistence'
@@ -23,7 +28,12 @@ export class LocalControlApiComposition {
   readonly catalog: SqliteVersionedCatalogRepository
   readonly contextPackages: SqliteContextPackageRepository
   readonly executionPlans: SqliteExecutionPlanRepository
+  readonly executionEvents: SqliteExecutionEventRepository
   readonly projectStates: SqliteProjectStateRepository
+  readonly statePromotionProposals: SqliteStatePromotionProposalRepository
+  readonly reconciliationCheckpoints: SqliteReconciliationCheckpointRepository
+  readonly runtimeCommands: SqliteRuntimeCommandRepository
+  readonly runtimeInventoryCheckpoints: SqliteRuntimeInventoryCheckpointRepository
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly profileResolutionService: RepositoryProfileResolutionService
@@ -35,7 +45,12 @@ export class LocalControlApiComposition {
     this.catalog = new SqliteVersionedCatalogRepository(persistence)
     this.contextPackages = new SqliteContextPackageRepository(persistence)
     this.executionPlans = new SqliteExecutionPlanRepository(persistence)
+    this.executionEvents = new SqliteExecutionEventRepository(persistence)
     this.projectStates = new SqliteProjectStateRepository(persistence)
+    this.statePromotionProposals = new SqliteStatePromotionProposalRepository(persistence)
+    this.reconciliationCheckpoints = new SqliteReconciliationCheckpointRepository(persistence)
+    this.runtimeCommands = new SqliteRuntimeCommandRepository(persistence)
+    this.runtimeInventoryCheckpoints = new SqliteRuntimeInventoryCheckpointRepository(persistence)
     this.runtimeDiscoveryRepository = new SqliteRuntimeDiscoveryRepository(persistence)
     this.executionAcceptanceService = new DurableExecutionAcceptanceService({
       commands: new CommandInboxService({

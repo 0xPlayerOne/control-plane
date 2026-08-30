@@ -68,6 +68,11 @@ describe('Local Control Plane composition', () => {
       })
       expect(manifest.components.every(({ ready }) => ready)).toBe(true)
       expect((await composition.discovery.resolve('restate')).private).toBe(true)
+      expect(composition.executionEvents).toBeDefined()
+      expect(composition.statePromotionProposals).toBeDefined()
+      expect(composition.reconciliationCheckpoints).toBeDefined()
+      expect(composition.runtimeCommands).toBeDefined()
+      expect(composition.runtimeInventoryCheckpoints).toBeDefined()
     } finally {
       await composition.close()
       await rm(directory, { recursive: true, force: true })
