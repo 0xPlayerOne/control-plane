@@ -68,6 +68,7 @@ test('defines root quality and build commands', async () => {
     'check:boundaries',
     'db:check',
     'requirements:check',
+    'architecture:check',
   ]) {
     assert.equal(typeof manifest.scripts[script], 'string', `${script} must be defined`)
   }
@@ -122,6 +123,7 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
   assert.deepEqual(smoke, [
     'tests/foundation.test.mjs',
     'tests/infrastructure.test.mjs',
+    'tests/m11-architecture-audit.test.mjs',
     'tests/m11-requirements-ledger.test.mjs',
     'tests/repository.test.mjs',
   ])

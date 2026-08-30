@@ -152,6 +152,7 @@ test('provides one ancestry-aware local acceptance command and a parallel CI gat
   }
   assert.match(workflow, /Foundation Acceptance \/ Gate/)
   assert.match(workflow, /needs: \[core, containers\]/)
+  assert.match(workflow, /git fetch --no-tags origin '\+refs\/heads\/\*:refs\/remotes\/origin\/\*'/)
   assert.doesNotMatch(workflow, /Terraform|terraform/)
   assert.match(workflow, /default database-migrate/)
   assert.match(workflow, /cancel-in-progress:\s*true/)
