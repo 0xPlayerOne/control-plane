@@ -14,6 +14,7 @@ import {
   RuntimeSessionOperationSchema,
   RuntimeSessionResultSchema,
   RuntimeStartRequestSchema,
+  TransportedRuntimeAdapter,
   inspectRuntimeCapabilities,
   type RuntimeAdapter,
   type RuntimeAdapterInspection,
@@ -23,6 +24,7 @@ import {
   type RuntimeProgressOptions,
   type RuntimeSessionOperation,
   type RuntimeSessionResult,
+  type RuntimeTransport,
 } from '@control-plane/runtime-sdk'
 import { z } from 'zod'
 
@@ -282,7 +284,7 @@ export interface ManagedPiClient {
   cleanup(handle: RuntimeExecutionHandle): Promise<void>
 }
 
-export interface ManagedPiAdapterOptions {
+export interface ManagedPiDriverOptions {
   readonly client: ManagedPiClient
   readonly adapterVersion: string
   readonly minimumRuntimeVersion?: string
@@ -299,7 +301,7 @@ interface CachedAction {
   readonly status: RuntimeExecutionStatus
 }
 
-export class ManagedPiAdapter implements RuntimeAdapter {
+export class ManagedPiDriver implements RuntimeAdapter {
   readonly #client: ManagedPiClient
   readonly #adapterVersion: string
   readonly #minimumRuntimeVersion: string
@@ -308,7 +310,7 @@ export class ManagedPiAdapter implements RuntimeAdapter {
   readonly #actions = new Map<string, CachedAction>()
   readonly #cleaned = new Set<string>()
 
-  constructor(options: ManagedPiAdapterOptions) {
+  constructor(options: ManagedPiDriverOptions) {
     this.#client = options.client
     this.#adapterVersion = SemanticVersionSchema.parse(options.adapterVersion)
     this.#minimumRuntimeVersion = SemanticVersionSchema.parse(
@@ -477,6 +479,16 @@ export class ManagedPiAdapter implements RuntimeAdapter {
     const status = normalizeStatus(handle, await action())
     this.#actions.set(key, { fingerprint, status: clone(status) })
     return status
+  }
+}
+
+export interface ManagedPiAdapterOptions {
+  readonly transport: RuntimeTransport
+}
+
+export class ManagedPiAdapter extends TransportedRuntimeAdapter {
+  constructor(options: ManagedPiAdapterOptions) {
+    super(options.transport, 'managed-pi')
   }
 }
 

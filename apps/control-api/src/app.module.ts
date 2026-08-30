@@ -27,6 +27,7 @@ import {
 import { RequestLoggingInterceptor } from './http/request-logging.interceptor.js'
 import {
   API_HEALTH,
+  API_DEPENDENCY_READINESS,
   API_LOGGER,
   API_METADATA,
   API_READINESS,
@@ -48,6 +49,7 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly executionValidationService?: ExecutionValidationService
   readonly serviceAuthenticator?: ServiceAuthenticator
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
+  readonly componentManifest?: () => Promise<unknown>
 }
 
 @Module({})
@@ -77,6 +79,10 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
     ],
     providers: [
       { provide: API_HEALTH, useValue: options.health },
+      {
+        provide: API_DEPENDENCY_READINESS,
+        useValue: options.dependencyReadiness ?? (() => Promise.resolve(true)),
+      },
       { provide: API_LOGGER, useValue: options.logger },
       { provide: API_METADATA, useValue: options.metadata },
       { provide: API_READINESS, useValue: options.readiness },

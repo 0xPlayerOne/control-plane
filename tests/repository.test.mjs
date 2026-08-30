@@ -11,7 +11,14 @@ import {
 } from '../scripts/check-coverage.mjs'
 import { discoverTestFiles } from '../scripts/run-bun-test-group.mjs'
 
-const apps = ['control-api', 'workflow-worker', 'runtime-worker', 'runtime-gateway', 'tool-gateway']
+const apps = [
+  'control-api',
+  'workflow-worker',
+  'runtime-worker',
+  'runtime-gateway',
+  'tool-gateway',
+  'local-control-plane',
+]
 const packages = readdirSync(new URL('../packages/', import.meta.url), { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
   .map(({ name }) => name)
@@ -108,6 +115,8 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
     'tests/m8-multi-agent-orchestration.test.mjs',
     'tests/m9-cloud-certification.test.mjs',
     'tests/m9-production-hardening.test.mjs',
+    'tests/m10-portability-conformance.test.mjs',
+    'tests/m10-operability.test.mjs',
   ])
   assert.deepEqual(smoke, [
     'tests/foundation.test.mjs',

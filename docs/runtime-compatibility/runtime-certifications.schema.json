@@ -179,6 +179,7 @@
                   "type": "string",
                   "enum": [
                     "runtime-adapter-conformance",
+                    "direct-local-transport-integration",
                     "runtime-gateway-integration",
                     "hosted-runtime-integration"
                   ]

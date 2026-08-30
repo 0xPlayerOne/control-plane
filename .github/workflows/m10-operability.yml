@@ -1,0 +1,139 @@
+name: M10 Operability
+
+on:
+  pull_request:
+    branches: [main, staging]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m10-operability-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: npm install --global bun@1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run test:m10-conformance
+      - run: bun run test:m10-operability
+
+  hosted-compose:
+    name: Hosted Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Launch and disrupt supported Hosted profiles
+        working-directory: infrastructure/compose
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          compose_root="$RUNNER_TEMP/control-plane-m10-compose"
+          install -d -m 700 \
+            "$compose_root/simple" \
+            "$compose_root/server/control-plane" \
+            "$compose_root/server/postgres" \
+            "$compose_root/server/restate"
+          sudo chown -R 1000:1000 "$compose_root/simple" "$compose_root/server/control-plane"
+          sudo chown -R 70:70 "$compose_root/server/postgres"
+          sudo chown -R 0:0 "$compose_root/server/restate"
+          export CONTROL_PLANE_PORT=33300
+
+          cleanup() {
+            exit_code="$?"
+            trap - EXIT
+            if [[ "$exit_code" != 0 ]]; then
+              docker compose --profile simple --profile server ps -a || true
+              docker compose --profile simple --profile server logs --no-color || true
+            fi
+            docker compose --profile simple --profile server down || true
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          export CONTROL_PLANE_DATA_PATH="$compose_root/simple"
+          docker compose --profile simple up --build -d
+          for _ in {1..60}; do
+            simple_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
+            [[ "$simple_status" == 200 ]] && break
+            sleep 2
+          done
+          test "$simple_status" = 200
+          credential_before="$(docker compose exec -T control-plane-simple sha256sum /var/lib/control-plane/auth/local-api.token | cut -d ' ' -f 1)"
+          docker compose --profile simple up -d --force-recreate
+          for _ in {1..60}; do
+            simple_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
+            [[ "$simple_status" == 200 ]] && break
+            sleep 2
+          done
+          test "$simple_status" = 200
+          credential_after="$(docker compose exec -T control-plane-simple sha256sum /var/lib/control-plane/auth/local-api.token | cut -d ' ' -f 1)"
+          test "$credential_before" = "$credential_after"
+          docker compose --profile simple down
+
+          export POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+          export CONTROL_PLANE_SERVER_DATA_PATH="$compose_root/server/control-plane"
+          export POSTGRES_DATA_PATH="$compose_root/server/postgres"
+          export RESTATE_DATA_PATH="$compose_root/server/restate"
+          docker compose --profile server up --build -d
+          for _ in {1..60}; do
+            server_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
+            [[ "$server_status" == 200 ]] && break
+            sleep 2
+          done
+          test "$server_status" = 200
+
+          expected_migrations="$(find ../../packages/database/drizzle -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
+          applied_migrations="$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select count(*) from drizzle.__drizzle_migrations;')"
+          test "$applied_migrations" = "$expected_migrations"
+
+          docker compose stop restate
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready)" = 503
+          docker compose start restate
+          for _ in {1..60}; do
+            server_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
+            [[ "$server_status" == 200 ]] && break
+            sleep 2
+          done
+          test "$server_status" = 200
+
+          docker compose stop postgres
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready)" = 503
+          docker compose start postgres
+          for _ in {1..60}; do
+            server_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
+            [[ "$server_status" == 200 ]] && break
+            sleep 2
+          done
+          test "$server_status" = 200
+
+  gate:
+    name: M10 Operability / Gate
+    if: always()
+    needs: [contracts, hosted-compose]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CONTRACTS_RESULT: ${{ needs.contracts.result }}
+      HOSTED_COMPOSE_RESULT: ${{ needs.hosted-compose.result }}
+    steps:
+      - name: Require every M10 lane
+        run: |
+          test "$CONTRACTS_RESULT" = success
+          test "$HOSTED_COMPOSE_RESULT" = success

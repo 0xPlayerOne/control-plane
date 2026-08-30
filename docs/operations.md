@@ -207,6 +207,9 @@ proof of rollback, restart recovery, load, isolation, secret-canary, or cost acc
 
 Local uses all-in-one Control Plane + SQLite + single-node Restate + filesystem storage + direct RuntimeTransport.
 
+The packaging, checkpoint, sleep/wake, upgrade, rollback, incident, host-loss, and measured resource
+contracts are executable from [`local-deployment.md`](local-deployment.md).
+
 Operational requirements include:
 
 - clean startup/shutdown and component health manifest;
@@ -245,6 +248,7 @@ Provider-specific Railway/Neon/R2/Restate identifiers may appear in operational 
 - On credential leakage, revoke/rotate first, then clean history/logs and record sanitized evidence.
 - On suspected cross-workspace access, disable affected routes/credentials, preserve sanitized correlation evidence, run the isolation matrix, and block promotion until fixed.
 - Remote relay/gateway incidents must preserve HPKE/content-redaction guarantees; cloud/relay systems must not require plaintext sensitive execution content.
+- Remote control is disabled unless an outbound `RemoteControlHostAdapter` is supplied to the Local or Hosted composition. Provision its dedicated X25519 private key through the profile's `SecretsProvider`; never place it in a database, Artifact, Compose file, or relay configuration. Follow [`remote-control-relay.md`](remote-control-relay.md) for rotation, revocation, redelivery, and reconciliation behavior.
 
 ## Scheduled evidence
 

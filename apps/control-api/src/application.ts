@@ -27,6 +27,12 @@ export async function createControlApiApplication(
   const fastify = adapter.getInstance()
   fastify.addHook('onRequest', attachRequestContext)
   await fastify.register(helmet)
+  if (options.componentManifest !== undefined) {
+    fastify.get('/v1/components', async (_request, response) => {
+      response.header('cache-control', 'no-store')
+      return options.componentManifest?.()
+    })
+  }
   const application = await NestFactory.create<NestFastifyApplication>(
     createAppModule(options),
     adapter,

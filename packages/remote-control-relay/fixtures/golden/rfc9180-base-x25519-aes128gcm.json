@@ -1,0 +1,29 @@
+{
+  "description": "RFC 9180 base mode cross-language fixture",
+  "recipient": {
+    "keyId": "hpk_573f31c1ba3db18615f01f9e5e676f95",
+    "hostId": "host-golden",
+    "publicKey": "onASBYjQ9P3MmSxrJ1_92Yzu6QF-rwLpc3sai2WbhBc",
+    "privateKey": "BnV0Gx4mvsuOffWTcUUPHW8QJBWTs72gSiFPMPPXiM0",
+    "fingerprint": "sha256:573f31c1ba3db18615f01f9e5e676f95f00e1302eee56346bd609ae11d51ac70",
+    "createdAt": "2026-08-30T00:00:00.000Z"
+  },
+  "testingEphemeralKeyMaterial": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "plaintext": "{\"kind\":\"create_execution\",\"input\":\"golden\"}",
+  "associatedData": "{\"envelopeVersion\":1,\"suite\":\"DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_128_GCM\",\"keyId\":\"hpk_573f31c1ba3db18615f01f9e5e676f95\",\"workspaceId\":\"workspace-golden\",\"hostId\":\"host-golden\",\"commandId\":\"command-golden\",\"payloadType\":\"create_execution\",\"payloadSchemaVersion\":1,\"issuedAt\":\"2026-08-30T00:00:00.000Z\",\"expiresAt\":\"2026-08-30T00:10:00.000Z\",\"contentDigest\":\"sha256:d9ecbcab785471de4ba62705dfeb37266a1427fa7a4add5ce535bcd495ee8a28\"}",
+  "envelope": {
+    "envelopeVersion": 1,
+    "suite": "DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_128_GCM",
+    "keyId": "hpk_573f31c1ba3db18615f01f9e5e676f95",
+    "workspaceId": "workspace-golden",
+    "hostId": "host-golden",
+    "commandId": "command-golden",
+    "payloadType": "create_execution",
+    "payloadSchemaVersion": 1,
+    "issuedAt": "2026-08-30T00:00:00.000Z",
+    "expiresAt": "2026-08-30T00:10:00.000Z",
+    "contentDigest": "sha256:d9ecbcab785471de4ba62705dfeb37266a1427fa7a4add5ce535bcd495ee8a28",
+    "encapsulatedKey": "sfG4QN56MkGwJ0jPmwW3TcjF6EUSmHOIF712qo6-jCs",
+    "ciphertext": "BCqCAmQqsAa3f9-5RATi8qw3squmejZOs1b8KMIK9c-p_ZEShvYI3zUgZqSIYfMVEPrhNa_j7XCb3Zhy"
+  }
+}

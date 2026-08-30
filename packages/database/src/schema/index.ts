@@ -42,6 +42,7 @@ export {
 } from './project-state.js'
 export { interactionKind, interactionRequests, interactionState } from './interactions.js'
 export { memoryWriteProposals, memoryWriteProposalState } from './memory-write-proposals.js'
+export { profileMigrations } from './profile-migrations.js'
 export { inboxMessages, outboxEvents, outboxStatus } from './messaging.js'
 export {
   runtimeAvailabilityState,

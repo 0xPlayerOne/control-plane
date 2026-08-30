@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
 import {
   AcpAdapter,
+  AcpDriver,
   AcpGatewayClient,
   ReferenceAcpDriver,
   ReferenceAcpGatewayTransport,
@@ -9,12 +10,14 @@ import {
 import { executionConstraintFixtures } from '@control-plane/domain'
 import {
   ManagedPiAdapter,
+  ManagedPiDriver,
   ManagedPiGatewayClient,
   ReferenceManagedPiDriver,
   ReferenceManagedPiGatewayTransport,
 } from '@control-plane/managed-pi-adapter'
 import {
   RuntimeCompatibilityMatrixSchema,
+  RemoteRuntimeGatewayTransport,
   applyRuntimeCompatibilityCertification,
   evaluateRuntimeEligibility,
   routeRuntimeConnections,
@@ -106,18 +109,23 @@ export function createPiFixture(manifest, options = {}) {
     harnessVersion: options.harnessVersion ?? manifest.harnessVersion,
     now: () => acceptanceNow,
   })
+  const runtimeClient = new ManagedPiGatewayClient({
+    transport,
+    ...ids,
+    executionId: 'exe_01JABCDEF0123456789ABCDEFG',
+    attemptId: runtimeAdapterAcceptanceIds.piAttemptId,
+    traceId: 'trc_01JABCDEF0123456789ABCDEFG',
+    localProjectGrantRef: grantRef,
+    now: () => new Date(acceptanceNow),
+    commandId: commandIdFactory('A'),
+  })
   const adapter = new ManagedPiAdapter({
-    client: new ManagedPiGatewayClient({
-      transport,
-      ...ids,
-      executionId: 'exe_01JABCDEF0123456789ABCDEFG',
-      attemptId: runtimeAdapterAcceptanceIds.piAttemptId,
-      traceId: 'trc_01JABCDEF0123456789ABCDEFG',
-      localProjectGrantRef: grantRef,
-      now: () => new Date(acceptanceNow),
-      commandId: commandIdFactory('A'),
-    }),
-    adapterVersion: options.adapterVersion ?? manifest.adapterVersion,
+    transport: new RemoteRuntimeGatewayTransport(
+      new ManagedPiDriver({
+        client: runtimeClient,
+        adapterVersion: options.adapterVersion ?? manifest.adapterVersion,
+      })
+    ),
   })
   return runtimeFixture({ manifest, adapter, driver, transport, ids, signal: 100 })
 }
@@ -157,21 +165,26 @@ export function createAcpFixture(manifest, options = {}) {
   const externalIds = new Map([
     ['nses_01JABCDEF0123456789ABCDEFG', 'ses_01JABCDEF0123456789ABCDEFG'],
   ])
-  const adapter = new AcpAdapter({
-    transport: new AcpGatewayClient({
-      transport,
-      ...ids,
-      executionId: 'exe_01JBBCDEF0123456789ABCDEFG',
-      attemptId: runtimeAdapterAcceptanceIds.acpAttemptId,
-      traceId: 'trc_01JBBCDEF0123456789ABCDEFG',
-      localProjectGrantRef: grantRef,
-      now: () => new Date(acceptanceNow),
-      commandId: commandIdFactory('B'),
-    }),
-    adapterVersion: options.adapterVersion ?? manifest.adapterVersion,
-    externalSessionId: (sessionRef) => externalIds.get(sessionRef),
-    interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
+  const runtimeClient = new AcpGatewayClient({
+    transport,
+    ...ids,
+    executionId: 'exe_01JBBCDEF0123456789ABCDEFG',
+    attemptId: runtimeAdapterAcceptanceIds.acpAttemptId,
+    traceId: 'trc_01JBBCDEF0123456789ABCDEFG',
+    localProjectGrantRef: grantRef,
     now: () => new Date(acceptanceNow),
+    commandId: commandIdFactory('B'),
+  })
+  const adapter = new AcpAdapter({
+    transport: new RemoteRuntimeGatewayTransport(
+      new AcpDriver({
+        transport: runtimeClient,
+        adapterVersion: options.adapterVersion ?? manifest.adapterVersion,
+        externalSessionId: (sessionRef) => externalIds.get(sessionRef),
+        interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
+        now: () => new Date(acceptanceNow),
+      })
+    ),
   })
   return runtimeFixture({ manifest, adapter, driver, transport, ids, signal: 90 })
 }
@@ -179,7 +192,11 @@ export function createAcpFixture(manifest, options = {}) {
 function createHostedPiFixture(manifest) {
   const ids = scopedIds(runtimeAdapterAcceptanceIds.hostedConnectionId, false)
   const client = new ReferenceHostedManagedPiClient()
-  const adapter = new ManagedPiAdapter({ client, adapterVersion: manifest.adapterVersion })
+  const adapter = new ManagedPiAdapter({
+    transport: new RemoteRuntimeGatewayTransport(
+      new ManagedPiDriver({ client, adapterVersion: manifest.adapterVersion })
+    ),
+  })
   return runtimeFixture({ manifest, adapter, driver: client, transport: client, ids, signal: 40 })
 }
 

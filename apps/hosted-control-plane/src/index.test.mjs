@@ -1,0 +1,186 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, test } from 'bun:test'
+import {
+  HostedServerControlPlaneComposition,
+  resolveHostedApiHost,
+  resolveHostedObjectStore,
+} from './index.ts'
+
+describe('Hosted server composition', () => {
+  test('reports PostgreSQL and separate Restate dependencies without changing core contracts', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-'))
+    const calls = []
+    const connection = {
+      database: {},
+      check: async () => calls.push('database:check'),
+      close: async () => calls.push('database:close'),
+    }
+    const workflow = {
+      profile: 'hosted-server',
+      start: async () => calls.push('workflow:start'),
+      health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+      stop: async () => calls.push('workflow:stop'),
+    }
+    const composition = new HostedServerControlPlaneComposition({
+      dataDirectory: directory,
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+      connection,
+      workflowRuntime: workflow,
+      remoteControlFactory: (acceptance) => {
+        expect(typeof acceptance.accept).toBe('function')
+        return {
+          start: async () => calls.push('relay:start'),
+          stop: () => calls.push('relay:stop'),
+          health: async () => ({
+            ready: true,
+            component: 'remote-control-relay',
+            version: '1',
+            details: { direction: 'outbound', listener: false },
+          }),
+        }
+      },
+      endpointFactory: {
+        create: async () => ({
+          run: async () => calls.push('endpoint:start'),
+          shutdown: async () => calls.push('endpoint:stop'),
+        }),
+      },
+    })
+    try {
+      await composition.start()
+      expect(await composition.manifest()).toMatchObject({
+        profile: 'hosted-server',
+        topology: {
+          externalServices: 2,
+          persistence: 'postgresql',
+          objectStore: 'filesystem',
+          runtimeTransport: 'unconfigured',
+          remoteControl: 'outbound',
+        },
+      })
+      expect((await composition.discovery.resolve('postgresql')).url.toString()).toBe(
+        'postgresql://postgres/control_plane'
+      )
+      expect(calls).toEqual([
+        'database:check',
+        'endpoint:start',
+        'workflow:start',
+        'relay:start',
+        'database:check',
+      ])
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+    expect(calls).toEqual([
+      'database:check',
+      'endpoint:start',
+      'workflow:start',
+      'relay:start',
+      'database:check',
+      'relay:stop',
+      'workflow:stop',
+      'endpoint:stop',
+      'database:close',
+    ])
+  })
+
+  test('keeps host publication loopback unless explicitly bound by the container profile', () => {
+    expect(resolveHostedApiHost()).toBe('127.0.0.1')
+    expect(resolveHostedApiHost('0.0.0.0')).toBe('0.0.0.0')
+    expect(() => resolveHostedApiHost('public.example.com')).toThrow(
+      'HOSTED_CONTROL_PLANE_BIND_HOST_INVALID'
+    )
+  })
+
+  test('accepts an explicit S3-compatible ObjectStore without changing domain contracts', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-s3-'))
+    const calls = []
+    const objectStore = {
+      put: async () => {
+        throw new Error('unused')
+      },
+      get: async () => {
+        throw new Error('unused')
+      },
+      head: async () => {
+        throw new Error('unused')
+      },
+      delete: async () => undefined,
+      close: () => calls.push('object-store:close'),
+    }
+    const composition = new HostedServerControlPlaneComposition({
+      dataDirectory: directory,
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+      connection: {
+        database: {},
+        check: async () => undefined,
+        close: async () => undefined,
+      },
+      workflowRuntime: {
+        profile: 'hosted-server',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+      objectStore,
+      objectStoreKind: 's3-compatible',
+    })
+    try {
+      await composition.start()
+      expect(await composition.manifest()).toMatchObject({
+        topology: { objectStore: 's3-compatible' },
+      })
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+    expect(calls).toEqual(['object-store:close'])
+  })
+
+  test('fails closed when S3-compatible topology is declared without an adapter', async () => {
+    expect(
+      () =>
+        new HostedServerControlPlaneComposition({
+          dataDirectory: '/tmp/control-plane-invalid-object-store',
+          databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+          connection: { database: {}, check: async () => undefined, close: async () => undefined },
+          objectStoreKind: 's3-compatible',
+        })
+    ).toThrow('HOSTED_OBJECT_STORE_CONFIGURATION_INVALID')
+  })
+
+  test('loads optional S3-compatible storage only from complete HTTPS configuration', () => {
+    const configured = resolveHostedObjectStore({
+      HOSTED_OBJECT_STORE: 's3-compatible',
+      S3_ENDPOINT: 'https://objects.example.test',
+      S3_BUCKET: 'control-plane',
+      S3_REGION: 'us-east-1',
+      S3_ACCESS_KEY_ID: 'access-key',
+      S3_SECRET_ACCESS_KEY: 'secret-key',
+    })
+    expect(configured).toMatchObject({ objectStoreKind: 's3-compatible' })
+    expect(configured.objectStore).toBeDefined()
+    configured.objectStore.close()
+
+    expect(resolveHostedObjectStore({})).toEqual({})
+    expect(() =>
+      resolveHostedObjectStore({
+        HOSTED_OBJECT_STORE: 's3-compatible',
+        S3_ENDPOINT: 'http://objects.example.test',
+        S3_BUCKET: 'control-plane',
+        S3_REGION: 'us-east-1',
+        S3_ACCESS_KEY_ID: 'access-key',
+        S3_SECRET_ACCESS_KEY: 'secret-key',
+      })
+    ).toThrow('HOSTED_OBJECT_STORE_ENDPOINT_INVALID')
+    expect(() => resolveHostedObjectStore({ HOSTED_OBJECT_STORE: 'unknown' })).toThrow(
+      'HOSTED_OBJECT_STORE_KIND_INVALID'
+    )
+  })
+})

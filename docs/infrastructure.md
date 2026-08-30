@@ -194,6 +194,8 @@ M10 introduces:
 - **Hosted `simple`:** containerized all-in-one, SQLite, Restate, filesystem storage, optional co-located runtimes/Cortana.
 - **Hosted `server`:** PostgreSQL-backed server composition, Restate, filesystem or S3-compatible storage, split services/Runtime Gateway only where topology requires them.
 
+The supported Compose source is `infrastructure/compose/compose.yaml`. The `simple` profile has one long-lived container and zero external service dependencies. The `server` profile has three long-lived services—Control Plane, PostgreSQL, and Restate—plus an idempotent one-shot migration container. PostgreSQL and Restate remain private on the Compose network; the Control API publishes to host loopback by default. The adjacent runbook owns initial setup, persistent paths, backup/restore, TLS proxying, upgrades, and rollback guidance.
+
 The M9 Railway profile remains the semantic reference while M10 substitutes infrastructure adapters. M10 must keep the M9 cloud smoke/conformance baseline green throughout the extraction.
 
 ## Former AWS infrastructure

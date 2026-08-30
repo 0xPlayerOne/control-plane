@@ -52,6 +52,14 @@
       "release-type": "node",
       "package-name": "@control-plane/control-api"
     },
+    "apps/hosted-control-plane": {
+      "release-type": "node",
+      "package-name": "@control-plane/hosted-control-plane"
+    },
+    "apps/local-control-plane": {
+      "release-type": "node",
+      "package-name": "@control-plane/local-control-plane"
+    },
     "apps/runtime-gateway": {
       "release-type": "node",
       "package-name": "@control-plane/runtime-gateway"
@@ -104,6 +112,10 @@
       "release-type": "node",
       "package-name": "@control-plane/database"
     },
+    "packages/deployment": {
+      "release-type": "node",
+      "package-name": "@control-plane/deployment"
+    },
     "packages/domain": {
       "release-type": "node",
       "package-name": "@control-plane/domain"
@@ -148,6 +160,14 @@
       "release-type": "node",
       "package-name": "@control-plane/production-readiness"
     },
+    "packages/profile-portability": {
+      "release-type": "node",
+      "package-name": "@control-plane/profile-portability"
+    },
+    "packages/remote-control-relay": {
+      "release-type": "node",
+      "package-name": "@control-plane/remote-control-relay"
+    },
     "packages/runtime-gateway-protocol": {
       "release-type": "node",
       "package-name": "@control-plane/runtime-gateway-protocol"
@@ -156,9 +176,21 @@
       "release-type": "node",
       "package-name": "@control-plane/runtime-sdk"
     },
+    "packages/restate-runtime": {
+      "release-type": "node",
+      "package-name": "@control-plane/restate-runtime"
+    },
     "packages/sandbox": {
       "release-type": "node",
       "package-name": "@control-plane/sandbox"
+    },
+    "packages/secrets": {
+      "release-type": "node",
+      "package-name": "@control-plane/secrets"
+    },
+    "packages/sqlite-persistence": {
+      "release-type": "node",
+      "package-name": "@control-plane/sqlite-persistence"
     },
     "packages/telemetry": {
       "release-type": "node",
@@ -175,6 +207,10 @@
     "packages/usage-ledger": {
       "release-type": "node",
       "package-name": "@control-plane/usage-ledger"
+    },
+    "packages/workflow-runtime": {
+      "release-type": "node",
+      "package-name": "@control-plane/workflow-runtime"
     }
   }
 }

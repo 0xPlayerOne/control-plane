@@ -98,3 +98,14 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
 
 export { createControlApiApplication, createOpenApiDocument } from './application.js'
 export { createManagedCloudControlApiComposition } from './cloud-composition.js'
+export {
+  DurableExecutionAcceptanceService,
+  RestateExecutionWorkflowDispatcher,
+  createExecutionId,
+} from './executions/execution-acceptance.service.js'
+export { DurableExecutionValidationService } from './executions/execution-validation.service.js'
+export type { ServiceAuthenticator } from './auth/service-authentication.js'
+export {
+  createPrivateApiAuthentication,
+  type PrivateApiAuthentication,
+} from './auth/private-api-authentication.js'
