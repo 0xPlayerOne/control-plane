@@ -183,6 +183,13 @@
       "when": 1787939472905,
       "tag": "0025_oval_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788061821877,
+      "tag": "0026_past_legion",
+      "breakpoints": true
     }
   ]
 }
