@@ -124,6 +124,14 @@ describe('M11.1 requirements ledger', () => {
     ).toBe(true)
   })
 
+  test('reports no provenance warning when the pinned candidate is reachable', async () => {
+    const result = await validateRequirementsLedger(ledger, {
+      repositoryRoot: new URL('..', import.meta.url),
+    })
+
+    expect(result.warnings).toEqual([])
+  })
+
   test('records actionable disposition for every non-verified row', () => {
     for (const row of [...ledger.requirements, ...ledger.priorMilestoneAudits]) {
       if (row.classification === 'verified') continue

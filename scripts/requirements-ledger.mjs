@@ -21,15 +21,45 @@ const reportPath = resolve(repositoryRoot, 'docs/requirements/control-plane-requ
 
 export async function validateRequirementsLedger(ledger, options = {}) {
   const errors = []
+  const warnings = []
   const root = fileURLToPath(options.repositoryRoot ?? new URL('..', import.meta.url))
+  let candidateAvailable = false
+  let committedArtifacts = new Set()
   if (ledger.schemaVersion !== 1) errors.push('schemaVersion must equal 1')
   if (!/^[0-9a-f]{40}$/.test(ledger.candidate?.commit ?? '')) {
     errors.push('candidate.commit must be a full Git commit')
   } else {
-    const candidate = spawnSync('git', ['cat-file', '-e', `${ledger.candidate.commit}^{commit}`], {
+    const queries = [
+      `${ledger.candidate.commit}^{commit}`,
+      ...(ledger.candidate.artifacts ?? []).map(
+        (artifact) => `${ledger.candidate.commit}:${artifact}`
+      ),
+    ]
+    const candidate = spawnSync('git', ['cat-file', '--batch-check'], {
       cwd: root,
+      encoding: 'utf8',
+      input: `${queries.join('\n')}\n`,
     })
-    if (candidate.status !== 0) errors.push('candidate.commit must exist in the repository')
+    const results = candidate.stdout.trim().split('\n')
+    candidateAvailable = candidate.status === 0 && !results[0]?.endsWith(' missing')
+    committedArtifacts = new Set(
+      (ledger.candidate.artifacts ?? []).filter(
+        (_artifact, index) => !results[index + 1]?.endsWith(' missing')
+      )
+    )
+    if (!candidateAvailable) {
+      const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      if (shallow.status === 0 && shallow.stdout.trim() === 'true') {
+        warnings.push(
+          `candidate commit ${ledger.candidate.commit} is unavailable in this shallow checkout; committed-artifact provenance must be reproduced from a full clone`
+        )
+      } else {
+        errors.push('candidate.commit must exist in the repository')
+      }
+    }
   }
   for (const key of ['node', 'bun', 'restate']) {
     if (!ledger.candidate?.toolchain?.[key]) errors.push(`candidate.toolchain.${key} is required`)
@@ -43,15 +73,10 @@ export async function validateRequirementsLedger(ledger, options = {}) {
     } catch {
       errors.push(`candidate artifact does not exist: ${artifact}`)
     }
-    const committed = spawnSync(
-      'git',
-      ['cat-file', '-e', `${ledger.candidate.commit}:${artifact}`],
-      {
-        cwd: root,
+    if (candidateAvailable) {
+      if (!committedArtifacts.has(artifact)) {
+        errors.push(`candidate commit does not contain artifact: ${artifact}`)
       }
-    )
-    if (committed.status !== 0) {
-      errors.push(`candidate commit does not contain artifact: ${artifact}`)
     }
   }
 
@@ -198,7 +223,7 @@ export async function validateRequirementsLedger(ledger, options = {}) {
   if (!Array.isArray(ledger.verificationRuns) || ledger.verificationRuns.length === 0) {
     errors.push('verificationRuns must identify exact commands and results')
   }
-  return { errors }
+  return { errors, warnings }
 }
 
 export function refreshPriorMilestoneAudits(ledger, issues) {
@@ -427,9 +452,10 @@ async function main() {
     ledger = refreshPriorMilestoneAudits(ledger, JSON.parse(result.stdout))
     await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`)
   }
-  const { errors } = await validateRequirementsLedger(ledger, {
+  const { errors, warnings } = await validateRequirementsLedger(ledger, {
     repositoryRoot: new URL('..', import.meta.url),
   })
+  for (const warning of warnings) console.warn(`Requirements ledger warning: ${warning}`)
   if (errors.length > 0)
     throw new Error(`Requirements ledger is invalid:\n- ${errors.join('\n- ')}`)
   const report = await renderRequirementsReport(ledger)
