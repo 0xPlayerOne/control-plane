@@ -24,6 +24,13 @@ execution-plan namespaces. A profile composition may supply additional safe reco
 `PortableStateSource` boundary. Unknown or provider-owned references are reported as unsupported
 before mutation.
 
+Cloud and Hosted `server` use `PostgresPortableStateSource` and
+`PostgresPortableStateDestination`. They read and write the accepted normalized PostgreSQL domain
+tables, reject active executions, order foreign-key-dependent catalog writes, preserve the current
+ProjectState revision plus optional older selected revisions, and commit records with migration
+provenance in one serializable transaction. They do not use a shadow portability database or copy
+raw PostgreSQL storage.
+
 ## Security invariants
 
 Default exports never contain reusable secret values, authorization headers, passwords, private
@@ -74,8 +81,9 @@ control-plane-portability import --database ./hosted.sqlite --profile hosted-sim
 
 `import` without `--apply` is a dry run. Export files are written atomically with owner-only
 permissions. Cloud and Hosted `server` compositions invoke the same library boundary with their
-accepted PostgreSQL and S3-compatible adapters; the SQLite CLI does not accept cloud credentials or
-alter Railway, Neon, or R2 configuration.
+accepted PostgreSQL and S3-compatible adapters. Their operator composition owns database connection
+and authorization; the SQLite CLI does not accept cloud credentials or alter Railway, Neon, or R2
+configuration.
 
 ## Release evidence
 

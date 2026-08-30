@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type {
   DeploymentProfile,
   JsonValue,
@@ -430,12 +431,25 @@ export class PersistencePortableStateSource implements PortableStateSource {
 
   async snapshot(): Promise<PortableStateSnapshot> {
     const records: Omit<PortableRecord, 'contentDigest'>[] = []
+    const currentProjectRevisions = new Map<string, number>()
     await this.#provider.transaction(async (transaction) => {
       for (const [namespace, category] of Object.entries(PortablePersistenceNamespaces)) {
         for (const record of await transaction.list(namespace)) {
+          const logicalIdentity = portableIdentity(
+            namespace as PortablePersistenceNamespace,
+            record.value,
+            record.id
+          )
+          if (namespace === 'project-states') {
+            currentProjectRevisions.set(logicalIdentity, semanticRevision(record.value))
+          }
+          if (namespace === 'project-state-history') {
+            const scope = logicalIdentity.slice(0, logicalIdentity.lastIndexOf(':'))
+            if (currentProjectRevisions.get(scope) === semanticRevision(record.value)) continue
+          }
           records.push({
             category,
-            logicalId: `${namespace}/${record.id}`,
+            logicalId: `${namespace}/${logicalIdentity}`,
             revision: semanticRevision(record.value),
             value: record.value,
           })
@@ -524,6 +538,21 @@ export class PersistencePortableStateDestination implements PortableStateDestina
               id: identity.id,
               value: record.value,
             })
+            if (identity.namespace === 'project-states' && isJsonObject(record.value)) {
+              const historyIdentity = portableIdentity(
+                'project-state-history',
+                record.value,
+                record.logicalId
+              )
+              const historyId = sqliteRecordId(historyIdentity.replaceAll(':', '\u001f'))
+              if ((await transaction.get('project-state-history', historyId)) === undefined) {
+                await transaction.put({
+                  namespace: 'project-state-history',
+                  id: historyId,
+                  value: record.value,
+                })
+              }
+            }
           }
           const existingProvenance = await transaction.get(
             'profile-migrations',
@@ -579,7 +608,52 @@ function persistenceIdentity(record: PortableRecord): {
   ) {
     throw new PortableMigrationError('PORTABLE_SCHEMA_INCOMPATIBLE', [record.logicalId])
   }
-  return { namespace, id }
+  return {
+    namespace,
+    id: sqliteRecordId(
+      namespace === 'project-states' || namespace === 'project-state-history'
+        ? id.replaceAll(':', '\u001f')
+        : id
+    ),
+  }
+}
+
+function portableIdentity(
+  namespace: PortablePersistenceNamespace,
+  value: JsonValue,
+  fallback: string
+): string {
+  if (!isJsonObject(value)) return fallback
+  if (namespace === 'agent-profiles' && typeof value['profileId'] === 'string') {
+    return value['profileId']
+  }
+  if (namespace === 'agent-profile-versions' && typeof value['profileVersionId'] === 'string') {
+    return value['profileVersionId']
+  }
+  if (namespace === 'skills' && typeof value['skillId'] === 'string') return value['skillId']
+  if (namespace === 'skill-versions' && typeof value['skillVersionId'] === 'string') {
+    return value['skillVersionId']
+  }
+  if (
+    (namespace === 'project-states' || namespace === 'project-state-history') &&
+    typeof value['workspaceId'] === 'string' &&
+    typeof value['projectId'] === 'string'
+  ) {
+    return namespace === 'project-state-history' && typeof value['revision'] === 'number'
+      ? `${value['workspaceId']}:${value['projectId']}:${String(value['revision'])}`
+      : `${value['workspaceId']}:${value['projectId']}`
+  }
+  if (namespace === 'context-packages' && typeof value['contextPackageId'] === 'string') {
+    return value['contextPackageId']
+  }
+  if (namespace === 'execution-plans' && typeof value['executionPlanId'] === 'string') {
+    return value['executionPlanId']
+  }
+  return fallback
+}
+
+function sqliteRecordId(value: string): string {
+  return `r-${createHash('sha256').update(value).digest('hex')}`
 }
 
 function semanticRevision(value: JsonValue): number {

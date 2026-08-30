@@ -27,8 +27,13 @@
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {
+    "@control-plane/context": "workspace:*",
+    "@control-plane/database": "workspace:*",
     "@control-plane/deployment": "workspace:*",
+    "@control-plane/domain": "workspace:*",
+    "@control-plane/execution-plan": "workspace:*",
     "@control-plane/sqlite-persistence": "workspace:*",
+    "drizzle-orm": "0.45.2",
     "zod": "4.3.6"
   }
 }

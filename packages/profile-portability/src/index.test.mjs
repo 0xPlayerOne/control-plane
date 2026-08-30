@@ -4,7 +4,11 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { TextEncoder } from 'node:util'
-import { SqlitePersistenceProvider } from '@control-plane/sqlite-persistence'
+import {
+  SqlitePersistenceProvider,
+  SqliteProjectStateRepository,
+  SqliteVersionedCatalogRepository,
+} from '@control-plane/sqlite-persistence'
 import {
   PersistencePortableStateDestination,
   PersistencePortableStateSource,
@@ -307,10 +311,25 @@ describe('portable profile export and import', () => {
     await sourceProvider.transaction((transaction) =>
       transaction.put({
         namespace: 'agent-profiles',
-        id: 'profile-1',
-        value: { profileId: 'profile-1', revision: 3, label: 'portable' },
+        id: 'r-b202a70b1574c2ed7a487e52d4a554504890da05469df5542ff883893bce1caf',
+        value: {
+          profileId: 'prf_01JABCDEF0123456789ABCDEFG',
+          displayName: 'Portable profile',
+          ownership: { scope: 'system' },
+          createdAt,
+        },
       })
     )
+    const projectState = {
+      schemaVersion: 1,
+      workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+      projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+      revision: 0,
+      items: [],
+      createdAt,
+      updatedAt: createdAt,
+    }
+    await new SqliteProjectStateRepository(sourceProvider).create(projectState)
     const manifest = await exportPortableState(
       new PersistencePortableStateSource({
         persistence: sourceProvider,
@@ -330,13 +349,23 @@ describe('portable profile export and import', () => {
       applyPortableImport(manifest, plan, destination, {}, () => createdAt)
     ).resolves.toMatchObject({ outcome: 'applied' })
     expect(
-      await destinationProvider.transaction((transaction) =>
-        transaction.get('agent-profiles', 'profile-1')
+      await new SqliteVersionedCatalogRepository(destinationProvider).getAgentProfile(
+        'prf_01JABCDEF0123456789ABCDEFG'
       )
-    ).toMatchObject({ value: { profileId: 'profile-1', revision: 3, label: 'portable' } })
+    ).toMatchObject({
+      profileId: 'prf_01JABCDEF0123456789ABCDEFG',
+      displayName: 'Portable profile',
+    })
+    expect(
+      await new SqliteProjectStateRepository(destinationProvider).getAtRevision(
+        projectState.workspaceId,
+        projectState.projectId,
+        0
+      )
+    ).toEqual(projectState)
     await expect(planPortableImport(manifest, destination)).resolves.toMatchObject({
       applicable: true,
-      records: [{ state: 'equivalent' }],
+      records: [{ state: 'equivalent' }, { state: 'equivalent' }],
     })
     const replayPlan = await planPortableImport(manifest, destination)
     await expect(
