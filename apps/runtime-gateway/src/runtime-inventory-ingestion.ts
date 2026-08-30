@@ -158,15 +158,18 @@ export class RuntimeInventoryIngestionService {
       inventory.runtimeDrivers.map(async (driver) => {
         try {
           const entry = await this.#normalizer.normalize({ driver, inventory, nodeStatus })
-          return this.#validateCorrelation(entry, driver, inventory, nodeStatus)
+          return {
+            driver,
+            entry: this.#validateCorrelation(entry, driver, inventory, nodeStatus),
+          }
         } catch (error) {
           if (error instanceof RuntimeInventoryIngestionError) throw error
           fail('INVENTORY_NORMALIZATION_FAILED')
         }
       })
     )
-    const connectionIds = normalized.map(({ registration }) => registration.runtimeConnectionId)
-    const identityDigests = normalized.map(({ registration }) => registration.identityDigest)
+    const connectionIds = normalized.map(({ entry }) => entry.registration.runtimeConnectionId)
+    const identityDigests = normalized.map(({ entry }) => entry.registration.identityDigest)
     if (
       new Set(connectionIds).size !== connectionIds.length ||
       new Set(identityDigests).size !== identityDigests.length
@@ -174,7 +177,7 @@ export class RuntimeInventoryIngestionService {
       fail('INVENTORY_CORRELATION_MISMATCH')
     }
     const updated: RuntimeConnection[] = []
-    for (const [index, entry] of normalized.entries()) {
+    for (const { driver, entry } of normalized) {
       await this.#registry.register(entry.registration)
       const result = await this.#health.ingest(entry.healthReport, inventory.observedAt)
       updated.push(result.connection)
@@ -182,7 +185,7 @@ export class RuntimeInventoryIngestionService {
         inventory.workspaceId,
         projectRuntimeConnectionDiscovery({
           connection: result.connection,
-          family: inventory.runtimeDrivers[index]!.driverFamily,
+          family: driver.driverFamily,
           node: {
             runtimeNodeRefId: inventory.nodeId,
             authority: 'agent_hq',

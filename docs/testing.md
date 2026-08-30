@@ -39,7 +39,9 @@ The following commands describe the repository as it exists today. M9.7/M9.8/M10
   supported Local adapter families through `DirectLocalRuntimeTransport`, the Local composition,
   SQLite persistence, filesystem Artifacts, and a restart/reopen recovery check. This lane never
   starts a Runtime Gateway process and does not require Railway, Neon, R2, PostgreSQL, Cortana, or
-  reusable provider credentials.
+  reusable provider credentials. It also reruns the no-provider, disabled-provider, fake alternate,
+  repository-local Cortana-compatible fixture, encrypted relay, profile migration, and deployment
+  conformance suites.
 - `bun run test:recovery-matrix` runs current disposable recovery fixtures.
 
 The Railway manifest validator checks repository-owned service composition. A green local validation
