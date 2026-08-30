@@ -227,6 +227,7 @@ export async function discoverArchitecture(rootUrl = new URL('..', import.meta.u
 
 export async function validateArchitectureAudit(audit, options = {}) {
   const errors = []
+  const warnings = []
   const rootUrl = options.repositoryRoot ?? new URL('..', import.meta.url)
   const root = fileURLToPath(rootUrl)
   const discovered = options.discovered ?? (await discoverArchitecture(rootUrl))
@@ -237,7 +238,19 @@ export async function validateArchitectureAudit(audit, options = {}) {
     const candidate = spawnSync('git', ['cat-file', '-e', `${audit.candidate.commit}^{commit}`], {
       cwd: root,
     })
-    if (candidate.status !== 0) errors.push('candidate.commit must exist')
+    if (candidate.status !== 0) {
+      const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      if (shallow.status === 0 && shallow.stdout.trim() === 'true') {
+        warnings.push(
+          `candidate commit ${audit.candidate.commit} is unavailable in this shallow checkout; architecture provenance must be reproduced from a full clone`
+        )
+      } else {
+        errors.push('candidate.commit must exist')
+      }
+    }
   }
   const discoveredPackages = discovered.packages.map((entry) => ({
     ...entry,
@@ -374,7 +387,7 @@ export async function validateArchitectureAudit(audit, options = {}) {
     ...(audit.lifecycleCoverage ?? []),
   ].map(({ id }) => id)
   if (new Set(ids).size !== ids.length) errors.push('audit row IDs must be unique')
-  return { errors }
+  return { errors, warnings }
 }
 
 export async function renderArchitectureReport(audit) {
@@ -703,10 +716,11 @@ async function main() {
     await writeFile(auditPath, `${JSON.stringify(audit, null, 2)}\n`)
   }
   const discovered = await discoverArchitecture(new URL('..', import.meta.url))
-  const { errors } = await validateArchitectureAudit(audit, {
+  const { errors, warnings } = await validateArchitectureAudit(audit, {
     repositoryRoot: new URL('..', import.meta.url),
     discovered,
   })
+  for (const warning of warnings) console.warn(`Architecture audit warning: ${warning}`)
   if (errors.length > 0) throw new Error(`Architecture audit is invalid:\n- ${errors.join('\n- ')}`)
   const report = await renderArchitectureReport(audit)
   if (process.argv.includes('--write') || process.argv.includes('--refresh')) {
