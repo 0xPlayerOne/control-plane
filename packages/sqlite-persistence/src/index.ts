@@ -21,6 +21,7 @@ import { metadata, records, sqliteSchema } from './schema.js'
 
 export * from './repositories.js'
 export * from './repositories-extra.js'
+export * from './runtime-discovery-repository.js'
 
 const SCHEMA_VERSION = 1
 const MAX_RECORD_BYTES = 16 * 1024 * 1024

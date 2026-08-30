@@ -85,6 +85,8 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         options.projectStateResolutionService ?? cloudComposition?.projectStateResolutionService
       const contextPackageResolutionService =
         options.contextPackageResolutionService ?? cloudComposition?.contextPackageResolutionService
+      const runtimeDiscoveryRepository =
+        options.runtimeDiscoveryRepository ?? cloudComposition?.runtimeDiscoveryRepository
       application = await createControlApiApplication({
         ...(executionAcceptanceService === undefined ? {} : { executionAcceptanceService }),
         ...(executionValidationService === undefined ? {} : { executionValidationService }),
@@ -97,9 +99,7 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         ...(contextPackageResolutionService === undefined
           ? {}
           : { contextPackageResolutionService }),
-        ...(options.runtimeDiscoveryRepository === undefined
-          ? {}
-          : { runtimeDiscoveryRepository: options.runtimeDiscoveryRepository }),
+        ...(runtimeDiscoveryRepository === undefined ? {} : { runtimeDiscoveryRepository }),
         ...(serviceAuthenticator === undefined ? {} : { serviceAuthenticator }),
       })
       registerResource('control-api-http', () => application?.close())

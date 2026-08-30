@@ -77,7 +77,7 @@ const traceStages = ['auth', 'service', 'persistence', 'execution', 'delivery', 
 const profilePorts = {
   cloud: {
     coordination: 'not-composed',
-    discovery: 'EmptyRuntimeDiscoveryRepository',
+    discovery: 'PostgresRuntimeDiscoveryRepository',
     objectStore: 'R2ObjectStore',
     observability: 'packages/telemetry',
     persistence: 'PostgreSQL/Neon repositories',

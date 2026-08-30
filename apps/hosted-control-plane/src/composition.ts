@@ -17,6 +17,7 @@ import {
   PostgresExecutionPlanRepository,
   PostgresExecutionRepository,
   PostgresProjectStateRepository,
+  PostgresRuntimeDiscoveryRepository,
   type PostgresConnection,
 } from '@control-plane/database'
 import type {
@@ -110,6 +111,7 @@ export class HostedServerControlPlaneComposition {
   readonly profileResolutionService: RepositoryProfileResolutionService
   readonly projectStateResolutionService: RepositoryProjectStateResolutionService
   readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
+  readonly runtimeDiscoveryRepository: PostgresRuntimeDiscoveryRepository
   readonly #endpointFactory: RestateEndpointFactory
   readonly #objectStoreKind: 'filesystem' | 's3-compatible'
   #endpoint: RestateEndpointHandle | undefined
@@ -171,6 +173,9 @@ export class HostedServerControlPlaneComposition {
     this.projectStateResolutionService = new RepositoryProjectStateResolutionService(projectStates)
     this.contextPackageResolutionService = new RepositoryContextPackageResolutionService(
       contextPackages
+    )
+    this.runtimeDiscoveryRepository = new PostgresRuntimeDiscoveryRepository(
+      this.connection.database
     )
 
     const activities = new DurableExecutionLifecycleActivities({

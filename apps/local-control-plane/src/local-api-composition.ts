@@ -14,6 +14,7 @@ import {
   SqliteContextPackageRepository,
   SqliteExecutionPlanRepository,
   SqliteProjectStateRepository,
+  SqliteRuntimeDiscoveryRepository,
   SqliteVersionedCatalogRepository,
   type SqlitePersistenceProvider,
 } from '@control-plane/sqlite-persistence'
@@ -28,12 +29,14 @@ export class LocalControlApiComposition {
   readonly profileResolutionService: RepositoryProfileResolutionService
   readonly projectStateResolutionService: RepositoryProjectStateResolutionService
   readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
+  readonly runtimeDiscoveryRepository: SqliteRuntimeDiscoveryRepository
 
   constructor(persistence: SqlitePersistenceProvider, restateIngressUrl: string) {
     this.catalog = new SqliteVersionedCatalogRepository(persistence)
     this.contextPackages = new SqliteContextPackageRepository(persistence)
     this.executionPlans = new SqliteExecutionPlanRepository(persistence)
     this.projectStates = new SqliteProjectStateRepository(persistence)
+    this.runtimeDiscoveryRepository = new SqliteRuntimeDiscoveryRepository(persistence)
     this.executionAcceptanceService = new DurableExecutionAcceptanceService({
       commands: new CommandInboxService({
         repository: new SqliteCommandAcceptanceRepository(persistence),

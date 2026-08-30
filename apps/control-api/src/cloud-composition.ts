@@ -7,6 +7,7 @@ import {
   PostgresContextPackageRepository,
   PostgresExecutionPlanRepository,
   PostgresProjectStateRepository,
+  PostgresRuntimeDiscoveryRepository,
   type PostgresConnection,
 } from '@control-plane/database'
 import { CommandInboxService } from '@control-plane/domain'
@@ -38,6 +39,7 @@ export interface ManagedCloudControlApiComposition {
   readonly profileResolutionService: RepositoryProfileResolutionService
   readonly projectStateResolutionService: RepositoryProjectStateResolutionService
   readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
+  readonly runtimeDiscoveryRepository: PostgresRuntimeDiscoveryRepository
 }
 
 export class ControlApiCloudCompositionError extends Error {
@@ -100,6 +102,7 @@ export function createManagedCloudControlApiComposition(
     profileResolutionService: new RepositoryProfileResolutionService(catalog),
     projectStateResolutionService: new RepositoryProjectStateResolutionService(projectStates),
     contextPackageResolutionService: new RepositoryContextPackageResolutionService(contextPackages),
+    runtimeDiscoveryRepository: new PostgresRuntimeDiscoveryRepository(connection.database),
     serviceAuthenticator,
   }
 }

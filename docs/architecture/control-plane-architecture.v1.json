@@ -628,6 +628,7 @@
       "exports": ["."],
       "workspaceDependencies": [
         "@control-plane/context",
+        "@control-plane/contracts",
         "@control-plane/deployment",
         "@control-plane/domain",
         "@control-plane/execution-plan"
@@ -906,12 +907,12 @@
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
-        "persistence": "RuntimeDiscoveryRepository (currently empty in production compositions)",
+        "persistence": "PostgreSQL or SQLite RuntimeDiscoveryRepository selected by profile",
         "execution": "read-only session lookup",
         "delivery": "normalized external-session read model",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller is reachable, but production compositions default to EmptyRuntimeDiscoveryRepository.",
+      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
       "evidence": [
         {
           "kind": "source",
@@ -922,7 +923,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Wire concrete PostgreSQL and SQLite runtime/session discovery repositories in supported compositions."
+        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "external-session.get",
       "openApiResponseStatuses": ["200", "default"],
@@ -941,12 +942,12 @@
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
-        "persistence": "RuntimeDiscoveryRepository (currently empty in production compositions)",
+        "persistence": "PostgreSQL or SQLite RuntimeDiscoveryRepository selected by profile",
         "execution": "read-only paginated session query",
         "delivery": "paginated normalized external-session read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller is reachable, but production compositions default to EmptyRuntimeDiscoveryRepository.",
+      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
       "evidence": [
         {
           "kind": "source",
@@ -957,7 +958,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Wire concrete PostgreSQL and SQLite runtime/session discovery repositories in supported compositions."
+        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "external-session.list",
       "openApiResponseStatuses": ["200", "default"],
@@ -1050,12 +1051,12 @@
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
-        "persistence": "RuntimeDiscoveryRepository (currently empty in production compositions)",
+        "persistence": "PostgreSQL or SQLite RuntimeDiscoveryRepository selected by profile",
         "execution": "read-only connection lookup",
         "delivery": "normalized runtime-connection read model",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller is reachable, but production compositions default to EmptyRuntimeDiscoveryRepository.",
+      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
       "evidence": [
         {
           "kind": "source",
@@ -1066,7 +1067,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Wire concrete PostgreSQL and SQLite runtime/session discovery repositories in supported compositions."
+        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "runtime-connection.get",
       "openApiResponseStatuses": ["200", "default"],
@@ -1085,12 +1086,12 @@
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
-        "persistence": "RuntimeDiscoveryRepository (currently empty in production compositions)",
+        "persistence": "PostgreSQL or SQLite RuntimeDiscoveryRepository selected by profile",
         "execution": "read-only paginated connection query",
         "delivery": "paginated normalized runtime-connection read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller is reachable, but production compositions default to EmptyRuntimeDiscoveryRepository.",
+      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
       "evidence": [
         {
           "kind": "source",
@@ -1101,7 +1102,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Wire concrete PostgreSQL and SQLite runtime/session discovery repositories in supported compositions."
+        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "runtime-connection.list",
       "openApiResponseStatuses": ["200", "default"],
@@ -1120,12 +1121,12 @@
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
-        "persistence": "RuntimeDiscoveryRepository (currently empty in production compositions)",
+        "persistence": "PostgreSQL or SQLite RuntimeDiscoveryRepository selected by profile",
         "execution": "read-only projection from normalized runtime connections",
         "delivery": "filtered normalized runtime node read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The declared runtime.list contract is reachable and tested, but production compositions still default to EmptyRuntimeDiscoveryRepository.",
+      "assessment": "The declared runtime.list contract and profile-specific durable repositories are reachable; live runtime inventory publication remains part of the standalone matrix.",
       "evidence": [
         {
           "kind": "test",
@@ -1136,7 +1137,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Wire concrete PostgreSQL and SQLite runtime/session discovery repositories in supported compositions."
+        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "runtime.list",
       "openApiResponseStatuses": ["200", "default"],
@@ -1152,7 +1153,7 @@
       "classification": "partially_verified",
       "ports": {
         "coordination": "not-composed",
-        "discovery": "EmptyRuntimeDiscoveryRepository",
+        "discovery": "PostgresRuntimeDiscoveryRepository",
         "objectStore": "R2ObjectStore",
         "observability": "packages/telemetry",
         "persistence": "PostgreSQL/Neon repositories",
@@ -1178,7 +1179,7 @@
         "owner": "managed-cloud-runtime",
         "disposition": "Wire a production RuntimeTransport/activity implementation and concrete discovery/provider ports before claiming general Cloud execution readiness."
       },
-      "sourceDigest": "sha256:7cd3546ba05b5c2ee934df685d5362330385f51d85410e07e0b8ab831492606d"
+      "sourceDigest": "sha256:4ed240c1440cb830baf48fb2f969fc37e8a609ee0af793411a3600c77552adbb"
     },
     {
       "id": "hosted-server",
@@ -1213,7 +1214,7 @@
         "owner": "hosted-runtime",
         "disposition": "Inject and certify a real remote RuntimeTransport/activity port before Hosted Server is a supported execution profile."
       },
-      "sourceDigest": "sha256:c71e3dc9fb5e79b3b437a6bc18442a18eda0c42ee15c3e224a4d0957dd574331"
+      "sourceDigest": "sha256:de736adb15f4b467ce19866c784894213f6b07bb11a8d44415dffa5671475eb2"
     },
     {
       "id": "hosted-simple",
@@ -1248,7 +1249,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
       },
-      "sourceDigest": "sha256:a1ab6e3d61ba8dc9cbc9877dd7a7c2ee15b9073c62100288ef0e912039794345"
+      "sourceDigest": "sha256:1e66748dd0d25d3ffb368a9cf007e8aa52cfbb152f89a9e1da688810ed18dc86"
     },
     {
       "id": "local",
@@ -1283,7 +1284,7 @@
         "owner": "local-runtime",
         "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
       },
-      "sourceDigest": "sha256:a1ab6e3d61ba8dc9cbc9877dd7a7c2ee15b9073c62100288ef0e912039794345"
+      "sourceDigest": "sha256:1e66748dd0d25d3ffb368a9cf007e8aa52cfbb152f89a9e1da688810ed18dc86"
     }
   ],
   "ownership": [

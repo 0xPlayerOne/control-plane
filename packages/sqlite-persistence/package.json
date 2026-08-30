@@ -24,6 +24,7 @@
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {
+    "@control-plane/contracts": "workspace:*",
     "@control-plane/context": "workspace:*",
     "@control-plane/deployment": "workspace:*",
     "@control-plane/domain": "workspace:*",

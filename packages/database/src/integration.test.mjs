@@ -37,6 +37,7 @@ import {
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import { PostgresReleaseAuditRepository } from './release-audit-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
+import { PostgresRuntimeDiscoveryRepository } from './runtime-discovery-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
 import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.ts'
@@ -61,6 +62,7 @@ import {
   runtimeEventReceipts,
   runtimeInventoryCheckpoints,
   runtimeConnections,
+  runtimeDiscoveryProjections,
   statePromotionProposals,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
@@ -106,6 +108,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'reconciliation_checkpoints',
         'release_audit_records',
         'runtime_connections',
+        'runtime_discovery_projections',
         'runtime_inventory_checkpoints',
       ])
     )
@@ -279,6 +282,34 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     await expect(restarted.get(reference)).rejects.toThrow()
     await expect(restarted.getById(package_.contextPackageId)).rejects.toThrow()
     expect(await isolated.application.select().from(contextPackages)).toHaveLength(1)
+  })
+
+  test('persists workspace-scoped runtime discovery projections across restart', async () => {
+    await isolated.migrate()
+    const repository = new PostgresRuntimeDiscoveryRepository(isolated.application)
+    const runtime = runtimeDiscoveryProjection()
+    const session = externalSessionDiscoveryProjection()
+    const scope = {
+      workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+      projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+      runtimeNodeRefId: runtime.node.runtimeNodeRefId,
+    }
+    await repository.putRuntimeConnection(scope.workspaceId, runtime)
+    await repository.putExternalSession(scope, session)
+
+    const restarted = new PostgresRuntimeDiscoveryRepository(isolated.application)
+    expect(await restarted.listRuntimeConnections(scope)).toEqual([runtime])
+    expect(await restarted.getRuntimeConnection(scope, runtime.runtimeConnectionId)).toEqual(
+      runtime
+    )
+    expect(await restarted.listExternalSessions(scope)).toEqual([session])
+    expect(await restarted.getExternalSession(scope, session.externalSessionId)).toEqual(session)
+    expect(
+      await restarted.listRuntimeConnections({
+        workspaceId: 'wsp_01JBBCDEF0123456789ABCDEFG',
+      })
+    ).toEqual([])
+    expect(await isolated.application.select().from(runtimeDiscoveryProjections)).toHaveLength(2)
   })
 
   test('persists immutable evaluation evidence across repository restart', async () => {
@@ -1467,3 +1498,60 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(await repository.list()).toEqual([approved])
   })
 })
+
+function runtimeDiscoveryProjection() {
+  const observedAt = '2026-08-30T12:00:00.000Z'
+  return {
+    runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+    runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
+    family: 'mock',
+    connectionType: 'managed_local',
+    location: 'local_device',
+    status: 'available',
+    node: {
+      runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+      location: 'local_device',
+      status: 'online',
+      health: 'online',
+      observedAt,
+    },
+    connection: { status: 'connected', health: 'healthy', availability: 'healthy' },
+    freshness: { state: 'fresh', observedAt },
+    versions: { adapter: '1.0.0', driver: '1.0.0', harness: '1.0.0' },
+    capabilities: ['tool.call'],
+    capabilityDetails: [{ name: 'tool.call', support: 'supported' }],
+    compatibility: { state: 'compatible', limitations: [] },
+    access: {
+      localProjectGrant: { required: true, state: 'granted' },
+      entitlement: { state: 'allowed' },
+    },
+    eligibility: { state: 'eligible', reasons: [], degradations: [], remediation: [] },
+    observedAt,
+    limitations: [],
+  }
+}
+
+function externalSessionDiscoveryProjection() {
+  const observedAt = '2026-08-30T12:00:00.000Z'
+  return {
+    externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+    runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+    projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+    state: 'active',
+    recoverable: true,
+    display: { origin: 'created_through_control_plane' },
+    freshness: { state: 'fresh', observedAt },
+    capabilitySummary: {
+      version: 1,
+      operations: ['session.resume'],
+      controls: {
+        reference: { available: true },
+        resume: { available: true },
+        load: { available: true },
+        close: { available: true },
+        history: { available: false, reason: 'HISTORY_UNAVAILABLE' },
+      },
+    },
+    limitations: [],
+  }
+}
