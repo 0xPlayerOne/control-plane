@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { LocalRestateRuntime, RESTATE_SERVER_VERSION } from './index.ts'
+import { LocalRestateRuntime, RemoteRestateRuntime, RESTATE_SERVER_VERSION } from './index.ts'
 
 function processProvider() {
   const launches = []
@@ -114,5 +114,65 @@ describe('LocalRestateRuntime', () => {
       ready: true,
       details: { deploymentId: 'dp_local_1' },
     })
+  })
+})
+
+describe('RemoteRestateRuntime', () => {
+  test('waits for a private Restate service and registers the hosted endpoint', async () => {
+    const requests = []
+    const runtime = new RemoteRestateRuntime({
+      profile: 'hosted-server',
+      adminUrl: 'http://restate:9070',
+      ingressUrl: 'http://restate:8080',
+      deploymentUri: 'http://control-plane-server:9080',
+      fetch: async (url, init) => {
+        requests.push({ url: String(url), init })
+        if (String(url).endsWith('/health')) return { ok: true }
+        return {
+          ok: true,
+          json: async () => ({
+            id: 'dp_hosted_1',
+            services: [{ name: 'execution-lifecycle' }],
+          }),
+        }
+      },
+    })
+
+    await runtime.start()
+
+    expect(requests.at(-1)).toMatchObject({
+      url: 'http://restate:9070/deployments',
+      init: { method: 'POST' },
+    })
+    expect(JSON.parse(requests.at(-1).init.body)).toMatchObject({
+      uri: 'http://control-plane-server:9080/',
+    })
+    expect(await runtime.health()).toMatchObject({
+      ready: true,
+      details: { profile: 'hosted-server', deploymentId: 'dp_hosted_1' },
+    })
+    await runtime.stop()
+    expect(await runtime.health()).toMatchObject({ ready: false })
+  })
+
+  test('rejects credential-bearing or non-HTTP service URLs', () => {
+    expect(
+      () =>
+        new RemoteRestateRuntime({
+          profile: 'hosted-server',
+          adminUrl: 'http://user:secret@restate:9070',
+          ingressUrl: 'http://restate:8080',
+          deploymentUri: 'http://control-plane-server:9080',
+        })
+    ).toThrow('Restate runtime operation failed')
+    expect(
+      () =>
+        new RemoteRestateRuntime({
+          profile: 'hosted-server',
+          adminUrl: 'https://restate:9070',
+          ingressUrl: 'http://restate:8080',
+          deploymentUri: 'http://control-plane-server:9080',
+        })
+    ).toThrow('Restate runtime operation failed')
   })
 })

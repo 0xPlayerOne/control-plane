@@ -10,9 +10,27 @@ import {
   LocalApiServer,
   LocalControlPlaneComposition,
   createLocalApiAuthentication,
+  resolveEmbeddedDeploymentProfile,
+  resolveLocalApiHost,
 } from './index.ts'
 
 describe('Local Control Plane composition', () => {
+  test('binds loopback by default and permits only explicit socket bind addresses', () => {
+    expect(resolveLocalApiHost()).toBe('127.0.0.1')
+    expect(resolveLocalApiHost('0.0.0.0')).toBe('0.0.0.0')
+    expect(() => resolveLocalApiHost('public.example.com')).toThrow(
+      'LOCAL_CONTROL_PLANE_BIND_HOST_INVALID'
+    )
+  })
+
+  test('reports hosted-simple only when explicitly selected', () => {
+    expect(resolveEmbeddedDeploymentProfile()).toBe('local')
+    expect(resolveEmbeddedDeploymentProfile('hosted-simple')).toBe('hosted-simple')
+    expect(() => resolveEmbeddedDeploymentProfile('hosted-server')).toThrow(
+      'EMBEDDED_DEPLOYMENT_PROFILE_INVALID'
+    )
+  })
+
   test('starts one zero-external-service topology with durable local adapters', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-local-'))
     const calls = []

@@ -52,6 +52,10 @@
       "release-type": "node",
       "package-name": "@control-plane/control-api"
     },
+    "apps/hosted-control-plane": {
+      "release-type": "node",
+      "package-name": "@control-plane/hosted-control-plane"
+    },
     "apps/local-control-plane": {
       "release-type": "node",
       "package-name": "@control-plane/local-control-plane"

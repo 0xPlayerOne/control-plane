@@ -62,6 +62,24 @@
         "@control-plane/testing": "workspace:*",
       },
     },
+    "apps/hosted-control-plane": {
+      "name": "@control-plane/hosted-control-plane",
+      "version": "1.0.0",
+      "dependencies": {
+        "@control-plane/bootstrap": "workspace:*",
+        "@control-plane/config": "workspace:*",
+        "@control-plane/control-api": "workspace:*",
+        "@control-plane/database": "workspace:*",
+        "@control-plane/deployment": "workspace:*",
+        "@control-plane/domain": "workspace:*",
+        "@control-plane/execution-plan": "workspace:*",
+        "@control-plane/object-store": "workspace:*",
+        "@control-plane/restate-runtime": "workspace:*",
+        "@control-plane/secrets": "workspace:*",
+        "@control-plane/workflow-runtime": "workspace:*",
+        "@control-plane/workflow-worker": "workspace:*",
+      },
+    },
     "apps/local-control-plane": {
       "name": "@control-plane/local-control-plane",
       "version": "1.0.0",
@@ -509,6 +527,8 @@
     "@control-plane/events": ["@control-plane/events@workspace:packages/events"],
 
     "@control-plane/execution-plan": ["@control-plane/execution-plan@workspace:packages/execution-plan"],
+
+    "@control-plane/hosted-control-plane": ["@control-plane/hosted-control-plane@workspace:apps/hosted-control-plane"],
 
     "@control-plane/langgraph-adapter": ["@control-plane/langgraph-adapter@workspace:packages/langgraph-adapter"],
 

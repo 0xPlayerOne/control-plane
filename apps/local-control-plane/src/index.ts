@@ -18,6 +18,7 @@ import { LocalControlApiComposition } from './local-api-composition.js'
 export const serviceName = 'local-control-plane'
 
 export interface LocalControlPlaneStartOptions {
+  readonly apiHost?: string
   readonly environment?: RawEnvironment
   readonly logger?: StructuredLogger
   readonly processAdapter?: ProcessAdapter
@@ -25,6 +26,24 @@ export interface LocalControlPlaneStartOptions {
   readonly compositionOptions?: Omit<LocalControlPlaneCompositionOptions, 'dataDirectory'> & {
     readonly dataDirectory?: string
   }
+}
+
+const supportedApiHosts = new Set(['127.0.0.1', '::1', '0.0.0.0', '::'])
+
+export function resolveLocalApiHost(explicitHost?: string): string {
+  const host = explicitHost ?? process.env['CONTROL_PLANE_BIND_HOST'] ?? '127.0.0.1'
+  if (!supportedApiHosts.has(host)) throw new Error('LOCAL_CONTROL_PLANE_BIND_HOST_INVALID')
+  return host
+}
+
+export function resolveEmbeddedDeploymentProfile(
+  explicitProfile?: string
+): 'local' | 'hosted-simple' {
+  const profile = explicitProfile ?? process.env['CONTROL_PLANE_DEPLOYMENT_PROFILE'] ?? 'local'
+  if (profile !== 'local' && profile !== 'hosted-simple') {
+    throw new Error('EMBEDDED_DEPLOYMENT_PROFILE_INVALID')
+  }
+  return profile
 }
 
 export const start = (options: LocalControlPlaneStartOptions = {}) =>
@@ -41,6 +60,7 @@ export const start = (options: LocalControlPlaneStartOptions = {}) =>
             options.compositionOptions?.dataDirectory ??
             process.env['CONTROL_PLANE_DATA_DIR'] ??
             join(homedir(), '.control-plane'),
+          profile: resolveEmbeddedDeploymentProfile(),
           ...options.compositionOptions,
         })
       registerResource('local-control-plane-composition', () => composition.close())
@@ -61,7 +81,10 @@ export const start = (options: LocalControlPlaneStartOptions = {}) =>
         readiness,
       })
       registerResource('local-control-plane-api', () => application.close())
-      await application.listen({ host: '127.0.0.1', port: config.values.port })
+      await application.listen({
+        host: resolveLocalApiHost(options.apiHost),
+        port: config.values.port,
+      })
       markReady()
     },
   })

@@ -40,7 +40,7 @@ const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 export interface LocalComponentManifest {
   readonly schemaVersion: 1
-  readonly profile: 'local'
+  readonly profile: 'local' | 'hosted-simple'
   readonly version: string
   readonly dataDirectory: string
   readonly components: readonly DeploymentComponentHealth[]
@@ -55,6 +55,7 @@ export interface LocalComponentManifest {
 
 export interface LocalControlPlaneCompositionOptions {
   readonly dataDirectory: string
+  readonly profile?: 'local' | 'hosted-simple'
   readonly workflowEndpointPort?: number
   readonly processProvider?: ProcessRuntimeProvider
   readonly workflowRuntime?: WorkflowRuntime
@@ -68,6 +69,7 @@ export interface LocalControlPlaneCompositionOptions {
 
 export class LocalControlPlaneComposition {
   readonly dataDirectory: string
+  readonly profile: 'local' | 'hosted-simple'
   readonly persistence: SqlitePersistenceProvider
   readonly objectStore: ObjectStore
   readonly workflow: WorkflowRuntime
@@ -82,10 +84,12 @@ export class LocalControlPlaneComposition {
 
   constructor(options: LocalControlPlaneCompositionOptions) {
     this.dataDirectory = resolve(options.dataDirectory)
+    this.profile = options.profile ?? 'local'
     const processProvider = options.processProvider ?? new NodeProcessRuntimeProvider()
     const workflowEndpointPort = options.workflowEndpointPort ?? 9080
     this.persistence = new SqlitePersistenceProvider({
       path: join(this.dataDirectory, 'control-plane.sqlite'),
+      profile: this.profile,
     })
     this.objectStore = new FilesystemObjectStore({
       rootDirectory: join(this.dataDirectory, 'artifacts'),
@@ -132,6 +136,7 @@ export class LocalControlPlaneComposition {
           'index.js'
         ),
         dataDirectory: join(this.dataDirectory, 'restate'),
+        profile: this.profile,
         processProvider,
         deploymentUri: `http://127.0.0.1:${workflowEndpointPort}`,
       })
@@ -162,7 +167,7 @@ export class LocalControlPlaneComposition {
     this.observability.record({
       name: 'local-started',
       occurredAt: new Date().toISOString(),
-      attributes: { profile: 'local' },
+      attributes: { profile: this.profile },
     })
   }
 
@@ -175,7 +180,7 @@ export class LocalControlPlaneComposition {
     ])
     return {
       schemaVersion: 1,
-      profile: 'local',
+      profile: this.profile,
       version: COMPONENT_VERSION,
       dataDirectory: this.dataDirectory,
       components,
