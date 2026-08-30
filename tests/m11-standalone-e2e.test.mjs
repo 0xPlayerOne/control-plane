@@ -1,8 +1,10 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { describe, expect, test } from 'bun:test'
 import { AcpAdapter, AcpDriver, ReferenceAcpTransport } from '@control-plane/acp-adapter'
+import { ControlApiFixtures } from '@control-plane/contracts'
 import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
 import { LocalControlPlaneComposition } from '@control-plane/local-control-plane'
 import { ManagedPiAdapter, ManagedPiDriver } from '@control-plane/managed-pi-adapter'
@@ -88,7 +90,64 @@ describe('M11 standalone execution composition', () => {
     },
     30_000
   )
+
+  test('accepts and completes one Local execution through the pinned Restate runtime', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-m11-restate-'))
+    const local = new LocalControlPlaneComposition({
+      dataDirectory: directory,
+      runtimeTransport: createDirectManagedPiAdapter(),
+      workflowEndpointPort: 19080,
+    })
+    try {
+      await local.start()
+      const plan = createExecutionPlanTestFixture()
+      await local.executionPlans.put(plan)
+      const issuedAt = new Date().toISOString()
+      const response = await local.executionAcceptanceService.accept(
+        {
+          ...ControlApiFixtures.executionAcceptance.request,
+          requestId: plan.correlation.requestId,
+          workspaceId: plan.correlation.workspaceId,
+          projectId: plan.correlation.projectId,
+          issuedAt,
+          payload: {
+            taskId: plan.correlation.taskId,
+            agentId: plan.correlation.agentId,
+            executionPlan: {
+              executionPlanId: plan.executionPlanId,
+              contentDigest: plan.contentDigest,
+              schemaVersion: plan.schemaVersion,
+            },
+            deadlineAt: new Date(Date.parse(issuedAt) + 60_000).toISOString(),
+            retentionExpiresAt: new Date(Date.parse(issuedAt) + 86_400_000).toISOString(),
+          },
+        },
+        'svc_m11-standalone'
+      )
+      expect(response.data.status).toBe('processing')
+      const execution = await waitForTerminalExecution(local, response.data.executionId)
+      expect(execution).toMatchObject({
+        state: 'completed',
+        terminalResultRef: `art_${response.data.executionId.slice(4)}`,
+      })
+    } finally {
+      await local.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 60_000)
 })
+
+async function waitForTerminalExecution(composition, executionId) {
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    const execution = await composition.executions.getExecution(executionId)
+    if (['completed', 'failed', 'cancelled', 'timed_out'].includes(execution.state)) {
+      return execution
+    }
+    await delay(100)
+  }
+  throw new Error('M11_LOCAL_RESTATE_EXECUTION_TIMEOUT')
+}
 
 function createAcpExecutionPlan() {
   return createExecutionPlanTestFixture({
