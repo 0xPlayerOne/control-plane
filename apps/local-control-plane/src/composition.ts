@@ -16,6 +16,10 @@ import {
 } from '@control-plane/deployment'
 import { FilesystemObjectStore } from '@control-plane/object-store'
 import { LocalRestateRuntime, RESTATE_SERVER_VERSION } from '@control-plane/restate-runtime'
+import type {
+  ExecutionAcceptancePort,
+  RemoteControlHostAdapter,
+} from '@control-plane/remote-control-relay'
 import type { RuntimeTransport } from '@control-plane/runtime-sdk'
 import {
   CompositeSecretsProvider,
@@ -33,6 +37,7 @@ import {
   type RestateEndpointHandle,
 } from '@control-plane/workflow-runtime'
 import { DirectRuntimeExecutionActivities } from './direct-runtime-activities.js'
+import { LocalControlApiComposition } from './local-api-composition.js'
 
 const require = createRequire(import.meta.url)
 const COMPONENT_VERSION = '1.0.0'
@@ -50,6 +55,7 @@ export interface LocalComponentManifest {
     readonly restateVersion: string
     readonly persistence: 'sqlite'
     readonly objectStore: 'filesystem'
+    readonly remoteControl: 'disabled' | 'outbound'
   }
 }
 
@@ -63,6 +69,10 @@ export interface LocalControlPlaneCompositionOptions {
   readonly activities?: ExecutionLifecycleActivities
   readonly runtimeTransport?: RuntimeTransport
   readonly secrets?: SecretsProvider
+  readonly remoteControl?: RemoteControlHostAdapter<unknown>
+  readonly remoteControlFactory?: (
+    acceptance: ExecutionAcceptancePort
+  ) => RemoteControlHostAdapter<unknown>
   readonly environmentSecretReferences?: Readonly<Record<string, string>>
   readonly environment?: Readonly<Record<string, string | undefined>>
 }
@@ -75,6 +85,9 @@ export class LocalControlPlaneComposition {
   readonly workflow: WorkflowRuntime
   readonly secrets: SecretsProvider
   readonly runtimeTransport: RuntimeTransport | undefined
+  readonly remoteControl: RemoteControlHostAdapter<unknown> | undefined
+  readonly executionAcceptanceService: LocalControlApiComposition['executionAcceptanceService']
+  readonly executionValidationService: LocalControlApiComposition['executionValidationService']
   readonly coordination = new LocalCoordinationProvider()
   readonly observability = new BufferedObservabilityProvider()
   readonly discovery: StaticServiceDiscovery
@@ -110,6 +123,14 @@ export class LocalControlPlaneComposition {
       throw new Error('LOCAL_RUNTIME_TRANSPORT_MUST_BE_DIRECT')
     }
     this.runtimeTransport = options.runtimeTransport
+    const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
+    this.executionAcceptanceService = controlApi.executionAcceptanceService
+    this.executionValidationService = controlApi.executionValidationService
+    if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
+      throw new Error('LOCAL_REMOTE_CONTROL_CONFIGURATION_CONFLICT')
+    }
+    this.remoteControl =
+      options.remoteControl ?? options.remoteControlFactory?.(this.executionAcceptanceService)
     const activities =
       options.activities ??
       (options.runtimeTransport === undefined
@@ -158,7 +179,10 @@ export class LocalControlPlaneComposition {
     await this.#endpoint.run()
     try {
       await this.workflow.start()
+      await this.remoteControl?.start()
     } catch (error) {
+      this.remoteControl?.stop()
+      await this.workflow.stop().catch(() => undefined)
       await this.#endpoint.shutdown().catch(() => undefined)
       this.#endpoint = undefined
       throw error
@@ -177,6 +201,7 @@ export class LocalControlPlaneComposition {
       this.workflow.health(),
       this.secrets.health(),
       this.observability.health(),
+      ...(this.remoteControl === undefined ? [] : [this.remoteControl.health()]),
     ])
     return {
       schemaVersion: 1,
@@ -190,6 +215,7 @@ export class LocalControlPlaneComposition {
         restateVersion: RESTATE_SERVER_VERSION,
         persistence: 'sqlite',
         objectStore: 'filesystem',
+        remoteControl: this.remoteControl === undefined ? 'disabled' : 'outbound',
       },
     }
   }
@@ -197,6 +223,7 @@ export class LocalControlPlaneComposition {
   async close(): Promise<void> {
     if (!this.#started && this.#endpoint === undefined) return
     this.#started = false
+    this.remoteControl?.stop()
     await this.workflow.stop().catch(() => undefined)
     await this.#endpoint?.shutdown().catch(() => undefined)
     this.#endpoint = undefined

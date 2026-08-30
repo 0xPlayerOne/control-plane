@@ -1,0 +1,38 @@
+{
+  "name": "@control-plane/remote-control-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "browser": false,
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "bun test src/*.test.mjs"
+  },
+  "dependencies": {
+    "@control-plane/contracts": "workspace:*",
+    "@control-plane/deployment": "workspace:*",
+    "@hpke/core": "1.9.0",
+    "@hpke/dhkem-x25519": "1.8.0",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@control-plane/control-api": "workspace:*",
+    "@control-plane/domain": "workspace:*"
+  }
+}

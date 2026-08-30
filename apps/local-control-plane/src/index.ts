@@ -13,7 +13,6 @@ import {
   type LocalControlPlaneCompositionOptions,
 } from './composition.js'
 import { createLocalApiAuthentication } from './authentication.js'
-import { LocalControlApiComposition } from './local-api-composition.js'
 
 export const serviceName = 'local-control-plane'
 
@@ -65,14 +64,10 @@ export const start = (options: LocalControlPlaneStartOptions = {}) =>
         })
       registerResource('local-control-plane-composition', () => composition.close())
       await composition.start()
-      const localApi = new LocalControlApiComposition(
-        composition.persistence,
-        (await composition.discovery.resolve('restate')).url.toString()
-      )
       const authentication = await createLocalApiAuthentication(composition.dataDirectory)
       const application = await createControlApiApplication({
-        executionAcceptanceService: localApi.executionAcceptanceService,
-        executionValidationService: localApi.executionValidationService,
+        executionAcceptanceService: composition.executionAcceptanceService,
+        executionValidationService: composition.executionValidationService,
         serviceAuthenticator: authentication.authenticator,
         componentManifest: () => composition.manifest(),
         health,

@@ -160,6 +160,10 @@
       "release-type": "node",
       "package-name": "@control-plane/production-readiness"
     },
+    "packages/remote-control-relay": {
+      "release-type": "node",
+      "package-name": "@control-plane/remote-control-relay"
+    },
     "packages/runtime-gateway-protocol": {
       "release-type": "node",
       "package-name": "@control-plane/runtime-gateway-protocol"
