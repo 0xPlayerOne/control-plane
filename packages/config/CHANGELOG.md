@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/config-v1.2.0...config-v1.3.0) (2026-08-30)
+
+
+### Features
+
+* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/config-v1.1.1...config-v1.2.0) (2026-08-29)
 
 
