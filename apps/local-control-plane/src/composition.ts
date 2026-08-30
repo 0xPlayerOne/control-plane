@@ -88,6 +88,7 @@ export class LocalControlPlaneComposition {
   readonly remoteControl: RemoteControlHostAdapter<unknown> | undefined
   readonly executionAcceptanceService: LocalControlApiComposition['executionAcceptanceService']
   readonly executionValidationService: LocalControlApiComposition['executionValidationService']
+  readonly profileResolutionService: LocalControlApiComposition['profileResolutionService']
   readonly coordination = new LocalCoordinationProvider()
   readonly observability = new BufferedObservabilityProvider()
   readonly discovery: StaticServiceDiscovery
@@ -126,6 +127,7 @@ export class LocalControlPlaneComposition {
     const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
     this.executionAcceptanceService = controlApi.executionAcceptanceService
     this.executionValidationService = controlApi.executionValidationService
+    this.profileResolutionService = controlApi.profileResolutionService
     if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
       throw new Error('LOCAL_REMOTE_CONTROL_CONFIGURATION_CONFLICT')
     }

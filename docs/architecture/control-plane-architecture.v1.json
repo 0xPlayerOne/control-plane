@@ -969,29 +969,31 @@
       "method": "POST",
       "path": "/v1/profiles/resolve",
       "inOpenApi": true,
-      "controllerReachable": false,
-      "classification": "not_implemented",
+      "controllerReachable": true,
+      "classification": "verified",
       "trace": {
-        "auth": "declared service bearer security",
-        "service": "no controller or application service",
-        "persistence": "unreachable",
-        "execution": "unreachable",
-        "delivery": "no response path",
-        "cleanup": "not applicable"
+        "auth": "service bearer with profile:resolve scope",
+        "service": "ProfileResolutionController -> RepositoryProfileResolutionService",
+        "persistence": "profile catalog repository selected by the active composition",
+        "execution": "deterministic explicit-version or latest-published selection",
+        "delivery": "immutable profile reference and pinned Skill version IDs",
+        "cleanup": "no external side effect"
       },
-      "assessment": "Catalog repositories and deterministic resolution exist, but the public operation is unreachable.",
+      "assessment": "Managed Cloud, Local, Hosted Simple, and Hosted Server inject their concrete catalog into the same public resolution service.",
       "evidence": [
         {
-          "kind": "contract",
-          "path": "packages/contracts/src/control-api.ts"
+          "kind": "service",
+          "path": "apps/control-api/src/queries/profile-resolution.service.ts"
+        },
+        {
+          "kind": "controller",
+          "path": "apps/control-api/src/queries/profile-resolution.controller.ts"
+        },
+        {
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "control-api-catalog",
-        "disposition": "Implement scoped profile resolution over the configured catalog or remove the operation."
-      },
       "openApiOperationId": "profile.resolve",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
@@ -1172,7 +1174,7 @@
         "owner": "managed-cloud-runtime",
         "disposition": "Wire a production RuntimeTransport/activity implementation and concrete discovery/provider ports before claiming general Cloud execution readiness."
       },
-      "sourceDigest": "sha256:158c08e8c2a881c652e7698fc57f527d9ba47cb9c2cf019148b87e20b867fd8e"
+      "sourceDigest": "sha256:229386a35106af06134092a92323a357f77c48492b773101366c0e95309fb8fc"
     },
     {
       "id": "hosted-server",
@@ -1207,7 +1209,7 @@
         "owner": "hosted-runtime",
         "disposition": "Inject and certify a real remote RuntimeTransport/activity port before Hosted Server is a supported execution profile."
       },
-      "sourceDigest": "sha256:a1f664dd03d55b450bb4f9ae8a3183a0bb175b909a61e80d8146d804742830aa"
+      "sourceDigest": "sha256:80e0734944537d9e77aae29ab7323b29835cf0e2ddcc25d77219f6ee6f76e5f6"
     },
     {
       "id": "hosted-simple",
@@ -1242,7 +1244,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
       },
-      "sourceDigest": "sha256:5d8de50a841d1df9525822617955f445de8ae2137d1914ccdd04ec148406d068"
+      "sourceDigest": "sha256:5af6cd20efd5581edb9d6348a1e983ea81b1ad06657d34ae19c7e9f94f41584a"
     },
     {
       "id": "local",
@@ -1277,7 +1279,7 @@
         "owner": "local-runtime",
         "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
       },
-      "sourceDigest": "sha256:5d8de50a841d1df9525822617955f445de8ae2137d1914ccdd04ec148406d068"
+      "sourceDigest": "sha256:5af6cd20efd5581edb9d6348a1e983ea81b1ad06657d34ae19c7e9f94f41584a"
     }
   ],
   "ownership": [

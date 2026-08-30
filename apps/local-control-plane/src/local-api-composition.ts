@@ -3,6 +3,7 @@ import {
   DurableExecutionValidationService,
   RestateExecutionWorkflowDispatcher,
   createExecutionId,
+  RepositoryProfileResolutionService,
 } from '@control-plane/control-api'
 import { CommandInboxService } from '@control-plane/domain'
 import { ExecutionPlanAcceptanceValidator } from '@control-plane/execution-plan'
@@ -22,6 +23,7 @@ export class LocalControlApiComposition {
   readonly projectStates: SqliteProjectStateRepository
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
+  readonly profileResolutionService: RepositoryProfileResolutionService
 
   constructor(persistence: SqlitePersistenceProvider, restateIngressUrl: string) {
     this.catalog = new SqliteVersionedCatalogRepository(persistence)
@@ -44,5 +46,6 @@ export class LocalControlApiComposition {
       projectStates: this.projectStates,
       skills: this.catalog,
     })
+    this.profileResolutionService = new RepositoryProfileResolutionService(this.catalog)
   }
 }

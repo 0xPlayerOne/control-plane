@@ -22,6 +22,7 @@ import {
   RestateExecutionWorkflowDispatcher,
   createExecutionId,
 } from './executions/execution-acceptance.service.js'
+import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.js'
 
 const executionPlanCompilerVersion = '1.0.0'
 
@@ -32,6 +33,7 @@ export interface ManagedCloudControlApiComposition {
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly serviceAuthenticator: PolicyServiceAuthenticator
+  readonly profileResolutionService: RepositoryProfileResolutionService
 }
 
 export class ControlApiCloudCompositionError extends Error {
@@ -89,6 +91,7 @@ export function createManagedCloudControlApiComposition(
       projectStates: new PostgresProjectStateRepository(connection.database),
       skills: catalog,
     }),
+    profileResolutionService: new RepositoryProfileResolutionService(catalog),
     serviceAuthenticator,
   }
 }

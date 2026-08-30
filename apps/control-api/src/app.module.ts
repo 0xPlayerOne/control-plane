@@ -44,6 +44,12 @@ import {
   type RuntimeDiscoveryRepository,
 } from './runtime-discovery/runtime-discovery.repository.js'
 import { RuntimeDiscoveryService } from './runtime-discovery/runtime-discovery.service.js'
+import { ProfileResolutionController } from './queries/profile-resolution.controller.js'
+import {
+  PROFILE_RESOLUTION_SERVICE,
+  UnavailableProfileResolutionService,
+  type ProfileResolutionService,
+} from './queries/profile-resolution.service.js'
 
 export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly executionAcceptanceService?: ExecutionAcceptanceService
@@ -51,6 +57,7 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly serviceAuthenticator?: ServiceAuthenticator
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
   readonly componentManifest?: () => Promise<unknown>
+  readonly profileResolutionService?: ProfileResolutionService
 }
 
 @Module({})
@@ -76,6 +83,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       ExecutionAcceptanceController,
       ExecutionValidationController,
       HealthController,
+      ProfileResolutionController,
       RuntimeDiscoveryController,
       SystemController,
     ],
@@ -100,6 +108,10 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       {
         provide: SERVICE_AUTHENTICATOR,
         useValue: options.serviceAuthenticator ?? new DisabledServiceAuthenticator(),
+      },
+      {
+        provide: PROFILE_RESOLUTION_SERVICE,
+        useValue: options.profileResolutionService ?? new UnavailableProfileResolutionService(),
       },
       {
         provide: RUNTIME_DISCOVERY_REPOSITORY,

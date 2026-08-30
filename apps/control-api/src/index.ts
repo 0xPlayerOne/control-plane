@@ -16,6 +16,7 @@ import {
 import type { ExecutionValidationService } from './executions/execution-validation.service.js'
 import type { ExecutionAcceptanceService } from './executions/execution-acceptance.service.js'
 import type { RuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.js'
+import type { ProfileResolutionService } from './queries/profile-resolution.service.js'
 
 export const serviceName = 'control-api'
 
@@ -29,6 +30,7 @@ export interface ControlApiStartOptions {
   readonly processAdapter?: ProcessAdapter
   readonly postgresConnectionFactory?: PostgresConnectionFactory
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
+  readonly profileResolutionService?: ProfileResolutionService
   readonly serviceAuthenticator?: ServiceAuthenticator
 }
 
@@ -73,6 +75,8 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         options.executionAcceptanceService ?? cloudComposition?.executionAcceptanceService
       const serviceAuthenticator =
         options.serviceAuthenticator ?? cloudComposition?.serviceAuthenticator
+      const profileResolutionService =
+        options.profileResolutionService ?? cloudComposition?.profileResolutionService
       application = await createControlApiApplication({
         ...(executionAcceptanceService === undefined ? {} : { executionAcceptanceService }),
         ...(executionValidationService === undefined ? {} : { executionValidationService }),
@@ -80,6 +84,7 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         logger,
         metadata,
         readiness,
+        ...(profileResolutionService === undefined ? {} : { profileResolutionService }),
         ...(options.runtimeDiscoveryRepository === undefined
           ? {}
           : { runtimeDiscoveryRepository: options.runtimeDiscoveryRepository }),
@@ -104,6 +109,10 @@ export {
   createExecutionId,
 } from './executions/execution-acceptance.service.js'
 export { DurableExecutionValidationService } from './executions/execution-validation.service.js'
+export {
+  RepositoryProfileResolutionService,
+  type ProfileResolutionService,
+} from './queries/profile-resolution.service.js'
 export type { ServiceAuthenticator } from './auth/service-authentication.js'
 export {
   createPrivateApiAuthentication,

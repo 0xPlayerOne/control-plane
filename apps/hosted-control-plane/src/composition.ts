@@ -4,6 +4,7 @@ import {
   DurableExecutionAcceptanceService,
   DurableExecutionValidationService,
   RestateExecutionWorkflowDispatcher,
+  RepositoryProfileResolutionService,
   createExecutionId,
 } from '@control-plane/control-api'
 import {
@@ -104,6 +105,7 @@ export class HostedServerControlPlaneComposition {
   readonly discovery: StaticServiceDiscovery
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
+  readonly profileResolutionService: RepositoryProfileResolutionService
   readonly #endpointFactory: RestateEndpointFactory
   readonly #objectStoreKind: 'filesystem' | 's3-compatible'
   #endpoint: RestateEndpointHandle | undefined
@@ -159,6 +161,7 @@ export class HostedServerControlPlaneComposition {
       projectStates: new PostgresProjectStateRepository(this.connection.database),
       skills: catalog,
     })
+    this.profileResolutionService = new RepositoryProfileResolutionService(catalog)
 
     const activities = new DurableExecutionLifecycleActivities({
       lifecycle: new ExecutionLifecycleService(

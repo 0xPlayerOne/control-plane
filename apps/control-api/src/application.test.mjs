@@ -23,6 +23,7 @@ import {
   RestateExecutionWorkflowDispatcher,
 } from './executions/execution-acceptance.service.ts'
 import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
+import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
 class FakeProcessAdapter {
@@ -62,7 +63,8 @@ async function createApplication(
   serviceAuthenticator,
   runtimeDiscoveryRepository,
   executionValidationService,
-  executionAcceptanceService
+  executionAcceptanceService,
+  profileResolutionService
 ) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
@@ -71,6 +73,7 @@ async function createApplication(
     readiness: () => ({ status: 'ready', metadata }),
     executionAcceptanceService,
     executionValidationService,
+    profileResolutionService,
     serviceAuthenticator,
     runtimeDiscoveryRepository,
   })
@@ -103,6 +106,37 @@ describe('Control API', () => {
 
     expect(response.json()).toEqual(ControlApiFixtures.authentication.response)
     expect(response.statusCode).toBe(200)
+  })
+
+  test('resolves the latest published profile through the public contract', async () => {
+    const profile = executionProfile(executionConstraintFixtures.read)
+    const service = new RepositoryProfileResolutionService({
+      getAgentProfileVersion: async () => undefined,
+      listAgentProfileVersions: async () => [
+        { ...profile, lifecycle: 'draft', version: 4 },
+        profile,
+      ],
+    })
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['profile:resolve'] },
+      }),
+      undefined,
+      undefined,
+      undefined,
+      service
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/profiles/resolve',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.profileResolution.request,
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(ControlApiFixtures.profileResolution.response)
   })
 
   test('exposes health, readiness, and security headers', async () => {
