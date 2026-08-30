@@ -73,7 +73,7 @@ jobs:
             sleep 2
           done
           test "$simple_status" = 200
-          credential_before="$(sha256sum "$compose_root/simple/auth/local-api.token" | cut -d ' ' -f 1)"
+          credential_before="$(docker compose exec -T control-plane-simple sha256sum /var/lib/control-plane/auth/local-api.token | cut -d ' ' -f 1)"
           docker compose --profile simple up -d --force-recreate
           for _ in {1..60}; do
             simple_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
@@ -81,7 +81,7 @@ jobs:
             sleep 2
           done
           test "$simple_status" = 200
-          credential_after="$(sha256sum "$compose_root/simple/auth/local-api.token" | cut -d ' ' -f 1)"
+          credential_after="$(docker compose exec -T control-plane-simple sha256sum /var/lib/control-plane/auth/local-api.token | cut -d ' ' -f 1)"
           test "$credential_before" = "$credential_after"
           docker compose --profile simple down
 

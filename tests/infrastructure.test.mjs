@@ -375,6 +375,16 @@ test('packages the hosted simple profile as one hardened user-owned composition'
   assert.match(runbook, /Stop the container before a filesystem-level backup/)
 })
 
+test('checks hosted credential persistence without weakening owner-only file permissions', async () => {
+  const workflow = await readRepositoryFile('.github/workflows/m10-operability.yml')
+
+  assert.match(
+    workflow,
+    /docker compose exec -T control-plane-simple sha256sum \/var\/lib\/control-plane\/auth\/local-api\.token/g
+  )
+  assert.doesNotMatch(workflow, /sha256sum "\$compose_root\/simple\/auth\/local-api\.token"/)
+})
+
 test('does not retain the former AWS deployment tree', async () => {
   const packageManifest = JSON.parse(await readRepositoryFile('package.json'))
   const railwayValidator = await readRepositoryFile('scripts/validate-railway.mjs')
