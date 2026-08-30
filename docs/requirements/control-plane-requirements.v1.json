@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "candidate": {
-    "commit": "85017eb9d92416e7ea930ceda328a1b31113fe92",
+    "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3",
     "ref": "staging",
-    "recordedAt": "2026-08-30T10:30:00.000Z",
+    "recordedAt": "2026-08-30T14:44:38Z",
     "toolchain": {
       "node": "24.18.0",
       "bun": "1.4.0",
@@ -14,7 +14,13 @@
       "runtimeCompatibility": "1",
       "databaseMigrations": "0000-0026",
       "workspace": "1.8.0"
-    }
+    },
+    "artifacts": [
+      "docs/requirements/control-plane-requirements.v1.json",
+      "docs/requirements/control-plane-requirements.md",
+      "scripts/requirements-ledger.mjs",
+      "tests/m11-requirements-ledger.test.mjs"
+    ]
   },
   "sources": [
     {
@@ -3225,68 +3231,52 @@
     {
       "id": "VERIFY-20260830-FORMAT",
       "command": "bun run format:check",
-      "observedAt": "2026-08-30T14:29:32Z",
-      "environment": "macOS Darwin 25.6.0; local candidate worktree",
+      "observedAt": "2026-08-30T14:46:06Z",
+      "environment": "macOS Darwin 25.6.0; detached worktree at exact candidate commit f94dfc56c098027cb5ee9373e14358030b8876f3",
       "result": "passed; all tracked source and generated artifacts match Prettier",
-      "commit": "85017eb9d92416e7ea930ceda328a1b31113fe92"
+      "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3"
     },
     {
       "id": "VERIFY-20260830-LINT",
       "command": "bun run lint",
-      "observedAt": "2026-08-30T14:29:32Z",
-      "environment": "macOS Darwin 25.6.0; Bun 1.4.1-canary.1; 41-package workspace",
+      "observedAt": "2026-08-30T14:46:06Z",
+      "environment": "macOS Darwin 25.6.0; Bun 1.4.1-canary.1; detached f94dfc56 candidate; 41-package workspace",
       "result": "passed; 41 package lint tasks, root ESLint, and 762-file boundary check",
-      "commit": "85017eb9d92416e7ea930ceda328a1b31113fe92"
+      "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3"
     },
     {
       "id": "VERIFY-20260830-TYPE",
       "command": "bun run type-check",
-      "observedAt": "2026-08-30T14:29:32Z",
-      "environment": "macOS Darwin 25.6.0; frozen Bun workspace install; local candidate worktree",
+      "observedAt": "2026-08-30T14:46:06Z",
+      "environment": "macOS Darwin 25.6.0; frozen Bun install in detached f94dfc56 candidate worktree",
       "result": "passed; 43 build/OpenAPI tasks, Drizzle, compatibility, requirements drift, and Railway typecheck",
-      "commit": "85017eb9d92416e7ea930ceda328a1b31113fe92"
+      "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3"
     },
     {
       "id": "VERIFY-20260830-TEST",
       "command": "bun run test",
-      "observedAt": "2026-08-30T14:29:32Z",
-      "environment": "macOS Darwin 25.6.0; deterministic local unit, end-to-end, and smoke groups",
-      "result": "passed; complete grouped suite, including 586 unit tests and 80% coverage gate",
-      "commit": "85017eb9d92416e7ea930ceda328a1b31113fe92"
+      "observedAt": "2026-08-30T14:46:06Z",
+      "environment": "macOS Darwin 25.6.0; detached f94dfc56 candidate; deterministic local unit, end-to-end, and smoke groups",
+      "result": "passed; 586 unit, 86 end-to-end, and 35 smoke tests; 86.18% line and 82.31% function coverage",
+      "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3"
     },
     {
       "id": "VERIFY-20260830-SOURCES",
       "command": "cortana search/context against 15 M11.1 normative titles",
-      "observedAt": "2026-08-30T14:29:32Z",
+      "observedAt": "2026-08-30T14:46:06Z",
       "environment": "local Cortana hybrid index; work-drive and personal-drive sources",
       "result": "9 sources retrieved with stable IDs/timestamps; 6 unavailable sources classified high and linked to M11 owners",
-      "commit": "85017eb9d92416e7ea930ceda328a1b31113fe92"
+      "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3"
     }
   ],
   "reviewerSamples": [
     {
-      "reviewer": "independent source-audit worker",
-      "scope": "Project Index, Agent HQ PRD, and System Architecture requirements",
-      "evidence": "Cortana source IDs and repository path sampling at candidate 85017eb",
-      "result": "Retrieved sources mapped; missing PRDs and stale topology claims explicitly dispositioned."
-    },
-    {
-      "reviewer": "independent technical-audit worker",
-      "scope": "Control Plane TDD, profile/skill, data/API, runtime, and consistency requirements",
-      "evidence": "Cortana source extraction plus contract, runtime, workflow, and test path sampling",
-      "result": "Current semantics mapped; missing protocol sources and schema vocabulary gaps recorded."
-    },
-    {
-      "reviewer": "independent operations-audit worker",
-      "scope": "Security, artifacts, evaluation, compatibility, and ADR requirements",
-      "evidence": "Cortana extraction plus current security, compatibility, and production-readiness paths",
-      "result": "Current controls mapped; missing canonical sources, eval gaps, and superseded ADRs recorded."
-    },
-    {
-      "reviewer": "independent milestone-audit worker",
-      "scope": "Every GitHub issue assigned to M1 through M10",
-      "evidence": "GitHub milestone inventory and reachable source, tests, docs, and environment records at candidate 85017eb",
-      "result": "Issue closure was not trusted; partial and superseded rows were identified for owned M11 disposition."
+      "reviewer": "independent M11.1 acceptance reviewer",
+      "scope": "All 15 normative-source records, every M1-M10 issue audit, four deployment profiles, generated drift controls, and representative deterministic milestone tests",
+      "command": "bun run requirements:check; bun test tests/m11-requirements-ledger.test.mjs; bun test tests/foundation.test.mjs tests/m2-core-domain.test.mjs tests/m3-durable-execution.test.mjs tests/m4-runtime-fabric.test.mjs tests/m5-runtime-gateway.test.mjs tests/m6-runtime-adapters.test.mjs tests/m7-tools-models-sandboxes.test.mjs tests/m8-multi-agent-orchestration.test.mjs tests/m9-cloud-certification.test.mjs tests/m10-portability-conformance.test.mjs tests/m10-operability.test.mjs",
+      "observedAt": "2026-08-30T14:49:01Z",
+      "commit": "f94dfc56c098027cb5ee9373e14358030b8876f3",
+      "result": "Passed: requirements drift validated 55 requirements and 103 audits; M11 suite 5/5 with 292 assertions; representative M1-M10/profile sample 83/83 with 482 assertions; no live-provider operations."
     }
   ],
   "priorIssueInventory": [

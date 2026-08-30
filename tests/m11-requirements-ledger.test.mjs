@@ -56,6 +56,29 @@ describe('M11.1 requirements ledger', () => {
   })
 
   test('fails closed when authoritative inventory or provenance disappears', async () => {
+    const pendingReview = clone(ledger)
+    pendingReview.reviewerSamples[0].result = 'pending independent rerun'
+    expect(
+      (
+        await validateRequirementsLedger(pendingReview, {
+          repositoryRoot: new URL('..', import.meta.url),
+        })
+      ).errors
+    ).toContain('independent M11.1 acceptance reviewer: reviewer result cannot be pending')
+
+    const fictionalCandidate = clone(ledger)
+    fictionalCandidate.candidate.commit = 'f'.repeat(40)
+    fictionalCandidate.verificationRuns.forEach((run) => {
+      run.commit = fictionalCandidate.candidate.commit
+    })
+    expect(
+      (
+        await validateRequirementsLedger(fictionalCandidate, {
+          repositoryRoot: new URL('..', import.meta.url),
+        })
+      ).errors
+    ).toContain('candidate.commit must exist in the repository')
+
     const emptyProfiles = clone(ledger)
     emptyProfiles.deploymentProfiles = []
     expect(

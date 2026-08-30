@@ -34,6 +34,26 @@ export async function validateRequirementsLedger(ledger, options = {}) {
   for (const key of ['node', 'bun', 'restate']) {
     if (!ledger.candidate?.toolchain?.[key]) errors.push(`candidate.toolchain.${key} is required`)
   }
+  if (!Array.isArray(ledger.candidate?.artifacts) || ledger.candidate.artifacts.length === 0) {
+    errors.push('candidate.artifacts must identify committed M11.1 evidence')
+  }
+  for (const artifact of ledger.candidate?.artifacts ?? []) {
+    try {
+      await access(resolve(root, artifact))
+    } catch {
+      errors.push(`candidate artifact does not exist: ${artifact}`)
+    }
+    const committed = spawnSync(
+      'git',
+      ['cat-file', '-e', `${ledger.candidate.commit}:${artifact}`],
+      {
+        cwd: root,
+      }
+    )
+    if (committed.status !== 0) {
+      errors.push(`candidate commit does not contain artifact: ${artifact}`)
+    }
+  }
 
   const sourceIds = new Set()
   for (const source of ledger.sources ?? []) {
@@ -153,6 +173,22 @@ export async function validateRequirementsLedger(ledger, options = {}) {
   if (!Array.isArray(ledger.reviewerSamples) || ledger.reviewerSamples.length === 0) {
     errors.push('reviewerSamples must include independent reproduction evidence')
   }
+  for (const sample of ledger.reviewerSamples ?? []) {
+    requireFields(errors, sample, [
+      'reviewer',
+      'scope',
+      'command',
+      'observedAt',
+      'commit',
+      'result',
+    ])
+    if (sample.commit !== ledger.candidate?.commit) {
+      errors.push(`${sample.reviewer}: reviewer commit must match candidate.commit`)
+    }
+    if (/pending/i.test(sample.result) || /pending/i.test(sample.observedAt)) {
+      errors.push(`${sample.reviewer}: reviewer result cannot be pending`)
+    }
+  }
   for (const run of ledger.verificationRuns ?? []) {
     requireFields(errors, run, ['id', 'command', 'observedAt', 'environment', 'result', 'commit'])
     if (run.commit !== ledger.candidate?.commit) {
@@ -227,6 +263,7 @@ export async function renderRequirementsReport(ledger) {
     `- Recorded at: ${ledger.candidate.recordedAt}`,
     `- Toolchain: Node ${ledger.candidate.toolchain.node}; Bun ${ledger.candidate.toolchain.bun}; Restate ${ledger.candidate.toolchain.restate}`,
     `- Contract/schema versions: ${formatObject(ledger.candidate.versions)}`,
+    `- Committed ledger artifacts: ${ledger.candidate.artifacts.map((artifact) => `\`${artifact}\``).join(', ')}`,
     '',
     '## Summary',
     '',
@@ -290,11 +327,11 @@ export async function renderRequirementsReport(ledger) {
     '',
     '## Independent review samples',
     '',
-    '| Reviewer | Scope | Command / evidence | Result |',
-    '| --- | --- | --- | --- |',
+    '| Reviewer | Scope | Candidate / observed at | Command | Result |',
+    '| --- | --- | --- | --- | --- |',
     ...ledger.reviewerSamples.map(
       (sample) =>
-        `| ${escapeCell(sample.reviewer)} | ${escapeCell(sample.scope)} | ${escapeCell(sample.evidence)} | ${escapeCell(sample.result)} |`
+        `| ${escapeCell(sample.reviewer)} | ${escapeCell(sample.scope)} | \`${sample.commit}\`<br>${sample.observedAt} | \`${escapeCell(sample.command)}\` | ${escapeCell(sample.result)} |`
     ),
     '',
     '## Maintenance',
