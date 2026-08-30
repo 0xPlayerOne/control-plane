@@ -6,10 +6,12 @@
       "name": "@control-plane/workspace",
       "devDependencies": {
         "@control-plane/acp-adapter": "workspace:*",
+        "@control-plane/config": "workspace:*",
         "@control-plane/context": "workspace:*",
         "@control-plane/contracts": "workspace:*",
         "@control-plane/credential-vault": "workspace:*",
         "@control-plane/database": "workspace:*",
+        "@control-plane/deployment": "workspace:*",
         "@control-plane/domain": "workspace:*",
         "@control-plane/events": "workspace:*",
         "@control-plane/execution-plan": "workspace:*",
@@ -19,10 +21,14 @@
         "@control-plane/object-store": "workspace:*",
         "@control-plane/orchestration": "workspace:*",
         "@control-plane/production-readiness": "workspace:*",
+        "@control-plane/profile-portability": "workspace:*",
         "@control-plane/runtime-sdk": "workspace:*",
         "@control-plane/sandbox": "workspace:*",
         "@control-plane/sdk": "workspace:*",
+        "@control-plane/secrets": "workspace:*",
+        "@control-plane/sqlite-persistence": "workspace:*",
         "@control-plane/usage-ledger": "workspace:*",
+        "@control-plane/workflow-runtime": "workspace:*",
         "@eslint/js": "10.0.1",
         "@langchain/langgraph": "1.4.12",
         "@types/node": "26.3.0",
@@ -358,6 +364,18 @@
         "zod": "4.4.3",
       },
     },
+    "packages/profile-portability": {
+      "name": "@control-plane/profile-portability",
+      "version": "1.0.0",
+      "bin": {
+        "control-plane-portability": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@control-plane/deployment": "workspace:*",
+        "@control-plane/sqlite-persistence": "workspace:*",
+        "zod": "4.3.6",
+      },
+    },
     "packages/remote-control-relay": {
       "name": "@control-plane/remote-control-relay",
       "version": "1.0.0",
@@ -564,6 +582,8 @@
     "@control-plane/policy": ["@control-plane/policy@workspace:packages/policy"],
 
     "@control-plane/production-readiness": ["@control-plane/production-readiness@workspace:packages/production-readiness"],
+
+    "@control-plane/profile-portability": ["@control-plane/profile-portability@workspace:packages/profile-portability"],
 
     "@control-plane/remote-control-relay": ["@control-plane/remote-control-relay@workspace:packages/remote-control-relay"],
 
@@ -1178,6 +1198,8 @@
     "yocto-queue": ["yocto-queue@0.1.0", "", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
+
+    "@control-plane/profile-portability/zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 
     "@control-plane/remote-control-relay/zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 

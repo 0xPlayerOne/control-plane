@@ -160,6 +160,10 @@
       "release-type": "node",
       "package-name": "@control-plane/production-readiness"
     },
+    "packages/profile-portability": {
+      "release-type": "node",
+      "package-name": "@control-plane/profile-portability"
+    },
     "packages/remote-control-relay": {
       "release-type": "node",
       "package-name": "@control-plane/remote-control-relay"

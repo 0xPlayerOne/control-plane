@@ -17,6 +17,7 @@ const repositoryGroups = {
     'tests/m8-multi-agent-orchestration.test.mjs',
     'tests/m9-cloud-certification.test.mjs',
     'tests/m9-production-hardening.test.mjs',
+    'tests/m10-portability-conformance.test.mjs',
   ],
   smoke: [
     'tests/foundation.test.mjs',

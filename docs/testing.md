@@ -29,6 +29,8 @@ The following commands describe the repository as it exists today. M9.7/M9.8/M10
 - `bun run test:m5-acceptance` runs the Runtime Gateway security, delivery, recovery, and protocol matrix.
 - `bun run test:m9-acceptance` runs the production-hardening/security/load evidence. It remains a
   local gate; M9.6 additionally completed the required live Railway staging certification.
+- `bun run test:m10-conformance` runs the versioned Cloud/Local/Hosted semantic matrix plus the
+  profile export/import, rollback, idempotency, and secret-canary suites.
 - `bun run test:recovery-matrix` runs current disposable recovery fixtures.
 
 The Railway manifest validator checks repository-owned service composition. A green local validation
@@ -59,7 +61,7 @@ a separate release gate.
 
 ## Required M10 validation additions
 
-M10 must add profile-aware conformance for:
+M10 profile-aware conformance covers:
 
 - Local `node:sqlite` + Drizzle versus PostgreSQL domain parity;
 - Local single-node Restate versus the accepted M9 cloud Restate semantics;
@@ -72,7 +74,15 @@ M10 must add profile-aware conformance for:
 - host-side HPKE remote-control contract;
 - explicit export/import/migration;
 - backup/restore, restart, upgrade/rollback, and small-VPS resource evidence;
-- one conformance suite comparing M9 managed cloud, Local, Hosted `simple`, and Hosted `server` for deployment-independent semantics.
+- one versioned conformance suite comparing M9 managed cloud, Local, Hosted `simple`, and Hosted
+  `server` for deployment-independent semantics. Its report names the owning port, concrete adapter,
+  profile, normalized digest, and divergence result for every case.
+
+PostgreSQL-backed cases must additionally run against an isolated database on a disposable Neon
+branch or the pinned local PostgreSQL fixture. SQLite-backed cases use disposable database files.
+An in-memory cloud baseline is contract evidence only and never substitutes for the live PostgreSQL
+lane. Provider branches used for release checks must be created from the intended environment,
+expire automatically, and be deleted after evidence is recorded.
 
 ## M11 test architecture
 

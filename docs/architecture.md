@@ -99,6 +99,11 @@ The Control Plane owns a separate persistence boundary from Agent HQ and Cortana
 
 Physical schemas may differ by adapter, but logical IDs, revisions, idempotency, lifecycle, provenance, and public contracts may not. Restate workflow state is separate from Control Plane domain persistence. LangGraph checkpoint state is separate from both. Provider corpus/native memory remains provider-owned.
 
+Cross-profile movement uses the versioned `control-plane-portable-state-v1` manifest and
+provider-neutral persistence/object-store boundaries. It is an explicit, quiesced operator action;
+it is not background synchronization or direct database copying. See
+[`profile-portability.md`](profile-portability.md).
+
 The repository's existing local PostgreSQL Compose fixtures are integration/server-profile development infrastructure; they are not the M10 Local product database.
 
 ## Object storage ownership
