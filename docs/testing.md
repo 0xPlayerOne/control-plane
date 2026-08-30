@@ -19,7 +19,8 @@ The following commands describe the repository as it exists today. M9.7/M9.8/M10
 - `bun run test:unit` runs colocated unit tests and coverage enforcement.
 - `bun run test:integration` currently exercises PostgreSQL-backed integration boundaries and recovery fixtures. These PostgreSQL fixtures remain valid for server/cloud persistence testing but are not the M10 Local product database.
 - `bun run test:e2e` runs the existing cross-package acceptance scenarios.
-- `bun run test:smoke` runs repository policy, infrastructure, and service-bootstrap checks.
+- `bun run test:smoke` runs repository policy, infrastructure, requirements-ledger drift, and service-bootstrap checks.
+- `bun run requirements:check` validates the M11.1 machine ledger, reachable evidence paths, and generated report drift; `requirements:refresh` refreshes the M1–M10 GitHub issue inventory before review.
 - `bun run test:foundation` runs the current foundation suite from a clean checkout.
 - `bun run test:acceptance` runs the existing repository acceptance baseline.
 - `bun run compatibility:check` validates machine-readable runtime compatibility evidence.

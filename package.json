@@ -14,8 +14,11 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "type-check": "turbo run build openapi:check && bun run db:check && bun run compatibility:check && bun run infra:typecheck",
+    "type-check": "turbo run build openapi:check && bun run db:check && bun run compatibility:check && bun run requirements:check && bun run infra:typecheck",
     "compatibility:check": "bun --cwd=packages/runtime-sdk run compatibility:check",
+    "requirements:check": "bun scripts/requirements-ledger.mjs",
+    "requirements:write": "bun scripts/requirements-ledger.mjs --write",
+    "requirements:refresh": "bun scripts/requirements-ledger.mjs --refresh-issues",
     "lint": "turbo run lint && eslint eslint.config.js tests && bun run check:boundaries",
     "openapi:check": "turbo run openapi:check",
     "test": "bun run build && bun run --parallel 'test:group:*'",
