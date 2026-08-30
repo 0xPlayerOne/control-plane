@@ -63,7 +63,10 @@ export async function runProfileConformance(
     const baselineDigest = digestJson(normalize(await baseline.run(fixture.caseId, fixture.input)))
     const profileResults = await Promise.all(
       adapters.map(async (adapter) => {
-        const digest = digestJson(normalize(await adapter.run(fixture.caseId, fixture.input)))
+        const digest =
+          adapter === baseline
+            ? baselineDigest
+            : digestJson(normalize(await adapter.run(fixture.caseId, fixture.input)))
         return {
           profile: adapter.profile,
           adapter: adapter.ports[fixture.owner],

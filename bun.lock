@@ -6,6 +6,7 @@
       "name": "@control-plane/workspace",
       "devDependencies": {
         "@control-plane/acp-adapter": "workspace:*",
+        "@control-plane/config": "workspace:*",
         "@control-plane/context": "workspace:*",
         "@control-plane/contracts": "workspace:*",
         "@control-plane/credential-vault": "workspace:*",

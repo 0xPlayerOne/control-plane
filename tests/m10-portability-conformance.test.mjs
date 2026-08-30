@@ -3,8 +3,10 @@ import { createHash } from 'node:crypto'
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { TextEncoder } from 'node:util'
+import { loadDatabaseCredentials } from '@control-plane/config'
 import { BufferedObservabilityProvider } from '@control-plane/deployment'
 import {
   ContextPackageSchema,
@@ -24,6 +26,14 @@ import {
 } from '@control-plane/domain'
 import { assertExecutionPlanIntegrity } from '@control-plane/execution-plan'
 import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
+import {
+  PostgresCatalogRepository,
+  PostgresCommandAcceptanceRepository,
+  PostgresContextPackageRepository,
+  PostgresExecutionPlanRepository,
+  PostgresProjectStateRepository,
+} from '@control-plane/database'
+import { createIsolatedTestDatabase } from '@control-plane/database/testing'
 import { FilesystemObjectStore, R2ObjectStore } from '@control-plane/object-store'
 import { runProfileConformance } from '@control-plane/profile-portability'
 import {
@@ -38,7 +48,11 @@ import {
 } from '@control-plane/secrets'
 import {
   SqliteCommandAcceptanceRepository,
+  SqliteContextPackageRepository,
+  SqliteExecutionPlanRepository,
   SqlitePersistenceProvider,
+  SqliteProjectStateRepository,
+  SqliteVersionedCatalogRepository,
 } from '@control-plane/sqlite-persistence'
 import { InMemoryUsageLedger } from '@control-plane/usage-ledger'
 import { runExecutionLifecycle, workflowPolicies } from '@control-plane/workflow-runtime'
@@ -50,12 +64,27 @@ const observedAt = '2026-08-30T12:00:00.000Z'
 const secretCanary = 'm10-conformance-secret-canary-9147'
 const artifactBody = new TextEncoder().encode('m10-portable-artifact')
 const temporaryDirectories = []
+const profileDatabases = new Map()
 
-beforeAll(() => {
+beforeAll(async () => {
   expect(fixture).toMatchObject({ schemaVersion: 1, baseline: 'cloud' })
+  if (process.env.RUN_M10_POSTGRES_CONFORMANCE === 'true') {
+    const credentials = {
+      administration: loadDatabaseCredentials(process.env, 'administration'),
+      application: loadDatabaseCredentials(process.env, 'application'),
+      migration: loadDatabaseCredentials(process.env, 'migration'),
+    }
+    for (const profile of ['cloud', 'hosted-server']) {
+      const database = await createIsolatedTestDatabase(credentials)
+      await database.migrate()
+      profileDatabases.set(profile, database)
+    }
+  }
 })
 
 afterAll(async () => {
+  await Promise.all([...profileDatabases.values()].map((database) => database.dispose()))
+  profileDatabases.clear()
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -135,10 +164,10 @@ async function createProfileAdapter(profile) {
 }
 
 async function runCase(profile, caseId) {
-  if (caseId === 'catalog-exact-pinning-v1') return catalogExactPinning()
-  if (caseId === 'project-state-revision-v1') return projectStateRevision()
-  if (caseId === 'context-package-integrity-v1') return contextPackageIntegrity()
-  if (caseId === 'execution-plan-integrity-v1') return executionPlanIntegrity()
+  if (caseId === 'catalog-exact-pinning-v1') return catalogExactPinning(profile)
+  if (caseId === 'project-state-revision-v1') return projectStateRevision(profile)
+  if (caseId === 'context-package-integrity-v1') return contextPackageIntegrity(profile)
+  if (caseId === 'execution-plan-integrity-v1') return executionPlanIntegrity(profile)
   if (caseId === 'command-idempotency-v1') return commandIdempotency(profile)
   if (caseId === 'workflow-lifecycle-v1') return workflowLifecycle()
   if (caseId === 'artifact-identity-v1') return artifactIdentity(profile)
@@ -158,8 +187,9 @@ async function runCase(profile, caseId) {
   throw new Error(`M10_CONFORMANCE_CASE_UNKNOWN:${caseId}`)
 }
 
-async function catalogExactPinning() {
-  const repository = new InMemoryVersionedCatalogRepository()
+async function catalogExactPinning(profile) {
+  const persistence = await catalogRepository(profile)
+  const repository = persistence.repository
   const catalog = new VersionedCatalog(repository, repository)
   const profileId = 'prf_01JABCDEF0123456789ABCDEFG'
   const profileVersionId = 'pfv_01JABCDEF0123456789ABCDEFG'
@@ -218,17 +248,20 @@ async function catalogExactPinning() {
     publishedAt: observedAt,
   })
   const resolved = await catalog.resolveAgentProfile({ profileId, profileVersionId })
-  return {
+  const result = {
     state: resolved.state,
     profileVersionId: resolved.version.profileVersionId,
     skillVersionId: resolved.version.definition.skills[0].skillVersionId,
     contentDigest: resolved.version.contentDigest,
   }
+  persistence.close()
+  return result
 }
 
-async function projectStateRevision() {
+async function projectStateRevision(profile) {
+  const persistence = await projectStateRepository(profile)
   const service = new ProjectStateService(
-    new InMemoryProjectStateRepository(),
+    persistence.repository,
     new InMemoryStatePromotionProposalRepository(),
     new RecordingProjectStateEventPublisher()
   )
@@ -264,28 +297,50 @@ async function projectStateRevision() {
   }
   const first = await service.applyMutation(mutation)
   const replay = await service.applyMutation(mutation)
-  return { revision: first.state.revision, applied: first.applied, replayApplied: replay.applied }
+  const result = {
+    revision: first.state.revision,
+    applied: first.applied,
+    replayApplied: replay.applied,
+  }
+  persistence.close()
+  return result
 }
 
-function contextPackageIntegrity() {
+async function contextPackageIntegrity(profile) {
   const package_ = ContextPackageSchema.parse(contextPackageSerializationFixtures.futurePi)
-  return {
+  const persistence = await contextPackageRepository(profile)
+  const reference = await persistence.repository.put(package_)
+  const restored = await persistence.repository.get(reference)
+  const result = {
     schemaVersion: package_.schemaVersion,
     contentDigest: package_.contentDigest,
     projectRevision: package_.projectState.revision,
+    restored: restored?.contentDigest === package_.contentDigest,
     containsPrivatePath: JSON.stringify(package_).includes('/Users/'),
   }
+  persistence.close()
+  return result
 }
 
-function executionPlanIntegrity() {
+async function executionPlanIntegrity(profile) {
   const plan = assertExecutionPlanIntegrity(createExecutionPlanTestFixture())
+  const persistence = await executionPlanRepository(profile)
+  const reference = await persistence.repository.put(plan)
+  const restored = await persistence.repository.get(reference)
   let tamperRejected = false
   try {
     assertExecutionPlanIntegrity({ ...plan, objective: 'tampered' })
   } catch {
     tamperRejected = true
   }
-  return { contentDigest: plan.contentDigest, schemaVersion: plan.schemaVersion, tamperRejected }
+  const result = {
+    contentDigest: plan.contentDigest,
+    schemaVersion: plan.schemaVersion,
+    restored: restored?.contentDigest === plan.contentDigest,
+    tamperRejected,
+  }
+  persistence.close()
+  return result
 }
 
 function usageBudget() {
@@ -364,7 +419,9 @@ async function commandIdempotency(profile) {
   const repository =
     profile === 'local' || profile === 'hosted-simple'
       ? await sqliteCommandRepository(profile)
-      : new InMemoryCommandAcceptanceRepository()
+      : databaseFor(profile) === undefined
+        ? new InMemoryCommandAcceptanceRepository()
+        : new PostgresCommandAcceptanceRepository(databaseFor(profile).application)
   if ('provider' in repository) provider = repository.provider
   const actualRepository = repository.repository ?? repository
   const service = new CommandInboxService({
@@ -405,10 +462,108 @@ async function commandIdempotency(profile) {
   }
 }
 
-async function sqliteCommandRepository(profile) {
-  const directory = await temporaryDirectory(`m10-${profile}-`)
+async function catalogRepository(profile) {
+  if (profile === 'local' || profile === 'hosted-simple') {
+    const provider = await sqliteProvider(profile, 'catalog')
+    return {
+      repository: new SqliteVersionedCatalogRepository(provider),
+      close: () => provider.close(),
+    }
+  }
+  const database = databaseFor(profile)
+  return database === undefined
+    ? { repository: new InMemoryVersionedCatalogRepository(), close: () => undefined }
+    : { repository: new PostgresCatalogRepository(database.application), close: () => undefined }
+}
+
+async function projectStateRepository(profile) {
+  if (profile === 'local' || profile === 'hosted-simple') {
+    const provider = await sqliteProvider(profile, 'project-state')
+    return {
+      repository: new SqliteProjectStateRepository(provider),
+      close: () => provider.close(),
+    }
+  }
+  const database = databaseFor(profile)
+  return database === undefined
+    ? { repository: new InMemoryProjectStateRepository(), close: () => undefined }
+    : {
+        repository: new PostgresProjectStateRepository(database.application),
+        close: () => undefined,
+      }
+}
+
+async function contextPackageRepository(profile) {
+  if (profile === 'local' || profile === 'hosted-simple') {
+    const provider = await sqliteProvider(profile, 'context')
+    return {
+      repository: new SqliteContextPackageRepository(provider),
+      close: () => provider.close(),
+    }
+  }
+  const database = databaseFor(profile)
+  if (database === undefined) {
+    return {
+      repository: {
+        put: async (value) => ({
+          contextPackageId: value.contextPackageId,
+          contentDigest: value.contentDigest,
+        }),
+        get: async () => contextPackageSerializationFixtures.futurePi,
+      },
+      close: () => undefined,
+    }
+  }
+  return {
+    repository: new PostgresContextPackageRepository(database.application),
+    close: () => undefined,
+  }
+}
+
+async function executionPlanRepository(profile) {
+  if (profile === 'local' || profile === 'hosted-simple') {
+    const provider = await sqliteProvider(profile, 'plan')
+    return {
+      repository: new SqliteExecutionPlanRepository(provider),
+      close: () => provider.close(),
+    }
+  }
+  const database = databaseFor(profile)
+  if (database === undefined) {
+    let stored
+    return {
+      repository: {
+        put: async (value) => {
+          stored = JSON.parse(JSON.stringify(value))
+          return {
+            executionPlanId: value.executionPlanId,
+            contentDigest: value.contentDigest,
+          }
+        },
+        get: async () => stored,
+      },
+      close: () => undefined,
+    }
+  }
+  return {
+    repository: new PostgresExecutionPlanRepository(database.application),
+    close: () => undefined,
+  }
+}
+
+async function sqliteProvider(profile, area) {
+  const directory = await temporaryDirectory(`m10-${area}-${profile}-`)
   const provider = new SqlitePersistenceProvider({ path: join(directory, 'state.sqlite'), profile })
   await provider.migrate()
+  return provider
+}
+
+function databaseFor(profile) {
+  return profileDatabases.get(profile)
+}
+
+async function sqliteCommandRepository(profile) {
+  const provider = await sqliteProvider(profile, 'command')
   return { provider, repository: new SqliteCommandAcceptanceRepository(provider) }
 }
 
