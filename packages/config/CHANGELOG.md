@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPlayerOne/control-plane/compare/config-v1.3.0...config-v1.4.0) (2026-08-30)
+
+
+### Features
+
+* add PostgreSQL persistence foundation ([2fdfd88](https://github.com/0xPlayerOne/control-plane/commit/2fdfd8856ab7b1d4d7e592e1d998a0e8314f11b9)), closes [#3](https://github.com/0xPlayerOne/control-plane/issues/3)
+* add service configuration bootstrap ([3d7364a](https://github.com/0xPlayerOne/control-plane/commit/3d7364ac54a68744f8a46407861489014bb8e2a3))
+* **control-api:** verify signed service credentials ([585777d](https://github.com/0xPlayerOne/control-plane/commit/585777d32f7c8f44c90053236175e35b21c1eef5))
+* **infra:** codify Railway project ([#245](https://github.com/0xPlayerOne/control-plane/issues/245)) ([1944f4e](https://github.com/0xPlayerOne/control-plane/commit/1944f4e1d1cdaaef98d2a43762ff1e9395a397bc))
+* **infrastructure:** wire managed cloud dependencies ([#221](https://github.com/0xPlayerOne/control-plane/issues/221)) ([ff809b0](https://github.com/0xPlayerOne/control-plane/commit/ff809b0445f29fec2c47ce19745b9092ec8fca38))
+* **operations:** centralize managed cloud policy defaults ([#225](https://github.com/0xPlayerOne/control-plane/issues/225)) ([096b17a](https://github.com/0xPlayerOne/control-plane/commit/096b17ab9921784ce6cf4ced34d5f82d0f08c961))
+* **operations:** complete M10 local and hosted hardening ([#317](https://github.com/0xPlayerOne/control-plane/issues/317)) ([af22ead](https://github.com/0xPlayerOne/control-plane/commit/af22eade12e70d5de982f385e0747862f5b39c7c))
+* **workflow-worker:** add cloud certification runtime ([c47e830](https://github.com/0xPlayerOne/control-plane/commit/c47e8309a8ea71342d8dda0cc79c91d9b400b20d))
+
+
+### Bug Fixes
+
+* **config:** consume Railway deployment metadata ([#237](https://github.com/0xPlayerOne/control-plane/issues/237)) ([dd6079b](https://github.com/0xPlayerOne/control-plane/commit/dd6079be7c2d660e2b15faf8b1b8bdb66ea1c0fa))
+* **infra:** secure Restate service boundary ([#247](https://github.com/0xPlayerOne/control-plane/issues/247)) ([667eb58](https://github.com/0xPlayerOne/control-plane/commit/667eb58e95886eca5327367ca083f90c13fd5ff2))
+
+
+### Documentation
+
+* **release:** restore complete M10 changelogs ([0734271](https://github.com/0xPlayerOne/control-plane/commit/073427125e6255d66e5fd6a0dbcc39aacf1e83ae))
+
+
+### Maintenance
+
+* release main ([949c8a6](https://github.com/0xPlayerOne/control-plane/commit/949c8a6dad24173499ac8cae332d10fa28ab3b16))
+* release main ([5e8dcfa](https://github.com/0xPlayerOne/control-plane/commit/5e8dcfa7f75eb7a1e65410f659011e3232ab1a1f))
+* release main ([8aa1afc](https://github.com/0xPlayerOne/control-plane/commit/8aa1afc8ce92dc111759784d0238464b32bc776e))
+* release main ([712ab95](https://github.com/0xPlayerOne/control-plane/commit/712ab95211dc2fc9c9f5afcf44c9fd040d8258bb))
+* release main ([d081764](https://github.com/0xPlayerOne/control-plane/commit/d081764aae773a9430e883b675253fbba3d69603))
+* **typescript:** strengthen compiler checks ([#151](https://github.com/0xPlayerOne/control-plane/issues/151)) ([b58dfba](https://github.com/0xPlayerOne/control-plane/commit/b58dfba7d2aa6f4eaf783d89cb8899eb6cffc636))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/config-v1.2.0...config-v1.3.0) (2026-08-30)
 
 
