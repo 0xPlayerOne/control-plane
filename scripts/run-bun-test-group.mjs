@@ -23,6 +23,7 @@ const repositoryGroups = {
   smoke: [
     'tests/foundation.test.mjs',
     'tests/infrastructure.test.mjs',
+    'tests/m11-requirements-ledger.test.mjs',
     'tests/repository.test.mjs',
   ],
 }
