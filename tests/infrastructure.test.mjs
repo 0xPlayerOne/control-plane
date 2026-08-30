@@ -322,6 +322,74 @@ test('uses a dependency-aware portable container build without AWS deployment as
   assert.doesNotMatch(entrypoint, /\beval\b/)
 })
 
+test('packages the hosted simple profile as one hardened user-owned composition', async () => {
+  const compose = await readRepositoryFile('infrastructure/compose/compose.yaml')
+  const dockerfile = await readRepositoryFile('infrastructure/containers/Dockerfile.hosted')
+  const environment = await readRepositoryFile('infrastructure/compose/.env.example')
+  const runbook = await readRepositoryFile('infrastructure/compose/README.md')
+  const postgresBlock = compose.slice(
+    compose.indexOf('  postgres:'),
+    compose.indexOf('  database-migrate:')
+  )
+  const restateBlock = compose.slice(
+    compose.indexOf('  restate:'),
+    compose.indexOf('  control-plane-server:')
+  )
+
+  assert.match(compose, /^name: control-plane-hosted$/m)
+  assert.match(compose, /profiles:\s*\[simple\]/)
+  assert.match(compose, /APP_NAME:\s*local-control-plane/)
+  assert.match(compose, /CONTROL_PLANE_BIND_HOST:\s*0\.0\.0\.0/)
+  assert.match(
+    compose,
+    /\$\{CONTROL_PLANE_BIND_ADDRESS:-127\.0\.0\.1\}:\$\{CONTROL_PLANE_PORT:-3000\}:3000/
+  )
+  assert.match(compose, /source:\s*\$\{CONTROL_PLANE_DATA_PATH:-\.\/data\/simple\}/)
+  assert.match(compose, /target:\s*\/var\/lib\/control-plane/)
+  assert.match(compose, /cap_drop:[\s\S]*?- ALL/)
+  assert.match(compose, /no-new-privileges:true/)
+  assert.match(compose, /fetch\('http:\/\/127\.0\.0\.1:3000\/ready'\)/)
+  assert.match(compose, /^\s+POSTGRES_PASSWORD: \$\{POSTGRES_PASSWORD:-\}$/m)
+  assert.match(compose, /profiles:\s*\[server\]/)
+  assert.match(compose, /postgres:18\.3-alpine@sha256:[a-f0-9]{64}/)
+  assert.match(compose, /restatedev\/restate:1\.7\.7@sha256:[a-f0-9]{64}/)
+  assert.match(compose, /condition:\s*service_completed_successfully/)
+  assert.match(compose, /DATABASE_MIGRATION_URL:/)
+  assert.match(compose, /APP_NAME:\s*hosted-control-plane/)
+  assert.doesNotMatch(postgresBlock, /\n\s+ports:/)
+  assert.doesNotMatch(restateBlock, /\n\s+ports:/)
+  assert.match(dockerfile, /^FROM oven\/bun:1\.4\.0@sha256:[a-f0-9]{64}/m)
+  assert.match(dockerfile, /ARG APP_NAME=local-control-plane/)
+  assert.match(dockerfile, /bun install --frozen-lockfile --production --ignore-scripts/)
+  assert.doesNotMatch(dockerfile, /COPY --from=build --chown=bun:bun \/workspace \/workspace/)
+  assert.match(dockerfile, /^USER bun$/m)
+  assert.match(environment, /CONTROL_PLANE_DATA_PATH=\.\/data\/simple/)
+  assert.match(environment, /HOSTED_OBJECT_STORE=filesystem/)
+  assert.match(compose, /HOSTED_OBJECT_STORE: \$\{HOSTED_OBJECT_STORE:-filesystem\}/)
+  assert.match(compose, /S3_ENDPOINT: \$\{S3_ENDPOINT:-\}/)
+  assert.match(runbook, /docker compose --profile simple up --build -d/)
+  assert.match(runbook, /docker compose --profile server up --build -d/)
+  assert.match(runbook, /sudo chown 1000:1000 data\/simple/)
+  assert.match(runbook, /sudo chown 1000:1000 data\/server\/control-plane/)
+  assert.match(runbook, /sudo chown 70:70 data\/server\/postgres/)
+  assert.match(runbook, /sudo chown 0:0 data\/server\/restate/)
+  assert.match(runbook, /Re-check these image ownership contracts/)
+  assert.match(runbook, /127\.0\.0\.1:3000/)
+  assert.match(runbook, /Stop the container before a filesystem-level backup/)
+})
+
+test('checks hosted credential persistence without weakening owner-only file permissions', async () => {
+  const workflow = await readRepositoryFile('.github/workflows/m10-operability.yml')
+
+  assert.match(
+    workflow,
+    /docker compose exec -T control-plane-simple sha256sum \/var\/lib\/control-plane\/auth\/local-api\.token/g
+  )
+  assert.doesNotMatch(workflow, /sha256sum "\$compose_root\/simple\/auth\/local-api\.token"/)
+  assert.match(workflow, /sudo chown -R 70:70 "\$compose_root\/server\/postgres"/)
+  assert.match(workflow, /sudo chown -R 0:0 "\$compose_root\/server\/restate"/)
+})
+
 test('does not retain the former AWS deployment tree', async () => {
   const packageManifest = JSON.parse(await readRepositoryFile('package.json'))
   const railwayValidator = await readRepositoryFile('scripts/validate-railway.mjs')

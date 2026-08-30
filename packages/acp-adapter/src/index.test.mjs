@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
-import { runRuntimeAdapterConformance } from '@control-plane/runtime-sdk'
-import { AcpAdapter, ReferenceAcpTransport } from './index.ts'
+import {
+  DirectLocalRuntimeTransport,
+  runRuntimeAdapterConformance,
+} from '@control-plane/runtime-sdk'
+import { AcpAdapter, AcpDriver, ReferenceAcpTransport } from './index.ts'
 
 const now = '2026-08-25T12:00:00.000Z'
 const digest = (character) => `sha256:${character.repeat(64)}`
@@ -41,16 +44,20 @@ function fixture(options = {}) {
   const transport = new ReferenceAcpTransport({ now: () => now, ...options })
   const nativeSessions = new Map()
   const adapter = new AcpAdapter({
-    transport,
-    adapterVersion: '1.0.0',
-    externalSessionId: (nativeSessionId) => {
-      if (!nativeSessions.has(nativeSessionId)) {
-        nativeSessions.set(nativeSessionId, 'ses_01JABCDEF0123456789ABCDEFG')
-      }
-      return nativeSessions.get(nativeSessionId)
-    },
-    interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
-    now: () => new Date(now),
+    transport: new DirectLocalRuntimeTransport(
+      new AcpDriver({
+        transport,
+        adapterVersion: '1.0.0',
+        externalSessionId: (nativeSessionId) => {
+          if (!nativeSessions.has(nativeSessionId)) {
+            nativeSessions.set(nativeSessionId, 'ses_01JABCDEF0123456789ABCDEFG')
+          }
+          return nativeSessions.get(nativeSessionId)
+        },
+        interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
+        now: () => new Date(now),
+      })
+    ),
   })
   return { adapter, transport }
 }
@@ -70,6 +77,7 @@ describe('ACP RuntimeAdapter', () => {
         adapterName: 'acp',
         runtimeFamily: 'acp',
         harnessVersion: '2.4.0',
+        transportKind: 'direct-local',
       },
       capabilityEvaluation: {
         eligible: false,

@@ -1,4 +1,11 @@
 import { createHash } from 'node:crypto'
+import type {
+  ObjectStore,
+  ObjectStoreErrorCode,
+  PutObjectInput,
+  StoredObject,
+  StoredObjectDescriptor,
+} from '@control-plane/deployment'
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -8,18 +15,21 @@ import {
   type S3ClientConfig,
 } from '@aws-sdk/client-s3'
 
+export * from './filesystem.js'
+
 const MAX_KEY_BYTES = 1_024
 const MAX_CONTENT_TYPE_BYTES = 255
 const MAX_METADATA_ENTRIES = 16
 const MAX_METADATA_BYTES = 8_192
 const CHECKSUM_METADATA_KEY = 'control-plane-sha256'
 
-export type ObjectStoreErrorCode =
-  | 'OBJECT_STORE_INVALID_INPUT'
-  | 'OBJECT_STORE_TOO_LARGE'
-  | 'OBJECT_STORE_NOT_FOUND'
-  | 'OBJECT_STORE_INTEGRITY_FAILURE'
-  | 'OBJECT_STORE_PROVIDER_FAILURE'
+export type {
+  ObjectStore,
+  ObjectStoreErrorCode,
+  PutObjectInput,
+  StoredObject,
+  StoredObjectDescriptor,
+} from '@control-plane/deployment'
 
 export class ObjectStoreError extends Error {
   constructor(
@@ -35,40 +45,16 @@ export class ObjectStoreError extends Error {
   }
 }
 
-export interface StoredObjectDescriptor {
-  readonly key: string
-  readonly size: number
-  readonly contentType?: string
-  readonly etag?: string
-  readonly sha256: `sha256:${string}`
-  readonly metadata: Readonly<Record<string, string>>
-}
-
-export interface StoredObject extends StoredObjectDescriptor {
-  readonly body: Uint8Array
-}
-
-export interface PutObjectInput {
-  readonly key: string
-  readonly body: Uint8Array
-  readonly contentType?: string
-  readonly metadata?: Readonly<Record<string, string>>
-}
-
-export interface ObjectStore {
-  put(input: PutObjectInput): Promise<StoredObjectDescriptor>
-  get(key: string): Promise<StoredObject>
-  head(key: string): Promise<StoredObjectDescriptor>
-  delete(key: string): Promise<void>
-  close(): void | Promise<void>
-}
-
-export interface R2ObjectStoreConfiguration {
+export interface S3CompatibleObjectStoreConfiguration {
   readonly endpoint: string
   readonly bucket: string
-  readonly region: 'auto'
+  readonly region: string
   readonly accessKeyId: string
   readonly secretAccessKey: string
+}
+
+export interface R2ObjectStoreConfiguration extends S3CompatibleObjectStoreConfiguration {
+  readonly region: 'auto'
 }
 
 interface S3ObjectClient {
@@ -89,6 +75,13 @@ export interface CreateR2ObjectStoreOptions {
 
 export function createR2ObjectStore(
   configuration: R2ObjectStoreConfiguration,
+  options: CreateR2ObjectStoreOptions
+): R2ObjectStore {
+  return createS3CompatibleObjectStore(configuration, options)
+}
+
+export function createS3CompatibleObjectStore(
+  configuration: S3CompatibleObjectStoreConfiguration,
   options: CreateR2ObjectStoreOptions
 ): R2ObjectStore {
   const createClient = options.createClient ?? ((value) => new S3Client(value) as S3ObjectClient)

@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
   ExternalSessionRegistry,
+  DirectLocalRuntimeTransport,
   InMemoryExternalSessionRepository,
   assessExternalSession,
   projectExternalSessionDiscovery,
 } from '@control-plane/runtime-sdk'
-import { AcpAdapter, ReferenceAcpTransport } from './index.ts'
+import { AcpAdapter, AcpDriver, ReferenceAcpTransport } from './index.ts'
 
 const now = '2026-08-25T12:00:00.000Z'
 const ids = {
@@ -77,25 +78,31 @@ function fixture(options = {}) {
     ['native-session-2', 'nses_01JBBCDEF0123456789ABCDEFG'],
   ])
   const adapter = new AcpAdapter({
-    transport,
-    adapterVersion: '1.0.0',
-    externalSessionId: (nativeSessionId) => externalIds.get(nativeSessionId),
-    interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
-    now: () => new Date(now),
-    externalSessions: {
-      registry,
-      runtimeConnection: () => currentConnection,
-      nodeStatus: () => nodeStatus,
-      workspaceId: ids.workspace,
-      projectId: ids.project,
-      opaqueNativeSessionId: (nativeSessionId) => opaqueIds.get(nativeSessionId),
-      resolveNativeSessionId: async (opaqueNativeSessionId) =>
-        options.resolveNative === false
-          ? undefined
-          : [...opaqueIds.entries()].find(([, opaque]) => opaque === opaqueNativeSessionId)?.[0],
-      capabilityTtlMs: 300_000,
-      authorize: async () => options.authorized !== false,
-    },
+    transport: new DirectLocalRuntimeTransport(
+      new AcpDriver({
+        transport,
+        adapterVersion: '1.0.0',
+        externalSessionId: (nativeSessionId) => externalIds.get(nativeSessionId),
+        interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
+        now: () => new Date(now),
+        externalSessions: {
+          registry,
+          runtimeConnection: () => currentConnection,
+          nodeStatus: () => nodeStatus,
+          workspaceId: ids.workspace,
+          projectId: ids.project,
+          opaqueNativeSessionId: (nativeSessionId) => opaqueIds.get(nativeSessionId),
+          resolveNativeSessionId: async (opaqueNativeSessionId) =>
+            options.resolveNative === false
+              ? undefined
+              : [...opaqueIds.entries()].find(
+                  ([, opaque]) => opaque === opaqueNativeSessionId
+                )?.[0],
+          capabilityTtlMs: 300_000,
+          authorize: async () => options.authorized !== false,
+        },
+      })
+    ),
   })
   return {
     adapter,

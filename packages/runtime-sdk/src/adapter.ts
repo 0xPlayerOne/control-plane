@@ -30,6 +30,7 @@ export const RuntimeAdapterMetadataSchema = z
       .regex(/^[a-z][a-z0-9-]*$/),
     driverVersion: SemanticVersionSchema,
     harnessVersion: SemanticVersionSchema,
+    transportKind: z.enum(['direct-local', 'remote-gateway']).optional(),
   })
   .strict()
 

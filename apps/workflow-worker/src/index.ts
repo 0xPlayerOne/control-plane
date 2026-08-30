@@ -133,4 +133,11 @@ function createCloudRuntime(
   return new CloudCertificationRuntime(objectStore)
 }
 
-export { createManagedCloudWorkflowWorkerComposition } from './cloud-composition.js'
+export {
+  DisabledGraphSegmentActivities,
+  createManagedCloudWorkflowWorkerComposition,
+} from './cloud-composition.js'
+export {
+  DurableExecutionLifecycleActivities,
+  type WorkflowRuntimeActivityPort,
+} from './cloud-execution-activities.js'

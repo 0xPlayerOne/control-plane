@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "baseline": "cloud",
+  "profiles": ["cloud", "local", "hosted-simple", "hosted-server"],
+  "cases": [
+    { "caseId": "catalog-exact-pinning-v1", "owner": "catalog" },
+    { "caseId": "project-state-revision-v1", "owner": "project-state" },
+    { "caseId": "context-package-integrity-v1", "owner": "context" },
+    { "caseId": "execution-plan-integrity-v1", "owner": "execution-plan" },
+    { "caseId": "command-idempotency-v1", "owner": "persistence" },
+    { "caseId": "workflow-lifecycle-v1", "owner": "workflow-runtime" },
+    { "caseId": "artifact-identity-v1", "owner": "object-store" },
+    { "caseId": "secret-reference-v1", "owner": "secrets" },
+    { "caseId": "runtime-normalization-v1", "owner": "runtime-transport" },
+    { "caseId": "contract-authority-v1", "owner": "policy" },
+    { "caseId": "usage-budget-v1", "owner": "usage" },
+    { "caseId": "delegation-contract-v1", "owner": "orchestration" },
+    { "caseId": "no-provider-v1", "owner": "context" },
+    { "caseId": "error-normalization-v1", "owner": "domain-contract" },
+    { "caseId": "content-redaction-v1", "owner": "telemetry" },
+    { "caseId": "operational-limits-v1", "owner": "domain-contract" }
+  ]
+}

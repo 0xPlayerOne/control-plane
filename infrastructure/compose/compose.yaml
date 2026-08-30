@@ -1,0 +1,202 @@
+name: control-plane-hosted
+
+x-control-plane-image: &control-plane-image
+  image: ${CONTROL_PLANE_IMAGE:-control-plane/local-control-plane:local}
+  build:
+    context: ../..
+    dockerfile: infrastructure/containers/Dockerfile.hosted
+    target: runtime
+    args:
+      APP_NAME: local-control-plane
+
+x-container-hardening: &container-hardening
+  init: true
+  restart: unless-stopped
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 45s
+
+x-hosted-server-image: &hosted-server-image
+  image: ${CONTROL_PLANE_SERVER_IMAGE:-control-plane/hosted-control-plane:local}
+  build:
+    context: ../..
+    dockerfile: infrastructure/containers/Dockerfile.hosted
+    target: runtime
+    args:
+      APP_NAME: hosted-control-plane
+
+services:
+  control-plane-simple:
+    <<: [*control-plane-image, *container-hardening]
+    profiles: [simple]
+    environment:
+      APP_ENV: production
+      COMMIT_SHA: ${CONTROL_PLANE_COMMIT_SHA:-self-hosted}
+      CONTROL_PLANE_BIND_HOST: 0.0.0.0
+      CONTROL_PLANE_DATA_DIR: /var/lib/control-plane
+      CONTROL_PLANE_DEPLOYMENT_PROFILE: hosted-simple
+      INSTANCE_ID: ${CONTROL_PLANE_INSTANCE_ID:-hosted-simple}
+      LOCAL_CONTROL_PLANE_PORT: '3000'
+      SERVICE_VERSION: ${CONTROL_PLANE_VERSION:-0.0.0-self-hosted}
+    ports:
+      - ${CONTROL_PLANE_BIND_ADDRESS:-127.0.0.1}:${CONTROL_PLANE_PORT:-3000}:3000
+    volumes:
+      - type: bind
+        source: ${CONTROL_PLANE_DATA_PATH:-./data/simple}
+        target: /var/lib/control-plane
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: ${CONTROL_PLANE_CPU_LIMIT:-2.0}
+          memory: ${CONTROL_PLANE_MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: ${CONTROL_PLANE_CPU_RESERVATION:-0.25}
+          memory: ${CONTROL_PLANE_MEMORY_RESERVATION:-256M}
+
+  postgres:
+    image: postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+    profiles: [server]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: control_plane
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_USER: control_plane
+    volumes:
+      - type: bind
+        source: ${POSTGRES_DATA_PATH:-./data/server/postgres}
+        target: /var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U control_plane -d control_plane]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: ${POSTGRES_CPU_LIMIT:-1.0}
+          memory: ${POSTGRES_MEMORY_LIMIT:-768M}
+        reservations:
+          cpus: ${POSTGRES_CPU_RESERVATION:-0.1}
+          memory: ${POSTGRES_MEMORY_RESERVATION:-128M}
+
+  database-migrate:
+    <<: *hosted-server-image
+    profiles: [server]
+    restart: 'no'
+    entrypoint: [bun, --cwd=packages/database, run, db:migrate]
+    environment:
+      DATABASE_MIGRATION_URL: postgresql://control_plane:${POSTGRES_PASSWORD:-}@postgres:5432/control_plane
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  restate:
+    image: docker.restate.dev/restatedev/restate:1.7.7@sha256:dd1695b61c9de877d24bf9afe8a0ac5fb0f66d175c1bc397975d2252bd784eb2
+    profiles: [server]
+    restart: unless-stopped
+    environment:
+      RESTATE_ADMIN__BIND_ADDRESS: 0.0.0.0:9070
+      RESTATE_ADMIN__QUERY_ENGINE__MEMORY_SIZE: 64 MiB
+      RESTATE_AUTO_PROVISION: 'true'
+      RESTATE_BASE_DIR: /restate-data
+      RESTATE_BIND_IP: 0.0.0.0
+      RESTATE_CLUSTER_NAME: control-plane-hosted-server
+      RESTATE_DISABLE_TELEMETRY: 'true'
+      RESTATE_INGRESS__BIND_ADDRESS: 0.0.0.0:8080
+      RESTATE_NODE_NAME: control-plane-hosted-server-1
+      RESTATE_ROCKSDB_TOTAL_MEMORY_SIZE: 384 MiB
+      RESTATE_SHUTDOWN_TIMEOUT: 20s
+    volumes:
+      - type: bind
+        source: ${RESTATE_DATA_PATH:-./data/server/restate}
+        target: /restate-data
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:9070/health]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESTATE_CPU_LIMIT:-1.5}
+          memory: ${RESTATE_MEMORY_LIMIT:-768M}
+        reservations:
+          cpus: ${RESTATE_CPU_RESERVATION:-0.25}
+          memory: ${RESTATE_MEMORY_RESERVATION:-256M}
+
+  control-plane-server:
+    <<: [*hosted-server-image, *container-hardening]
+    profiles: [server]
+    environment:
+      APP_ENV: production
+      COMMIT_SHA: ${CONTROL_PLANE_COMMIT_SHA:-self-hosted}
+      CONTROL_PLANE_BIND_HOST: 0.0.0.0
+      CONTROL_PLANE_DATA_DIR: /var/lib/control-plane
+      DATABASE_URL: postgresql://control_plane:${POSTGRES_PASSWORD:-}@postgres:5432/control_plane
+      HOSTED_CONTROL_PLANE_PORT: '3000'
+      INSTANCE_ID: ${CONTROL_PLANE_INSTANCE_ID:-hosted-server}
+      HOSTED_OBJECT_STORE: ${HOSTED_OBJECT_STORE:-filesystem}
+      RESTATE_ADMIN_URL: http://restate:9070
+      RESTATE_INGRESS_URL: http://restate:8080
+      SERVICE_VERSION: ${CONTROL_PLANE_VERSION:-0.0.0-self-hosted}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      WORKFLOW_DEPLOYMENT_URI: http://control-plane-server:9080
+    ports:
+      - ${CONTROL_PLANE_BIND_ADDRESS:-127.0.0.1}:${CONTROL_PLANE_PORT:-3000}:3000
+    volumes:
+      - type: bind
+        source: ${CONTROL_PLANE_SERVER_DATA_PATH:-./data/server/control-plane}
+        target: /var/lib/control-plane
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      database-migrate:
+        condition: service_completed_successfully
+      restate:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${CONTROL_PLANE_SERVER_CPU_LIMIT:-2.0}
+          memory: ${CONTROL_PLANE_SERVER_MEMORY_LIMIT:-2G}

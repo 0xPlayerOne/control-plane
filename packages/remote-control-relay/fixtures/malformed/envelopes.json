@@ -1,0 +1,22 @@
+[
+  {
+    "name": "downgraded-version",
+    "patch": { "envelopeVersion": 0 }
+  },
+  {
+    "name": "unpinned-suite",
+    "patch": { "suite": "DHKEM_P256_HKDF_SHA256_HKDF_SHA256_AES_128_GCM" }
+  },
+  {
+    "name": "invalid-key-id",
+    "patch": { "keyId": "key-invalid" }
+  },
+  {
+    "name": "unknown-field",
+    "patch": { "plaintext": "relay must never accept this" }
+  },
+  {
+    "name": "empty-ciphertext",
+    "patch": { "ciphertext": "" }
+  }
+]

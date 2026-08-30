@@ -1,0 +1,33 @@
+{
+  "name": "@control-plane/workflow-runtime",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "private": true,
+  "type": "module",
+  "browser": false,
+  "engines": {
+    "node": ">=24 <25",
+    "bun": ">=1.4.0 <2"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "bun test src/*.test.mjs"
+  },
+  "dependencies": {
+    "@control-plane/config": "workspace:*",
+    "@control-plane/orchestration": "workspace:*",
+    "@restatedev/restate-sdk": "1.16.9"
+  }
+}

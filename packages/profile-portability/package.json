@@ -1,0 +1,39 @@
+{
+  "name": "@control-plane/profile-portability",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "browser": false,
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "files": [
+    "dist"
+  ],
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "control-plane-portability": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "bun test src/*.test.mjs"
+  },
+  "dependencies": {
+    "@control-plane/context": "workspace:*",
+    "@control-plane/database": "workspace:*",
+    "@control-plane/deployment": "workspace:*",
+    "@control-plane/domain": "workspace:*",
+    "@control-plane/execution-plan": "workspace:*",
+    "@control-plane/sqlite-persistence": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.3.6"
+  }
+}
