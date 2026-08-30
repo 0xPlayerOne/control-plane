@@ -33,6 +33,13 @@ The following commands describe the repository as it exists today. M9.7/M9.8/M10
   local gate; M9.6 additionally completed the required live Railway staging certification.
 - `bun run test:m10-conformance` runs the versioned Cloud/Local/Hosted semantic matrix plus the
   profile export/import, rollback, idempotency, and secret-canary suites.
+- `bun run test:m11-standalone` is the credential-free clean-state standalone matrix. It builds the
+  frozen workspace, reruns the accepted durable workflow, runtime fabric, Runtime Gateway,
+  managed-Pi/ACP, tools/models/sandbox, orchestration, and portability suites, then executes both
+  supported Local adapter families through `DirectLocalRuntimeTransport`, the Local composition,
+  SQLite persistence, filesystem Artifacts, and a restart/reopen recovery check. This lane never
+  starts a Runtime Gateway process and does not require Railway, Neon, R2, PostgreSQL, Cortana, or
+  reusable provider credentials.
 - `bun run test:recovery-matrix` runs current disposable recovery fixtures.
 
 The Railway manifest validator checks repository-owned service composition. A green local validation

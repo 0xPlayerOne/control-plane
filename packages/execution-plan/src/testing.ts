@@ -1,10 +1,18 @@
 import { contextPackageSerializationFixtures } from '@control-plane/context'
 import { executionConstraintFixtures } from '@control-plane/domain'
+import type { RuntimeCapabilityName } from '@control-plane/runtime-sdk'
 import { ExecutionPlanCompiler, type ExecutionPlan } from './index.js'
 
 const digest = (character: string) => `sha256:${character.repeat(64)}`
 
-export function createExecutionPlanTestFixture(): ExecutionPlan {
+export interface ExecutionPlanTestFixtureOptions {
+  readonly profileCapabilityRequirements?: readonly RuntimeCapabilityName[]
+  readonly skillRequiredCapabilities?: readonly RuntimeCapabilityName[]
+}
+
+export function createExecutionPlanTestFixture(
+  options: ExecutionPlanTestFixtureOptions = {}
+): ExecutionPlan {
   const ids = {
     workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
     projectId: 'prj_01JABCDEF0123456789ABCDEFG',
@@ -42,7 +50,7 @@ export function createExecutionPlanTestFixture(): ExecutionPlan {
             contentDigest: digest('b'),
           },
         ],
-        capabilityRequirements: ['filesystem.read'],
+        capabilityRequirements: options.profileCapabilityRequirements ?? ['filesystem.read'],
         executionConstraints: structuredClone(constraints),
         outputContractRefs: ['contract://execution-result/v1'],
       },
@@ -59,7 +67,7 @@ export function createExecutionPlanTestFixture(): ExecutionPlan {
           schemaVersion: 1,
           semanticVersion: '2.1.0',
           contentDigest: digest('b'),
-          requiredCapabilities: ['filesystem.read'],
+          requiredCapabilities: options.skillRequiredCapabilities ?? ['filesystem.read'],
           requiredTools: [{ toolId: 'project-files', versionRange: '^1.0.0' }],
           compatibleProfileSchemaVersions: [1],
           compatibleContractMajorVersions: [1],

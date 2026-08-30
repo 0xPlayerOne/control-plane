@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { readdir } from 'node:fs/promises'
 import { basename, relative, resolve } from 'node:path'
 import process from 'node:process'
+import { URL } from 'node:url'
 import { fileURLToPath } from 'node:url'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -19,6 +20,7 @@ const repositoryGroups = {
     'tests/m9-production-hardening.test.mjs',
     'tests/m10-portability-conformance.test.mjs',
     'tests/m10-operability.test.mjs',
+    'tests/m11-standalone-e2e.test.mjs',
   ],
   smoke: [
     'tests/foundation.test.mjs',
