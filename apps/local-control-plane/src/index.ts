@@ -69,6 +69,7 @@ export const start = (options: LocalControlPlaneStartOptions = {}) =>
         executionAcceptanceService: composition.executionAcceptanceService,
         executionValidationService: composition.executionValidationService,
         profileResolutionService: composition.profileResolutionService,
+        projectStateResolutionService: composition.projectStateResolutionService,
         serviceAuthenticator: authentication.authenticator,
         componentManifest: () => composition.manifest(),
         dependencyReadiness: async () =>

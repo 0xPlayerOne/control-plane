@@ -50,6 +50,12 @@ import {
   UnavailableProfileResolutionService,
   type ProfileResolutionService,
 } from './queries/profile-resolution.service.js'
+import { ProjectStateResolutionController } from './queries/project-state-resolution.controller.js'
+import {
+  PROJECT_STATE_RESOLUTION_SERVICE,
+  UnavailableProjectStateResolutionService,
+  type ProjectStateResolutionService,
+} from './queries/project-state-resolution.service.js'
 
 export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly executionAcceptanceService?: ExecutionAcceptanceService
@@ -58,6 +64,7 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
   readonly componentManifest?: () => Promise<unknown>
   readonly profileResolutionService?: ProfileResolutionService
+  readonly projectStateResolutionService?: ProjectStateResolutionService
 }
 
 @Module({})
@@ -84,6 +91,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       ExecutionValidationController,
       HealthController,
       ProfileResolutionController,
+      ProjectStateResolutionController,
       RuntimeDiscoveryController,
       SystemController,
     ],
@@ -112,6 +120,11 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       {
         provide: PROFILE_RESOLUTION_SERVICE,
         useValue: options.profileResolutionService ?? new UnavailableProfileResolutionService(),
+      },
+      {
+        provide: PROJECT_STATE_RESOLUTION_SERVICE,
+        useValue:
+          options.projectStateResolutionService ?? new UnavailableProjectStateResolutionService(),
       },
       {
         provide: RUNTIME_DISCOVERY_REPOSITORY,

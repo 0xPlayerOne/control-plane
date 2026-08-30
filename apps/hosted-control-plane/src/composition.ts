@@ -5,6 +5,7 @@ import {
   DurableExecutionValidationService,
   RestateExecutionWorkflowDispatcher,
   RepositoryProfileResolutionService,
+  RepositoryProjectStateResolutionService,
   createExecutionId,
 } from '@control-plane/control-api'
 import {
@@ -106,6 +107,7 @@ export class HostedServerControlPlaneComposition {
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly profileResolutionService: RepositoryProfileResolutionService
+  readonly projectStateResolutionService: RepositoryProjectStateResolutionService
   readonly #endpointFactory: RestateEndpointFactory
   readonly #objectStoreKind: 'filesystem' | 's3-compatible'
   #endpoint: RestateEndpointHandle | undefined
@@ -140,6 +142,7 @@ export class HostedServerControlPlaneComposition {
     const restateIngressUrl = options.restateIngressUrl ?? 'http://restate:8080'
     const plans = new PostgresExecutionPlanRepository(this.connection.database)
     const catalog = new PostgresCatalogRepository(this.connection.database)
+    const projectStates = new PostgresProjectStateRepository(this.connection.database)
     this.executionAcceptanceService = new DurableExecutionAcceptanceService({
       commands: new CommandInboxService({
         repository: new PostgresCommandAcceptanceRepository(this.connection.database),
@@ -158,10 +161,11 @@ export class HostedServerControlPlaneComposition {
       contextPackages: new PostgresContextPackageRepository(this.connection.database),
       plans,
       profiles: catalog,
-      projectStates: new PostgresProjectStateRepository(this.connection.database),
+      projectStates,
       skills: catalog,
     })
     this.profileResolutionService = new RepositoryProfileResolutionService(catalog)
+    this.projectStateResolutionService = new RepositoryProjectStateResolutionService(projectStates)
 
     const activities = new DurableExecutionLifecycleActivities({
       lifecycle: new ExecutionLifecycleService(

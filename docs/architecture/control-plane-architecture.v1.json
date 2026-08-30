@@ -1006,29 +1006,31 @@
       "method": "POST",
       "path": "/v1/project-states/resolve",
       "inOpenApi": true,
-      "controllerReachable": false,
-      "classification": "not_implemented",
+      "controllerReachable": true,
+      "classification": "verified",
       "trace": {
-        "auth": "declared service bearer security",
-        "service": "no controller or application service",
-        "persistence": "unreachable",
-        "execution": "unreachable",
-        "delivery": "no response path",
-        "cleanup": "not applicable"
+        "auth": "service bearer with project-state:read scope and workspace/project authority",
+        "service": "ProjectStateResolutionController -> RepositoryProjectStateResolutionService",
+        "persistence": "PostgreSQL or SQLite ProjectState repository selected by the active composition",
+        "execution": "read-only current or exact-revision lookup",
+        "delivery": "workspace-safe immutable ProjectState reference",
+        "cleanup": "no external side effect"
       },
-      "assessment": "ProjectState repositories exist in PostgreSQL and SQLite, but the public resolve operation is unreachable.",
+      "assessment": "Every supported profile exposes the same scoped resolver over its concrete ProjectState repository.",
       "evidence": [
         {
-          "kind": "contract",
-          "path": "packages/contracts/src/control-api.ts"
+          "kind": "service",
+          "path": "apps/control-api/src/queries/project-state-resolution.service.ts"
+        },
+        {
+          "kind": "controller",
+          "path": "apps/control-api/src/queries/project-state-resolution.controller.ts"
+        },
+        {
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "control-api-project-state",
-        "disposition": "Implement scoped revision resolution over the configured ProjectState repository or remove the operation."
-      },
       "openApiOperationId": "project-state.resolve",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
@@ -1174,7 +1176,7 @@
         "owner": "managed-cloud-runtime",
         "disposition": "Wire a production RuntimeTransport/activity implementation and concrete discovery/provider ports before claiming general Cloud execution readiness."
       },
-      "sourceDigest": "sha256:229386a35106af06134092a92323a357f77c48492b773101366c0e95309fb8fc"
+      "sourceDigest": "sha256:cac3709bfd78af7e05a2f8afc76912d8acdfc444b3eedcbf79744e444ce980aa"
     },
     {
       "id": "hosted-server",
@@ -1209,7 +1211,7 @@
         "owner": "hosted-runtime",
         "disposition": "Inject and certify a real remote RuntimeTransport/activity port before Hosted Server is a supported execution profile."
       },
-      "sourceDigest": "sha256:80e0734944537d9e77aae29ab7323b29835cf0e2ddcc25d77219f6ee6f76e5f6"
+      "sourceDigest": "sha256:5b893670cb9e7f60b56e2fcf142acb8b28fb2907dbff91125d44115cbdb96265"
     },
     {
       "id": "hosted-simple",
@@ -1244,7 +1246,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
       },
-      "sourceDigest": "sha256:5af6cd20efd5581edb9d6348a1e983ea81b1ad06657d34ae19c7e9f94f41584a"
+      "sourceDigest": "sha256:393ac1503432b5749abbe25a95d1caf0544abffca144fd82cbeedab2e3c1b4c1"
     },
     {
       "id": "local",
@@ -1279,7 +1281,7 @@
         "owner": "local-runtime",
         "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
       },
-      "sourceDigest": "sha256:5af6cd20efd5581edb9d6348a1e983ea81b1ad06657d34ae19c7e9f94f41584a"
+      "sourceDigest": "sha256:393ac1503432b5749abbe25a95d1caf0544abffca144fd82cbeedab2e3c1b4c1"
     }
   ],
   "ownership": [

@@ -24,6 +24,7 @@ import {
 } from './executions/execution-acceptance.service.ts'
 import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
 import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.ts'
+import { RepositoryProjectStateResolutionService } from './queries/project-state-resolution.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
 class FakeProcessAdapter {
@@ -64,7 +65,8 @@ async function createApplication(
   runtimeDiscoveryRepository,
   executionValidationService,
   executionAcceptanceService,
-  profileResolutionService
+  profileResolutionService,
+  projectStateResolutionService
 ) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
@@ -74,6 +76,7 @@ async function createApplication(
     executionAcceptanceService,
     executionValidationService,
     profileResolutionService,
+    projectStateResolutionService,
     serviceAuthenticator,
     runtimeDiscoveryRepository,
   })
@@ -137,6 +140,42 @@ describe('Control API', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual(ControlApiFixtures.profileResolution.response)
+  })
+
+  test('resolves an immutable ProjectState revision through the public contract', async () => {
+    const reference = ControlApiFixtures.projectStateReference
+    const state = {
+      schemaVersion: 1,
+      ...reference,
+      items: [],
+      createdAt: '2026-08-23T11:00:00.000Z',
+      updatedAt: '2026-08-23T11:00:00.000Z',
+    }
+    const service = new RepositoryProjectStateResolutionService({
+      get: async () => state,
+      getAtRevision: async () => state,
+    })
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['project-state:read'] },
+      }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      service
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/project-states/resolve',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.projectStateResolution.request,
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(ControlApiFixtures.projectStateResolution.response)
   })
 
   test('exposes health, readiness, and security headers', async () => {
