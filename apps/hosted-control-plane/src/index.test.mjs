@@ -2,7 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
-import { HostedServerControlPlaneComposition, resolveHostedApiHost } from './index.ts'
+import {
+  HostedServerControlPlaneComposition,
+  resolveHostedApiHost,
+  resolveHostedObjectStore,
+} from './index.ts'
 
 describe('Hosted server composition', () => {
   test('reports PostgreSQL and separate Restate dependencies without changing core contracts', async () => {
@@ -149,5 +153,34 @@ describe('Hosted server composition', () => {
           objectStoreKind: 's3-compatible',
         })
     ).toThrow('HOSTED_OBJECT_STORE_CONFIGURATION_INVALID')
+  })
+
+  test('loads optional S3-compatible storage only from complete HTTPS configuration', () => {
+    const configured = resolveHostedObjectStore({
+      HOSTED_OBJECT_STORE: 's3-compatible',
+      S3_ENDPOINT: 'https://objects.example.test',
+      S3_BUCKET: 'control-plane',
+      S3_REGION: 'us-east-1',
+      S3_ACCESS_KEY_ID: 'access-key',
+      S3_SECRET_ACCESS_KEY: 'secret-key',
+    })
+    expect(configured).toMatchObject({ objectStoreKind: 's3-compatible' })
+    expect(configured.objectStore).toBeDefined()
+    configured.objectStore.close()
+
+    expect(resolveHostedObjectStore({})).toEqual({})
+    expect(() =>
+      resolveHostedObjectStore({
+        HOSTED_OBJECT_STORE: 's3-compatible',
+        S3_ENDPOINT: 'http://objects.example.test',
+        S3_BUCKET: 'control-plane',
+        S3_REGION: 'us-east-1',
+        S3_ACCESS_KEY_ID: 'access-key',
+        S3_SECRET_ACCESS_KEY: 'secret-key',
+      })
+    ).toThrow('HOSTED_OBJECT_STORE_ENDPOINT_INVALID')
+    expect(() => resolveHostedObjectStore({ HOSTED_OBJECT_STORE: 'unknown' })).toThrow(
+      'HOSTED_OBJECT_STORE_KIND_INVALID'
+    )
   })
 })

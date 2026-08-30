@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 import { TextEncoder } from 'node:util'
-import { ObjectStoreError, R2ObjectStore, createR2ObjectStore } from './index.ts'
+import {
+  ObjectStoreError,
+  R2ObjectStore,
+  createR2ObjectStore,
+  createS3CompatibleObjectStore,
+} from './index.ts'
 
 const configuration = {
   endpoint: 'https://account-id.r2.cloudflarestorage.com',
@@ -12,6 +17,29 @@ const configuration = {
 }
 
 describe('R2ObjectStore', () => {
+  test('constructs a generic S3-compatible client with an operator-selected region', () => {
+    const configurations = []
+    const store = createS3CompatibleObjectStore(
+      {
+        endpoint: 'https://objects.example.test',
+        bucket: 'control-plane',
+        region: 'us-east-1',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key',
+      },
+      {
+        maxObjectBytes: 1024,
+        createClient: (configuration) => {
+          configurations.push(configuration)
+          return { send: async () => ({}) }
+        },
+      }
+    )
+    expect(configurations).toMatchObject([
+      { endpoint: 'https://objects.example.test', region: 'us-east-1', forcePathStyle: true },
+    ])
+    store.close()
+  })
   test('constructs an S3-compatible client without exposing configuration on the store', () => {
     let clientConfiguration
     const store = createR2ObjectStore(configuration, {

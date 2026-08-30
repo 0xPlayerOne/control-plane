@@ -38,6 +38,10 @@ recorded in `docs/evidence/m9-cloud-certification-2026-08-28.md`.
 
 Local uses the all-in-one Control Plane composition, Node 24 `node:sqlite`, single-node Restate, filesystem storage, and direct RuntimeTransport.
 
+Use the integrity-verified create/verify/dry-run/apply procedure in
+[`local-deployment.md`](local-deployment.md); restore into a new directory and never merge checkpoint
+contents into live state.
+
 Required behavior:
 
 - Control Plane process crash/restart;

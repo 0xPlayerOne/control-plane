@@ -116,6 +116,7 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
     'tests/m9-cloud-certification.test.mjs',
     'tests/m9-production-hardening.test.mjs',
     'tests/m10-portability-conformance.test.mjs',
+    'tests/m10-operability.test.mjs',
   ])
   assert.deepEqual(smoke, [
     'tests/foundation.test.mjs',

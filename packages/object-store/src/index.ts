@@ -45,12 +45,16 @@ export class ObjectStoreError extends Error {
   }
 }
 
-export interface R2ObjectStoreConfiguration {
+export interface S3CompatibleObjectStoreConfiguration {
   readonly endpoint: string
   readonly bucket: string
-  readonly region: 'auto'
+  readonly region: string
   readonly accessKeyId: string
   readonly secretAccessKey: string
+}
+
+export interface R2ObjectStoreConfiguration extends S3CompatibleObjectStoreConfiguration {
+  readonly region: 'auto'
 }
 
 interface S3ObjectClient {
@@ -71,6 +75,13 @@ export interface CreateR2ObjectStoreOptions {
 
 export function createR2ObjectStore(
   configuration: R2ObjectStoreConfiguration,
+  options: CreateR2ObjectStoreOptions
+): R2ObjectStore {
+  return createS3CompatibleObjectStore(configuration, options)
+}
+
+export function createS3CompatibleObjectStore(
+  configuration: S3CompatibleObjectStoreConfiguration,
   options: CreateR2ObjectStoreOptions
 ): R2ObjectStore {
   const createClient = options.createClient ?? ((value) => new S3Client(value) as S3ObjectClient)
