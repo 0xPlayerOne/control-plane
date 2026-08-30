@@ -769,29 +769,31 @@
       "method": "POST",
       "path": "/v1/authentication/verify",
       "inOpenApi": true,
-      "controllerReachable": false,
-      "classification": "not_implemented",
+      "controllerReachable": true,
+      "classification": "verified",
       "trace": {
-        "auth": "declared service bearer security",
-        "service": "no controller or application service",
-        "persistence": "unreachable",
-        "execution": "unreachable",
-        "delivery": "no response path",
-        "cleanup": "not applicable"
+        "auth": "service bearer with system:authenticate scope",
+        "service": "AuthenticationController reads the guard-established ServicePrincipal",
+        "persistence": "credential verification and revocation are resolved by the configured ServiceAuthenticator",
+        "execution": "read-only credential verification",
+        "delivery": "versioned authenticated principal and effective authority",
+        "cleanup": "no external side effect"
       },
-      "assessment": "The machine contract is published but no production composition can execute it.",
+      "assessment": "The public operation is reachable through every Control API composition and returns only the scoped principal established by the authentication guard.",
       "evidence": [
         {
           "kind": "contract",
           "path": "packages/contracts/src/control-api.ts"
+        },
+        {
+          "kind": "implementation",
+          "path": "apps/control-api/src/auth/authentication.controller.ts"
+        },
+        {
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "control-api",
-        "disposition": "Implement and wire the authenticated operation or remove it from the supported SDK and OpenAPI surface."
-      },
       "openApiOperationId": "authentication.verify",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,

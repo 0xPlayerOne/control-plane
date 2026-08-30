@@ -11,6 +11,7 @@ import {
   ServiceAuthenticationGuard,
   type ServiceAuthenticator,
 } from './auth/service-authentication.js'
+import { AuthenticationController } from './auth/authentication.controller.js'
 import { HealthController } from './health/health.controller.js'
 import { ExecutionAcceptanceController } from './executions/execution-acceptance.controller.js'
 import {
@@ -71,6 +72,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
   return {
     module: AppModule,
     controllers: [
+      AuthenticationController,
       ExecutionAcceptanceController,
       ExecutionValidationController,
       HealthController,

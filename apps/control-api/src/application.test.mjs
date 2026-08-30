@@ -83,6 +83,28 @@ afterEach(async () => {
 })
 
 describe('Control API', () => {
+  test('verifies an authenticated service principal through the public contract', async () => {
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: {
+          ...validServiceClaims(),
+          scopes: ControlApiFixtures.authentication.response.data.principal.scopes,
+        },
+      })
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/authentication/verify',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.authentication.request,
+    })
+
+    expect(response.json()).toEqual(ControlApiFixtures.authentication.response)
+    expect(response.statusCode).toBe(200)
+  })
+
   test('exposes health, readiness, and security headers', async () => {
     await withTestApplication(createApplication, async (application) => {
       const health = await application.inject({ method: 'GET', url: '/health' })
