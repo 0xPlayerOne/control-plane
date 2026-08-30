@@ -631,7 +631,9 @@
         "@control-plane/contracts",
         "@control-plane/deployment",
         "@control-plane/domain",
-        "@control-plane/execution-plan"
+        "@control-plane/events",
+        "@control-plane/execution-plan",
+        "@control-plane/runtime-sdk"
       ],
       "externalDependencies": ["drizzle-orm"],
       "developmentWorkspaceDependencies": [],
@@ -1249,7 +1251,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
       },
-      "sourceDigest": "sha256:1e66748dd0d25d3ffb368a9cf007e8aa52cfbb152f89a9e1da688810ed18dc86"
+      "sourceDigest": "sha256:baccb33c32020706cb0a5a212eac7a72ffb6b965cf0a975b1b5567a2b82f70df"
     },
     {
       "id": "local",
@@ -1284,7 +1286,7 @@
         "owner": "local-runtime",
         "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
       },
-      "sourceDigest": "sha256:1e66748dd0d25d3ffb368a9cf007e8aa52cfbb152f89a9e1da688810ed18dc86"
+      "sourceDigest": "sha256:baccb33c32020706cb0a5a212eac7a72ffb6b965cf0a975b1b5567a2b82f70df"
     }
   ],
   "ownership": [
@@ -1430,8 +1432,8 @@
         "OpenAPI v2",
         "NestJS controllers"
       ],
-      "classification": "partially_verified",
-      "assessment": "Contracts, SDK, and generated OpenAPI agree on 11 operations, but five advertised operations have no controller and OpenAPI generation does not inspect the runtime application.",
+      "classification": "verified",
+      "assessment": "Contracts, SDK, generated OpenAPI, and reachable NestJS controllers agree on all 11 versioned operations; the architecture drift test inspects the runtime controller graph.",
       "evidence": [
         {
           "kind": "source",
@@ -1440,14 +1442,12 @@
         {
           "kind": "artifact",
           "path": "packages/control-sdk/openapi/control-plane.v2.json"
+        },
+        {
+          "kind": "test",
+          "path": "tests/m11-architecture-audit.test.mjs"
         }
-      ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "public-contracts",
-        "disposition": "Implement the five operations or remove them, and drift-gate OpenAPI against actual controller reachability."
-      }
+      ]
     },
     {
       "id": "COMPAT-PACKAGE-LOCK",
@@ -1764,71 +1764,59 @@
     {
       "id": "PERSIST-OUTBOX-EVENTS",
       "postgresql": "Inbox, outbox, and execution-event tables with publication attempts",
-      "sqlite": "No concrete inbox/outbox or execution-event repository",
-      "classification": "not_implemented",
-      "assessment": "Local and Hosted Simple cannot claim persistence parity for durable event delivery.",
+      "sqlite": "SqliteExecutionEventRepository with ordered append, publication CAS, pending query, archival, and reopen durability",
+      "classification": "verified",
+      "assessment": "Both adapters persist ordered execution events and publication attempts; the SQLite adapter proves duplicate suppression and recovery after a full reopen.",
       "evidence": [
         {
           "kind": "source",
           "path": "packages/database/src/execution-event-repository.ts"
         },
         {
-          "kind": "source",
-          "path": "packages/sqlite-persistence/src/schema.ts"
+          "kind": "test",
+          "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
         }
-      ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "sqlite-persistence-events",
-        "disposition": "Implement SQLite inbox/outbox/event persistence or explicitly remove durable event delivery from supported Local semantics."
-      }
+      ]
     },
     {
       "id": "PERSIST-PROJECT-STATE",
       "postgresql": "Project state, revisions, mutations, and promotion proposal tables",
-      "sqlite": "Revisioned project state/history/mutation namespaces",
+      "sqlite": "Revisioned project state/history/mutation namespaces and StatePromotionProposal CAS repository",
       "classification": "partially_verified",
-      "assessment": "State revision and mutation parity exists; SQLite has no concrete StatePromotionProposalRepository counterpart.",
+      "assessment": "SQLite now persists promotion proposal transitions across reopen; the complete cross-adapter lifecycle matrix remains to be run.",
       "evidence": [
         {
           "kind": "source",
           "path": "packages/database/src/project-state-repository.ts"
         },
         {
-          "kind": "source",
-          "path": "packages/sqlite-persistence/src/repositories-extra.ts"
+          "kind": "test",
+          "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
         }
       ],
       "gap": {
         "issue": 188,
         "severity": "medium",
         "owner": "sqlite-project-state",
-        "disposition": "Add durable SQLite promotion proposal transitions and cross-adapter parity tests."
+        "disposition": "Run the complete proposal create, approve, reject, expire, supersede, and merge matrix against both adapters."
       }
     },
     {
       "id": "PERSIST-RECONCILIATION",
       "postgresql": "PostgresReconciliationCheckpointRepository",
-      "sqlite": "No reconciliation checkpoint repository",
-      "classification": "not_implemented",
-      "assessment": "SQLite profiles lack the durable reconciliation checkpoint surface available to server profiles.",
+      "sqlite": "SqliteReconciliationCheckpointRepository with observation-hash idempotency and version CAS",
+      "classification": "verified",
+      "assessment": "Both adapters persist reconciliation decisions; SQLite duplicate observation and resolved-state recovery are proven after reopen.",
       "evidence": [
         {
           "kind": "source",
           "path": "packages/database/src/reconciliation-checkpoint-repository.ts"
         },
         {
-          "kind": "source",
-          "path": "packages/sqlite-persistence/src/schema.ts"
+          "kind": "test",
+          "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
         }
-      ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "sqlite-reconciliation",
-        "disposition": "Implement reconciliation checkpoint persistence and restart tests for SQLite profiles."
-      }
+      ]
     },
     {
       "id": "PERSIST-RETENTION",
@@ -1856,24 +1844,24 @@
     {
       "id": "PERSIST-RUNTIME-COMMANDS",
       "postgresql": "Runtime command, delivery attempt, receipt, and inventory checkpoint repositories",
-      "sqlite": "No equivalent runtime command or inventory repositories",
-      "classification": "not_implemented",
-      "assessment": "Direct Local transport tests command semantics in memory, but durable SQLite runtime-command persistence is absent.",
+      "sqlite": "Runtime command and inventory checkpoint repositories with identity replay, CAS, and reopen durability",
+      "classification": "partially_verified",
+      "assessment": "SQLite now persists runtime commands and inventory checkpoints; a durable runtime-event receipt/effect sink is still required for full remote-event parity.",
       "evidence": [
         {
           "kind": "source",
           "path": "packages/database/src/runtime-command-repository.ts"
         },
         {
-          "kind": "source",
-          "path": "packages/sqlite-persistence/src/schema.ts"
+          "kind": "test",
+          "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
         }
       ],
       "gap": {
         "issue": 188,
         "severity": "high",
         "owner": "sqlite-runtime",
-        "disposition": "Implement durable SQLite runtime command/receipt/inventory storage or explicitly narrow Local recovery guarantees."
+        "disposition": "Implement and restart-test the SQLite runtime-event receipt/effect sink, including terminal conflict and out-of-order replay."
       }
     }
   ],
@@ -1925,7 +1913,7 @@
     {
       "id": "LIFE-OUTBOX",
       "concern": "outbox-and-event-delivery",
-      "assessment": "PostgreSQL delivery is durable and tested; SQLite parity is explicitly absent in PERSIST-OUTBOX-EVENTS.",
+      "assessment": "PostgreSQL and SQLite execution-event outboxes are durable; SQLite publication failure and pending replay survive a full reopen.",
       "evidence": [
         {
           "kind": "test",
@@ -1936,7 +1924,7 @@
     {
       "id": "LIFE-RECONCILIATION",
       "concern": "reconciliation-and-restart",
-      "assessment": "Restate submission uncertainty and remote command replay are covered; SQLite reconciliation persistence remains a gap.",
+      "assessment": "Restate submission uncertainty and remote command replay are covered; reconciliation checkpoints survive SQLite reopen with observation-hash idempotency.",
       "evidence": [
         {
           "kind": "test",
