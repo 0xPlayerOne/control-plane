@@ -5,6 +5,7 @@ export {
   decryptRelayPayload,
   encodeBase64Url,
   encryptRelayPayload,
+  encryptRelayReturnPayload,
   generateHostEncryptionKeyPair,
   publicEncryptionKey,
   sha256,
@@ -13,6 +14,7 @@ export {
 export type {
   DecryptRelayPayloadInput,
   EncryptRelayPayloadInput,
+  EncryptRelayReturnPayloadInput,
   HostEncryptionKeyPair,
   HostEncryptionPublicKey,
   RelayEnvelopeErrorCode,

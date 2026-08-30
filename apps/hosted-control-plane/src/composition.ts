@@ -200,7 +200,7 @@ export class HostedServerControlPlaneComposition {
       await this.workflow.start()
       await this.remoteControl?.start()
     } catch (error) {
-      this.remoteControl?.stop()
+      await this.remoteControl?.stop()
       await this.workflow.stop().catch(() => undefined)
       await this.#endpoint.shutdown().catch(() => undefined)
       this.#endpoint = undefined
@@ -252,7 +252,7 @@ export class HostedServerControlPlaneComposition {
 
   async close(): Promise<void> {
     this.#started = false
-    this.remoteControl?.stop()
+    await this.remoteControl?.stop()
     await this.workflow.stop().catch(() => undefined)
     await this.#endpoint?.shutdown().catch(() => undefined)
     this.#endpoint = undefined
