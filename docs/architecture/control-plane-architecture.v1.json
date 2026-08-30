@@ -1782,8 +1782,8 @@
       "id": "PERSIST-PROJECT-STATE",
       "postgresql": "Project state, revisions, mutations, and promotion proposal tables",
       "sqlite": "Revisioned project state/history/mutation namespaces and StatePromotionProposal CAS repository",
-      "classification": "partially_verified",
-      "assessment": "SQLite now persists promotion proposal transitions across reopen; the complete cross-adapter lifecycle matrix remains to be run.",
+      "classification": "verified",
+      "assessment": "Both adapters cover revision history, mutation replay, immutable proposal identity, concurrent review CAS, merge, reject, expire, and supersede transitions across restart or reopen.",
       "evidence": [
         {
           "kind": "source",
@@ -1792,14 +1792,12 @@
         {
           "kind": "test",
           "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "packages/database/src/integration.test.mjs"
         }
-      ],
-      "gap": {
-        "issue": 188,
-        "severity": "medium",
-        "owner": "sqlite-project-state",
-        "disposition": "Run the complete proposal create, approve, reject, expire, supersede, and merge matrix against both adapters."
-      }
+      ]
     },
     {
       "id": "PERSIST-RECONCILIATION",

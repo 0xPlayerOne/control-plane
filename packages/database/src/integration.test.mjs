@@ -257,9 +257,71 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(reviews.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
     expect(reviews.filter(({ status }) => status === 'rejected')).toHaveLength(1)
     expect((await restartedProposals.get(proposal.proposalId))?.state).toBe('approved')
+    expect(
+      await restarted.mergePromotion({
+        proposalId: proposal.proposalId,
+        mutationId: 'stm_01JBBCDEF0123456789ABCDEFG',
+        mergedAt: '2026-08-28T12:04:00.000Z',
+      })
+    ).toMatchObject({ state: 'merged', resultingProjectStateRevision: 2 })
+
+    const createTransitionProposal = (proposalId, itemId, key, expiresAt) =>
+      restarted.createPromotionProposal({
+        ...scope,
+        proposalId,
+        baseRevision: 2,
+        sourceExecutionId: proposal.sourceExecutionId,
+        operations: [
+          {
+            ...proposal.operations[0],
+            item: { ...proposal.operations[0].item, itemId, key },
+          },
+        ],
+        createdAt: '2026-08-28T12:05:00.000Z',
+        expiresAt: expiresAt ?? '2026-08-29T12:05:00.000Z',
+      })
+    const rejected = await createTransitionProposal(
+      'spp_01JBBCDEF0123456789ABCDEFG',
+      'psi_01JBBCDEF0123456789ABCDEFG',
+      'execution.rejected'
+    )
+    expect(
+      await restarted.rejectPromotion({
+        proposalId: rejected.proposalId,
+        reviewingPrincipalRef: 'principal://reviewer-a',
+        reviewedAt: '2026-08-28T12:06:00.000Z',
+        reason: 'not applicable',
+      })
+    ).toMatchObject({ state: 'rejected' })
+    const expiring = await createTransitionProposal(
+      'spp_01JCBCDEF0123456789ABCDEFG',
+      'psi_01JCBCDEF0123456789ABCDEFG',
+      'execution.expired',
+      '2026-08-28T12:07:00.000Z'
+    )
+    expect(
+      await restarted.expirePromotion(expiring.proposalId, '2026-08-28T12:07:01.000Z')
+    ).toMatchObject({ state: 'expired' })
+    const superseded = await createTransitionProposal(
+      'spp_01JDBCDEF0123456789ABCDEFG',
+      'psi_01JDBCDEF0123456789ABCDEFG',
+      'execution.old'
+    )
+    const successor = await createTransitionProposal(
+      'spp_01JEBCDEF0123456789ABCDEFG',
+      'psi_01JEBCDEF0123456789ABCDEFG',
+      'execution.new'
+    )
+    expect(
+      await restarted.supersedePromotion(
+        superseded.proposalId,
+        successor.proposalId,
+        '2026-08-28T12:08:00.000Z'
+      )
+    ).toMatchObject({ state: 'superseded', supersededByProposalId: successor.proposalId })
     expect(await isolated.application.select().from(projectStates)).toHaveLength(1)
-    expect(await isolated.application.select().from(projectStateRevisions)).toHaveLength(2)
-    expect(await isolated.application.select().from(statePromotionProposals)).toHaveLength(1)
+    expect(await isolated.application.select().from(projectStateRevisions)).toHaveLength(3)
+    expect(await isolated.application.select().from(statePromotionProposals)).toHaveLength(5)
   })
 
   test('persists immutable ContextPackages across restart and fails closed on tampering', async () => {

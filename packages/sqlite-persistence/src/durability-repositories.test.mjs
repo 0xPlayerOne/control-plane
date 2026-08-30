@@ -2,12 +2,17 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
-import { ExecutionLifecycleService } from '@control-plane/domain'
+import {
+  ExecutionLifecycleService,
+  ProjectStateService,
+  RecordingProjectStateEventPublisher,
+} from '@control-plane/domain'
 import { ExecutionEventService } from '@control-plane/events'
 import {
   SqliteExecutionEventRepository,
   SqliteExecutionRepository,
   SqlitePersistenceProvider,
+  SqliteProjectStateRepository,
   SqliteReconciliationCheckpointRepository,
   SqliteRuntimeCommandRepository,
   SqliteRuntimeInventoryCheckpointRepository,
@@ -46,6 +51,129 @@ describe('SQLite standalone durability repositories', () => {
       const durable = new SqliteStatePromotionProposalRepository(current())
       expect(await durable.get(proposal.proposalId)).toEqual(approved)
       expect(await durable.compareAndSet(1, { ...approved, revision: 3 })).toBe(false)
+    })
+  })
+
+  test('matches the PostgreSQL project-state mutation and promotion lifecycle', async () => {
+    await withReopen(async ({ current, reopened }) => {
+      const createService = () =>
+        new ProjectStateService(
+          new SqliteProjectStateRepository(current()),
+          new SqliteStatePromotionProposalRepository(current()),
+          new RecordingProjectStateEventPublisher()
+        )
+      const scope = { workspaceId: ids.workspaceId, projectId: ids.projectId }
+      const service = createService()
+      await service.initialize({ ...scope, at: now })
+      const mutation = {
+        ...scope,
+        mutationId: 'stm_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        expectedRevision: 0,
+        actorPrincipalRef: 'principal://operator',
+        operations: [
+          {
+            ...promotionProposal().operations[0],
+            item: {
+              ...promotionProposal().operations[0].item,
+              itemId: 'psi_01ZRZ3NDEKTSV4RRFFQ69G5FAV',
+              key: 'baseline',
+              provenance: {
+                sourceKind: 'principal',
+                sourcePrincipalRef: 'principal://operator',
+                artifactRefs: [],
+                capturedAt: now,
+              },
+            },
+          },
+        ],
+        at: '2026-08-30T12:01:00.000Z',
+      }
+      expect((await service.applyMutation(mutation)).applied).toBe(true)
+
+      await reopened()
+      const durable = createService()
+      expect((await durable.applyMutation(mutation)).applied).toBe(false)
+      expect((await durable.getHistory(scope)).map(({ revision }) => revision)).toEqual([0, 1])
+      const proposal = await durable.createPromotionProposal({
+        ...scope,
+        ...promotionProposal(),
+        baseRevision: 1,
+      })
+      const reviews = await Promise.allSettled([
+        durable.approvePromotion({
+          proposalId: proposal.proposalId,
+          reviewingPrincipalRef: 'principal://reviewer-a',
+          reviewedAt: '2026-08-30T12:02:00.000Z',
+        }),
+        durable.approvePromotion({
+          proposalId: proposal.proposalId,
+          reviewingPrincipalRef: 'principal://reviewer-b',
+          reviewedAt: '2026-08-30T12:02:00.000Z',
+        }),
+      ])
+      expect(reviews.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+      expect(reviews.filter(({ status }) => status === 'rejected')).toHaveLength(1)
+      expect(
+        await durable.mergePromotion({
+          proposalId: proposal.proposalId,
+          mutationId: 'stm_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+          mergedAt: '2026-08-30T12:03:00.000Z',
+        })
+      ).toMatchObject({ state: 'merged', resultingProjectStateRevision: 2 })
+
+      const rejected = await durable.createPromotionProposal(
+        promotionProposal({
+          proposalId: 'spp_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+          itemId: 'psi_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+          key: 'rejected-finding',
+          baseRevision: 2,
+        })
+      )
+      expect(
+        await durable.rejectPromotion({
+          proposalId: rejected.proposalId,
+          reviewingPrincipalRef: 'principal://reviewer-a',
+          reviewedAt: '2026-08-30T12:04:00.000Z',
+          reason: 'not applicable',
+        })
+      ).toMatchObject({ state: 'rejected', reviewReason: 'not applicable' })
+
+      const expiring = await durable.createPromotionProposal(
+        promotionProposal({
+          proposalId: 'spp_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+          itemId: 'psi_01CRZ3NDEKTSV4RRFFQ69G5FAV',
+          key: 'expired-finding',
+          baseRevision: 2,
+          expiresAt: '2026-08-30T12:05:00.000Z',
+        })
+      )
+      expect(
+        await durable.expirePromotion(expiring.proposalId, '2026-08-30T12:05:01.000Z')
+      ).toMatchObject({ state: 'expired' })
+
+      const superseded = await durable.createPromotionProposal(
+        promotionProposal({
+          proposalId: 'spp_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+          itemId: 'psi_01DRZ3NDEKTSV4RRFFQ69G5FAV',
+          key: 'old-finding',
+          baseRevision: 2,
+        })
+      )
+      const successor = await durable.createPromotionProposal(
+        promotionProposal({
+          proposalId: 'spp_01ERZ3NDEKTSV4RRFFQ69G5FAV',
+          itemId: 'psi_01ERZ3NDEKTSV4RRFFQ69G5FAV',
+          key: 'new-finding',
+          baseRevision: 2,
+        })
+      )
+      expect(
+        await durable.supersedePromotion(
+          superseded.proposalId,
+          successor.proposalId,
+          '2026-08-30T12:06:00.000Z'
+        )
+      ).toMatchObject({ state: 'superseded', supersededByProposalId: successor.proposalId })
     })
   })
 
@@ -202,20 +330,27 @@ async function withReopen(run) {
   }
 }
 
-function promotionProposal() {
+function promotionProposal(overrides = {}) {
+  const {
+    proposalId = 'spp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    itemId = 'psi_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    key = 'finding',
+    baseRevision = 0,
+    expiresAt = '2026-08-31T12:00:00.000Z',
+  } = overrides
   return {
-    proposalId: 'spp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    proposalId,
     workspaceId: ids.workspaceId,
     projectId: ids.projectId,
     revision: 1,
-    baseRevision: 0,
+    baseRevision,
     sourceExecutionId: ids.executionId,
     operations: [
       {
         kind: 'append',
         item: {
-          itemId: 'psi_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-          key: 'finding',
+          itemId,
+          key,
           value: 'tests pass',
           sensitivity: 'internal',
           freshness: { observedAt: now },
@@ -231,7 +366,7 @@ function promotionProposal() {
     ],
     state: 'candidate',
     createdAt: now,
-    expiresAt: '2026-08-31T12:00:00.000Z',
+    expiresAt,
   }
 }
 
