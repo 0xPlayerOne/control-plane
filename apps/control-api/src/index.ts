@@ -118,7 +118,9 @@ export { createManagedCloudControlApiComposition } from './cloud-composition.js'
 export {
   DurableExecutionAcceptanceService,
   RestateExecutionWorkflowDispatcher,
+  UnavailableExecutionAcceptanceService,
   createExecutionId,
+  type ExecutionAcceptanceService,
 } from './executions/execution-acceptance.service.js'
 export { DurableExecutionValidationService } from './executions/execution-validation.service.js'
 export {

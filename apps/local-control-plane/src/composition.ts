@@ -20,6 +20,10 @@ import type {
   ExecutionAcceptancePort,
   RemoteControlHostAdapter,
 } from '@control-plane/remote-control-relay'
+import {
+  UnavailableExecutionAcceptanceService,
+  type ExecutionAcceptanceService,
+} from '@control-plane/control-api'
 import type { RuntimeAdapterWithTransport } from '@control-plane/runtime-sdk'
 import {
   CompositeSecretsProvider,
@@ -88,7 +92,7 @@ export class LocalControlPlaneComposition {
   readonly secrets: SecretsProvider
   readonly runtimeTransport: RuntimeAdapterWithTransport | undefined
   readonly remoteControl: RemoteControlHostAdapter<unknown> | undefined
-  readonly executionAcceptanceService: LocalControlApiComposition['executionAcceptanceService']
+  readonly executionAcceptanceService: ExecutionAcceptanceService
   readonly executionValidationService: LocalControlApiComposition['executionValidationService']
   readonly profileResolutionService: LocalControlApiComposition['profileResolutionService']
   readonly projectStateResolutionService: LocalControlApiComposition['projectStateResolutionService']
@@ -141,7 +145,10 @@ export class LocalControlPlaneComposition {
     }
     this.runtimeTransport = options.runtimeTransport
     const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
-    this.executionAcceptanceService = controlApi.executionAcceptanceService
+    this.executionAcceptanceService =
+      options.activities === undefined && options.runtimeTransport === undefined
+        ? new UnavailableExecutionAcceptanceService()
+        : controlApi.executionAcceptanceService
     this.executionValidationService = controlApi.executionValidationService
     this.profileResolutionService = controlApi.profileResolutionService
     this.projectStateResolutionService = controlApi.projectStateResolutionService

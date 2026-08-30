@@ -31,28 +31,31 @@ export class RuntimeDiscoveryService {
     const input = RuntimeListRequestSchema.parse(inputValue)
     const models = (await this.repository.listRuntimeConnections(toScope(input)))
       .map((model) => RuntimeConnectionDiscoveryReadModelSchema.parse(model))
-      .filter(
-        (model) =>
-          model.node !== undefined &&
-          (input.parameters.status === undefined || model.status === input.parameters.status) &&
-          input.parameters.requiredCapabilities.every((capability) =>
+      .flatMap((model) => {
+        if (
+          model.node === undefined ||
+          (input.parameters.status !== undefined && model.status !== input.parameters.status) ||
+          !input.parameters.requiredCapabilities.every((capability) =>
             model.capabilities.includes(capability)
           )
-      )
-      .sort((left, right) =>
-        left.node!.runtimeNodeRefId.localeCompare(right.node!.runtimeNodeRefId)
-      )
-      .map((model) => ({
-        runtimeNodeRefId: model.node!.runtimeNodeRefId,
-        runtimeConnectionId: model.runtimeConnectionId,
-        runtimeDefinitionId: model.runtimeDefinitionId,
-        family: model.family,
-        location: model.node!.location,
-        status: model.status,
-        observedAt: model.observedAt,
-        capabilities: model.capabilities,
-        limitations: model.limitations,
-      }))
+        ) {
+          return []
+        }
+        return [
+          {
+            runtimeNodeRefId: model.node.runtimeNodeRefId,
+            runtimeConnectionId: model.runtimeConnectionId,
+            runtimeDefinitionId: model.runtimeDefinitionId,
+            family: model.family,
+            location: model.node.location,
+            status: model.status,
+            observedAt: model.observedAt,
+            capabilities: model.capabilities,
+            limitations: model.limitations,
+          },
+        ]
+      })
+      .sort((left, right) => left.runtimeNodeRefId.localeCompare(right.runtimeNodeRefId))
     return RuntimeListResponseSchema.parse({
       ...responseContext(input),
       data: { runtimes: models },

@@ -165,6 +165,33 @@ describe('Local Control Plane composition', () => {
     ])
   })
 
+  test('fails execution acceptance closed when no direct runtime is configured', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-local-no-runtime-'))
+    const composition = new LocalControlPlaneComposition({
+      dataDirectory: directory,
+      workflowRuntime: {
+        profile: 'local',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+    })
+    try {
+      await composition.start()
+      await expect(
+        composition.executionAcceptanceService.accept({}, 'svc_agent-hq')
+      ).rejects.toMatchObject({
+        response: { code: 'EXECUTION_ACCEPTANCE_NOT_CONFIGURED' },
+      })
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('executes and replays a completed runtime effect through direct transport only', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-direct-runtime-'))
     const persistence = new SqlitePersistenceProvider({
