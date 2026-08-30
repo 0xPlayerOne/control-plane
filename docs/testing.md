@@ -110,7 +110,8 @@ It must not be described as the M10 Local product profile. M10.3 adds SQLite and
 Existing M4–M6 suites remain useful for Runtime Fabric, Runtime Gateway, Managed Pi, and ACP behavior. Their release interpretation changes by topology:
 
 - Runtime Gateway evidence applies to non-co-located RuntimeNodes.
-- M10 must add `DirectLocalRuntimeTransport` evidence for co-located managed Pi/ACP execution.
+- M10 includes `DirectLocalRuntimeTransport` evidence for co-located managed Pi/ACP execution; remote-gateway
+  evidence remains separately required for non-co-located RuntimeNodes.
 - A runtime certification is tied to exact RuntimeAdapter + RuntimeDriver + RuntimeTransport + harness/protocol + deployment profile/location.
 
 ## Durable execution acceptance

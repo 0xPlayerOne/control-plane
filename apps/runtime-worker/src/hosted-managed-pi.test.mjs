@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
 import {
   ManagedPiAdapter,
+  ManagedPiDriver,
   translateExecutionPlanToManagedPi,
 } from '@control-plane/managed-pi-adapter'
 import {
   evaluateRuntimeEligibility,
+  RemoteRuntimeGatewayTransport,
   routeRuntimeConnections,
   runRuntimeAdapterConformance,
 } from '@control-plane/runtime-sdk'
@@ -16,6 +18,13 @@ import {
   ReferenceRuntimeHostProvider,
   buildHostedManagedPiRuntimeConnection,
 } from './hosted-managed-pi.ts'
+
+const hostedPiAdapter = (client) =>
+  new ManagedPiAdapter({
+    transport: new RemoteRuntimeGatewayTransport(
+      new ManagedPiDriver({ client, adapterVersion: '1.0.0' })
+    ),
+  })
 
 const now = '2026-08-25T12:00:00.000Z'
 const digest = (character) => `sha256:${character.repeat(64)}`
@@ -85,7 +94,7 @@ function fixture(scenario = 'complete') {
     artifactStore,
     host,
     client,
-    adapter: new ManagedPiAdapter({ client, adapterVersion: '1.0.0' }),
+    adapter: hostedPiAdapter(client),
   }
 }
 
@@ -178,10 +187,7 @@ describe('hosted managed Pi runtime worker', () => {
       now: () => new Date(now),
       resolveAuthority: async () => ({ modelGrantRefs: [], toolGrantRefs: [] }),
     })
-    const restartedAdapter = new ManagedPiAdapter({
-      client: restartedClient,
-      adapterVersion: '1.0.0',
-    })
+    const restartedAdapter = hostedPiAdapter(restartedClient)
 
     expect(await restartedAdapter.reconcile(handle)).toMatchObject({ state: 'running' })
     expect(running.host.effectCount(ids.attemptId)).toBe(1)

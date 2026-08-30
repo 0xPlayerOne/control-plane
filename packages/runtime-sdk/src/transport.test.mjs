@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { DirectLocalRuntimeTransport, RemoteRuntimeGatewayTransport } from './transport.ts'
+import {
+  DirectLocalRuntimeTransport,
+  RemoteRuntimeGatewayTransport,
+  TransportedRuntimeAdapter,
+} from './transport.ts'
 
 const handle = {
   adapterExecutionId: 'runtime-execution-1',
@@ -17,9 +21,14 @@ function recordingDriver() {
       inspect: async (requirements) => {
         calls.push(['inspect', requirements])
         return {
-          adapterVersion: '1.0.0',
-          runtimeVersion: '1.0.0',
-          protocolVersion: '1.0.0',
+          metadata: {
+            contractVersion: { major: 1, minor: 0 },
+            adapterName: 'test-driver',
+            adapterVersion: '1.0.0',
+            runtimeFamily: 'test',
+            driverVersion: '1.0.0',
+            harnessVersion: '1.0.0',
+          },
           health: 'healthy',
           capabilities: [],
           limitations: [],
@@ -89,5 +98,45 @@ describe('RuntimeTransport', () => {
       observedAt: '2026-08-29T00:00:01.000Z',
     })
     expect(calls).toEqual([['status', handle]])
+  })
+
+  test('adapter records transport topology and rejects a mismatched driver family', async () => {
+    const { driver } = recordingDriver()
+    const transport = new DirectLocalRuntimeTransport(driver)
+    const adapter = new TransportedRuntimeAdapter(transport, 'test-driver')
+
+    await expect(adapter.inspect()).resolves.toMatchObject({
+      metadata: { adapterName: 'test-driver', transportKind: 'direct-local' },
+    })
+    await expect(
+      new TransportedRuntimeAdapter(transport, 'other-driver').inspect()
+    ).rejects.toThrow('RUNTIME_TRANSPORT_DRIVER_FAMILY_MISMATCH')
+  })
+
+  test('direct and remote transports preserve equivalent normalized semantics', async () => {
+    const directFixture = recordingDriver()
+    const remoteFixture = recordingDriver()
+    const direct = new TransportedRuntimeAdapter(
+      new DirectLocalRuntimeTransport(directFixture.driver),
+      'test-driver'
+    )
+    const remote = new TransportedRuntimeAdapter(
+      new RemoteRuntimeGatewayTransport(remoteFixture.driver),
+      'test-driver'
+    )
+    const request = { semantic: 'same-normalized-command' }
+
+    const [directHandle, remoteHandle] = await Promise.all([
+      direct.start(globalThis.structuredClone(request)),
+      remote.start(globalThis.structuredClone(request)),
+    ])
+    const [directStatus, remoteStatus] = await Promise.all([
+      direct.status(directHandle),
+      remote.status(remoteHandle),
+    ])
+
+    expect(directHandle).toEqual(remoteHandle)
+    expect(directStatus).toEqual(remoteStatus)
+    expect(directFixture.calls).toEqual(remoteFixture.calls)
   })
 })

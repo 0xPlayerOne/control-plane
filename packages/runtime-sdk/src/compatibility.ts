@@ -65,6 +65,7 @@ export const RuntimeCertificationSchema = z
           .object({
             suite: z.enum([
               'runtime-adapter-conformance',
+              'direct-local-transport-integration',
               'runtime-gateway-integration',
               'hosted-runtime-integration',
             ]),
@@ -88,14 +89,18 @@ export const RuntimeCertificationSchema = z
   .superRefine((certification, context) => {
     if (
       certification.classification === 'supported' &&
-      !['runtime-adapter-conformance', 'runtime-gateway-integration'].every((suite) =>
-        certification.evidence.some((entry) => entry.suite === suite)
-      )
+      (!certification.evidence.some((entry) => entry.suite === 'runtime-adapter-conformance') ||
+        !certification.evidence.some(
+          (entry) =>
+            ['direct-local-transport-integration', 'runtime-gateway-integration'].includes(
+              entry.suite
+            ) || entry.suite === 'hosted-runtime-integration'
+        ))
     ) {
       context.addIssue({
         code: 'custom',
         path: ['evidence'],
-        message: 'Supported certification requires conformance and gateway evidence',
+        message: 'Supported certification requires conformance and transport evidence',
       })
     }
   })

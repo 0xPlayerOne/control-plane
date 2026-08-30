@@ -28,23 +28,23 @@ rules:
   - Missing a required capability makes a runtime ineligible rather than silently degraded.
   - Native session ownership remains with the originating harness.
   - Provider and harness subscription entitlements are not assumed equivalent.
-  - Certification is tied to the exact adapter, driver, harness or runtime, protocol, RuntimeNode location, and policy versions
-    tested.
+  - Certification is tied to the exact adapter, driver, transport, harness or runtime, protocol, RuntimeNode location,
+    and policy versions tested.
 runtimes:
   - id: managed-pi
     display_name: Managed Pi
     kind: managed_harness
     support_state: verified
     integration_path:
-      Managed local Pi through Runtime Gateway and ManagedPiDriver; hosted managed Pi is a separate RuntimeConnection
-      and location.
+      Managed local Pi through ManagedPiAdapter, DirectLocalRuntimeTransport, and ManagedPiDriver. Non-co-located
+      RuntimeNodes use RemoteRuntimeGatewayTransport; hosted managed Pi remains a separate RuntimeConnection and location.
     adapter: ManagedPiAdapter
     driver: ManagedPiDriver
     runtime_node_locations:
       - local_device
     runtime_gateway:
-      required: true
-      purpose: Control Plane commands and normalized RuntimeDriver results.
+      required: false
+      purpose: Authenticated transport only when the selected RuntimeNode is non-co-located.
     authentication:
       Agent HQ-managed or user-authorized provider credentials or subscription authentication configured through
       Pi on the selected RuntimeNode.
@@ -75,8 +75,10 @@ runtimes:
       driver: 1.0.0
       runtime: 0.52.1
       protocol: 1.5.0
-    last_verified: '2026-08-25'
-    verification_notes: Disposable managed Pi and Runtime Gateway reference path certified; production Agent HQ remains a separate gate.
+    last_verified: '2026-08-29'
+    verification_notes:
+      Direct-local and disposable Runtime Gateway reference paths are certified separately; production Agent HQ remains
+      a separate gate.
   - id: claude-code
     display_name: Claude Code
     kind: external_harness
@@ -89,8 +91,8 @@ runtimes:
     runtime_node_locations:
       - local_device
     runtime_gateway:
-      required: true
-      purpose: Agent HQ-controlled local execution and supported session operations.
+      required: false
+      purpose: Authenticated transport only when the selected RuntimeNode is non-co-located.
     authentication: Native Claude Code authentication remains owned by Claude Code.
     sessions:
       list: Capability-dependent and must be negotiated and verified.
@@ -125,8 +127,8 @@ runtimes:
     runtime_node_locations:
       - local_device
     runtime_gateway:
-      required: true
-      purpose: Agent HQ-controlled local execution and supported session operations.
+      required: false
+      purpose: Authenticated transport only when the selected RuntimeNode is non-co-located.
     authentication: Native Codex or ChatGPT authentication remains owned by the runtime.
     sessions:
       list: TBD by negotiated ACP capability and concrete integration.
@@ -155,8 +157,8 @@ runtimes:
     runtime_node_locations:
       - local_device
     runtime_gateway:
-      required: true
-      purpose: Agent HQ-controlled local execution and supported session operations.
+      required: false
+      purpose: Authenticated transport only when the selected RuntimeNode is non-co-located.
     authentication: Native OpenCode authentication and configuration remain with OpenCode; managed Pi provider keys remain separate.
     sessions:
       list: TBD by ACP capability and integration.
@@ -189,8 +191,8 @@ runtimes:
     runtime_node_locations:
       - local_device
     runtime_gateway:
-      required: true
-      purpose: Agent HQ-controlled local execution and supported session operations.
+      required: false
+      purpose: Authenticated transport only when the selected RuntimeNode is non-co-located.
     authentication: User-owned Pi and provider configuration remains native and is not rewritten by Agent HQ.
     sessions:
       list: Capability-dependent.

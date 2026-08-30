@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
-import { RuntimeCompatibilityMatrixSchema } from '@control-plane/runtime-sdk'
+import {
+  RemoteRuntimeGatewayTransport,
+  RuntimeCompatibilityMatrixSchema,
+} from '@control-plane/runtime-sdk'
 import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
-import { AcpAdapter } from './index.ts'
+import { AcpAdapter, AcpDriver } from './index.ts'
 import { AcpGatewayClient, ReferenceAcpDriver, ReferenceAcpGatewayTransport } from './gateway.ts'
 
 const now = '2026-08-25T12:00:00.000Z'
@@ -93,16 +96,20 @@ function fixture(options = {}) {
     transport,
     client,
     adapter: new AcpAdapter({
-      transport: client,
-      adapterVersion: '1.0.0',
-      externalSessionId: (sessionRef) => externalIds.get(sessionRef),
-      interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
-      now: () => new Date(now),
+      transport: new RemoteRuntimeGatewayTransport(
+        new AcpDriver({
+          transport: client,
+          adapterVersion: '1.0.0',
+          externalSessionId: (sessionRef) => externalIds.get(sessionRef),
+          interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
+          now: () => new Date(now),
+        })
+      ),
     }),
   }
 }
 
-describe('local ACP through Runtime Gateway', () => {
+describe('non-co-located ACP through Runtime Gateway', () => {
   test('matches the exact supported compatibility certification capability claim', async () => {
     const { adapter, transport } = fixture()
     const inspection = await adapter.inspect()
@@ -138,6 +145,7 @@ describe('local ACP through Runtime Gateway', () => {
         adapterVersion: '1.0.0',
         driverVersion: '1.0.0',
         harnessVersion: '2.4.0',
+        transportKind: 'remote-gateway',
       },
       capabilityEvaluation: { eligible: true },
     })

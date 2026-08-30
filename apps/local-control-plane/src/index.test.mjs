@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
-import { DirectLocalRuntimeTransport } from '@control-plane/runtime-sdk'
+import { DirectLocalRuntimeTransport, TransportedRuntimeAdapter } from '@control-plane/runtime-sdk'
 import { FilesystemObjectStore } from '@control-plane/object-store'
 import { SqlitePersistenceProvider } from '@control-plane/sqlite-persistence'
 import {
@@ -43,7 +43,7 @@ describe('Local Control Plane composition', () => {
     const composition = new LocalControlPlaneComposition({
       dataDirectory: directory,
       workflowRuntime: workflow,
-      runtimeTransport: { kind: 'direct-local' },
+      runtimeTransport: { transportKind: 'direct-local' },
       endpointFactory: {
         create: async () => ({
           run: async () => calls.push('endpoint:start'),
@@ -193,7 +193,8 @@ describe('Local Control Plane composition', () => {
       cleanup: async () => undefined,
     }
     const transport = new DirectLocalRuntimeTransport(driver)
-    const activities = new DirectRuntimeExecutionActivities(persistence, objectStore, transport, {
+    const adapter = new TransportedRuntimeAdapter(transport, 'test')
+    const activities = new DirectRuntimeExecutionActivities(persistence, objectStore, adapter, {
       get: async () => ({
         schemaVersion: 1,
         executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',

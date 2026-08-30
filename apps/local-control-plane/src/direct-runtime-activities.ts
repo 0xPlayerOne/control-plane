@@ -3,7 +3,7 @@ import type { JsonValue, ObjectStore, PersistenceProvider } from '@control-plane
 import type {
   RuntimeExecutionHandle,
   RuntimeExecutionStatus,
-  RuntimeTransport,
+  RuntimeAdapterWithTransport,
 } from '@control-plane/runtime-sdk'
 import type { ExecutionPlanRepository } from '@control-plane/execution-plan'
 import type {
@@ -22,10 +22,12 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
   constructor(
     readonly persistence: PersistenceProvider,
     readonly objectStore: ObjectStore,
-    readonly transport: RuntimeTransport,
+    readonly runtime: RuntimeAdapterWithTransport,
     readonly plans: ExecutionPlanRepository
   ) {
-    if (transport.kind !== 'direct-local') throw new Error('DIRECT_RUNTIME_TRANSPORT_REQUIRED')
+    if (runtime.transportKind !== 'direct-local') {
+      throw new Error('DIRECT_RUNTIME_TRANSPORT_REQUIRED')
+    }
   }
 
   ensureAttempt(input: {
@@ -73,21 +75,21 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
           retryable: false,
         }
       }
-      const handle = await this.transport.start({
+      const handle = await this.runtime.start({
         attemptId: input.attemptId,
         idempotencyKey: input.effectKey,
         executionPlan,
       })
       await this.#saveHandle(input.executionId, handle)
       let interactionId: string | undefined
-      for await (const progress of this.transport.progress(handle)) {
+      for await (const progress of this.runtime.progress(handle)) {
         const candidate = progress.data['interactionId']
         if (progress.type === 'interaction' && typeof candidate === 'string') {
           interactionId = candidate
           break
         }
       }
-      const status = await this.transport.status(handle)
+      const status = await this.runtime.status(handle)
       return this.#outcome(input.executionId, input.attemptId, status, interactionId)
     })
   }
@@ -104,13 +106,13 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
       const handle = await this.#handle(input.executionId, true)
       let status: RuntimeExecutionStatus
       if (input.action === 'approve' || input.action === 'deny') {
-        status = await this.transport.submitApproval(handle, {
+        status = await this.runtime.submitApproval(handle, {
           interactionId: input.interactionId,
           idempotencyKey: input.effectKey,
           decision: input.action,
         })
       } else if (input.action === 'cancel') {
-        status = await this.transport.cancel(handle, {
+        status = await this.runtime.cancel(handle, {
           idempotencyKey: input.effectKey,
           requestedAt: new Date().toISOString(),
         })
@@ -148,7 +150,7 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
   }): Promise<void> {
     await this.#effect(input.effectKey, async () => {
       const handle = await this.#handle(input.executionId, false)
-      if (handle !== undefined) await this.transport.cleanup(handle)
+      if (handle !== undefined) await this.runtime.cleanup(handle)
       return { cleaned: true }
     })
   }

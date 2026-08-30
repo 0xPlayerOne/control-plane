@@ -20,7 +20,7 @@ import type {
   ExecutionAcceptancePort,
   RemoteControlHostAdapter,
 } from '@control-plane/remote-control-relay'
-import type { RuntimeTransport } from '@control-plane/runtime-sdk'
+import type { RuntimeAdapterWithTransport } from '@control-plane/runtime-sdk'
 import {
   CompositeSecretsProvider,
   EnvironmentSecretsProvider,
@@ -67,7 +67,7 @@ export interface LocalControlPlaneCompositionOptions {
   readonly workflowRuntime?: WorkflowRuntime
   readonly endpointFactory?: RestateEndpointFactory
   readonly activities?: ExecutionLifecycleActivities
-  readonly runtimeTransport?: RuntimeTransport
+  readonly runtimeTransport?: RuntimeAdapterWithTransport
   readonly secrets?: SecretsProvider
   readonly remoteControl?: RemoteControlHostAdapter<unknown>
   readonly remoteControlFactory?: (
@@ -84,7 +84,7 @@ export class LocalControlPlaneComposition {
   readonly objectStore: ObjectStore
   readonly workflow: WorkflowRuntime
   readonly secrets: SecretsProvider
-  readonly runtimeTransport: RuntimeTransport | undefined
+  readonly runtimeTransport: RuntimeAdapterWithTransport | undefined
   readonly remoteControl: RemoteControlHostAdapter<unknown> | undefined
   readonly executionAcceptanceService: LocalControlApiComposition['executionAcceptanceService']
   readonly executionValidationService: LocalControlApiComposition['executionValidationService']
@@ -119,7 +119,7 @@ export class LocalControlPlaneComposition {
           rootDirectory: join(this.dataDirectory, 'secrets'),
         }),
       })
-    if (options.runtimeTransport?.kind === 'remote-gateway') {
+    if (options.runtimeTransport?.transportKind === 'remote-gateway') {
       throw new Error('LOCAL_RUNTIME_TRANSPORT_MUST_BE_DIRECT')
     }
     this.runtimeTransport = options.runtimeTransport

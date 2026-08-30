@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "matrixVersion": "1.0.0",
-  "updatedAt": "2026-08-25T12:00:00.000Z",
+  "updatedAt": "2026-08-29T12:00:00.000Z",
   "classifications": ["supported", "preview", "degraded", "incompatible", "revoked", "untested"],
   "minimumSupportedVersions": [
     {
@@ -46,10 +46,15 @@
         "location": "local_device",
         "environment": "reference-runtime-node"
       },
-      "certifiedAt": "2026-08-25T12:00:00.000Z",
+      "certifiedAt": "2026-08-29T12:00:00.000Z",
       "evidence": [
         {
           "suite": "runtime-adapter-conformance",
+          "source": "packages/managed-pi-adapter/src/index.test.mjs",
+          "command": "bun run test"
+        },
+        {
+          "suite": "direct-local-transport-integration",
           "source": "packages/managed-pi-adapter/src/index.test.mjs",
           "command": "bun run test"
         },
@@ -91,10 +96,15 @@
         "location": "local_device",
         "environment": "reference-runtime-node"
       },
-      "certifiedAt": "2026-08-25T12:00:00.000Z",
+      "certifiedAt": "2026-08-29T12:00:00.000Z",
       "evidence": [
         {
           "suite": "runtime-adapter-conformance",
+          "source": "packages/acp-adapter/src/index.test.mjs",
+          "command": "bun run test"
+        },
+        {
+          "suite": "direct-local-transport-integration",
           "source": "packages/acp-adapter/src/index.test.mjs",
           "command": "bun run test"
         },

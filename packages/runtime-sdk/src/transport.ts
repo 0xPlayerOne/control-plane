@@ -12,6 +12,7 @@ import type {
   RuntimeSessionResult,
   RuntimeStartRequest,
 } from './adapter.js'
+import { RuntimeAdapterInspectionSchema } from './adapter.js'
 
 export type RuntimeTransportKind = 'direct-local' | 'remote-gateway'
 
@@ -29,9 +30,11 @@ export interface RuntimeTransport extends RuntimeAdapter {
   readonly kind: RuntimeTransportKind
 }
 
-abstract class DelegatingRuntimeTransport implements RuntimeTransport {
-  abstract readonly kind: RuntimeTransportKind
+export interface RuntimeAdapterWithTransport extends RuntimeAdapter {
+  readonly transportKind: RuntimeTransportKind
+}
 
+abstract class DelegatingRuntimeAdapter implements RuntimeAdapter {
   constructor(protected readonly driver: RuntimeDriver) {}
 
   inspect(
@@ -86,6 +89,44 @@ abstract class DelegatingRuntimeTransport implements RuntimeTransport {
 
   cleanup(handle: RuntimeExecutionHandle): Promise<void> {
     return this.driver.cleanup(handle)
+  }
+}
+
+abstract class DelegatingRuntimeTransport
+  extends DelegatingRuntimeAdapter
+  implements RuntimeTransport
+{
+  abstract readonly kind: RuntimeTransportKind
+}
+
+/** Adapter-side facade that records topology while preserving the driver's semantic surface. */
+export class TransportedRuntimeAdapter
+  extends DelegatingRuntimeAdapter
+  implements RuntimeAdapterWithTransport
+{
+  readonly transportKind: RuntimeTransportKind
+
+  constructor(
+    protected readonly transport: RuntimeTransport,
+    readonly expectedAdapterName: string
+  ) {
+    super(transport)
+    this.transportKind = transport.kind
+  }
+
+  override async inspect(
+    requirements?: Parameters<RuntimeAdapter['inspect']>[0]
+  ): Promise<RuntimeAdapterInspection> {
+    const inspection = RuntimeAdapterInspectionSchema.parse(
+      await this.transport.inspect(requirements)
+    )
+    if (inspection.metadata.adapterName !== this.expectedAdapterName) {
+      throw new Error('RUNTIME_TRANSPORT_DRIVER_FAMILY_MISMATCH')
+    }
+    return RuntimeAdapterInspectionSchema.parse({
+      ...inspection,
+      metadata: { ...inspection.metadata, transportKind: this.transportKind },
+    })
   }
 }
 
