@@ -33,7 +33,7 @@
     "@control-plane/sqlite-persistence": "workspace:*",
     "@control-plane/workflow-runtime": "workspace:*",
     "@restatedev/restate-server": "1.7.7",
-    "@nestjs/common": "11.2.3",
-    "fastify": "5.11.3"
+    "@nestjs/common": "12.0.1",
+    "fastify": "5.12.1"
   }
 }
