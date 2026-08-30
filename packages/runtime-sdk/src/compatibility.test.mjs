@@ -18,7 +18,7 @@ async function matrix() {
 }
 
 describe('runtime compatibility certification', () => {
-  test('validates exact managed Pi and ACP certification evidence', async () => {
+  test('validates exact managed Pi and ACP transport certification evidence', async () => {
     const parsed = await matrix()
 
     expect(parsed.schemaVersion).toBe(1)
@@ -39,6 +39,9 @@ describe('runtime compatibility certification', () => {
       expect(certification.verifiedCapabilities.length).toBeGreaterThan(0)
       expect(certification.evidence.map(({ suite }) => suite)).toContain(
         'runtime-adapter-conformance'
+      )
+      expect(certification.evidence.map(({ suite }) => suite)).toContain(
+        'direct-local-transport-integration'
       )
       expect(certification.evidence.map(({ suite }) => suite)).toContain(
         'runtime-gateway-integration'

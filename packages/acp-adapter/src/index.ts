@@ -13,6 +13,7 @@ import {
   RuntimeSessionOperationSchema,
   RuntimeSessionResultSchema,
   RuntimeStartRequestSchema,
+  TransportedRuntimeAdapter,
   inspectRuntimeCapabilities,
   assessExternalSession,
   type ExternalSession,
@@ -31,6 +32,7 @@ import {
   type RuntimeProgressOptions,
   type RuntimeSessionOperation,
   type RuntimeSessionResult,
+  type RuntimeTransport,
 } from '@control-plane/runtime-sdk'
 import { z } from 'zod'
 
@@ -234,7 +236,7 @@ export interface AcpExternalSessionsOptions {
   ) => Promise<boolean>
 }
 
-export interface AcpAdapterOptions {
+export interface AcpDriverOptions {
   readonly transport: AcpTransport
   readonly adapterVersion: string
   readonly externalSessionId: (nativeSessionId: string) => string
@@ -254,7 +256,7 @@ interface CachedValue<Value> {
   readonly value: Value
 }
 
-export class AcpAdapter implements RuntimeAdapter {
+export class AcpDriver implements RuntimeAdapter {
   readonly #transport: AcpTransport
   readonly #adapterVersion: string
   readonly #externalSessionId: (nativeSessionId: string) => string
@@ -278,7 +280,7 @@ export class AcpAdapter implements RuntimeAdapter {
   readonly #cleaned = new Set<string>()
   #initialize?: z.output<typeof AcpInitializeResultSchema>
 
-  constructor(options: AcpAdapterOptions) {
+  constructor(options: AcpDriverOptions) {
     this.#transport = options.transport
     this.#adapterVersion = SemanticVersionSchema.parse(options.adapterVersion)
     this.#externalSessionId = options.externalSessionId
@@ -926,6 +928,16 @@ export class AcpAdapter implements RuntimeAdapter {
         ? { capabilityEvaluation: inspectRuntimeCapabilities(capabilities, requirements) }
         : {}),
     })
+  }
+}
+
+export interface AcpAdapterOptions {
+  readonly transport: RuntimeTransport
+}
+
+export class AcpAdapter extends TransportedRuntimeAdapter {
+  constructor(options: AcpAdapterOptions) {
+    super(options.transport, 'acp')
   }
 }
 

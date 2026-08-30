@@ -1,11 +1,22 @@
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
-import { runRuntimeAdapterConformance } from '@control-plane/runtime-sdk'
+import {
+  DirectLocalRuntimeTransport,
+  runRuntimeAdapterConformance,
+} from '@control-plane/runtime-sdk'
 import {
   ManagedPiAdapter,
   ManagedPiConfigurationSchema,
+  ManagedPiDriver,
   translateExecutionPlanToManagedPi,
 } from './index.ts'
+
+const managedPiAdapter = (client) =>
+  new ManagedPiAdapter({
+    transport: new DirectLocalRuntimeTransport(
+      new ManagedPiDriver({ client, adapterVersion: '1.0.0' })
+    ),
+  })
 
 const now = '2026-08-25T12:00:00.000Z'
 const digest = (character) => `sha256:${character.repeat(64)}`
@@ -188,7 +199,7 @@ describe('ManagedPiAdapter plan translation', () => {
 describe('ManagedPiAdapter normalization', () => {
   test('maps capabilities explicitly and normalizes Pi progress and provenance', async () => {
     const client = new RecordingManagedPiClient()
-    const adapter = new ManagedPiAdapter({ client, adapterVersion: '1.0.0' })
+    const adapter = managedPiAdapter(client)
     const inspection = await adapter.inspect([
       { capability: 'stream.output', necessity: 'required' },
       { capability: 'session.history', necessity: 'required', minimumSupport: 'degraded' },
@@ -198,6 +209,7 @@ describe('ManagedPiAdapter normalization', () => {
       eligible: false,
       missingRequired: ['session.history'],
     })
+    expect(inspection.metadata.transportKind).toBe('direct-local')
 
     const handle = await adapter.start({
       attemptId,
@@ -228,7 +240,7 @@ describe('ManagedPiAdapter normalization', () => {
 
   test('passes the shared RuntimeAdapter conformance suite', async () => {
     const client = new RecordingManagedPiClient()
-    const adapter = new ManagedPiAdapter({ client, adapterVersion: '1.0.0' })
+    const adapter = managedPiAdapter(client)
     const report = await runRuntimeAdapterConformance({
       adapter,
       executionPlan: plan(),
@@ -253,7 +265,7 @@ describe('ManagedPiAdapter normalization', () => {
       limitations: [],
       observedAt: now,
     })
-    const incompatible = new ManagedPiAdapter({ client, adapterVersion: '1.0.0' })
+    const incompatible = managedPiAdapter(client)
 
     expect(await incompatible.inspect(plan().runtimeRequirements)).toMatchObject({
       health: 'unavailable',
@@ -274,7 +286,7 @@ describe('ManagedPiAdapter normalization', () => {
     })
 
     const runtimeClient = new RecordingManagedPiClient()
-    const adapter = new ManagedPiAdapter({ client: runtimeClient, adapterVersion: '1.0.0' })
+    const adapter = managedPiAdapter(runtimeClient)
     const handle = await adapter.start({
       attemptId,
       idempotencyKey: 'managed-pi:error',

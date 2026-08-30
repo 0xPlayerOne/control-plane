@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
-import { RuntimeCompatibilityMatrixSchema } from '@control-plane/runtime-sdk'
+import {
+  RemoteRuntimeGatewayTransport,
+  RuntimeCompatibilityMatrixSchema,
+} from '@control-plane/runtime-sdk'
 import { readFile } from 'node:fs/promises'
 import { URL } from 'node:url'
-import { ManagedPiAdapter } from './index.ts'
+import { ManagedPiAdapter, ManagedPiDriver } from './index.ts'
 import {
   ManagedPiGatewayClient,
   ReferenceManagedPiDriver,
@@ -97,11 +100,15 @@ function fixture(scenario = 'complete', transportOptions = {}) {
     driver,
     transport,
     client,
-    adapter: new ManagedPiAdapter({ client, adapterVersion: '1.0.0' }),
+    adapter: new ManagedPiAdapter({
+      transport: new RemoteRuntimeGatewayTransport(
+        new ManagedPiDriver({ client, adapterVersion: '1.0.0' })
+      ),
+    }),
   }
 }
 
-describe('local Managed Pi through Runtime Gateway', () => {
+describe('non-co-located Managed Pi through Runtime Gateway', () => {
   test('matches the exact supported compatibility certification capability claim', async () => {
     const { adapter, transport } = fixture()
     const inspection = await adapter.inspect()
@@ -136,6 +143,7 @@ describe('local Managed Pi through Runtime Gateway', () => {
         adapterVersion: '1.0.0',
         driverVersion: '1.0.0',
         harnessVersion: '0.52.1',
+        transportKind: 'remote-gateway',
       },
       capabilityEvaluation: { eligible: true },
     })
