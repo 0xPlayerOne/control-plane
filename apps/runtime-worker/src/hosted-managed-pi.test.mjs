@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
 import {
@@ -5,6 +8,7 @@ import {
   ManagedPiDriver,
   translateExecutionPlanToManagedPi,
 } from '@control-plane/managed-pi-adapter'
+import { FilesystemObjectStore } from '@control-plane/object-store'
 import {
   evaluateRuntimeEligibility,
   RemoteRuntimeGatewayTransport,
@@ -15,6 +19,7 @@ import {
   HostedManagedPiClient,
   HostedManagedPiWorker,
   InMemoryHostedArtifactStore,
+  ObjectStoreHostedArtifactStore,
   ReferenceRuntimeHostProvider,
   buildHostedManagedPiRuntimeConnection,
 } from './hosted-managed-pi.ts'
@@ -99,6 +104,47 @@ function fixture(scenario = 'complete') {
 }
 
 describe('hosted managed Pi runtime worker', () => {
+  test('persists one replay-safe terminal Artifact through the configured ObjectStore', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-artifact-'))
+    const objectStore = new FilesystemObjectStore({
+      rootDirectory: directory,
+      maxObjectBytes: 1024 * 1024,
+    })
+    const artifactStore = new ObjectStoreHostedArtifactStore(objectStore)
+    try {
+      const first = await artifactStore.persist({
+        attemptId: ids.attemptId,
+        mediaType: 'application/json',
+        value: { nested: { answer: 'complete' }, ok: true },
+      })
+      const replay = await new ObjectStoreHostedArtifactStore(objectStore).persist({
+        attemptId: ids.attemptId,
+        mediaType: 'application/json',
+        value: { ok: true, nested: { answer: 'complete' } },
+      })
+      expect(replay).toEqual(first)
+      expect(first).toMatchObject({
+        artifactId: `art_${ids.attemptId.slice(4)}`,
+        mediaType: 'application/json',
+        locator: `artifact://runtime-results/${ids.attemptId}/result.json`,
+      })
+      expect(await objectStore.get(`runtime-results/${ids.attemptId}/result.json`)).toMatchObject({
+        sha256: first.digest,
+        size: first.sizeBytes,
+      })
+      await expect(
+        new ObjectStoreHostedArtifactStore(objectStore).persist({
+          attemptId: ids.attemptId,
+          mediaType: 'application/json',
+          value: { ok: false },
+        })
+      ).rejects.toThrow('HOSTED_ARTIFACT_RESULT_CONFLICT')
+    } finally {
+      objectStore.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('uses the same normalized plan as local managed Pi under bounded delegated authority', async () => {
     const { adapter, host, artifactStore } = fixture()
     const handle = await adapter.start({
