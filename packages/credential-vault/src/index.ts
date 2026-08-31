@@ -9,6 +9,7 @@ import {
 import { z } from 'zod'
 
 const TimestampSchema = z.iso.datetime()
+const maximumCredentialLeaseClockSkewMs = 30_000
 const ReferenceSchema = z
   .string()
   .min(1)
@@ -233,11 +234,16 @@ export class CredentialVault {
     if (metadata.status === 'revoked') fail('CREDENTIAL_REVOKED')
     if (metadata.status === 'expired') fail('CREDENTIAL_EXPIRED')
     if (metadata.workspaceId !== input.workspaceId) fail('LEASE_SCOPE_MISMATCH')
-    const ttl = Date.parse(input.expiresAt) - Date.parse(input.requestedAt)
-    if (ttl <= 0 || ttl > 300_000 || Date.parse(input.expiresAt) <= Date.parse(this.#now())) {
+    const issuedAt = TimestampSchema.parse(this.#now())
+    const requestedAt = TimestampSchema.parse(input.requestedAt)
+    const expiresAt = TimestampSchema.parse(input.expiresAt)
+    const issuedAtMilliseconds = Date.parse(issuedAt)
+    const requestClockSkew = Math.abs(Date.parse(requestedAt) - issuedAtMilliseconds)
+    const ttl = Date.parse(expiresAt) - issuedAtMilliseconds
+    if (requestClockSkew > maximumCredentialLeaseClockSkewMs || ttl <= 0 || ttl > 300_000) {
       fail('LEASE_EXPIRED')
     }
-    if (metadata.expiresAt && Date.parse(input.expiresAt) > Date.parse(metadata.expiresAt)) {
+    if (metadata.expiresAt && Date.parse(expiresAt) > Date.parse(metadata.expiresAt)) {
       fail('LEASE_EXPIRED')
     }
     let decision: z.output<typeof PolicyDecisionSchema>
@@ -263,7 +269,7 @@ export class CredentialVault {
               resourceRef: input.resourceRef,
             },
           },
-          context: { workspaceId: metadata.workspaceId, requestedAt: input.requestedAt },
+          context: { workspaceId: metadata.workspaceId, requestedAt: issuedAt },
           policySnapshot: input.policySnapshot,
         })
       )
@@ -285,12 +291,12 @@ export class CredentialVault {
       principalRef: input.principalRef,
       operation: input.operation,
       resourceRef: input.resourceRef,
-      capabilityRef: `lease://${leaseId}/${hash({ leaseId, decisionId: decision.decisionId, expiresAt: input.expiresAt })}`,
+      capabilityRef: `lease://${leaseId}/${hash({ leaseId, decisionId: decision.decisionId, expiresAt })}`,
       status: 'active',
       policySnapshot: decision.policySnapshot,
       policyDecisionId: decision.decisionId,
-      issuedAt: input.requestedAt,
-      expiresAt: input.expiresAt,
+      issuedAt,
+      expiresAt,
     })
     this.#leases.set(lease.capabilityRef, { lease, secretReference })
     this.#record('lease.issued', metadata, leaseId)
