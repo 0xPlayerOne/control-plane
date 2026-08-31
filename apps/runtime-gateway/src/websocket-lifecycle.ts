@@ -3,7 +3,9 @@ import {
   GatewayHeartbeatEnvelopeSchema,
   GatewayHelloEnvelopeSchema,
   GatewayProtocolManifest,
+  GatewayCommandEnvelopeSchema,
   negotiateGatewayProtocolVersion,
+  type GatewayCommandEnvelope,
   type GatewayEnvelope,
   type GatewayHelloEnvelope,
   type GatewayProtocolVersion,
@@ -57,6 +59,18 @@ export interface RuntimeGatewayWebSocketLifecycleOptions {
   readonly now?: () => Date
   readonly messages?: RuntimeGatewayMessageHandler
   readonly reconnect?: RuntimeGatewayReconnectHandler
+}
+
+export class RuntimeGatewayOutboundError extends Error {
+  constructor(
+    readonly code:
+      | 'RUNTIME_GATEWAY_CHANNEL_UNAVAILABLE'
+      | 'RUNTIME_GATEWAY_CHANNEL_BACKPRESSURED'
+      | 'RUNTIME_GATEWAY_COMMAND_TOO_LARGE'
+  ) {
+    super(code)
+    this.name = 'RuntimeGatewayOutboundError'
+  }
 }
 
 interface LocalConnection {
@@ -159,6 +173,32 @@ export class RuntimeGatewayWebSocketLifecycle {
   async disconnect(connectionId: string, reason = 'peer_disconnected'): Promise<void> {
     const connection = this.#connections.get(connectionId)
     if (connection !== undefined) await this.#disconnect(connection, 1000, reason)
+  }
+
+  async send(commandValue: GatewayCommandEnvelope): Promise<void> {
+    const command = GatewayCommandEnvelopeSchema.parse(commandValue)
+    const coordinated = await this.#coordination.lookup(command.nodeId)
+    const connection =
+      coordinated?.gatewayInstanceId === this.#instanceId
+        ? this.#connections.get(coordinated.connectionId)
+        : undefined
+    if (
+      coordinated === undefined ||
+      connection?.state !== 'active' ||
+      connection.record === undefined ||
+      !sameChannel(connection.record, coordinated)
+    ) {
+      throw new RuntimeGatewayOutboundError('RUNTIME_GATEWAY_CHANNEL_UNAVAILABLE')
+    }
+    await connection.authenticatedChannel.assertCommandAllowed(command)
+    const serialized = JSON.stringify(command)
+    if (Buffer.byteLength(serialized) > this.#limits.maxFrameBytes) {
+      throw new RuntimeGatewayOutboundError('RUNTIME_GATEWAY_COMMAND_TOO_LARGE')
+    }
+    if (connection.socket.bufferedAmount() > this.#limits.maxBufferedBytes) {
+      throw new RuntimeGatewayOutboundError('RUNTIME_GATEWAY_CHANNEL_BACKPRESSURED')
+    }
+    connection.socket.send(serialized)
   }
 
   async closed(connectionId: string, reason = 'peer_disconnected'): Promise<void> {

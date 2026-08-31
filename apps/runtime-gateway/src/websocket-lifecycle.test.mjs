@@ -40,6 +40,24 @@ describe('Runtime Gateway WebSocket lifecycle', () => {
     ).toBe(1)
   })
 
+  test('sends a scoped durable command through the authenticated active channel', async () => {
+    const fixture = setup('gateway-a')
+    const socket = new FakeSocket()
+    fixture.gateway.open(connection('gwc-a', channel(1), socket))
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.hello))
+
+    await fixture.gateway.send(golden.command)
+
+    expect(JSON.parse(socket.sent.at(-1))).toEqual(golden.command)
+    await expect(
+      fixture.gateway.send({ ...golden.command, nodeId: otherNodeId })
+    ).rejects.toMatchObject({ code: 'RUNTIME_GATEWAY_CHANNEL_UNAVAILABLE' })
+    socket.bufferedBytes = 1_025
+    await expect(fixture.gateway.send(golden.command)).rejects.toMatchObject({
+      code: 'RUNTIME_GATEWAY_CHANNEL_BACKPRESSURED',
+    })
+  })
+
   test('reconnects across instances and replaces stale logical sessions deterministically', async () => {
     const coordination = new InMemoryRuntimeNodeCoordination()
     const durableState = new Map([['cmd_pending', { result: 'retained' }]])
