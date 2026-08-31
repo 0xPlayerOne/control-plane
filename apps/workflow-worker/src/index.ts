@@ -24,6 +24,12 @@ import type { GraphSegmentActivityPort } from './graph-segment-activity.js'
 import { CloudCertificationRuntime } from './cloud-certification-runtime.js'
 import { DisabledCloudRuntime } from './cloud-disabled-runtime.js'
 
+export { RuntimeDiscoveryAttemptRouter } from './runtime-attempt-router.js'
+export type {
+  RuntimeDiscoveryAttemptRouterOptions,
+  RuntimeDiscoveryReadPort,
+} from './runtime-attempt-router.js'
+
 export const serviceName = 'workflow-worker'
 
 export interface WorkflowWorkerStartOptions {
