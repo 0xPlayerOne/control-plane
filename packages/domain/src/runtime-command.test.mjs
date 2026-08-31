@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { InMemoryRuntimeCommandRepository, RuntimeCommandRecordSchema } from './runtime-command.js'
+import {
+  InMemoryRuntimeCommandRepository,
+  RuntimeCommandRecordSchema,
+  createQueuedRuntimeCommandRecord,
+} from './runtime-command.js'
 
 const queued = {
   commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -21,6 +25,44 @@ const queued = {
 }
 
 describe('runtime command ledger', () => {
+  test('constructs the canonical queued record from a validated transport envelope', () => {
+    expect(
+      createQueuedRuntimeCommandRecord(
+        {
+          type: 'command',
+          commandId: queued.commandId,
+          executionId: queued.executionId,
+          attemptId: queued.attemptId,
+          nodeId: queued.nodeId,
+          runtimeConnectionId: queued.runtimeConnectionId,
+          workspaceId: queued.workspaceId,
+          idempotencyKey: queued.idempotencyKey,
+          payloadHash: queued.payloadHash,
+          issuedAt: queued.issuedAt,
+          expiresAt: queued.expiresAt,
+          payload: { version: 1, parameters: {} },
+        },
+        queued.createdAt
+      )
+    ).toEqual({
+      ...queued,
+      commandEnvelope: {
+        type: 'command',
+        commandId: queued.commandId,
+        executionId: queued.executionId,
+        attemptId: queued.attemptId,
+        nodeId: queued.nodeId,
+        runtimeConnectionId: queued.runtimeConnectionId,
+        workspaceId: queued.workspaceId,
+        idempotencyKey: queued.idempotencyKey,
+        payloadHash: queued.payloadHash,
+        issuedAt: queued.issuedAt,
+        expiresAt: queued.expiresAt,
+        payload: { version: 1, parameters: {} },
+      },
+    })
+  })
+
   test('requires complete delivery metadata for dispatched commands', () => {
     expect(() => RuntimeCommandRecordSchema.parse({ ...queued, status: 'dispatched' })).toThrow()
   })

@@ -1,4 +1,5 @@
 import {
+  createQueuedRuntimeCommandRecord,
   RuntimeCommandRecordSchema,
   RuntimeCommandResultReferenceSchema,
   type RuntimeCommandRecord,
@@ -69,24 +70,7 @@ export class RuntimeCommandDeliveryService {
       throw new RuntimeCommandDeliveryError('RUNTIME_COMMAND_SCOPE_MISMATCH')
     }
     const now = this.#now().toISOString()
-    const record = RuntimeCommandRecordSchema.parse({
-      commandId: command.commandId,
-      executionId: command.executionId,
-      attemptId: command.attemptId,
-      nodeId: command.nodeId,
-      runtimeConnectionId: command.runtimeConnectionId,
-      workspaceId: command.workspaceId,
-      idempotencyKey: command.idempotencyKey,
-      payloadHash: command.payloadHash,
-      commandEnvelope: command,
-      issuedAt: command.issuedAt,
-      expiresAt: command.expiresAt,
-      status: 'queued',
-      version: 1,
-      deliveryAttempts: 0,
-      createdAt: now,
-      updatedAt: now,
-    })
+    const record = createQueuedRuntimeCommandRecord(command, now)
     const created = await this.#repository.create(record)
     if (created.outcome === 'conflict') {
       throw new RuntimeCommandDeliveryError('RUNTIME_COMMAND_PAYLOAD_MISMATCH')

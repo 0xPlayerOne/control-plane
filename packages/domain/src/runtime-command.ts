@@ -118,6 +118,48 @@ export const RuntimeCommandRecordSchema = z
 export type RuntimeCommandStatus = z.output<typeof RuntimeCommandStatusSchema>
 export type RuntimeCommandRecord = z.output<typeof RuntimeCommandRecordSchema>
 
+const RuntimeCommandEnvelopeIdentitySchema = z
+  .object({
+    commandId: IdentifierSchemas.commandId,
+    executionId: IdentifierSchemas.executionId,
+    attemptId: IdentifierSchemas.attemptId,
+    nodeId: IdentifierSchemas.runtimeNodeRefId,
+    runtimeConnectionId: IdentifierSchemas.runtimeConnectionId,
+    workspaceId: IdentifierSchemas.workspaceId,
+    idempotencyKey: RuntimeCommandRecordSchema.shape.idempotencyKey,
+    payloadHash: RuntimeCommandRecordSchema.shape.payloadHash,
+    issuedAt: TimestampSchema,
+    expiresAt: TimestampSchema,
+  })
+  .passthrough()
+
+export function createQueuedRuntimeCommandRecord(
+  commandValue: unknown,
+  createdAtValue: string
+): RuntimeCommandRecord {
+  const command = RuntimeCommandEnvelopeIdentitySchema.parse(commandValue)
+  const commandEnvelope = z.record(z.string(), z.json()).parse(commandValue)
+  const createdAt = TimestampSchema.parse(createdAtValue)
+  return RuntimeCommandRecordSchema.parse({
+    commandId: command.commandId,
+    executionId: command.executionId,
+    attemptId: command.attemptId,
+    nodeId: command.nodeId,
+    runtimeConnectionId: command.runtimeConnectionId,
+    workspaceId: command.workspaceId,
+    idempotencyKey: command.idempotencyKey,
+    payloadHash: command.payloadHash,
+    commandEnvelope,
+    issuedAt: command.issuedAt,
+    expiresAt: command.expiresAt,
+    status: 'queued',
+    version: 1,
+    deliveryAttempts: 0,
+    createdAt,
+    updatedAt: createdAt,
+  })
+}
+
 export interface RuntimeCommandCreateResult {
   readonly outcome: 'created' | 'duplicate' | 'conflict'
   readonly record: RuntimeCommandRecord
