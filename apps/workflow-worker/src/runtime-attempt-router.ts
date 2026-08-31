@@ -88,7 +88,9 @@ export class RuntimeDiscoveryAttemptRouter implements RuntimeAttemptRouter {
 
 interface Candidate {
   readonly connection: RuntimeConnectionDiscoveryReadModel
-  readonly runtimeNodeRefId: NonNullable<RuntimeConnectionDiscoveryReadModel['node']>['runtimeNodeRefId']
+  readonly runtimeNodeRefId: NonNullable<
+    RuntimeConnectionDiscoveryReadModel['node']
+  >['runtimeNodeRefId']
   readonly degraded: boolean
 }
 

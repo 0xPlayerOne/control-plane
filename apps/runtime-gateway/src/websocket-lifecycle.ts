@@ -296,8 +296,7 @@ export class RuntimeGatewayWebSocketLifecycle {
     connection.socket.send(JSON.stringify(serverHello(record, hello.lastAcknowledgedSequence)))
     try {
       const recovery = await this.#reconnect?.reconcile(hello, record)
-      connection.nextOutboundSequence +=
-        (recovery?.redelivered ?? 0) + (recovery?.expired ?? 0)
+      connection.nextOutboundSequence += (recovery?.redelivered ?? 0) + (recovery?.expired ?? 0)
     } catch {
       await this.#disconnect(connection, 1011, 'reconnect_reconciliation_failed')
     }
