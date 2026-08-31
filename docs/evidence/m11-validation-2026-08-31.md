@@ -66,16 +66,18 @@ mapping through the machine ledger.
 All results used Bun `1.4.1-canary.1` from the repository's Bun `1.4.x`
 toolchain on macOS Darwin 25.6.0:
 
-| Command              | Result                                      | Runner time |
-| -------------------- | ------------------------------------------- | ----------: |
-| `bun run test:unit`  | 601 passed; 101 files; coverage gate passed |     11.22 s |
-| `bun run test:e2e`   | 89 passed; 12 files                         |     14.56 s |
-| `bun run test:smoke` | 45 passed; 5 files                          |     10.44 s |
+| Command                    | Result                                      | Runner time |
+| -------------------------- | ------------------------------------------- | ----------: |
+| `bun run test:unit`        | 601 passed; 101 files; coverage gate passed |     11.22 s |
+| `bun run test:integration` | 25 passed; 4 files; recovery drills passed  |     55.90 s |
+| `bun run test:e2e`         | 89 passed; 12 files                         |     14.56 s |
+| `bun run test:smoke`       | 45 passed; 5 files                          |     10.44 s |
 
 Unit coverage was 86.54% lines and 82.97% functions against the 80% minimum.
 The three credential-free lanes passed in randomized order at seed `1104`.
-PostgreSQL integration is intentionally certified in the isolated Linux audit
-job rather than reusing the stopped developer-host database volume.
+PostgreSQL integration passed through the isolated database harness, including
+all four inventoried integration files plus connection-loss, service-restart,
+backup, and restore drills; the Linux audit job independently repeats it.
 
 Additional local gates passed:
 

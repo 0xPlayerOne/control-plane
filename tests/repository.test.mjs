@@ -118,6 +118,11 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
     'packages/profile-portability/src/postgres.integration.test.mjs',
     'packages/testing/src/postgres.integration.test.mjs',
   ])
+  const portabilityManifest = await readJson('packages/profile-portability/package.json')
+  assert.match(
+    portabilityManifest.scripts['test:integration'],
+    /src\/postgres\.integration\.test\.mjs/
+  )
   assert.deepEqual(e2e, [
     'tests/m2-core-domain.test.mjs',
     'tests/m3-durable-execution.test.mjs',
