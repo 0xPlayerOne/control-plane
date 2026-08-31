@@ -59,6 +59,27 @@ describe('durable remote workflow runtime', () => {
     ).rejects.toThrow('REMOTE_RUNTIME_COMMAND_SCOPE_MISMATCH')
     expect(await commands.get(golden.command.commandId)).toBeUndefined()
   })
+
+  test('queues and waits for an attempt-bound runtime cancellation command', async () => {
+    const commands = new InMemoryRuntimeCommandRepository()
+    const waits = []
+    const runtime = fixture(commands, {
+      wait: async (input) => {
+        waits.push(input)
+        return { outcome: 'cancelled' }
+      },
+    })
+
+    await runtime.cancel({
+      executionId: golden.command.executionId,
+      attemptId: golden.command.attemptId,
+      effectKey: 'workflow:cancel:stable',
+      reason: 'deadline',
+    })
+
+    expect(waits).toHaveLength(1)
+    expect(waits[0].command.commandEnvelope.operation).toBe('runtime.cancel')
+  })
 })
 
 function fixture(commands, waiter, createExecute = () => golden.command) {
@@ -74,7 +95,21 @@ function fixture(commands, waiter, createExecute = () => golden.command) {
       }),
     },
     commands,
-    factory: { createExecute },
+    factory: {
+      createExecute,
+      createCancel: () => ({
+        ...golden.command,
+        operation: 'runtime.cancel',
+        requiredCapabilities: ['execution.cancel'],
+        payload: {
+          version: 1,
+          parameters: {
+            handleId: `managed-pi:${golden.command.attemptId}`,
+            requestedAt: '2026-08-25T12:00:00.000Z',
+          },
+        },
+      }),
+    },
     waiter,
     now: () => new Date('2026-08-25T12:00:00.000Z'),
   })

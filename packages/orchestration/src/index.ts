@@ -53,6 +53,7 @@ export const GraphCancellationRequestSchema = GraphCorrelationSchema.extend({
   graph: GraphReferenceSchema,
   threadId: SafeReferenceSchema,
   reason: z.enum(['user_request', 'parent_cancelled', 'deadline', 'policy', 'shutdown']),
+  idempotencyKey: SafeReferenceSchema,
 }).strict()
 
 export const GraphEventSchema = GraphCorrelationSchema.extend({
@@ -166,11 +167,11 @@ export type ExecutionWorkflowInput = z.output<typeof ExecutionWorkflowInputSchem
 
 export interface GraphNodeOperationPort {
   invoke(operation: GraphNodeOperation): Promise<Readonly<Record<string, unknown>>>
-  cancel(executionId: string, threadId: string): Promise<boolean>
+  cancel(executionId: string, threadId: string, idempotencyKey: string): Promise<boolean>
 }
 
 export interface GraphEventPublisher {
-  publish(event: GraphEvent): Promise<void>
+  publish(event: GraphEvent, idempotencyKey: string): Promise<void>
 }
 
 export interface OrchestrationPort {

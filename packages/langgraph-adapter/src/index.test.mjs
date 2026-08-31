@@ -123,6 +123,7 @@ describe('LangGraph orchestration adapter', () => {
   })
 
   test('normalizes graph failures and cancellation without exposing input', async () => {
+    const cancellationKeys = []
     const adapter = new LangGraphOrchestrationAdapter({
       graphs: [deterministicTestGraph(request.graph)],
       checkpointer: new MemorySaver(),
@@ -130,11 +131,16 @@ describe('LangGraph orchestration adapter', () => {
         async invoke() {
           throw new Error('provider secret verify boundaries')
         },
-        async cancel() {
+        async cancel(_executionId, _threadId, idempotencyKey) {
+          cancellationKeys.push(idempotencyKey)
           return true
         },
       },
-      events: { async publish() {} },
+      events: {
+        async publish(event, idempotencyKey) {
+          if (event.type === 'graph.cancelled') cancellationKeys.push(idempotencyKey)
+        },
+      },
     })
     await expect(adapter.run(request)).resolves.toMatchObject({
       status: 'failed',
@@ -149,8 +155,10 @@ describe('LangGraph orchestration adapter', () => {
         graph: request.graph,
         threadId: request.threadId,
         reason: 'user_request',
+        idempotencyKey: 'workflow:cancel:stable',
       })
     ).resolves.toBe(true)
+    expect(cancellationKeys).toEqual(['workflow:cancel:stable', 'workflow:cancel:stable'])
   })
 
   test('resumes an interrupt from its exact durable checkpoint after adapter restart', async () => {

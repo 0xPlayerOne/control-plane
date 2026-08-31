@@ -237,6 +237,42 @@ describe('managed Pi remote command factory', () => {
       })
     ).rejects.toThrow('REMOTE_RUNTIME_INTERACTION_STALE')
   })
+
+  test('creates an attempt-bound cancellation command without an interaction record', async () => {
+    const plan = createExecutionPlanTestFixture()
+    const factory = new ManagedPiRemoteCommandFactory({
+      contextPackages: { get: async () => undefined },
+      runtimeDiscovery: { getRuntimeConnection: async () => runtimeConnection() },
+      executions: {
+        getExecution: async () => ({
+          executionId: ids.executionId,
+          correlation: plan.correlation,
+        }),
+      },
+      interactions: { get: async () => undefined },
+      now: () => new Date('2026-08-25T12:06:00.000Z'),
+    })
+
+    const command = await factory.createCancel({
+      executionId: ids.executionId,
+      attempt: { ...attempt(), deadlineAt: '2026-08-25T12:05:00.000Z' },
+      effectKey: 'workflow:execution-lifecycle-v1:cancel-active:cancelled',
+      reason: 'user_request',
+    })
+
+    expect(command).toMatchObject({
+      operation: 'runtime.cancel',
+      requiredCapabilities: ['execution.cancel'],
+      expiresAt: '2026-08-25T12:11:00.000Z',
+      payload: {
+        version: 1,
+        parameters: {
+          handleId: `managed-pi:${ids.attemptId}`,
+          requestedAt: '2026-08-25T12:06:00.000Z',
+        },
+      },
+    })
+  })
 })
 
 function respondedInteraction(action, value) {

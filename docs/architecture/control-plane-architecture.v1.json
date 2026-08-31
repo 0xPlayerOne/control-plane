@@ -1193,7 +1193,7 @@
         "owner": "managed-cloud-runtime",
         "disposition": "Wire a production RuntimeTransport/activity implementation and concrete discovery/provider ports before claiming general Cloud execution readiness."
       },
-      "sourceDigest": "sha256:4ed240c1440cb830baf48fb2f969fc37e8a609ee0af793411a3600c77552adbb"
+      "sourceDigest": "sha256:8ed1fd30dc9d702df2025e8a091eaf997086f6323a44b7df3414bc928abcd2fe"
     },
     {
       "id": "hosted-server",
@@ -1271,7 +1271,7 @@
         "owner": "hosted-simple-runtime",
         "disposition": "Certify the packaged managed Pi process client with a live provider and package a supported concrete ACP launcher."
       },
-      "sourceDigest": "sha256:158fca268d8b79a5de09b93eb1a729efc371052de19f72165e404bbf5c576654"
+      "sourceDigest": "sha256:d683fe44252128c890abf5d79bc6570c1b91d893994213730ae87560bfa6fdef"
     },
     {
       "id": "local",
@@ -1310,7 +1310,7 @@
         "owner": "local-runtime",
         "disposition": "Certify the packaged managed Pi process client with a live provider and package a supported concrete ACP launcher."
       },
-      "sourceDigest": "sha256:158fca268d8b79a5de09b93eb1a729efc371052de19f72165e404bbf5c576654"
+      "sourceDigest": "sha256:d683fe44252128c890abf5d79bc6570c1b91d893994213730ae87560bfa6fdef"
     }
   ],
   "ownership": [

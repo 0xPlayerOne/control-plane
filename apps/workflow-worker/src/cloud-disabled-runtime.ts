@@ -11,6 +11,8 @@ export class DisabledCloudRuntime implements WorkflowRuntimeActivityPort {
     return disabledOutcome()
   }
 
+  async cancel(): Promise<void> {}
+
   async cleanup(): Promise<void> {}
 }
 
