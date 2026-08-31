@@ -15,6 +15,18 @@ const classifications = new Set([
   'not_implemented',
 ])
 const normativeStates = new Set(['accepted', 'planned', 'tbd', 'deprecated', 'superseded'])
+const validationLanes = new Set([
+  'unit',
+  'contract/schema',
+  'integration',
+  'end-to-end',
+  'smoke/configuration',
+  'security/adversarial',
+  'eval',
+  'performance/capacity',
+  'recovery/chaos',
+  'infrastructure/live-provider certification',
+])
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
 const ledgerPath = resolve(repositoryRoot, 'docs/requirements/control-plane-requirements.v1.json')
 const reportPath = resolve(repositoryRoot, 'docs/requirements/control-plane-requirements.md')
@@ -131,6 +143,9 @@ export async function validateRequirementsLedger(ledger, options = {}) {
     rowIds.add(row.id)
     if (!classifications.has(row.classification)) {
       errors.push(`${row.id}: invalid classification ${row.classification}`)
+    }
+    if (!validationLanes.has(row.lane)) {
+      errors.push(`${row.id}: invalid validation lane ${String(row.lane)}`)
     }
     if (!Array.isArray(row.evidence) || row.evidence.length === 0) {
       errors.push(`${row.id}: evidence is required`)

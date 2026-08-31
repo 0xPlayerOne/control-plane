@@ -35,7 +35,20 @@ jobs:
       - run: bun run test:unit
       - run: bun run test:isolation-matrix
       - run: bun run test:secret-canaries
-      - run: bun run test:m9-acceptance
+      - name: Run hardening and load evidence
+        shell: bash
+        run: |
+          mkdir -p m11-evidence
+          set -o pipefail
+          bun run test:m9-acceptance | tee m11-evidence/load.jsonl
+      - name: Retain load evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: m11-load-${{ github.sha }}
+          path: m11-evidence/load.jsonl
+          if-no-files-found: error
+          retention-days: 30
       - run: bun audit
 
   integration-recovery:
@@ -52,7 +65,20 @@ jobs:
       - run: npm install --global bun@1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: bun run test:recovery-matrix
+      - name: Run recovery evidence
+        shell: bash
+        run: |
+          mkdir -p m11-evidence
+          set -o pipefail
+          bun run test:recovery-matrix | tee m11-evidence/recovery.log
+      - name: Retain recovery evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: m11-recovery-${{ github.sha }}
+          path: m11-evidence/recovery.log
+          if-no-files-found: error
+          retention-days: 30
 
   containers:
     name: Production containers
@@ -64,9 +90,20 @@ jobs:
           persist-credentials: false
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - run: >-
-          docker buildx bake -f infrastructure/containers/docker-bake.hcl
-          default database-migrate
+      - name: Build production containers with provenance metadata
+        run: |
+          mkdir -p m11-evidence
+          docker buildx bake -f infrastructure/containers/docker-bake.hcl \
+            --metadata-file m11-evidence/container-metadata.json \
+            default database-migrate
+      - name: Retain container evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: m11-containers-${{ github.sha }}
+          path: m11-evidence/container-metadata.json
+          if-no-files-found: error
+          retention-days: 30
 
   # Stable required check: M9 Production Readiness / Gate
   gate:

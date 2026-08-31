@@ -116,6 +116,22 @@ recovery, and idempotency rather than internal call order.
 The aggregate release gate cannot pass when a required lane is skipped, cancelled, missing, or inconclusive. M11 must identify the exact deployment profile/configuration/version used by each production-shaped test.
 Independent test groups run in parallel where their resources are isolated.
 
+`scripts/run-bun-test-group.mjs` is the executable primary-lane inventory. Every
+tracked `*.test.mjs` under `apps/`, `packages/`, and `tests/` belongs to exactly
+one of the public Code Foundry jobs: unit, integration, E2E, or smoke. The
+machine requirement ledger separately assigns every requirement to exactly one
+of the ten validation classes above; security, eval, performance, recovery, and
+live-provider suites may supplement a primary test job without duplicating its
+ownership.
+
+All Bun group runs randomize order with the fixed seed `1104`. A caller may set
+another explicit seed for diagnostic reproduction, but automatic `--retry` and
+`--rerun-each` are rejected: a retry is diagnostic evidence, never a way to turn
+a flaky failure green. The per-test budget is 30 seconds for normal groups and
+60 seconds for the standalone matrix. GitHub job timeouts remain the outer
+resource limit, and mutable PostgreSQL, Compose, process, port, and filesystem
+fixtures own their cleanup in the lane that created them.
+
 ## Current PostgreSQL integration fixture
 
 The repository currently starts a pinned local PostgreSQL service for integration testing. That remains useful for:

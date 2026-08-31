@@ -11,7 +11,7 @@ codeql_rust_shards: '["all"]'
 codeql_rust_threads: 1
 codeql_rust_max_parallel: 1
 runtime_repository: 0xPlayerOne/code-foundry
-runtime_ref: v0.39.4
+runtime_ref: v0.40.0
 runner: ubuntu-latest
 ci_runner: ubuntu-latest
 test_runner: ubuntu-latest
@@ -21,6 +21,7 @@ codeql_runner: ubuntu-latest
 pr_runner: ubuntu-latest
 release_runner: ubuntu-latest
 toolchain: auto
+staging_validation_mode: audit
 cache_packages: auto
 cache_build: auto
 coverage_minimum: 80

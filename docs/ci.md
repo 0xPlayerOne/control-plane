@@ -1,15 +1,15 @@
 # Continuous integration
 
-Code Foundry v0.39.4 is the CI control plane for this repository. Its generated
-callers are pinned under `.github/workflows/` and use the staging-release
+Code Foundry v0.40.0 is the CI control plane for this repository. Generated callers are pinned under `.github/workflows/` and use the staging-release
 topology: feature branches target `staging`, and validated `staging` changes are
 promoted to `main`.
 
 ## Required pull-request gate
 
-`Validation / Gate` is the single stable Code Foundry check. Pull requests into
-`staging` use the fast CI and unit-test tier; pull requests into `main`, including
-the `staging` promotion, use the audit tier. Each tier fans out independent jobs
+`Validation / Gate` is the single stable Code Foundry check. This repository sets
+`staging_validation_mode: audit`, so pull requests into both `staging` and `main`
+run CI, all four test jobs, Security, and CodeQL. Release Please pull requests use
+the separate release-policy tier. Each tier fans out independent jobs
 and aggregates their results. Each workflow cancels superseded work for the same
 branch while unrelated pull requests, scheduled audits, and manual runs remain
 parallel. Turborepo schedules build work from its dependency graph, while Bun's
@@ -36,8 +36,9 @@ for any other configured merge strategy.
 CodeQL and GitHub Dependency Review use Code Foundry's `auto` policy and are
 enabled for this public repository. TypeScript and GitHub Actions analysis run
 in parallel with Code Foundry's native dependency audit as part of the audit
-gate. OpenCode security remains disabled because it is an optional external
-integration and is not part of the repository's credential-free baseline.
+gate. OpenCode Security is opted in, but its Detect and Scan jobs skip when the
+repository does not expose `OPENCODE_API_KEY`; those optional jobs are not part
+of the credential-free `Validation / Gate`.
 
 Maintainers must treat successful `Validation / Gate`, `Foundation Acceptance /
 Gate`, and `M9 Production Readiness / Gate` checks as required and merge only

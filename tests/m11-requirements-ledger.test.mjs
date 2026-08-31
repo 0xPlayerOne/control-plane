@@ -122,6 +122,16 @@ describe('M11.1 requirements ledger', () => {
         })
       ).errors.some((error) => error.includes('source gap'))
     ).toBe(true)
+
+    const unknownLane = clone(ledger)
+    unknownLane.requirements[0].lane = 'miscellaneous'
+    expect(
+      (
+        await validateRequirementsLedger(unknownLane, {
+          repositoryRoot: new URL('..', import.meta.url),
+        })
+      ).errors
+    ).toContain(`${unknownLane.requirements[0].id}: invalid validation lane miscellaneous`)
   })
 
   test('reports no provenance warning when the pinned candidate is reachable', async () => {
