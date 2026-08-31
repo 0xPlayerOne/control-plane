@@ -83,6 +83,46 @@ describe('connector credential vault', () => {
     })
   })
 
+  test('rejects caller timestamps outside the clock-skew window before policy evaluation', async () => {
+    const { vault } = await fixture()
+    const policyRequestCount = allowPdp.requests.length
+
+    await expect(
+      vault.lease(
+        leaseRequest({
+          requestedAt: '2027-08-25T09:00:00.000Z',
+          expiresAt: '2027-08-25T09:05:00.000Z',
+        })
+      )
+    ).rejects.toMatchObject({ code: 'LEASE_EXPIRED' })
+    await expect(
+      vault.lease(
+        leaseRequest({
+          credentialLeaseId: 'crl_01JABCDEF0123456789ABCDEFH',
+          requestedAt: '2020-08-25T09:00:00.000Z',
+          expiresAt: '2026-08-25T09:05:00.000Z',
+        })
+      )
+    ).rejects.toMatchObject({ code: 'LEASE_EXPIRED' })
+    expect(allowPdp.requests).toHaveLength(policyRequestCount)
+  })
+
+  test('uses the vault clock at the exact accepted skew and lease lifetime boundaries', async () => {
+    const { vault } = await fixture()
+    const lease = await vault.lease(
+      leaseRequest({
+        requestedAt: '2026-08-25T08:59:30.000Z',
+        expiresAt: '2026-08-25T09:05:00.000Z',
+      })
+    )
+
+    expect(lease).toMatchObject({
+      issuedAt: '2026-08-25T09:00:00.000Z',
+      expiresAt: '2026-08-25T09:05:00.000Z',
+    })
+    expect(allowPdp.requests.at(-1).context.requestedAt).toBe(lease.issuedAt)
+  })
+
   test('uses a secret only inside the provider callback and blocks runtime/model egress', async () => {
     const { vault } = await fixture()
     const lease = await vault.lease(leaseRequest())
