@@ -4,11 +4,33 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import {
   HostedServerControlPlaneComposition,
+  resolveHostedCompositionConfiguration,
   resolveHostedApiHost,
   resolveHostedObjectStore,
 } from './index.ts'
 
 describe('Hosted server composition', () => {
+  test('propagates the supported remote runtime activity port through the production launcher', () => {
+    const runtimeActivityPort = {
+      dispatch: async () => ({ outcome: 'cancelled' }),
+      applyInteraction: async () => ({ outcome: 'cancelled' }),
+      cleanup: async () => undefined,
+    }
+    const configuration = resolveHostedCompositionConfiguration(
+      {
+        DATABASE_URL: 'postgresql://app:secret@postgres/control_plane',
+        CONTROL_PLANE_DATA_DIR: '/var/lib/control-plane',
+      },
+      { runtimeActivityPort }
+    )
+
+    expect(configuration.runtimeActivityPort).toBe(runtimeActivityPort)
+    expect(configuration).toMatchObject({
+      dataDirectory: '/var/lib/control-plane',
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+    })
+  })
+
   test('reports PostgreSQL and separate Restate dependencies without changing core contracts', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-'))
     const calls = []
