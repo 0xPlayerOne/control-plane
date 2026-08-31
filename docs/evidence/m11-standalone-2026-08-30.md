@@ -2,8 +2,9 @@
 
 ## Candidate and pinned components
 
-- Candidate: `57a7fe4c9529ba56fbeb183d1ce6567c8800b79a`
-- Branch: `feat/m11-standalone-e2e`, based on the accepted M11.2 `staging` candidate
+- Implementation candidate: `57a7fe4c9529ba56fbeb183d1ce6567c8800b79a`
+- Merged `staging` candidate: `d429b311b26a6eb03b0aebbcea4013c04432f5f7`
+- Pull request: #325 (`feat/m11-standalone-e2e` -> `staging`)
 - Bun CLI: `1.4.1` (`bun test` identifies the bundled runner as `1.4.1-canary.1`)
 - Node: `v22.23.1`; package engines remain Node `>=24 <25`, so Node is not the
   certifying package runner in this evidence
@@ -59,6 +60,53 @@ the application never reached a representative execution. The isolated stack was
 removed. The supported Linux Compose workflow and live staging deployment remain the
 authoritative certification environments.
 
+The repository-owned Linux Hosted Compose workflow passed for the merged candidate in
+GitHub Actions run `33354286908`. It rebuilt and started fresh `simple` and `server`
+profiles, ran migrations, and passed the Restate/PostgreSQL disruption and readiness
+checks. That workflow does not execute a representative remote runtime through the
+Runtime Gateway, so it proves the deployment substrate rather than the complete Hosted
+Server execution path.
+
+## Managed-cloud staging certification
+
+Railway staging was first corrected from stale `main` source configuration to the
+documented `staging` branch. Both application services then deployed the exact merged
+candidate:
+
+- Control API deployment `b8755e97-e301-47db-9919-f63160c14ad8`;
+- workflow worker deployment `ec210884-8f3a-4db0-87a9-e7cb8e744101`.
+
+Both `/health` and `/ready` reported commit
+`d429b311b26a6eb03b0aebbcea4013c04432f5f7` and environment `staging`. A short-lived
+Ed25519 certification key was added to staging only, and the Control API was redeployed
+as `701d0ab4-3864-4441-8e34-f35b40be52b6`. `bun run certify:m9-cloud` then passed
+against the live Railway, Neon, R2, and Restate services:
+
+```json
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "profile": "cloud",
+  "executionId": "exe_1S09087F5YM1X4KWVHF9MA14JW",
+  "artifactId": "art_1S09087F5YM1X4KWVHF9MA14JW",
+  "commandStatus": "completed",
+  "executionState": "completed",
+  "attemptCount": 1,
+  "replayed": true,
+  "objectKey": "m9/certification/executions/exe_1S09087F5YM1X4KWVHF9MA14JW/6557573a52c08409e47efa253e792017be13638e6f9905de514d27d457ab79e4.json",
+  "objectSha256": "sha256:7381b43fce143a6b4ff573146c0e629b6a177bf4513a73acd5620ab7318c533c",
+  "startedAt": "2026-08-31T03:50:24.288Z",
+  "completedAt": "2026-08-31T03:50:39.111Z"
+}
+```
+
+The original trusted-key JSON was restored byte-for-byte and verified after Control API
+deployment `b949a8bf-7d93-455d-9664-be5d8eeda8df`. Staging was then returned to the
+repository's guarded standby state: all three active deployments were removed, source
+triggers were disconnected, the retained volume was not destroyed, and a second standby
+preview returned no actions. Production was never selected for apply and was not
+modified.
+
 ## Scenario-to-requirement map
 
 | M11.3 scenario                                                                      | Primary executable evidence                                                                                               | Result                                                       |
@@ -73,24 +121,26 @@ authoritative certification environments.
 | Local SQLite persistence and restart                                                | `tests/m11-standalone-e2e.test.mjs`, SQLite persistence tests                                                             | Passed                                                       |
 | PostgreSQL repository semantics                                                     | `@control-plane/database` integration suite                                                                               | Passed with extended local timeout                           |
 | Self-hosted Simple clean start/restart                                              | fresh Compose run described above                                                                                         | Passed on local Docker                                       |
-| Self-hosted Server clean start/execution                                            | fresh Compose run described above                                                                                         | Not certified on this host                                   |
-| Managed-cloud frozen candidate                                                      | `bun run certify:m9-cloud` against live staging                                                                           | Pending candidate deployment                                 |
+| Self-hosted Server clean start/recovery                                             | Linux Hosted Compose run `33354286908`                                                                                    | Substrate passed; remote runtime execution remains open      |
+| Managed-cloud frozen candidate                                                      | `bun run certify:m9-cloud` against live Railway staging                                                                   | Passed at merged `staging` commit                            |
 
 ## Honest remaining gates
 
 This evidence does not promote fixtures or constructor injection to production proof.
 The following gates remain before M11.3 or final M11 approval can be claimed:
 
-1. deploy the frozen candidate to Railway staging and rerun the managed-cloud
-   certification against Neon, R2, and Restate;
-2. pass the repository-owned Linux `server` Compose path with PostgreSQL and a
-   representative execution;
-3. replace or explicitly disposition the certification-only/unconfigured remote
+1. replace or explicitly disposition the certification-only/unconfigured remote
    runtime activity ports in cloud and Hosted Server production roots;
-4. prove a live inventory producer reaches the durable RuntimeConnection and
+2. prove a live inventory producer reaches the durable RuntimeConnection and
    ExternalSession projections through a supported composition;
-5. run the PostgreSQL profile migration lane in its supported Linux CI environment;
-6. remove the 17 isolated `control_plane_test_*` databases left in the stopped local
+3. execute a representative remote runtime through the Runtime Gateway in the supported
+   Linux Hosted Server composition;
+4. run the PostgreSQL profile migration lane in its supported Linux CI environment;
+5. remove the 17 isolated `control_plane_test_*` databases left in the stopped local
    test volume after the destructive-command safety hook blocked their cleanup.
+6. remove the short-lived private certification key directory after the same safety
+   hook permits that exact temporary path to be deleted; the public key has already
+   been removed from Railway staging.
 
-No production environment was modified by these checks.
+No production environment was modified by these checks. Railway staging was modified
+only for the bounded certification above and was returned to verified standby.

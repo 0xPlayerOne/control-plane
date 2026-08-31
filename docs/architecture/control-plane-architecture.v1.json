@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "candidate": {
-    "commit": "57a7fe4c9529ba56fbeb183d1ce6567c8800b79a",
-    "ref": "feat/m11-standalone-e2e",
-    "recordedAt": "2026-08-30T21:31:00Z"
+    "commit": "d429b311b26a6eb03b0aebbcea4013c04432f5f7",
+    "ref": "staging",
+    "recordedAt": "2026-08-31T03:57:41Z"
   },
   "packages": [
     {
@@ -1165,7 +1165,7 @@
         "secrets": "Railway environment; no SecretsProvider",
         "workflow": "Restate"
       },
-      "assessment": "Repository-owned Railway, Neon, R2, and Restate wiring is real, but the execution runtime is disabled by default or staging-certification-only and shared deployment ports are not uniformly composed.",
+      "assessment": "The exact merged staging candidate passed the bounded Railway, Neon, R2, and Restate certification, but its execution runtime remains disabled by default or certification-only and shared deployment ports are not uniformly composed.",
       "evidence": [
         {
           "kind": "source",
@@ -1174,6 +1174,10 @@
         {
           "kind": "environment",
           "path": "docs/evidence/m9-cloud-certification-2026-08-28.md"
+        },
+        {
+          "kind": "environment",
+          "path": "docs/evidence/m11-standalone-2026-08-30.md"
         }
       ],
       "gap": {
