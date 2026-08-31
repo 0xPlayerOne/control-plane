@@ -43,6 +43,12 @@ export type {
   RemoteRuntimeEventReader,
   RemoteRuntimeExecutionReader,
 } from './remote-runtime-waiter.js'
+export { ManagedPiRemoteCommandFactory } from './managed-pi-remote-command.js'
+export type {
+  ManagedPiExecutionReader,
+  ManagedPiRemoteCommandFactoryOptions,
+  ManagedPiRuntimeDiscoveryReader,
+} from './managed-pi-remote-command.js'
 
 export const serviceName = 'workflow-worker'
 
