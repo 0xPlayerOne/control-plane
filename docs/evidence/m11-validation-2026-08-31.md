@@ -103,7 +103,44 @@ pinned upload action and fail if the expected evidence file is missing.
 
 ## Pull-request proof
 
-The Control Plane pull request and exact audit run are recorded after the
-branch executes the new v0.40.1 graph. Acceptance requires Unit, Integration,
-E2E, Smoke, Security, CodeQL, and `Validation / Gate` to run without a hidden
-required skip.
+Control Plane PR
+[#328](https://github.com/0xPlayerOne/control-plane/pull/328) executed the
+released v0.40.1 graph at head `d024b30c6575159ac53b6cf2b535547442ac84af`.
+Audit run
+[#33358925301](https://github.com/0xPlayerOne/control-plane/actions/runs/33358925301)
+passed with these independently visible results:
+
+- Unit: 601 tests across 101 files, 2,373 assertions, 86.54% line coverage,
+  and 82.97% function coverage;
+- Integration: 25 tests across all 4 inventoried files, 145 assertions, plus
+  successful connection-loss, service-restart, backup, and restore drills;
+- E2E: 89 tests across 12 files and 511 assertions;
+- Smoke: 45 tests across 5 files and 388 assertions;
+- JavaScript dependency audit, dependency review, Actions CodeQL, and
+  TypeScript CodeQL: passed;
+- `Validation / Gate`: passed.
+
+Rust and Python dependency/CodeQL jobs skipped because the detected repository
+has no applicable Rust or Python target. `Validation / Release Policy` skipped
+because #328 is not a Release Please pull request. Those classified skips are
+outside the audit aggregate; none of Unit, Integration, E2E, Smoke, applicable
+Security, applicable CodeQL, or `Validation / Gate` skipped. The separate
+optional OpenCode workflow skipped because its credential was unavailable and
+is not used as evidence by this acceptance graph.
+
+The audit retained coverage artifact `9746058300`
+(`coverage-unit-33358925301`, 126,365 bytes). M9 Production Readiness run
+[#33358925016](https://github.com/0xPlayerOne/control-plane/actions/runs/33358925016)
+passed its integration/recovery, core-hardening, production-container, and
+aggregate gates and retained 30-day artifacts named for PR merge SHA
+`a7523a6f7c5301b3b5305ec1707c7aa58101d8dc`:
+
+- `9746074623`: `m11-load-a7523a6f7c5301b3b5305ec1707c7aa58101d8dc`;
+- `9746066081`: `m11-containers-a7523a6f7c5301b3b5305ec1707c7aa58101d8dc`;
+- `9746058969`: `m11-recovery-a7523a6f7c5301b3b5305ec1707c7aa58101d8dc`.
+
+Foundation Acceptance run
+[#33358925012](https://github.com/0xPlayerOne/control-plane/actions/runs/33358925012)
+and M10 Operability run
+[#33358925019](https://github.com/0xPlayerOne/control-plane/actions/runs/33358925019)
+also passed every required lane and their aggregate gates at the same head.
