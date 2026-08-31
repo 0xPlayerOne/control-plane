@@ -566,6 +566,8 @@
         "@control-plane/bootstrap",
         "@control-plane/domain",
         "@control-plane/managed-pi-adapter",
+        "@control-plane/object-store",
+        "@control-plane/runtime-gateway-protocol",
         "@control-plane/runtime-sdk"
       ],
       "externalDependencies": ["zod"],
