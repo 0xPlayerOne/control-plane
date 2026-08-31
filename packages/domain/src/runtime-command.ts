@@ -86,12 +86,15 @@ export const RuntimeCommandRecordSchema = z
     ) {
       context.addIssue({ code: 'custom', message: 'ACK metadata must be complete' })
     }
-    const resultMetadata = [record.resultReference, record.resultStatus, record.resultRecordedAt]
+    const resultMetadata = [record.resultStatus, record.resultRecordedAt]
     if (
       resultMetadata.some((value) => value !== undefined) &&
       resultMetadata.some((value) => value === undefined)
     ) {
       context.addIssue({ code: 'custom', message: 'Result metadata must be complete' })
+    }
+    if (record.resultReference !== undefined && record.resultStatus === undefined) {
+      context.addIssue({ code: 'custom', message: 'Result references require result metadata' })
     }
     if (record.status === 'acknowledged' && record.acknowledgedAt === undefined) {
       context.addIssue({ code: 'custom', message: 'Acknowledged commands require ACK metadata' })

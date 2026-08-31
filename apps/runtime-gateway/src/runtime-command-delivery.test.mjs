@@ -114,6 +114,17 @@ describe('durable Runtime Gateway command delivery', () => {
 
     expect(first.metrics.observations('runtime_gateway.command_ack_latency_ms')).toEqual([1_000])
   })
+
+  test('records bounded inline command outcomes without inventing an Artifact reference', async () => {
+    const gateway = service(new InMemoryRuntimeCommandRepository(), new RecordingSender())
+    await gateway.enqueue(command)
+    await gateway.deliver(command.commandId, { channelGeneration: 1, sequence: 1 })
+
+    const outcome = await gateway.recordResult({ ...golden.result, status: 'failed' })
+
+    expect(outcome.record).toMatchObject({ status: 'failed', resultStatus: 'failed' })
+    expect(outcome.record.resultReference).toBeUndefined()
+  })
 })
 
 function service(repository, sender, now = '2026-08-25T12:00:01.000Z') {

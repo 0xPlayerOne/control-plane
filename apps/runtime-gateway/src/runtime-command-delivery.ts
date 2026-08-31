@@ -200,16 +200,19 @@ export class RuntimeCommandDeliveryService {
 
   async recordResult(
     resultValue: unknown,
-    resultReferenceValue: unknown
+    resultReferenceValue?: unknown
   ): Promise<{ readonly record: RuntimeCommandRecord; readonly duplicate: boolean }> {
     const result = GatewayResultEnvelopeSchema.parse(resultValue)
-    const resultReference = RuntimeCommandResultReferenceSchema.parse(resultReferenceValue)
+    const resultReference =
+      resultReferenceValue === undefined
+        ? undefined
+        : RuntimeCommandResultReferenceSchema.parse(resultReferenceValue)
     const current = await this.#required(result.commandId)
     this.#assertRecordedResultScope(current, result)
     if (result.payloadHash !== current.payloadHash) {
       fail('RUNTIME_COMMAND_PAYLOAD_MISMATCH')
     }
-    if (current.resultReference !== undefined) {
+    if (current.resultStatus !== undefined) {
       if (current.resultReference === resultReference && current.resultStatus === result.status) {
         return { record: current, duplicate: true }
       }
@@ -223,7 +226,7 @@ export class RuntimeCommandDeliveryService {
       ...current,
       status: result.status,
       version: current.version + 1,
-      resultReference,
+      ...(resultReference === undefined ? {} : { resultReference }),
       resultStatus: result.status,
       resultRecordedAt: now,
       updatedAt: now,
