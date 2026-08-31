@@ -15,6 +15,18 @@ const classifications = new Set([
   'not_implemented',
 ])
 const normativeStates = new Set(['accepted', 'planned', 'tbd', 'deprecated', 'superseded'])
+const validationLanes = new Set([
+  'unit',
+  'contract/schema',
+  'integration',
+  'end-to-end',
+  'smoke/configuration',
+  'security/adversarial',
+  'eval',
+  'performance/capacity',
+  'recovery/chaos',
+  'infrastructure/live-provider certification',
+])
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
 const ledgerPath = resolve(repositoryRoot, 'docs/requirements/control-plane-requirements.v1.json')
 const reportPath = resolve(repositoryRoot, 'docs/requirements/control-plane-requirements.md')
@@ -48,11 +60,17 @@ export async function validateRequirementsLedger(ledger, options = {}) {
       )
     )
     if (!candidateAvailable) {
-      const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
-        cwd: root,
-        encoding: 'utf8',
-      })
-      if (shallow.status === 0 && shallow.stdout.trim() === 'true') {
+      const shallowRepository =
+        typeof options.shallowRepository === 'boolean'
+          ? options.shallowRepository
+          : (() => {
+              const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
+                cwd: root,
+                encoding: 'utf8',
+              })
+              return shallow.status === 0 && shallow.stdout.trim() === 'true'
+            })()
+      if (shallowRepository) {
         warnings.push(
           `candidate commit ${ledger.candidate.commit} is unavailable in this shallow checkout; committed-artifact provenance must be reproduced from a full clone`
         )
@@ -131,6 +149,9 @@ export async function validateRequirementsLedger(ledger, options = {}) {
     rowIds.add(row.id)
     if (!classifications.has(row.classification)) {
       errors.push(`${row.id}: invalid classification ${row.classification}`)
+    }
+    if (!validationLanes.has(row.lane)) {
+      errors.push(`${row.id}: invalid validation lane ${String(row.lane)}`)
     }
     if (!Array.isArray(row.evidence) || row.evidence.length === 0) {
       errors.push(`${row.id}: evidence is required`)
