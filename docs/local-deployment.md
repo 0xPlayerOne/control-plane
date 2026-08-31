@@ -14,6 +14,21 @@ unexpected Control Plane or Restate failure. A failed component makes readiness 
 must not silently move work to Cloud. Host sleep/wake preserves the process and data directory; on
 wake the desktop rechecks `/ready` and restarts the composition if Restate did not recover.
 
+The supported runtime seam is the `runtimeTransport` option on
+`LocalControlPlaneComposition` (or the same field under `start({ compositionOptions })`). The host
+must construct a `RuntimeAdapterWithTransport` whose `transportKind` is `direct-local` before the
+composition starts. For managed Pi this is `ManagedPiAdapter -> DirectLocalRuntimeTransport ->
+ManagedPiDriver`; ACP uses the equivalent `AcpAdapter` and `AcpDriver` chain. The host-owned client
+or transport retains native authentication, process, and filesystem authority; the Control Plane
+receives only the normalized adapter contract. A remote-gateway adapter is rejected, and omitting
+the adapter deliberately leaves execution acceptance unavailable rather than selecting a fixture or
+silently routing to Cloud.
+
+Runtime interactions use the same durable workflow signal as other profiles. Input responses carry
+the bounded structured value validated by the interaction domain and are translated to the direct
+driver only after the workflow resumes. Approval, denial, cancellation, and input effects retain
+their stable workflow effect key, so replay does not submit a second native action.
+
 The data directory is one recovery unit: `control-plane.sqlite` (including any SQLite sidecars),
 `restate/`, `artifacts/`, `secrets/`, and generated private API authentication state. It must remain
 owner-only. Do not back up one of those paths independently while work is admitted.

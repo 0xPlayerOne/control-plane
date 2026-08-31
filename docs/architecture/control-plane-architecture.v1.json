@@ -566,6 +566,8 @@
         "@control-plane/bootstrap",
         "@control-plane/domain",
         "@control-plane/managed-pi-adapter",
+        "@control-plane/object-store",
+        "@control-plane/runtime-gateway-protocol",
         "@control-plane/runtime-sdk"
       ],
       "externalDependencies": ["zod"],
@@ -920,7 +922,7 @@
         "delivery": "normalized external-session read model",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
+      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime session producers must still publish projections in the standalone matrix.",
       "evidence": [
         {
           "kind": "source",
@@ -931,7 +933,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
+        "disposition": "Prove live runtime session publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "external-session.get",
       "openApiResponseStatuses": ["200", "default"],
@@ -955,7 +957,7 @@
         "delivery": "paginated normalized external-session read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
+      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime session producers must still publish projections in the standalone matrix.",
       "evidence": [
         {
           "kind": "source",
@@ -966,7 +968,7 @@
         "issue": 188,
         "severity": "high",
         "owner": "runtime-discovery",
-        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
+        "disposition": "Prove live runtime session publication into the durable discovery projection in the standalone matrix."
       },
       "openApiOperationId": "external-session.list",
       "openApiResponseStatuses": ["200", "default"],
@@ -1055,7 +1057,7 @@
       "path": "/v1/runtime-connections/get",
       "inOpenApi": true,
       "controllerReachable": true,
-      "classification": "partially_verified",
+      "classification": "verified",
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
@@ -1064,19 +1066,17 @@
         "delivery": "normalized runtime-connection read model",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
+      "assessment": "The authenticated controller and profile-specific durable projection repositories are reachable, and the standalone matrix proves signed live RuntimeNode inventory publication, normalized lookup/list projection, persistence, and restart recovery.",
       "evidence": [
         {
-          "kind": "source",
-          "path": "apps/control-api/src/runtime-discovery/runtime-discovery.repository.ts"
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "tests/m11-standalone-e2e.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "runtime-discovery",
-        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
-      },
       "openApiOperationId": "runtime-connection.get",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
@@ -1090,7 +1090,7 @@
       "path": "/v1/runtime-connections/list",
       "inOpenApi": true,
       "controllerReachable": true,
-      "classification": "partially_verified",
+      "classification": "verified",
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
@@ -1099,19 +1099,17 @@
         "delivery": "paginated normalized runtime-connection read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime inventory producers must still publish projections in the standalone matrix.",
+      "assessment": "The authenticated controller and profile-specific durable projection repositories are reachable, and the standalone matrix proves signed live RuntimeNode inventory publication, normalized lookup/list projection, persistence, and restart recovery.",
       "evidence": [
         {
-          "kind": "source",
-          "path": "apps/control-api/src/runtime-discovery/runtime-discovery.repository.ts"
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "tests/m11-standalone-e2e.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "runtime-discovery",
-        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
-      },
       "openApiOperationId": "runtime-connection.list",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
@@ -1125,7 +1123,7 @@
       "path": "/v1/runtimes/list",
       "inOpenApi": true,
       "controllerReachable": true,
-      "classification": "partially_verified",
+      "classification": "verified",
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
@@ -1134,19 +1132,17 @@
         "delivery": "filtered normalized runtime node read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The declared runtime.list contract and profile-specific durable repositories are reachable; live runtime inventory publication remains part of the standalone matrix.",
+      "assessment": "The authenticated runtime.list contract and profile-specific durable repositories are reachable, and the standalone matrix proves signed live RuntimeNode inventory publication, normalized list projection, persistence, and restart recovery.",
       "evidence": [
         {
           "kind": "test",
           "path": "apps/control-api/src/application.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "tests/m11-standalone-e2e.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "runtime-discovery",
-        "disposition": "Prove live runtime inventory publication into the durable discovery projection in the standalone matrix."
-      },
       "openApiOperationId": "runtime.list",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,

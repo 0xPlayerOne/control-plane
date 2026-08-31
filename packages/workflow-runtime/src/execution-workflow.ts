@@ -69,7 +69,16 @@ export interface WorkflowInteractionResponse {
   readonly interactionId: string
   readonly responseId: string
   readonly action: 'approve' | 'deny' | 'input' | 'grant' | 'resume' | 'cancel'
+  readonly value?: WorkflowInteractionValue
 }
+
+export type WorkflowInteractionValue =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly WorkflowInteractionValue[]
+  | { readonly [key: string]: WorkflowInteractionValue }
 
 export type WorkflowRuntimeOutcome =
   | { readonly outcome: 'completed'; readonly resultReference?: string }
@@ -169,6 +178,7 @@ export async function runExecutionLifecycle(
     if (!control.waitForInteraction) throw new Error('INTERACTION_WAITER_REQUIRED')
     const response = await control.waitForInteraction(interactionId)
     if (response.interactionId !== interactionId) throw new Error('INTERACTION_SIGNAL_MISMATCH')
+    validateInteractionResponse(response)
     if (input.graph) {
       if (!('checkpointId' in runtimeOutcome)) throw new Error('GRAPH_RESUME_ACTIVITY_REQUIRED')
       runtimeOutcome = await activities.resumeGraphSegment({
@@ -220,5 +230,21 @@ export async function runExecutionLifecycle(
     ...('checkpointId' in runtimeOutcome && runtimeOutcome.checkpointId
       ? { graphCheckpointId: runtimeOutcome.checkpointId }
       : {}),
+  }
+}
+
+function validateInteractionResponse(response: WorkflowInteractionResponse): void {
+  if ((response.action === 'input') !== (response.value !== undefined)) {
+    throw new Error('INTERACTION_SIGNAL_VALUE_INVALID')
+  }
+  if (response.value === undefined) return
+  let encoded: string | undefined
+  try {
+    encoded = JSON.stringify(response.value)
+  } catch {
+    throw new Error('INTERACTION_SIGNAL_VALUE_INVALID')
+  }
+  if (encoded === undefined || Buffer.byteLength(encoded) > 8_192) {
+    throw new Error('INTERACTION_SIGNAL_VALUE_INVALID')
   }
 }
