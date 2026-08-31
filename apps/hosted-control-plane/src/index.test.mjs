@@ -3,6 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import {
+  DurableRemoteWorkflowRuntime,
+  RuntimeDiscoveryAttemptRouter,
+} from '@control-plane/workflow-worker'
+import {
   HostedServerControlPlaneComposition,
   resolveHostedCompositionConfiguration,
   resolveHostedApiHost,
@@ -78,13 +82,15 @@ describe('Hosted server composition', () => {
           externalServices: 2,
           persistence: 'postgresql',
           objectStore: 'filesystem',
-          runtimeTransport: 'unconfigured',
+          runtimeTransport: 'remote-gateway',
           remoteControl: 'outbound',
         },
       })
       expect((await composition.discovery.resolve('postgresql')).url.toString()).toBe(
         'postgresql://postgres/control_plane'
       )
+      expect(composition.runtimeActivityPort).toBeInstanceOf(DurableRemoteWorkflowRuntime)
+      expect(composition.runtimeAttemptRouter).toBeInstanceOf(RuntimeDiscoveryAttemptRouter)
       expect(calls).toEqual([
         'database:check',
         'endpoint:start',
