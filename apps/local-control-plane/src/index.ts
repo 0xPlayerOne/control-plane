@@ -13,6 +13,7 @@ import {
   type LocalControlPlaneCompositionOptions,
 } from './composition.js'
 import { createLocalApiAuthentication } from './authentication.js'
+import { createLocalManagedPiRuntime } from './managed-pi-runtime.js'
 
 export const serviceName = 'local-control-plane'
 
@@ -60,6 +61,7 @@ export const start = (options: LocalControlPlaneStartOptions = {}) =>
             process.env['CONTROL_PLANE_DATA_DIR'] ??
             join(homedir(), '.control-plane'),
           profile: resolveEmbeddedDeploymentProfile(),
+          ...resolveLocalRuntimeOptions(options.environment ?? process.env),
           ...options.compositionOptions,
         })
       registerResource('local-control-plane-composition', () => composition.close())
@@ -95,3 +97,63 @@ export * from './server.js'
 export * from './authentication.js'
 export * from './local-api-composition.js'
 export * from './direct-runtime-activities.js'
+export * from './managed-pi-runtime.js'
+
+export function resolveLocalRuntimeOptions(
+  environment: Readonly<Record<string, string | undefined>>
+): Pick<LocalControlPlaneCompositionOptions, 'runtimeFactory'> {
+  const family = environment['CONTROL_PLANE_LOCAL_RUNTIME']
+  if (family === undefined || family.length === 0) return {}
+  if (family !== 'managed-pi') throw new Error('LOCAL_RUNTIME_FAMILY_INVALID')
+  const provider = environment['CONTROL_PLANE_MANAGED_PI_PROVIDER']
+  const model = environment['CONTROL_PLANE_MANAGED_PI_MODEL']
+  const modelAlias = environment['CONTROL_PLANE_MANAGED_PI_MODEL_ALIAS']
+  const providerClass = environment['CONTROL_PLANE_MANAGED_PI_PROVIDER_CLASS']
+  const dataResidency = environment['CONTROL_PLANE_MANAGED_PI_DATA_RESIDENCY']
+  const modelCapabilities = environment['CONTROL_PLANE_MANAGED_PI_MODEL_CAPABILITIES']
+  if (
+    provider === undefined ||
+    model === undefined ||
+    modelAlias === undefined ||
+    providerClass === undefined ||
+    dataResidency === undefined ||
+    modelCapabilities === undefined
+  ) {
+    throw new Error('LOCAL_MANAGED_PI_MODEL_CONFIGURATION_REQUIRED')
+  }
+  const executablePath = environment['CONTROL_PLANE_MANAGED_PI_EXECUTABLE'] ?? 'pi'
+  const childEnvironment = pickEnvironment(environment, [
+    'HOME',
+    'PATH',
+    'PI_CODING_AGENT_DIR',
+    'PI_CODING_AGENT_SESSION_DIR',
+  ])
+  return {
+    runtimeFactory: (repositories) =>
+      createLocalManagedPiRuntime(repositories, {
+        executablePath,
+        provider,
+        model,
+        modelAlias,
+        providerClass,
+        dataResidency,
+        modelCapabilities: modelCapabilities
+          .split(',')
+          .map((capability) => capability.trim())
+          .filter((capability) => capability.length > 0),
+        environment: childEnvironment,
+      }),
+  }
+}
+
+function pickEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+  names: readonly string[]
+): Record<string, string> {
+  return Object.fromEntries(
+    names.flatMap((name) => {
+      const value = environment[name]
+      return value === undefined ? [] : [[name, value]]
+    })
+  )
+}

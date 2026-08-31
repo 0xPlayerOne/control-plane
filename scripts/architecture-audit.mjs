@@ -105,7 +105,8 @@ const profilePorts = {
     observability: 'BufferedObservabilityProvider',
     persistence: 'SqlitePersistenceProvider',
     processes: 'NodeProcessRuntimeProvider',
-    runtimeTransport: 'DirectRuntimeActivityPort when injected; unavailable acceptance otherwise',
+    runtimeTransport:
+      'Packaged ManagedPiProcessClient or injected DirectRuntimeActivityPort; unavailable acceptance otherwise',
     secrets: 'Composite environment/private-file SecretsProvider',
     workflow: 'Local Restate',
   },
@@ -116,7 +117,8 @@ const profilePorts = {
     observability: 'BufferedObservabilityProvider',
     persistence: 'SqlitePersistenceProvider',
     processes: 'NodeProcessRuntimeProvider',
-    runtimeTransport: 'DirectRuntimeActivityPort when injected; unavailable acceptance otherwise',
+    runtimeTransport:
+      'Packaged ManagedPiProcessClient or injected DirectRuntimeActivityPort; unavailable acceptance otherwise',
     secrets: 'Composite environment/private-file SecretsProvider',
     workflow: 'Local Restate',
   },

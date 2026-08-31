@@ -158,3 +158,12 @@ Tested-version metadata records the exact public contract, adapter, driver, and 
 to establish compatibility. Equality helpers compare parsed normalized definitions and capability sets
 independent of capability ordering. The neutral adapter contract and mock do not implement discovery,
 installation, native authentication, or concrete Pi/ACP execution.
+
+The Local managed Pi process client is a concrete direct execution path, but its claims remain
+bounded. It inspects the configured Pi executable, supports the explicit `0.84.x` launcher range,
+streams text and usage through strict RPC framing, accepts cancellation, and exposes steering input
+as degraded. It disables Pi-native tools and ambient configuration and therefore does not advertise
+filesystem, tool, approval, Artifact, or restart-reconciliation capabilities. Exact immutable
+Profile/Skill/ContextPackage inputs are resolved and checked before process start. A plan requiring
+an omitted capability is rejected by normal RuntimeAdapter eligibility rather than executed with a
+weaker policy.

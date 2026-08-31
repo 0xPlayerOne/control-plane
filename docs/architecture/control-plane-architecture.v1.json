@@ -312,11 +312,13 @@
       "workspaceDependencies": [
         "@control-plane/bootstrap",
         "@control-plane/config",
+        "@control-plane/context",
         "@control-plane/contracts",
         "@control-plane/control-api",
         "@control-plane/deployment",
         "@control-plane/domain",
         "@control-plane/execution-plan",
+        "@control-plane/managed-pi-adapter",
         "@control-plane/object-store",
         "@control-plane/remote-control-relay",
         "@control-plane/restate-runtime",
@@ -346,7 +348,7 @@
         "@control-plane/runtime-sdk"
       ],
       "externalDependencies": ["zod"],
-      "developmentWorkspaceDependencies": [],
+      "developmentWorkspaceDependencies": ["@control-plane/execution-plan"],
       "developmentExternalDependencies": [],
       "layer": "adapter-infrastructure"
     },
@@ -1244,11 +1246,11 @@
         "observability": "BufferedObservabilityProvider",
         "persistence": "SqlitePersistenceProvider",
         "processes": "NodeProcessRuntimeProvider",
-        "runtimeTransport": "DirectRuntimeActivityPort when injected; unavailable acceptance otherwise",
+        "runtimeTransport": "Packaged ManagedPiProcessClient or injected DirectRuntimeActivityPort; unavailable acceptance otherwise",
         "secrets": "Composite environment/private-file SecretsProvider",
         "workflow": "Local Restate"
       },
-      "assessment": "The all-in-one profile uses the shared Local core, rejects remote-gateway transport, and fails execution acceptance explicitly when no direct runtime is injected. Managed Pi and ACP direct execution and SQLite restart recovery pass through the supported composition.",
+      "assessment": "The all-in-one profile uses the shared Local core, rejects remote-gateway transport, and fails execution acceptance explicitly when no direct runtime is configured. Its packaged managed Pi RPC client resolves immutable SQLite inputs and completes through Local Restate; injected managed Pi and ACP direct execution plus SQLite restart recovery also pass.",
       "evidence": [
         {
           "kind": "test",
@@ -1267,9 +1269,9 @@
         "issue": 188,
         "severity": "medium",
         "owner": "hosted-simple-runtime",
-        "disposition": "Document and package the supported direct runtime injection boundary for the standalone launcher."
+        "disposition": "Certify the packaged managed Pi process client with a live provider and package a supported concrete ACP launcher."
       },
-      "sourceDigest": "sha256:710c9aea472a3e294fb53ec9c08db917308e0c4b30b62519452806cd077f670f"
+      "sourceDigest": "sha256:158fca268d8b79a5de09b93eb1a729efc371052de19f72165e404bbf5c576654"
     },
     {
       "id": "local",
@@ -1283,11 +1285,11 @@
         "observability": "BufferedObservabilityProvider",
         "persistence": "SqlitePersistenceProvider",
         "processes": "NodeProcessRuntimeProvider",
-        "runtimeTransport": "DirectRuntimeActivityPort when injected; unavailable acceptance otherwise",
+        "runtimeTransport": "Packaged ManagedPiProcessClient or injected DirectRuntimeActivityPort; unavailable acceptance otherwise",
         "secrets": "Composite environment/private-file SecretsProvider",
         "workflow": "Local Restate"
       },
-      "assessment": "The all-in-one profile shares domain, execution, and Restate code, prohibits remote-gateway transport, and fails execution acceptance explicitly when no direct runtime is injected. Managed Pi and ACP direct execution and SQLite restart recovery pass through the supported composition.",
+      "assessment": "The all-in-one profile shares domain, execution, and Restate code, prohibits remote-gateway transport, and fails execution acceptance explicitly when no direct runtime is configured. Its packaged managed Pi RPC client resolves immutable SQLite inputs and completes through Local Restate; injected managed Pi and ACP direct execution plus SQLite restart recovery also pass.",
       "evidence": [
         {
           "kind": "test",
@@ -1306,9 +1308,9 @@
         "issue": 188,
         "severity": "medium",
         "owner": "local-runtime",
-        "disposition": "Document and package the supported direct runtime injection boundary for the standalone launcher."
+        "disposition": "Certify the packaged managed Pi process client with a live provider and package a supported concrete ACP launcher."
       },
-      "sourceDigest": "sha256:710c9aea472a3e294fb53ec9c08db917308e0c4b30b62519452806cd077f670f"
+      "sourceDigest": "sha256:158fca268d8b79a5de09b93eb1a729efc371052de19f72165e404bbf5c576654"
     }
   ],
   "ownership": [

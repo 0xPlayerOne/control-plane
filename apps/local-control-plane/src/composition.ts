@@ -74,6 +74,11 @@ export interface LocalControlPlaneCompositionOptions {
   readonly endpointFactory?: RestateEndpointFactory
   readonly activities?: ExecutionLifecycleActivities
   readonly runtimeTransport?: RuntimeAdapterWithTransport
+  readonly runtimeFactory?: (input: {
+    readonly catalog: LocalControlApiComposition['catalog']
+    readonly contextPackages: LocalControlApiComposition['contextPackages']
+    readonly dataDirectory: string
+  }) => RuntimeAdapterWithTransport
   readonly secrets?: SecretsProvider
   readonly remoteControl?: RemoteControlHostAdapter<unknown>
   readonly remoteControlFactory?: (
@@ -104,6 +109,8 @@ export class LocalControlPlaneComposition {
   readonly runtimeInventoryCheckpoints: LocalControlApiComposition['runtimeInventoryCheckpoints']
   readonly runtimeEventEffects: LocalControlApiComposition['runtimeEventEffects']
   readonly runtimeDiscoveryRepository: LocalControlApiComposition['runtimeDiscoveryRepository']
+  readonly catalog: LocalControlApiComposition['catalog']
+  readonly contextPackages: LocalControlApiComposition['contextPackages']
   readonly executionPlans: LocalControlApiComposition['executionPlans']
   readonly executions: LocalControlApiComposition['executions']
   readonly commands: LocalControlApiComposition['commands']
@@ -140,13 +147,23 @@ export class LocalControlPlaneComposition {
           rootDirectory: join(this.dataDirectory, 'secrets'),
         }),
       })
-    if (options.runtimeTransport?.transportKind === 'remote-gateway') {
+    if (options.runtimeTransport !== undefined && options.runtimeFactory !== undefined) {
+      throw new Error('LOCAL_RUNTIME_CONFIGURATION_CONFLICT')
+    }
+    const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
+    const runtimeTransport =
+      options.runtimeTransport ??
+      options.runtimeFactory?.({
+        catalog: controlApi.catalog,
+        contextPackages: controlApi.contextPackages,
+        dataDirectory: this.dataDirectory,
+      })
+    if (runtimeTransport?.transportKind === 'remote-gateway') {
       throw new Error('LOCAL_RUNTIME_TRANSPORT_MUST_BE_DIRECT')
     }
-    this.runtimeTransport = options.runtimeTransport
-    const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
+    this.runtimeTransport = runtimeTransport
     this.executionAcceptanceService =
-      options.activities === undefined && options.runtimeTransport === undefined
+      options.activities === undefined && runtimeTransport === undefined
         ? new UnavailableExecutionAcceptanceService()
         : controlApi.executionAcceptanceService
     this.executionValidationService = controlApi.executionValidationService
@@ -160,6 +177,8 @@ export class LocalControlPlaneComposition {
     this.runtimeInventoryCheckpoints = controlApi.runtimeInventoryCheckpoints
     this.runtimeEventEffects = controlApi.runtimeEventEffects
     this.runtimeDiscoveryRepository = controlApi.runtimeDiscoveryRepository
+    this.catalog = controlApi.catalog
+    this.contextPackages = controlApi.contextPackages
     this.executionPlans = controlApi.executionPlans
     this.executions = controlApi.executions
     this.commands = controlApi.commands
@@ -171,7 +190,7 @@ export class LocalControlPlaneComposition {
       options.remoteControl ?? options.remoteControlFactory?.(this.executionAcceptanceService)
     const activities: ExecutionLifecycleActivities | undefined =
       options.activities ??
-      (options.runtimeTransport === undefined
+      (runtimeTransport === undefined
         ? undefined
         : new DurableExecutionLifecycleActivities({
             lifecycle: new ExecutionLifecycleService(this.executions),
@@ -179,7 +198,7 @@ export class LocalControlPlaneComposition {
             runtime: new DirectRuntimeActivityPort(
               this.persistence,
               this.objectStore,
-              options.runtimeTransport
+              runtimeTransport
             ),
             graph: new DisabledGraphSegmentActivities(),
             commands: this.commands,
