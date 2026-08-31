@@ -57,6 +57,7 @@ function connection(overrides = {}) {
 }
 
 function fixture(options = {}) {
+  const projections = []
   const registry = new ExternalSessionRegistry(new InMemoryExternalSessionRepository())
   const transport = new ReferenceAcpTransport({
     now: () => now,
@@ -100,6 +101,7 @@ function fixture(options = {}) {
                 )?.[0],
           capabilityTtlMs: 300_000,
           authorize: async () => options.authorized !== false,
+          publishDiscovery: async (projection) => projections.push(projection),
         },
       })
     ),
@@ -108,6 +110,7 @@ function fixture(options = {}) {
     adapter,
     registry,
     transport,
+    projections,
     setConnection: (value) => {
       currentConnection = value
     },
@@ -118,6 +121,32 @@ function fixture(options = {}) {
 }
 
 describe('ACP external sessions', () => {
+  test('publishes safe discovery projections for live session lifecycle changes', async () => {
+    const { adapter, projections, transport } = fixture()
+
+    await adapter.session({ operation: 'list' })
+    expect(projections).toHaveLength(2)
+    expect(projections[0]).toMatchObject({
+      scope: {
+        workspaceId: ids.workspace,
+        projectId: ids.project,
+        runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+      },
+      model: {
+        externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+        state: 'active',
+        display: { displayName: 'Planning session' },
+      },
+    })
+    expect(JSON.stringify(projections)).not.toMatch(/native-session|nses_|\/Users\//)
+
+    transport.removeNativeSession('native-session-2')
+    await adapter.session({ operation: 'list' })
+    expect(projections.at(-1)).toMatchObject({
+      model: { externalSessionId: 'ses_01JBBCDEF0123456789ABCDEFG', state: 'removed' },
+    })
+  })
+
   test('lists native sessions as scoped opaque references and public read models', async () => {
     const { adapter, registry } = fixture()
     const result = await adapter.session({ operation: 'list' })

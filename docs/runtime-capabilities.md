@@ -108,6 +108,11 @@ optimistically versioned, capability snapshots cannot regress or conflict at one
 revocation is terminal. The PostgreSQL record preserves only the scoped opaque reference and normalized
 metadata, not native ownership or unrestricted session state.
 
+ACP session discovery publishes each normalized create, observation update, and removal through an
+optional projection port. Supported compositions bind that port to their scoped SQLite or PostgreSQL
+discovery repository; projection failure fails the adapter operation so retry can repair the public
+read model without exposing native session identifiers.
+
 ## Agent HQ discovery read models
 
 The Control API exposes authenticated v1 list/get operations for runtime connections and external

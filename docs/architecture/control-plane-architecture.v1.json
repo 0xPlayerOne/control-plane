@@ -913,7 +913,7 @@
       "path": "/v1/external-sessions/get",
       "inOpenApi": true,
       "controllerReachable": true,
-      "classification": "partially_verified",
+      "classification": "verified",
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
@@ -922,19 +922,21 @@
         "delivery": "normalized external-session read model",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime session producers must still publish projections in the standalone matrix.",
+      "assessment": "The authenticated controller and profile-specific durable repositories are reachable, and the standalone direct ACP matrix proves safe live ExternalSession publication plus SQLite restart recovery without native identifiers.",
       "evidence": [
         {
-          "kind": "source",
-          "path": "apps/control-api/src/runtime-discovery/runtime-discovery.repository.ts"
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "packages/acp-adapter/src/external-sessions.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "tests/m11-standalone-e2e.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "runtime-discovery",
-        "disposition": "Prove live runtime session publication into the durable discovery projection in the standalone matrix."
-      },
       "openApiOperationId": "external-session.get",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
@@ -948,7 +950,7 @@
       "path": "/v1/external-sessions/list",
       "inOpenApi": true,
       "controllerReachable": true,
-      "classification": "partially_verified",
+      "classification": "verified",
       "trace": {
         "auth": "service bearer with runtime:read scope",
         "service": "RuntimeDiscoveryController -> RuntimeDiscoveryService",
@@ -957,19 +959,21 @@
         "delivery": "paginated normalized external-session read models",
         "cleanup": "no external side effect"
       },
-      "assessment": "The controller and profile-specific durable projection repositories are reachable; live runtime session producers must still publish projections in the standalone matrix.",
+      "assessment": "The authenticated controller and profile-specific durable repositories are reachable, and the standalone direct ACP matrix proves safe live ExternalSession publication plus SQLite restart recovery without native identifiers.",
       "evidence": [
         {
-          "kind": "source",
-          "path": "apps/control-api/src/runtime-discovery/runtime-discovery.repository.ts"
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "packages/acp-adapter/src/external-sessions.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "tests/m11-standalone-e2e.test.mjs"
         }
       ],
-      "gap": {
-        "issue": 188,
-        "severity": "high",
-        "owner": "runtime-discovery",
-        "disposition": "Prove live runtime session publication into the durable discovery projection in the standalone matrix."
-      },
       "openApiOperationId": "external-session.list",
       "openApiResponseStatuses": ["200", "default"],
       "openApiSecured": true,
