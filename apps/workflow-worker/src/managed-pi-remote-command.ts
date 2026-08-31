@@ -180,6 +180,7 @@ export class ManagedPiRemoteCommandFactory implements RemoteRuntimeCommandFactor
     if (value === undefined) throw new Error('REMOTE_RUNTIME_CONNECTION_MISSING')
     const runtime = RuntimeConnectionDiscoveryReadModelSchema.parse(value)
     const node = runtime.node
+    const grant = runtime.access.localProjectGrant
     if (
       !['pi', 'managed-pi'].includes(runtime.family) ||
       runtime.runtimeDefinitionId !== attempt.runtime?.runtimeDefinitionId ||
@@ -189,7 +190,9 @@ export class ManagedPiRemoteCommandFactory implements RemoteRuntimeCommandFactor
       runtime.connection.status !== 'connected' ||
       runtime.connection.availability !== 'healthy' ||
       runtime.freshness.state !== 'fresh' ||
-      runtime.access.localProjectGrant.state !== 'granted' ||
+      (grant.required
+        ? grant.state !== 'granted'
+        : !['not_required', 'granted'].includes(grant.state)) ||
       runtime.access.entitlement.state !== 'allowed' ||
       runtime.eligibility.state !== 'eligible'
     ) {

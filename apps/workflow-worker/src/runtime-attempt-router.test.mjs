@@ -11,7 +11,13 @@ const ids = {
 describe('runtime discovery attempt routing', () => {
   test('selects one compatible scoped runtime deterministically and records its decision', async () => {
     const scopes = []
-    const runtimeA = runtimeConnection('rtc_01JABCDEF0123456789ABCDEFA')
+    const runtimeA = runtimeConnection('rtc_01JABCDEF0123456789ABCDEFA', {
+      family: 'managed-pi',
+      access: {
+        localProjectGrant: { required: false, state: 'not_required' },
+        entitlement: { state: 'allowed' },
+      },
+    })
     const runtimeB = runtimeConnection('rtc_01JABCDEF0123456789ABCDEFB')
     const router = new RuntimeDiscoveryAttemptRouter({
       discovery: {

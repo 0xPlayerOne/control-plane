@@ -108,7 +108,9 @@ function candidate(
     return undefined
   }
   if (!['compatible', 'degraded'].includes(connection.compatibility.state)) return undefined
-  if (!plan.constraints.runtime.allowedFamilies.includes(connection.family)) return undefined
+  if (!runtimeFamilyAllowed(connection.family, plan.constraints.runtime.allowedFamilies)) {
+    return undefined
+  }
   if (!locationAllowed(connection, plan.constraints.runtime.allowedLocations)) return undefined
   const node = connection.node
   if (node?.status !== 'online' || node.health !== 'online') return undefined
@@ -140,6 +142,10 @@ function candidate(
       connection.eligibility.state === 'degraded' ||
       capabilityDecision.mode === 'degraded',
   }
+}
+
+function runtimeFamilyAllowed(family: string, allowed: readonly string[]): boolean {
+  return allowed.includes(family) || (family === 'managed-pi' && allowed.includes('pi'))
 }
 
 function locationAllowed(

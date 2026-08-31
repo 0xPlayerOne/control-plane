@@ -41,7 +41,13 @@ describe('managed Pi remote command factory', () => {
       runtimeDiscovery: {
         getRuntimeConnection: async (scope) => {
           scopes.push(scope)
-          return runtimeConnection()
+          return runtimeConnection({
+            family: 'managed-pi',
+            access: {
+              localProjectGrant: { required: false, state: 'not_required' },
+              entitlement: { state: 'allowed' },
+            },
+          })
         },
       },
       executions: { getExecution: async () => undefined },
@@ -279,7 +285,7 @@ function attempt() {
   }
 }
 
-function runtimeConnection() {
+function runtimeConnection(overrides = {}) {
   return {
     runtimeConnectionId: ids.runtimeConnectionId,
     runtimeDefinitionId: ids.runtimeDefinitionId,
@@ -314,5 +320,6 @@ function runtimeConnection() {
     eligibility: { state: 'eligible', reasons: [], degradations: [], remediation: [] },
     observedAt: '2026-08-25T12:00:00.000Z',
     limitations: [],
+    ...overrides,
   }
 }
