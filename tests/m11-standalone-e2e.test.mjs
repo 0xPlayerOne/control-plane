@@ -10,6 +10,8 @@ import { LocalControlPlaneComposition } from '@control-plane/local-control-plane
 import { ManagedPiAdapter, ManagedPiDriver } from '@control-plane/managed-pi-adapter'
 import {
   DirectLocalRuntimeTransport,
+  ExternalSessionRegistry,
+  InMemoryExternalSessionRepository,
   InMemoryRuntimeConnectionRepository,
   RecordingRuntimeAvailabilityChangePublisher,
   RuntimeConnectionRegistry,
@@ -38,7 +40,10 @@ describe('M11 standalone execution composition', () => {
     'runs and recovers %s through Local without a Runtime Gateway',
     async (family, createAdapter) => {
       const directory = await mkdtemp(join(tmpdir(), 'control-plane-m11-local-'))
-      const adapter = createAdapter()
+      let publishDiscovery = async () => {
+        throw new Error('M11_SESSION_PROJECTION_UNCONFIGURED')
+      }
+      const adapter = createAdapter((input) => publishDiscovery(input))
       const inspection = await adapter.inspect()
       expect(inspection).toMatchObject({
         health: 'healthy',
@@ -46,6 +51,8 @@ describe('M11 standalone execution composition', () => {
       })
 
       const first = composition(directory, adapter)
+      publishDiscovery = ({ scope, model }) =>
+        first.runtimeDiscoveryRepository.putExternalSession(scope, model)
       let executionId
       let attemptId
       let resultReference
@@ -80,6 +87,20 @@ describe('M11 standalone execution composition', () => {
           ...status(executionId, 'completed', attemptId),
           resultReference,
         })
+        if (family === 'acp') {
+          await adapter.session({ operation: 'list' })
+          expect(
+            await first.runtimeDiscoveryRepository.listExternalSessions({
+              workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+              projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            })
+          ).toEqual([
+            expect.objectContaining({
+              externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+              state: 'active',
+            }),
+          ])
+        }
       } finally {
         await first.close()
       }
@@ -100,6 +121,14 @@ describe('M11 standalone execution composition', () => {
           status: 'completed',
           resultReference,
         })
+        if (family === 'acp') {
+          expect(
+            await restarted.runtimeDiscoveryRepository.listExternalSessions({
+              workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+              projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            })
+          ).toHaveLength(1)
+        }
       } finally {
         await restarted.close()
         await rm(directory, { recursive: true, force: true })
@@ -347,8 +376,9 @@ function createDirectManagedPiAdapter() {
   })
 }
 
-function createDirectAcpAdapter() {
+function createDirectAcpAdapter(publishDiscovery) {
   const externalSessions = new Map()
+  const nativeSessions = new Map()
   return new AcpAdapter({
     transport: new DirectLocalRuntimeTransport(
       new AcpDriver({
@@ -362,9 +392,72 @@ function createDirectAcpAdapter() {
         },
         interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
         now: () => new Date(observedAt),
+        externalSessions: {
+          registry: new ExternalSessionRegistry(new InMemoryExternalSessionRepository()),
+          runtimeConnection: acpConnection,
+          nodeStatus: () => 'online',
+          workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          opaqueNativeSessionId: (nativeSessionId) => {
+            if (!nativeSessions.has(nativeSessionId)) {
+              nativeSessions.set(nativeSessionId, 'nses_01JABCDEF0123456789ABCDEFG')
+            }
+            return nativeSessions.get(nativeSessionId)
+          },
+          resolveNativeSessionId: async (opaqueNativeSessionId) =>
+            [...nativeSessions.entries()].find(
+              ([, opaque]) => opaque === opaqueNativeSessionId
+            )?.[0],
+          capabilityTtlMs: 300_000,
+          authorize: async () => true,
+          publishDiscovery,
+        },
       })
     ),
   })
+}
+
+function acpConnection() {
+  return {
+    runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+    identityDigest: `sha256:${'9'.repeat(64)}`,
+    connectionType: 'external_local',
+    runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+    runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
+    location: 'local_device',
+    opaqueNativeRef: 'nref_01JABCDEF0123456789ABCDEFG',
+    adapterVersion: '1.0.0',
+    driverVersion: '1.0.0',
+    harnessVersion: '2.4.0',
+    protocolVersion: '2.0.0',
+    status: 'connected',
+    health: 'healthy',
+    availabilityState: 'healthy',
+    capabilities: [
+      'session.create',
+      'session.list',
+      'session.resume',
+      'session.close',
+      'session.history',
+      'session.load',
+      'stream.output',
+      'execution.cancel',
+      'filesystem.read',
+    ].map((name) => ({ name, support: 'supported' })),
+    capabilitySnapshotVersion: 1,
+    capabilitySnapshotObservedAt: observedAt,
+    capabilitySnapshotExpiresAt: '2026-08-30T12:05:00.000Z',
+    capabilityVerification: 'verified',
+    compatibilityState: 'compatible',
+    limitations: [],
+    diagnostics: [],
+    lastDiscoveredAt: observedAt,
+    lastHeartbeatAt: observedAt,
+    lastHealthCheckAt: observedAt,
+    version: 1,
+    createdAt: observedAt,
+    updatedAt: observedAt,
+  }
 }
 
 class CompletedManagedPiClient {
@@ -471,6 +564,12 @@ class FilesystemCapableAcpTransport extends ReferenceAcpTransport {
               'interaction.user-input',
               'interaction.approval',
               'filesystem.read',
+              'session.create',
+              'session.list',
+              'session.resume',
+              'session.close',
+              'session.history',
+              'session.load',
             ],
             driverVersion: '1.0.0',
           },

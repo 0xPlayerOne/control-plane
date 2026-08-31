@@ -16,6 +16,7 @@ import {
   TransportedRuntimeAdapter,
   inspectRuntimeCapabilities,
   assessExternalSession,
+  projectExternalSessionDiscovery,
   type ExternalSession,
   type ExternalSessionRegistry,
   type RuntimeAdapter,
@@ -234,6 +235,14 @@ export interface AcpExternalSessionsOptions {
     operation: RuntimeSessionOperation['operation'],
     session?: ExternalSession
   ) => Promise<boolean>
+  readonly publishDiscovery?: (input: {
+    readonly scope: {
+      readonly workspaceId: string
+      readonly projectId?: string
+      readonly runtimeNodeRefId?: string
+    }
+    readonly model: ReturnType<typeof projectExternalSessionDiscovery>
+  }) => Promise<void>
 }
 
 export interface AcpDriverOptions {
@@ -824,7 +833,7 @@ export class AcpDriver implements RuntimeAdapter {
     )
     const safeDisplayName = safeNativeDisplayName(displayName)
     if (!existing) {
-      await this.#externalSessions.registry.register({
+      const session = await this.#externalSessions.registry.register({
         externalSessionId: normalized.sessionId,
         runtimeConnectionId: connection.runtimeConnectionId,
         opaqueNativeSessionId: this.#externalSessions.opaqueNativeSessionId(nativeSessionId),
@@ -846,9 +855,10 @@ export class AcpDriver implements RuntimeAdapter {
         },
         lastObservedAt: observedAt,
       })
+      await this.#publishSessionDiscovery(session)
       return normalized
     }
-    await this.#externalSessions.registry.update({
+    const session = await this.#externalSessions.registry.update({
       externalSessionId: existing.externalSessionId,
       expectedVersion: existing.version,
       observedAt,
@@ -859,6 +869,7 @@ export class AcpDriver implements RuntimeAdapter {
         ...(safeDisplayName === undefined ? {} : { displayName: safeDisplayName }),
       },
     })
+    await this.#publishSessionDiscovery(session)
     return normalized
   }
 
@@ -874,13 +885,39 @@ export class AcpDriver implements RuntimeAdapter {
     })
     for (const session of sessions) {
       if (session.state !== 'active' || observed.has(session.externalSessionId)) continue
-      await this.#externalSessions.registry.update({
+      const updated = await this.#externalSessions.registry.update({
         externalSessionId: session.externalSessionId,
         expectedVersion: session.version,
         observedAt: this.#now().toISOString(),
         state: 'removed',
       })
+      await this.#publishSessionDiscovery(updated)
     }
+  }
+
+  async #publishSessionDiscovery(session: ExternalSession): Promise<void> {
+    if (!this.#externalSessions?.publishDiscovery) return
+    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
+    const evaluatedAt = this.#now().toISOString()
+    await this.#externalSessions.publishDiscovery({
+      scope: {
+        workspaceId: this.#externalSessions.workspaceId,
+        ...(this.#externalSessions.projectId === undefined
+          ? {}
+          : { projectId: this.#externalSessions.projectId }),
+        ...(connection.runtimeNodeRefId === undefined
+          ? {}
+          : { runtimeNodeRefId: connection.runtimeNodeRefId }),
+      },
+      model: projectExternalSessionDiscovery({
+        session,
+        assessment: assessExternalSession(session, {
+          connection,
+          nodeStatus: this.#externalSessions.nodeStatus(),
+          evaluatedAt,
+        }),
+      }),
+    })
   }
 
   async #replay(nativeSessionId: string, afterSequence?: number): Promise<AcpSessionReplay> {
