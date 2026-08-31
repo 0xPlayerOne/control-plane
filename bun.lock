@@ -160,6 +160,7 @@
         "@control-plane/execution-plan": "workspace:*",
         "@control-plane/object-store": "workspace:*",
         "@control-plane/orchestration": "workspace:*",
+        "@control-plane/runtime-gateway-protocol": "workspace:*",
         "@control-plane/telemetry": "workspace:*",
         "@control-plane/workflow-runtime": "workspace:*",
         "@restatedev/restate-sdk": "1.16.9",

@@ -29,6 +29,13 @@ export type {
   RuntimeDiscoveryAttemptRouterOptions,
   RuntimeDiscoveryReadPort,
 } from './runtime-attempt-router.js'
+export { DurableRemoteWorkflowRuntime } from './remote-workflow-runtime.js'
+export type {
+  DurableRemoteWorkflowRuntimeOptions,
+  RemoteRuntimeAttemptReader,
+  RemoteRuntimeCommandFactory,
+  RemoteRuntimeOutcomeWaiter,
+} from './remote-workflow-runtime.js'
 
 export const serviceName = 'workflow-worker'
 
