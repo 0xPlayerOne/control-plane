@@ -278,11 +278,15 @@ export class ToolGateway {
     while (attempts < retryPolicy.maxAttempts) {
       attempts += 1
       try {
-        result = await withTimeout(executor.execute(request, version), version.limits.timeoutMs)
+        result = await withTimeout(
+          (signal) => executor.execute(request, version, signal),
+          version.limits.timeoutMs
+        )
         break
       } catch (error) {
         const normalized = normalizeExecutorError(error)
         const retry =
+          normalized.code !== 'TIMEOUT' &&
           operation.idempotency !== 'none' &&
           normalized.retryable &&
           retryPolicy.retryableErrorCodes.includes(normalized.code) &&
@@ -342,13 +346,14 @@ export class FakeToolExecutor implements ToolExecutor {
   constructor(
     readonly respond: (
       request: ToolExecutionRequest,
-      version: ToolVersion
+      version: ToolVersion,
+      signal: AbortSignal
     ) => unknown | Promise<unknown>
   ) {}
 
-  async execute(request: ToolExecutionRequest, version: ToolVersion) {
+  async execute(request: ToolExecutionRequest, version: ToolVersion, signal: AbortSignal) {
     this.requests.push(clone(request))
-    return { output: await this.respond(request, version) }
+    return { output: await this.respond(request, version, signal) }
   }
 }
 
@@ -415,16 +420,22 @@ function failGateway(code: ToolGatewayErrorCode): never {
   throw new ToolGatewayError(code)
 }
 
-async function withTimeout<Value>(promise: Promise<Value>, timeoutMs: number): Promise<Value> {
+async function withTimeout<Value>(
+  operation: (signal: AbortSignal) => Promise<Value>,
+  timeoutMs: number
+): Promise<Value> {
+  const timeoutError = new ToolExecutorError('TIMEOUT', true, 'unknown')
+  const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
-      promise,
+      operation(controller.signal),
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new ToolExecutorError('TIMEOUT', true, 'unknown')),
-          timeoutMs
-        )
+        timer = setTimeout(() => {
+          controller.abort(timeoutError)
+          reject(timeoutError)
+        }, timeoutMs)
+        timer.unref?.()
       }),
     ])
   } finally {

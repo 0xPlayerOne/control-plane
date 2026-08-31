@@ -216,10 +216,18 @@ describe('MCP adapter', () => {
       code: 'EXECUTION_FAILED',
       executorCode: 'MCP_PROTOCOL_ERROR',
     })
-    client.invoke = async () => new Promise(() => {})
+    let observedSignal
+    client.invoke = async (_request, signal) => {
+      observedSignal = signal
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    }
     await expect(gateway.execute(request)).rejects.toMatchObject({
       code: 'EXECUTION_TIMEOUT',
       executorCode: 'TIMEOUT',
     })
+    expect(observedSignal).toBeInstanceOf(globalThis.AbortSignal)
+    expect(observedSignal.aborted).toBe(true)
   })
 })

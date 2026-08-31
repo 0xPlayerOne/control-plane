@@ -27,12 +27,15 @@ export interface McpDiscoveredTool {
 
 export interface McpClientPort {
   discover(registration: McpServerRegistration): Promise<readonly McpDiscoveredTool[]>
-  invoke(request: {
-    readonly serverId: string
-    readonly toolName: string
-    readonly input: unknown
-    readonly credentialRef: string
-  }): Promise<unknown>
+  invoke(
+    request: {
+      readonly serverId: string
+      readonly toolName: string
+      readonly input: unknown
+      readonly credentialRef: string
+    },
+    signal: AbortSignal
+  ): Promise<unknown>
 }
 
 export class McpAdapterError extends Error {
@@ -124,7 +127,7 @@ export class McpAdapter implements ToolExecutor {
     return versions
   }
 
-  async execute(request: ToolExecutionRequest, version: ToolVersion) {
+  async execute(request: ToolExecutionRequest, version: ToolVersion, signal: AbortSignal) {
     const source = version.source
     if (source?.kind !== 'mcp' || source.serverId !== this.#registration.serverId) {
       throw new ToolExecutorError('MCP_PROVENANCE_MISMATCH', false, 'none')
@@ -140,12 +143,15 @@ export class McpAdapter implements ToolExecutor {
       throw new ToolExecutorError('MCP_SCHEMA_CHANGED', false, 'none')
     }
     try {
-      const output = await this.#client.invoke({
-        serverId: this.#registration.serverId,
-        toolName: source.sourceToolName,
-        input: request.input,
-        credentialRef: this.#registration.credentialRef,
-      })
+      const output = await this.#client.invoke(
+        {
+          serverId: this.#registration.serverId,
+          toolName: source.sourceToolName,
+          input: request.input,
+          credentialRef: this.#registration.credentialRef,
+        },
+        signal
+      )
       return { output }
     } catch (error) {
       const code =

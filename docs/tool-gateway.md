@@ -29,6 +29,12 @@ Executor adapters implement the provider-neutral `ToolExecutor` port from `@cont
 Provider credentials and transport configuration remain behind those adapters and are not part of
 canonical definitions, runtime requests, or public results.
 
+Every executor receives a required `AbortSignal`. Adapters must propagate it to their underlying
+transport and stop work promptly when it is aborted. At the pinned deadline the gateway aborts the
+attempt and returns an ambiguous-effect timeout; it does not automatically retry timeout failures,
+even when a tool's retry policy lists `TIMEOUT`. A transport that cannot confirm cancellation must
+leave the effect for durable reconciliation rather than start an overlapping attempt.
+
 ## Durable policy-controlled calls
 
 Privileged execution uses `PolicyControlledToolExecutionService`, which prepares and validates the
@@ -43,8 +49,8 @@ The service follows this order:
 3. Evaluate the provider-neutral policy port; denial or evaluator failure cannot reach an executor.
 4. Create or inspect a durable M3 approval interaction when policy/tool risk requires it.
 5. Enforce the principal/tool/operation rate window immediately before the effect.
-6. Invoke the executor with the pinned timeout and retry only errors explicitly classified by the
-   tool version when its idempotency model supports retry.
+6. Invoke the executor with the pinned timeout and retry only non-timeout errors explicitly
+   classified by the tool version when its idempotency model supports retry.
 7. Validate and bound output, then persist the result and terminal audit transition.
 
 Concurrent and redelivered requests with the same digest converge on one supported effect. Reusing

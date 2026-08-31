@@ -336,7 +336,8 @@ export class ToolExecutorError extends Error {
 export interface ToolExecutor {
   execute(
     request: ToolExecutionRequest,
-    version: ToolVersion
+    version: ToolVersion,
+    signal: AbortSignal
   ): Promise<{ readonly output: unknown; readonly artifactRefs?: readonly string[] }>
 }
 
