@@ -70,7 +70,7 @@ toolchain on macOS Darwin 25.6.0:
 | -------------------- | ------------------------------------------- | ----------: |
 | `bun run test:unit`  | 601 passed; 101 files; coverage gate passed |     11.22 s |
 | `bun run test:e2e`   | 89 passed; 12 files                         |     14.56 s |
-| `bun run test:smoke` | 43 passed; 5 files                          |     22.38 s |
+| `bun run test:smoke` | 45 passed; 5 files                          |     10.44 s |
 
 Unit coverage was 86.54% lines and 82.97% functions against the 80% minimum.
 The three credential-free lanes passed in randomized order at seed `1104`.
@@ -84,8 +84,8 @@ Additional local gates passed:
 - `bun run lint`, including 41-package boundary validation;
 - `bun run type-check`, including OpenAPI, Drizzle, compatibility,
   requirements, architecture, and Railway IaC checks;
-- focused repository, M9 hardening, and requirements-ledger tests: 32 passed,
-  308 assertions.
+- focused repository, M9 hardening, and requirements-ledger tests: 33 passed,
+  310 assertions.
 
 ## Scheduled and release-only ownership
 

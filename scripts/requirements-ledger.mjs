@@ -60,11 +60,17 @@ export async function validateRequirementsLedger(ledger, options = {}) {
       )
     )
     if (!candidateAvailable) {
-      const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
-        cwd: root,
-        encoding: 'utf8',
-      })
-      if (shallow.status === 0 && shallow.stdout.trim() === 'true') {
+      const shallowRepository =
+        typeof options.shallowRepository === 'boolean'
+          ? options.shallowRepository
+          : (() => {
+              const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
+                cwd: root,
+                encoding: 'utf8',
+              })
+              return shallow.status === 0 && shallow.stdout.trim() === 'true'
+            })()
+      if (shallowRepository) {
         warnings.push(
           `candidate commit ${ledger.candidate.commit} is unavailable in this shallow checkout; committed-artifact provenance must be reproduced from a full clone`
         )

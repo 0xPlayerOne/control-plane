@@ -71,10 +71,14 @@ describe('M11.1 requirements ledger', () => {
     fictionalCandidate.verificationRuns.forEach((run) => {
       run.commit = fictionalCandidate.candidate.commit
     })
+    fictionalCandidate.reviewerSamples.forEach((sample) => {
+      sample.commit = fictionalCandidate.candidate.commit
+    })
     expect(
       (
         await validateRequirementsLedger(fictionalCandidate, {
           repositoryRoot: new URL('..', import.meta.url),
+          shallowRepository: false,
         })
       ).errors
     ).toContain('candidate.commit must exist in the repository')
@@ -134,12 +138,38 @@ describe('M11.1 requirements ledger', () => {
     ).toContain(`${unknownLane.requirements[0].id}: invalid validation lane miscellaneous`)
   })
 
-  test('reports no provenance warning when the pinned candidate is reachable', async () => {
+  test('reports only the explicit provenance warning when history is shallow', async () => {
     const result = await validateRequirementsLedger(ledger, {
       repositoryRoot: new URL('..', import.meta.url),
     })
 
-    expect(result.warnings).toEqual([])
+    expect(result.warnings.length).toBeLessThanOrEqual(1)
+    for (const warning of result.warnings) {
+      expect(warning).toBe(
+        `candidate commit ${ledger.candidate.commit} is unavailable in this shallow checkout; committed-artifact provenance must be reproduced from a full clone`
+      )
+    }
+  })
+
+  test('distinguishes shallow history from a missing full-clone candidate', async () => {
+    const fictionalCandidate = clone(ledger)
+    fictionalCandidate.candidate.commit = 'f'.repeat(40)
+    fictionalCandidate.verificationRuns.forEach((run) => {
+      run.commit = fictionalCandidate.candidate.commit
+    })
+    fictionalCandidate.reviewerSamples.forEach((sample) => {
+      sample.commit = fictionalCandidate.candidate.commit
+    })
+
+    const result = await validateRequirementsLedger(fictionalCandidate, {
+      repositoryRoot: new URL('..', import.meta.url),
+      shallowRepository: true,
+    })
+
+    expect(result.errors).not.toContain('candidate.commit must exist in the repository')
+    expect(result.warnings).toContain(
+      `candidate commit ${fictionalCandidate.candidate.commit} is unavailable in this shallow checkout; committed-artifact provenance must be reproduced from a full clone`
+    )
   })
 
   test('records actionable disposition for every non-verified row', () => {
