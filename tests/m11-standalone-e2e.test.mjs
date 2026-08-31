@@ -8,7 +8,24 @@ import { ControlApiFixtures } from '@control-plane/contracts'
 import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
 import { LocalControlPlaneComposition } from '@control-plane/local-control-plane'
 import { ManagedPiAdapter, ManagedPiDriver } from '@control-plane/managed-pi-adapter'
-import { DirectLocalRuntimeTransport } from '@control-plane/runtime-sdk'
+import {
+  DirectLocalRuntimeTransport,
+  InMemoryRuntimeConnectionRepository,
+  RecordingRuntimeAvailabilityChangePublisher,
+  RuntimeConnectionRegistry,
+  RuntimeHealthIngestionService,
+} from '@control-plane/runtime-sdk'
+import {
+  DefaultRuntimeInventoryNormalizer,
+  InMemoryRuntimeNodeCoordination,
+  RecordingGatewayMetrics,
+  RecordingRuntimeNodeReachabilityPublisher,
+  RuntimeGatewayWebSocketLifecycle,
+  RuntimeInventoryIngestionService,
+  RuntimeInventoryMessageHandler,
+  RuntimeNodeChannelAuthenticator,
+  SyntheticRuntimeNodeIdentityAuthority,
+} from '../apps/runtime-gateway/dist/index.js'
 
 const observedAt = '2026-08-30T12:00:00.000Z'
 const workflowId = 'wfl_01JABCDEF0123456789ABCDEFG'
@@ -135,6 +152,123 @@ describe('M11 standalone execution composition', () => {
       await rm(directory, { recursive: true, force: true })
     }
   }, 60_000)
+
+  test('persists signed live RuntimeNode inventory through the gateway after restart', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-m11-discovery-'))
+    const local = composition(directory)
+    const runtimeNodeRefId = 'rnr_01JABCDEF0123456789ABCDEFG'
+    const workspaceId = 'wsp_01JABCDEF0123456789ABCDEFG'
+    const issuer = 'https://identity.control-plane.test'
+    const audience = 'control-plane-runtime-gateway'
+    const authority = new SyntheticRuntimeNodeIdentityAuthority({
+      issuer,
+      audience,
+      now: () => new Date(observedAt),
+    })
+    const device = authority.registerNode({ nodeId: runtimeNodeRefId, workspaceId })
+    const issued = authority.issueCredential(device, { channelGeneration: 1 })
+    const challenge = 'm11-live-inventory-challenge'
+    const authenticator = new RuntimeNodeChannelAuthenticator({
+      identityValidator: authority.validationPort(),
+      logger: { write: () => undefined },
+      now: () => new Date(observedAt),
+    })
+    const channel = await authenticator.authenticate(
+      device.authenticationAttempt(issued.credential, challenge),
+      {
+        issuer,
+        audience,
+        nodeId: runtimeNodeRefId,
+        workspaceId,
+        channelGeneration: 1,
+        challenge,
+      }
+    )
+    const registry = new RuntimeConnectionRegistry(new InMemoryRuntimeConnectionRepository())
+    const changes = new RecordingRuntimeAvailabilityChangePublisher()
+    const metrics = new RecordingGatewayMetrics()
+    const inventory = new RuntimeInventoryIngestionService({
+      registry,
+      changes,
+      checkpoints: local.runtimeInventoryCheckpoints,
+      projections: local.runtimeDiscoveryRepository,
+      normalizer: new DefaultRuntimeInventoryNormalizer(),
+      metrics,
+      health: new RuntimeHealthIngestionService({
+        registry,
+        changes,
+        policy: {
+          adapterMajor: 1,
+          driverMajor: 1,
+          harnessMajor: 1,
+          protocolMajor: 1,
+          healthTtlMs: 60_000,
+          maximumCapabilityTtlMs: 60_000,
+        },
+      }),
+    })
+    const socket = new RecordingGatewaySocket()
+    const lifecycle = new RuntimeGatewayWebSocketLifecycle({
+      instanceId: 'm11-live-gateway',
+      coordination: new InMemoryRuntimeNodeCoordination(),
+      reachability: new RecordingRuntimeNodeReachabilityPublisher(),
+      metrics,
+      messages: new RuntimeInventoryMessageHandler({ inventory }),
+      limits: {
+        maxConnections: 8,
+        maxConnectionsPerWorkspace: 4,
+        maxFrameBytes: 64 * 1024,
+        maxBufferedBytes: 64 * 1024,
+        heartbeatTimeoutMs: 15_000,
+        idleTimeoutMs: 30_000,
+      },
+      now: () => new Date(observedAt),
+    })
+
+    try {
+      await local.start()
+      expect(
+        lifecycle.open({
+          connectionId: 'm11-live-connection',
+          authenticatedChannel: channel,
+          socket,
+        })
+      ).toBeTrue()
+      await lifecycle.receive(
+        'm11-live-connection',
+        JSON.stringify(runtimeNodeHello(runtimeNodeRefId, workspaceId))
+      )
+      await lifecycle.receive(
+        'm11-live-connection',
+        JSON.stringify(runtimeNodeInventory(runtimeNodeRefId, workspaceId))
+      )
+      expect(socket.sent).toHaveLength(1)
+      expect(
+        await local.runtimeDiscoveryRepository.listRuntimeConnections({ workspaceId })
+      ).toEqual([
+        expect.objectContaining({
+          family: 'managed-pi',
+          node: expect.objectContaining({ runtimeNodeRefId, health: 'online' }),
+          connection: expect.objectContaining({ availability: 'healthy' }),
+        }),
+      ])
+    } finally {
+      await lifecycle.close()
+      authenticator.close()
+      await local.close()
+    }
+
+    const restarted = composition(directory)
+    try {
+      await restarted.start()
+      expect(
+        await restarted.runtimeDiscoveryRepository.listRuntimeConnections({ workspaceId })
+      ).toHaveLength(1)
+    } finally {
+      await restarted.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 async function waitForTerminalExecution(composition, executionId) {
@@ -343,5 +477,67 @@ class FilesystemCapableAcpTransport extends ReferenceAcpTransport {
         },
       },
     }
+  }
+}
+
+class RecordingGatewaySocket {
+  sent = []
+
+  bufferedAmount() {
+    return 0
+  }
+
+  send(value) {
+    this.sent.push(JSON.parse(value))
+  }
+
+  close() {}
+}
+
+function runtimeNodeHello(nodeId, workspaceId) {
+  return {
+    type: 'hello',
+    schemaVersion: 1,
+    protocolVersion: { major: 1, minor: 2 },
+    sequence: 0,
+    nodeId,
+    workspaceId,
+    traceId: 'trc_01JABCDEF0123456789ABCDEFG',
+    sentAt: observedAt,
+    channelGeneration: 1,
+    supportedVersions: [{ major: 1, minor: 2 }],
+    lastAcknowledgedSequence: 0,
+  }
+}
+
+function runtimeNodeInventory(nodeId, workspaceId) {
+  return {
+    type: 'inventory',
+    schemaVersion: 1,
+    protocolVersion: { major: 1, minor: 2 },
+    sequence: 1,
+    nodeId,
+    workspaceId,
+    traceId: 'trc_01JABCDEF0123456789ABCDEFG',
+    sentAt: observedAt,
+    channelGeneration: 1,
+    mode: 'snapshot',
+    snapshotVersion: 1,
+    observedAt,
+    runtimeDrivers: [
+      {
+        opaqueRef: 'nref_01JABCDEF0123456789ABCDEFG',
+        driverFamily: 'managed-pi',
+        adapterVersion: '1.0.0',
+        driverVersion: '1.0.0',
+        harnessVersion: '1.0.0',
+        protocolVersion: { major: 1, minor: 2 },
+        health: 'healthy',
+        capabilities: ['stream.output', 'execution.cancel'],
+        limitations: [],
+      },
+    ],
+    contextProviders: [],
+    removedRuntimeRefs: [],
   }
 }

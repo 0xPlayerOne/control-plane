@@ -7,7 +7,9 @@ import {
   RuntimeHealthIngestionService,
 } from '@control-plane/runtime-sdk'
 import {
+  DefaultRuntimeInventoryNormalizer,
   RecordingGatewayMetrics,
+  RuntimeInventoryMessageHandler,
   RuntimeInventoryIngestionError,
   RuntimeInventoryIngestionService,
 } from './index.js'
@@ -18,6 +20,43 @@ const runtimeA = 'nref_01JABCDEF0123456789ABCDEFG'
 const runtimeB = 'nref_01JBBCDEF0123456789ABCDEFG'
 
 describe('Runtime Gateway inventory ingestion', () => {
+  test('normalizes and routes a live inventory frame through the production handler', async () => {
+    const frame = inventory(1, [driver(runtimeA)])
+    const normalizer = new DefaultRuntimeInventoryNormalizer()
+    const normalized = await normalizer.normalize({
+      driver: frame.runtimeDrivers[0],
+      inventory: frame,
+      nodeStatus: 'online',
+    })
+
+    expect(normalized).toMatchObject({
+      registration: {
+        connectionType: 'managed_local',
+        runtimeNodeRefId: nodeId,
+        opaqueNativeRef: runtimeA,
+        adapterVersion: '1.0.0',
+        status: 'connected',
+      },
+      healthReport: {
+        reportSequence: 1,
+        nodeStatus: 'online',
+        runtimeState: 'healthy',
+      },
+    })
+    expect(normalized.registration.runtimeConnectionId).toMatch(/^rtc_[0-9A-HJKMNP-TV-Z]{26}$/)
+    expect(normalized.registration.runtimeDefinitionId).toMatch(/^rtd_[0-9A-HJKMNP-TV-Z]{26}$/)
+
+    const calls = []
+    const handler = new RuntimeInventoryMessageHandler({
+      inventory: { ingest: async (...input) => calls.push(input) },
+    })
+    await handler.handle(source(), frame)
+    expect(calls).toEqual([[frame, source(), 'online']])
+    await expect(handler.handle(source(), { ...frame, type: 'heartbeat' })).rejects.toThrow(
+      'RUNTIME_GATEWAY_FRAME_UNSUPPORTED'
+    )
+  })
+
   test('applies snapshots idempotently while keeping node and runtime health separate', async () => {
     const fixture = createFixture()
     const unhealthy = inventory(1, [driver(runtimeA, 'unavailable')])
