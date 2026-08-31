@@ -1,12 +1,17 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { describe, expect, test } from 'bun:test'
 import { AcpAdapter, AcpDriver, ReferenceAcpTransport } from '@control-plane/acp-adapter'
 import { ControlApiFixtures } from '@control-plane/contracts'
+import { contextPackageSerializationFixtures } from '@control-plane/context'
 import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
-import { LocalControlPlaneComposition } from '@control-plane/local-control-plane'
+import {
+  LocalControlPlaneComposition,
+  createLocalManagedPiRuntime,
+} from '@control-plane/local-control-plane'
 import { ManagedPiAdapter, ManagedPiDriver } from '@control-plane/managed-pi-adapter'
 import {
   DirectLocalRuntimeTransport,
@@ -28,6 +33,7 @@ import {
   RuntimeNodeChannelAuthenticator,
   SyntheticRuntimeNodeIdentityAuthority,
 } from '../apps/runtime-gateway/dist/index.js'
+import { writeManagedPiRpcFixture } from '../packages/managed-pi-adapter/src/test-support/managed-pi-rpc-fixture.mjs'
 
 const observedAt = '2026-08-30T12:00:00.000Z'
 const workflowId = 'wfl_01JABCDEF0123456789ABCDEFG'
@@ -171,6 +177,68 @@ describe('M11 standalone execution composition', () => {
         'svc_m11-standalone'
       )
       expect(response.data.status).toBe('processing')
+      const execution = await waitForTerminalExecution(local, response.data.executionId)
+      expect(execution).toMatchObject({
+        state: 'completed',
+        terminalResultRef: `art_${response.data.executionId.slice(4)}`,
+      })
+    } finally {
+      await local.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  test('runs the packaged managed Pi RPC client through Local Restate', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-m11-pi-rpc-'))
+    const executablePath = join(directory, 'pi-fixture.mjs')
+    await writeManagedPiRpcFixture(executablePath)
+    const local = new LocalControlPlaneComposition({
+      dataDirectory: directory,
+      runtimeFactory: (repositories) =>
+        createLocalManagedPiRuntime(repositories, {
+          executablePath,
+          provider: 'fixture-provider',
+          model: 'fixture-model',
+          modelAlias: 'reasoning.standard',
+          modelCapabilities: ['tool_calling', 'structured_output'],
+          providerClass: 'managed',
+          dataResidency: 'us',
+          environment: { PATH: process.env.PATH ?? '/usr/bin:/bin' },
+        }),
+      workflowEndpointPort: 19083,
+    })
+    const plan = createExecutionPlanTestFixture({
+      profileCapabilityRequirements: ['stream.output'],
+      skillRequiredCapabilities: [],
+    })
+    try {
+      await local.start()
+      await local.catalog.insertAgentProfileVersion(managedPiProfileVersion())
+      await local.catalog.insertSkillVersion(managedPiSkillVersion())
+      await local.contextPackages.put(contextPackageSerializationFixtures.futurePi)
+      await local.executionPlans.put(plan)
+      const issuedAt = new Date().toISOString()
+      const response = await local.executionAcceptanceService.accept(
+        {
+          ...ControlApiFixtures.executionAcceptance.request,
+          requestId: plan.correlation.requestId,
+          workspaceId: plan.correlation.workspaceId,
+          projectId: plan.correlation.projectId,
+          issuedAt,
+          payload: {
+            taskId: plan.correlation.taskId,
+            agentId: plan.correlation.agentId,
+            executionPlan: {
+              executionPlanId: plan.executionPlanId,
+              contentDigest: plan.contentDigest,
+              schemaVersion: plan.schemaVersion,
+            },
+            deadlineAt: new Date(Date.parse(issuedAt) + 60_000).toISOString(),
+            retentionExpiresAt: new Date(Date.parse(issuedAt) + 86_400_000).toISOString(),
+          },
+        },
+        'svc_m11-managed-pi-rpc'
+      )
       const execution = await waitForTerminalExecution(local, response.data.executionId)
       expect(execution).toMatchObject({
         state: 'completed',
@@ -545,6 +613,57 @@ class CompletedManagedPiClient {
 
   #require(handle) {
     if (!this.executions.has(handle.handleId)) throw new Error('MANAGED_PI_EXECUTION_MISSING')
+  }
+}
+
+function managedPiProfileVersion() {
+  return {
+    profileVersionId: 'pfv_01JABCDEF0123456789ABCDEFG',
+    profileId: 'prf_01JABCDEF0123456789ABCDEFG',
+    version: 3,
+    revision: 2,
+    lifecycle: 'published',
+    contentDigest: `sha256:${'a'.repeat(64)}`,
+    definition: {
+      schemaVersion: 1,
+      roleInstructions: 'Complete the assigned task safely.',
+      skills: [
+        {
+          skillId: 'skl_01JABCDEF0123456789ABCDEFG',
+          skillVersionId: 'skv_01JABCDEF0123456789ABCDEFG',
+          contentDigest: `sha256:${'b'.repeat(64)}`,
+        },
+      ],
+      capabilityRequirements: ['stream.output'],
+      executionConstraints: createExecutionPlanTestFixture().constraints,
+      outputContractRefs: ['contract://execution-result/v1'],
+    },
+    createdAt: '2026-08-22T12:00:00.000Z',
+    lifecycleMetadata: { publishedAt: '2026-08-22T12:00:00.000Z' },
+  }
+}
+
+function managedPiSkillVersion() {
+  return {
+    skillVersionId: 'skv_01JABCDEF0123456789ABCDEFG',
+    skillId: 'skl_01JABCDEF0123456789ABCDEFG',
+    revision: 4,
+    lifecycle: 'published',
+    manifest: {
+      schemaVersion: 1,
+      semanticVersion: '2.1.0',
+      contentDigest: `sha256:${'b'.repeat(64)}`,
+      requiredCapabilities: [],
+      requiredTools: [{ toolId: 'project-files', versionRange: '^1.0.0' }],
+      dependencies: [],
+      conflicts: [],
+      supersedes: [],
+      compatibleProfileSchemaVersions: [1],
+      compatibleContractMajorVersions: [1],
+    },
+    content: { instructions: 'Return the bounded result.', artifactRefs: [] },
+    createdAt: '2026-08-22T12:00:00.000Z',
+    lifecycleMetadata: { publishedAt: '2026-08-22T12:00:00.000Z' },
   }
 }
 

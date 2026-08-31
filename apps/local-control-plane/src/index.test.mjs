@@ -13,9 +13,35 @@ import {
   createLocalApiAuthentication,
   resolveEmbeddedDeploymentProfile,
   resolveLocalApiHost,
+  resolveLocalRuntimeOptions,
 } from './index.ts'
 
 describe('Local Control Plane composition', () => {
+  test('packages managed Pi only from explicit non-secret launcher configuration', () => {
+    expect(resolveLocalRuntimeOptions({})).toEqual({})
+    expect(() => resolveLocalRuntimeOptions({ CONTROL_PLANE_LOCAL_RUNTIME: 'managed-pi' })).toThrow(
+      'LOCAL_MANAGED_PI_MODEL_CONFIGURATION_REQUIRED'
+    )
+    expect(() =>
+      resolveLocalRuntimeOptions({ CONTROL_PLANE_LOCAL_RUNTIME: 'remote-gateway' })
+    ).toThrow('LOCAL_RUNTIME_FAMILY_INVALID')
+
+    const resolved = resolveLocalRuntimeOptions({
+      CONTROL_PLANE_LOCAL_RUNTIME: 'managed-pi',
+      CONTROL_PLANE_MANAGED_PI_EXECUTABLE: '/opt/pi/bin/pi',
+      CONTROL_PLANE_MANAGED_PI_PROVIDER: 'openai-codex',
+      CONTROL_PLANE_MANAGED_PI_MODEL: 'gpt-5.4',
+      CONTROL_PLANE_MANAGED_PI_MODEL_ALIAS: 'reasoning.standard',
+      CONTROL_PLANE_MANAGED_PI_MODEL_CAPABILITIES: 'tool_calling,structured_output',
+      CONTROL_PLANE_MANAGED_PI_PROVIDER_CLASS: 'managed',
+      CONTROL_PLANE_MANAGED_PI_DATA_RESIDENCY: 'us',
+      PATH: '/opt/pi/bin:/usr/bin',
+      HOME: '/Users/runtime',
+      CONTROL_PLANE_DATABASE_URL: 'must-not-reach-pi',
+    })
+    expect(resolved.runtimeFactory).toBeFunction()
+  })
+
   test('binds loopback by default and permits only explicit socket bind addresses', () => {
     expect(resolveLocalApiHost()).toBe('127.0.0.1')
     expect(resolveLocalApiHost('0.0.0.0')).toBe('0.0.0.0')
