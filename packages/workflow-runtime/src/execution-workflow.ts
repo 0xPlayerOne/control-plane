@@ -56,13 +56,29 @@ export interface ExecutionLifecycleActivities {
   runGraphSegment: GraphSegmentActivityPort['runGraphSegment']
   resumeGraphSegment: GraphSegmentActivityPort['resumeGraphSegment']
   continueGraphSegment: GraphSegmentActivityPort['continueGraphSegment']
+  cancelActive(input: {
+    executionId: string
+    attemptId: string
+    workflowId: string
+    effectKey: string
+    reason: 'user_request' | 'deadline'
+    graph?: ExecutionWorkflowInput['graph']
+  }): Promise<void>
   cleanup(input: { executionId: string; attemptId?: string; effectKey: string }): Promise<void>
 }
+
+export type TerminalControl = { readonly cancelled: true } | { readonly deadlineReached: true }
+
+export type ActivityRaceResult<Value> =
+  | { readonly type: 'activity'; readonly value: Value }
+  | { readonly type: 'terminal'; readonly control: TerminalControl }
 
 export interface WorkflowControl {
   readonly cancelled?: boolean
   readonly deadlineReached?: boolean
   readonly waitForInteraction?: (interactionId: string) => Promise<WorkflowInteractionResponse>
+  readonly raceActivity?: <Value>(activity: Promise<Value>) => Promise<ActivityRaceResult<Value>>
+  readonly checkTerminal?: () => Promise<TerminalControl | undefined>
 }
 
 export interface WorkflowInteractionResponse {
@@ -94,22 +110,10 @@ export async function runExecutionLifecycle(
 ): Promise<ExecutionWorkflowResult> {
   const key = (operation: string) => `${input.workflowId}:${workflowPolicies.version}:${operation}`
   if (control.cancelled) {
-    await activities.persistStatus({
-      executionId: input.executionId,
-      state: 'cancelled',
-      effectKey: key('cancelled'),
-    })
-    await activities.cleanup({ executionId: input.executionId, effectKey: key('cleanup') })
-    return { executionId: input.executionId, status: 'cancelled' }
+    return finishTerminal(input, activities, { cancelled: true }, key)
   }
   if (control.deadlineReached) {
-    await activities.persistStatus({
-      executionId: input.executionId,
-      state: 'timed_out',
-      effectKey: key('timed_out'),
-    })
-    await activities.cleanup({ executionId: input.executionId, effectKey: key('cleanup') })
-    return { executionId: input.executionId, status: 'timed_out' }
+    return finishTerminal(input, activities, { deadlineReached: true }, key)
   }
   await activities.persistStatus({
     executionId: input.executionId,
@@ -135,37 +139,58 @@ export async function runExecutionLifecycle(
   })
   let runtimeOutcome: WorkflowRuntimeOutcome
   if (input.graph) {
-    runtimeOutcome = await activities.runGraphSegment({
-      executionId: input.executionId,
-      attemptId,
-      workspaceId: input.graph.workspaceId,
-      workflowId: input.workflowId,
-      graph: input.graph.reference,
-      threadId: input.graph.threadId,
-      input: input.graph.input,
-      idempotencyKey: key('graph:run'),
-    })
-  } else {
-    runtimeOutcome = await activities.dispatch({
-      executionId: input.executionId,
-      attemptId,
-      executionPlan: input.executionPlan,
-      effectKey: key('dispatch'),
-    })
-  }
-  while (runtimeOutcome.outcome === 'awaiting_input' || runtimeOutcome.outcome === 'continue') {
-    if (runtimeOutcome.outcome === 'continue') {
-      if (!input.graph) throw new Error('GRAPH_INPUT_REQUIRED')
-      runtimeOutcome = await activities.continueGraphSegment({
+    const raced = await raceActivity(
+      activities.runGraphSegment({
         executionId: input.executionId,
         attemptId,
         workspaceId: input.graph.workspaceId,
         workflowId: input.workflowId,
         graph: input.graph.reference,
         threadId: input.graph.threadId,
-        checkpointId: runtimeOutcome.checkpointId,
-        idempotencyKey: key(`graph:continue:${runtimeOutcome.checkpointId}`),
-      })
+        input: input.graph.input,
+        idempotencyKey: key('graph:run'),
+      }),
+      control
+    )
+    if (raced.type === 'terminal') {
+      return finishTerminal(input, activities, raced.control, key, attemptId)
+    }
+    runtimeOutcome = raced.value
+  } else {
+    const raced = await raceActivity(
+      activities.dispatch({
+        executionId: input.executionId,
+        attemptId,
+        executionPlan: input.executionPlan,
+        effectKey: key('dispatch'),
+      }),
+      control
+    )
+    if (raced.type === 'terminal') {
+      return finishTerminal(input, activities, raced.control, key, attemptId)
+    }
+    runtimeOutcome = raced.value
+  }
+  while (runtimeOutcome.outcome === 'awaiting_input' || runtimeOutcome.outcome === 'continue') {
+    if (runtimeOutcome.outcome === 'continue') {
+      if (!input.graph) throw new Error('GRAPH_INPUT_REQUIRED')
+      const raced = await raceActivity(
+        activities.continueGraphSegment({
+          executionId: input.executionId,
+          attemptId,
+          workspaceId: input.graph.workspaceId,
+          workflowId: input.workflowId,
+          graph: input.graph.reference,
+          threadId: input.graph.threadId,
+          checkpointId: runtimeOutcome.checkpointId,
+          idempotencyKey: key(`graph:continue:${runtimeOutcome.checkpointId}`),
+        }),
+        control
+      )
+      if (raced.type === 'terminal') {
+        return finishTerminal(input, activities, raced.control, key, attemptId)
+      }
+      runtimeOutcome = raced.value
       continue
     }
     const interactionId = runtimeOutcome.interactionId
@@ -176,30 +201,52 @@ export async function runExecutionLifecycle(
       effectKey: key(`awaiting-input:${interactionId}`),
     })
     if (!control.waitForInteraction) throw new Error('INTERACTION_WAITER_REQUIRED')
-    const response = await control.waitForInteraction(interactionId)
+    const raced = await raceActivity(control.waitForInteraction(interactionId), control)
+    if (raced.type === 'terminal') {
+      return finishTerminal(input, activities, raced.control, key, attemptId)
+    }
+    const response = raced.value
     if (response.interactionId !== interactionId) throw new Error('INTERACTION_SIGNAL_MISMATCH')
     validateInteractionResponse(response)
     if (input.graph) {
       if (!('checkpointId' in runtimeOutcome)) throw new Error('GRAPH_RESUME_ACTIVITY_REQUIRED')
-      runtimeOutcome = await activities.resumeGraphSegment({
-        executionId: input.executionId,
-        attemptId,
-        workspaceId: input.graph.workspaceId,
-        workflowId: input.workflowId,
-        graph: input.graph.reference,
-        threadId: input.graph.threadId,
-        checkpointId: runtimeOutcome.checkpointId,
-        response: { action: response.action, responseId: response.responseId },
-        idempotencyKey: key(`graph:resume:${interactionId}:${response.responseId}`),
-      })
+      const raced = await raceActivity(
+        activities.resumeGraphSegment({
+          executionId: input.executionId,
+          attemptId,
+          workspaceId: input.graph.workspaceId,
+          workflowId: input.workflowId,
+          graph: input.graph.reference,
+          threadId: input.graph.threadId,
+          checkpointId: runtimeOutcome.checkpointId,
+          response: { action: response.action, responseId: response.responseId },
+          idempotencyKey: key(`graph:resume:${interactionId}:${response.responseId}`),
+        }),
+        control
+      )
+      if (raced.type === 'terminal') {
+        return finishTerminal(input, activities, raced.control, key, attemptId)
+      }
+      runtimeOutcome = raced.value
     } else {
-      runtimeOutcome = await activities.applyInteraction({
-        executionId: input.executionId,
-        attemptId,
-        ...response,
-        effectKey: key(`interaction:${interactionId}:${response.responseId}`),
-      })
+      const raced = await raceActivity(
+        activities.applyInteraction({
+          executionId: input.executionId,
+          attemptId,
+          ...response,
+          effectKey: key(`interaction:${interactionId}:${response.responseId}`),
+        }),
+        control
+      )
+      if (raced.type === 'terminal') {
+        return finishTerminal(input, activities, raced.control, key, attemptId)
+      }
+      runtimeOutcome = raced.value
     }
+  }
+  const terminal = await control.checkTerminal?.()
+  if (terminal !== undefined) {
+    return finishTerminal(input, activities, terminal, key, attemptId)
   }
   const status = runtimeOutcome.outcome
   await activities.persistStatus({
@@ -230,6 +277,50 @@ export async function runExecutionLifecycle(
     ...('checkpointId' in runtimeOutcome && runtimeOutcome.checkpointId
       ? { graphCheckpointId: runtimeOutcome.checkpointId }
       : {}),
+  }
+}
+
+async function raceActivity<Value>(
+  activity: Promise<Value>,
+  control: WorkflowControl
+): Promise<ActivityRaceResult<Value>> {
+  if (control.raceActivity !== undefined) return control.raceActivity(activity)
+  return { type: 'activity', value: await activity }
+}
+
+async function finishTerminal(
+  input: ExecutionWorkflowInput,
+  activities: ExecutionLifecycleActivities,
+  control: TerminalControl,
+  key: (operation: string) => string,
+  attemptId?: string
+): Promise<ExecutionWorkflowResult> {
+  const status = 'cancelled' in control ? 'cancelled' : 'timed_out'
+  if (attemptId !== undefined) {
+    await activities.cancelActive({
+      executionId: input.executionId,
+      attemptId,
+      workflowId: input.workflowId,
+      effectKey: key(`cancel-active:${status}`),
+      reason: status === 'cancelled' ? 'user_request' : 'deadline',
+      ...(input.graph === undefined ? {} : { graph: input.graph }),
+    })
+  }
+  await activities.persistStatus({
+    executionId: input.executionId,
+    ...(attemptId === undefined ? {} : { attemptId }),
+    state: status,
+    effectKey: key(status),
+  })
+  await activities.cleanup({
+    executionId: input.executionId,
+    ...(attemptId === undefined ? {} : { attemptId }),
+    effectKey: key('cleanup'),
+  })
+  return {
+    executionId: input.executionId,
+    ...(attemptId === undefined ? {} : { attemptId }),
+    status,
   }
 }
 

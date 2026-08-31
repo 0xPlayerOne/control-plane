@@ -29,6 +29,11 @@ export interface RemoteRuntimeCommandFactory {
   createInteraction?(
     input: RemoteRuntimeCommandInput & { readonly response: WorkflowInteractionResponse }
   ): Promise<unknown> | unknown
+  createCancel(
+    input: RemoteRuntimeCommandInput & {
+      readonly reason: 'user_request' | 'deadline'
+    }
+  ): Promise<unknown> | unknown
 }
 
 export interface RemoteRuntimeOutcomeWaiter {
@@ -106,6 +111,25 @@ export class DurableRemoteWorkflowRuntime implements WorkflowRuntimeActivityPort
     return this.#enqueueAndWait(command, attempt, command.workspaceId)
   }
 
+  async cancel(input: {
+    readonly executionId: string
+    readonly attemptId: string
+    readonly effectKey: string
+    readonly reason: 'user_request' | 'deadline'
+  }): Promise<void> {
+    const attempt = await this.#requiredAttempt(input.executionId, input.attemptId)
+    const command = GatewayCommandEnvelopeSchema.parse(
+      await this.#factory.createCancel({
+        executionId: input.executionId,
+        attempt,
+        effectKey: input.effectKey,
+        reason: input.reason,
+      })
+    )
+    if (command.operation !== 'runtime.cancel') throw new Error('REMOTE_RUNTIME_OPERATION_INVALID')
+    await this.#enqueueAndWait(command, attempt, command.workspaceId)
+  }
+
   async cleanup(): Promise<void> {}
 
   async #requiredAttempt(executionId: string, attemptId: string): Promise<ExecutionAttempt> {
@@ -131,6 +155,19 @@ export class DurableRemoteWorkflowRuntime implements WorkflowRuntimeActivityPort
     attempt: ExecutionAttempt,
     workspaceId: string
   ): Promise<WorkflowRuntimeOutcome> {
+    const record = await this.#enqueue(command, attempt, workspaceId)
+    return this.#waiter.wait({
+      command: record,
+      executionId: attempt.executionId,
+      attemptId: attempt.attemptId,
+    })
+  }
+
+  async #enqueue(
+    command: GatewayCommandEnvelope,
+    attempt: ExecutionAttempt,
+    workspaceId: string
+  ): Promise<RuntimeCommandRecord> {
     if (
       command.executionId !== attempt.executionId ||
       command.attemptId !== attempt.attemptId ||
@@ -143,10 +180,6 @@ export class DurableRemoteWorkflowRuntime implements WorkflowRuntimeActivityPort
     const record = createQueuedRuntimeCommandRecord(command, this.#now().toISOString())
     const created = await this.#commands.create(record)
     if (created.outcome === 'conflict') throw new Error('REMOTE_RUNTIME_COMMAND_CONFLICT')
-    return this.#waiter.wait({
-      command: created.record,
-      executionId: attempt.executionId,
-      attemptId: attempt.attemptId,
-    })
+    return created.record
   }
 }

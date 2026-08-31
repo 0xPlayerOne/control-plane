@@ -43,7 +43,8 @@ describe('runGraphSegment activity boundary', () => {
           events: [],
         }
       },
-      async cancel() {
+      async cancel(input) {
+        calls.push(input)
         return true
       },
     }
@@ -68,6 +69,14 @@ describe('runGraphSegment activity boundary', () => {
       checkpointId: 'checkpoint-2',
     })
     expect(calls).toHaveLength(2)
+
+    await activity.cancelGraphSegment({
+      ...base,
+      reason: 'user_request',
+    })
+    expect(calls.at(-1)).toEqual(
+      expect.objectContaining({ executionId: base.executionId, reason: 'user_request' })
+    )
   })
 
   test('normalizes failed, cancelled, and continue segment outcomes', async () => {

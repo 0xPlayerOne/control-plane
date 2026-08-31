@@ -166,6 +166,32 @@ export class ManagedPiRemoteCommandFactory implements RemoteRuntimeCommandFactor
     throw new Error('REMOTE_RUNTIME_INTERACTION_UNSUPPORTED')
   }
 
+  async createCancel(input: {
+    readonly executionId: string
+    readonly attempt: ExecutionAttempt
+    readonly effectKey: string
+    readonly reason: 'user_request' | 'deadline'
+  }): Promise<GatewayCommandEnvelope> {
+    const execution = await this.#executions.getExecution(input.executionId)
+    if (execution === undefined) throw new Error('REMOTE_RUNTIME_EXECUTION_MISSING')
+    const runtime = await this.#runtime(input.attempt, execution.correlation)
+    return this.#command({
+      executionId: input.executionId,
+      attempt: input.attempt,
+      workspaceId: execution.correlation.workspaceId,
+      runtime,
+      effectKey: input.effectKey,
+      operation: 'runtime.cancel',
+      requiredCapabilities: ['execution.cancel'],
+      respectAttemptDeadline: false,
+      maximumDurationMs: 5 * 60 * 1_000,
+      parameters: {
+        handleId: `managed-pi:${input.attempt.attemptId}`,
+        requestedAt: this.#now().toISOString(),
+      },
+    })
+  }
+
   async #runtime(
     attempt: ExecutionAttempt,
     correlation: { readonly workspaceId: string; readonly projectId: string }
@@ -210,14 +236,16 @@ export class ManagedPiRemoteCommandFactory implements RemoteRuntimeCommandFactor
     readonly operation: GatewayCommandEnvelope['operation']
     readonly requiredCapabilities: readonly string[]
     readonly parameters: Record<string, unknown>
+    readonly respectAttemptDeadline?: boolean
+    readonly maximumDurationMs?: number
   }): GatewayCommandEnvelope {
     const issuedAt = this.#now()
     const protocolVersion = gatewayProtocolVersion(input.runtime.versions.protocol)
     const payload = JSON.parse(
       JSON.stringify({ version: 1, parameters: input.parameters })
     ) as Record<string, unknown>
-    const deadline = input.attempt.deadlineAt
-    const maximumDurationMs = 60 * 60 * 1_000
+    const deadline = input.respectAttemptDeadline === false ? undefined : input.attempt.deadlineAt
+    const maximumDurationMs = input.maximumDurationMs ?? 60 * 60 * 1_000
     const expiresAt = new Date(
       Math.min(
         issuedAt.getTime() + maximumDurationMs,

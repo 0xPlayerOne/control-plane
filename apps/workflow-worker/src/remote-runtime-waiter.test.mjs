@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
+import { golden } from '@control-plane/runtime-gateway-protocol/fixtures'
 import { PollingRemoteRuntimeOutcomeWaiter } from './remote-runtime-waiter.js'
 
 const command = {
-  commandId: 'cmd_01JABCDEF0123456789ABCDEFG',
+  commandId: golden.command.commandId,
+  commandEnvelope: golden.command,
   expiresAt: '2026-08-25T12:01:00.000Z',
 }
 const input = {
@@ -73,6 +75,39 @@ describe('remote runtime durable outcome waiter', () => {
       failureCode: 'REMOTE_RUNTIME_COMMAND_EXPIRED',
       retryable: true,
     })
+  })
+
+  test('treats a succeeded runtime cancellation command as cancellation confirmation', async () => {
+    let sleeps = 0
+    const waiter = fixture({
+      executions: { getExecution: async () => ({ state: 'running' }) },
+      commands: { get: async () => ({ status: 'succeeded' }) },
+      sleep: async () => {
+        sleeps += 1
+      },
+    })
+
+    expect(
+      await waiter.wait({
+        ...input,
+        command: {
+          ...command,
+          commandEnvelope: {
+            ...golden.command,
+            operation: 'runtime.cancel',
+            requiredCapabilities: ['execution.cancel'],
+            payload: {
+              version: 1,
+              parameters: {
+                handleId: `managed-pi:${golden.command.attemptId}`,
+                requestedAt: '2026-08-25T12:00:00.000Z',
+              },
+            },
+          },
+        },
+      })
+    ).toEqual({ outcome: 'cancelled' })
+    expect(sleeps).toBe(0)
   })
 })
 

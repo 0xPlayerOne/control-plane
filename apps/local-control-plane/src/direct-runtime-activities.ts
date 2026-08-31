@@ -14,7 +14,15 @@ import type { WorkflowRuntimeActivityPort } from '@control-plane/workflow-worker
 const namespaces = {
   effects: 'workflow-effects',
   handles: 'runtime-handles',
+  cancellations: 'runtime-cancellations',
 } as const
+
+interface DirectRuntimeCancellationIntent {
+  readonly attemptId: string
+  readonly effectKey: string
+  readonly reason: 'user_request' | 'deadline'
+  readonly requestedAt: string
+}
 
 export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
   constructor(
@@ -37,6 +45,12 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
         executionPlan: input.executionPlan,
       })
       await this.#saveHandle(input.executionId, handle)
+      const cancellation = await this.#cancellation(input.executionId)
+      if (cancellation !== undefined) {
+        this.#assertAttempt(handle, cancellation.attemptId)
+        await this.#cancelHandle(handle, cancellation)
+        return { outcome: 'cancelled' }
+      }
       let interactionId: string | undefined
       for await (const progress of this.runtime.progress(handle)) {
         const candidate = progress.data['interactionId']
@@ -60,7 +74,7 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
     effectKey: string
   }): Promise<WorkflowRuntimeOutcome> {
     return this.#effect(input.effectKey, async () => {
-      const handle = await this.#handle(input.executionId, true)
+      const handle = await this.#handle(input.executionId, input.attemptId, true)
       let status: RuntimeExecutionStatus
       if (input.action === 'approve' || input.action === 'deny') {
         status = await this.runtime.submitApproval(handle, {
@@ -98,13 +112,25 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
     })
   }
 
+  async cancel(input: {
+    executionId: string
+    attemptId: string
+    effectKey: string
+    reason: 'user_request' | 'deadline'
+  }): Promise<void> {
+    const existingHandle = await this.#handle(input.executionId, input.attemptId, false)
+    const intent = await this.#recordCancellation(input)
+    const handle = existingHandle ?? (await this.#handle(input.executionId, input.attemptId, false))
+    if (handle !== undefined) await this.#cancelHandle(handle, intent)
+  }
+
   async cleanup(input: {
     executionId: string
     attemptId?: string
     effectKey: string
   }): Promise<void> {
     await this.#effect(input.effectKey, async () => {
-      const handle = await this.#handle(input.executionId, false)
+      const handle = await this.#handle(input.executionId, input.attemptId, false)
       if (handle !== undefined) await this.runtime.cleanup(handle)
       return { cleaned: true }
     })
@@ -157,9 +183,72 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
     })
   }
 
-  async #handle(executionId: string, required: true): Promise<RuntimeExecutionHandle>
-  async #handle(executionId: string, required: false): Promise<RuntimeExecutionHandle | undefined>
-  async #handle(executionId: string, required = true): Promise<RuntimeExecutionHandle | undefined> {
+  async #recordCancellation(input: {
+    executionId: string
+    attemptId: string
+    effectKey: string
+    reason: 'user_request' | 'deadline'
+  }): Promise<DirectRuntimeCancellationIntent> {
+    return this.persistence.transaction(async (transaction) => {
+      const id = recordId(input.executionId)
+      const current = await transaction.get(namespaces.cancellations, id)
+      if (current !== undefined) {
+        const intent = current.value as unknown as DirectRuntimeCancellationIntent
+        if (
+          intent.attemptId !== input.attemptId ||
+          intent.effectKey !== input.effectKey ||
+          intent.reason !== input.reason
+        ) {
+          throw new Error('RUNTIME_CANCELLATION_CONFLICT')
+        }
+        return intent
+      }
+      const intent: DirectRuntimeCancellationIntent = {
+        attemptId: input.attemptId,
+        effectKey: input.effectKey,
+        reason: input.reason,
+        requestedAt: new Date().toISOString(),
+      }
+      await transaction.put({ namespace: namespaces.cancellations, id, value: json(intent) })
+      return intent
+    })
+  }
+
+  async #cancellation(executionId: string): Promise<DirectRuntimeCancellationIntent | undefined> {
+    const record = await this.persistence.transaction(async (transaction) =>
+      transaction.get(namespaces.cancellations, recordId(executionId))
+    )
+    return record?.value as unknown as DirectRuntimeCancellationIntent | undefined
+  }
+
+  async #cancelHandle(
+    handle: RuntimeExecutionHandle,
+    intent: DirectRuntimeCancellationIntent
+  ): Promise<void> {
+    await this.#effect(intent.effectKey, async () => {
+      await this.runtime.cancel(handle, {
+        idempotencyKey: intent.effectKey,
+        requestedAt: intent.requestedAt,
+      })
+      return { cancelled: true, reason: intent.reason }
+    })
+  }
+
+  async #handle(
+    executionId: string,
+    attemptId: string | undefined,
+    required: true
+  ): Promise<RuntimeExecutionHandle>
+  async #handle(
+    executionId: string,
+    attemptId: string | undefined,
+    required: false
+  ): Promise<RuntimeExecutionHandle | undefined>
+  async #handle(
+    executionId: string,
+    attemptId: string | undefined,
+    required = true
+  ): Promise<RuntimeExecutionHandle | undefined> {
     const handle = await this.persistence.transaction(async (transaction) =>
       transaction.get(namespaces.handles, recordId(executionId))
     )
@@ -167,7 +256,13 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
       if (required) throw new Error('RUNTIME_HANDLE_MISSING')
       return undefined
     }
-    return handle.value as unknown as RuntimeExecutionHandle
+    const value = handle.value as unknown as RuntimeExecutionHandle
+    if (attemptId !== undefined) this.#assertAttempt(value, attemptId)
+    return value
+  }
+
+  #assertAttempt(handle: RuntimeExecutionHandle, attemptId: string): void {
+    if (handle.attemptId !== attemptId) throw new Error('RUNTIME_HANDLE_ATTEMPT_MISMATCH')
   }
 
   async #effect<Result extends JsonValue>(

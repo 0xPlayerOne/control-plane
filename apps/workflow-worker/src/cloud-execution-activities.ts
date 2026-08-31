@@ -27,6 +27,12 @@ export interface WorkflowRuntimeActivityPort {
       readonly effectKey: string
     }
   ): Promise<WorkflowRuntimeOutcome>
+  cancel(input: {
+    readonly executionId: string
+    readonly attemptId: string
+    readonly effectKey: string
+    readonly reason: 'user_request' | 'deadline'
+  }): Promise<void>
   cleanup(input: {
     readonly executionId: string
     readonly attemptId?: string
@@ -178,6 +184,25 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
 
   continueGraphSegment(input: Parameters<GraphSegmentActivityPort['continueGraphSegment']>[0]) {
     return this.#graph.continueGraphSegment(input)
+  }
+
+  async cancelActive(
+    input: Parameters<ExecutionLifecycleActivities['cancelActive']>[0]
+  ): Promise<void> {
+    if (input.graph !== undefined) {
+      await this.#graph.cancelGraphSegment({
+        executionId: input.executionId,
+        attemptId: input.attemptId,
+        workspaceId: input.graph.workspaceId,
+        workflowId: input.workflowId,
+        graph: input.graph.reference,
+        threadId: input.graph.threadId,
+        reason: input.reason,
+        idempotencyKey: input.effectKey,
+      })
+      return
+    }
+    await this.#runtime.cancel(input)
   }
 
   cleanup(input: Parameters<ExecutionLifecycleActivities['cleanup']>[0]): Promise<void> {

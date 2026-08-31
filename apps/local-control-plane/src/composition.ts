@@ -327,6 +327,10 @@ class UnconfiguredLocalExecutionActivities implements ExecutionLifecycleActiviti
     throw new Error('LOCAL_GRAPH_RUNTIME_NOT_CONFIGURED')
   }
 
+  async cancelActive(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
+  }
+
   async cleanup(): Promise<never> {
     throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
   }

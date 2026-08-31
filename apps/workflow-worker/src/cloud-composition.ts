@@ -40,6 +40,8 @@ export class DisabledGraphSegmentActivities implements GraphSegmentActivityPort 
   async continueGraphSegment(): Promise<never> {
     throw new Error('GRAPH_EXECUTION_DISABLED')
   }
+
+  async cancelGraphSegment(): Promise<void> {}
 }
 
 export function createManagedCloudWorkflowWorkerComposition(

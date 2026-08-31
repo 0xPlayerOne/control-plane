@@ -1,5 +1,6 @@
 import type { Execution, RuntimeCommandRecord } from '@control-plane/domain'
 import type { ExecutionEvent } from '@control-plane/events'
+import { GatewayCommandEnvelopeSchema } from '@control-plane/runtime-gateway-protocol'
 import type { RemoteRuntimeOutcomeWaiter } from './remote-workflow-runtime.js'
 import type { WorkflowRuntimeOutcome } from './execution-workflow.js'
 
@@ -57,6 +58,7 @@ export class PollingRemoteRuntimeOutcomeWaiter implements RemoteRuntimeOutcomeWa
     readonly executionId: string
     readonly attemptId: string
   }): Promise<WorkflowRuntimeOutcome> {
+    const operation = GatewayCommandEnvelopeSchema.parse(input.command.commandEnvelope).operation
     for (;;) {
       const execution = await this.#executions.getExecution(input.executionId)
       if (execution === undefined) throw new Error('REMOTE_RUNTIME_EXECUTION_MISSING')
@@ -72,6 +74,9 @@ export class PollingRemoteRuntimeOutcomeWaiter implements RemoteRuntimeOutcomeWa
         }
       }
       if (command.status === 'cancelled') return { outcome: 'cancelled' }
+      if (operation === 'runtime.cancel' && command.status === 'succeeded') {
+        return { outcome: 'cancelled' }
+      }
       if (
         command.status === 'expired' ||
         this.#now().getTime() >= Date.parse(input.command.expiresAt)

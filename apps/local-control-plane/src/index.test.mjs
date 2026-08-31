@@ -233,14 +233,19 @@ describe('Local Control Plane composition', () => {
       startedAt: '2026-08-29T00:00:00.000Z',
     }
     let starts = 0
+    const cancellations = []
     const driver = {
-      start: async () => {
+      start: async (request) => {
         starts += 1
-        return handle
+        return {
+          handleId: `local:${request.attemptId}`,
+          attemptId: request.attemptId,
+          startedAt: handle.startedAt,
+        }
       },
       progress: async function* () {},
-      status: async () => ({
-        handle,
+      status: async (runtimeHandle) => ({
+        handle: runtimeHandle,
         state: 'completed',
         observedAt: '2026-08-29T00:00:01.000Z',
         result: {
@@ -250,6 +255,14 @@ describe('Local Control Plane composition', () => {
           artifacts: [],
         },
       }),
+      cancel: async (runtimeHandle, request) => {
+        cancellations.push(request)
+        return {
+          handle: runtimeHandle,
+          state: 'cancelled',
+          observedAt: request.requestedAt,
+        }
+      },
       cleanup: async () => undefined,
     }
     const transport = new DirectLocalRuntimeTransport(driver)
@@ -277,6 +290,36 @@ describe('Local Control Plane composition', () => {
       expect(first).toEqual(replay)
       expect(first).toMatchObject({ outcome: 'completed' })
       expect(starts).toBe(1)
+      await expect(
+        activities.cancel({
+          executionId: input.executionId,
+          attemptId: 'att_01JABCDEF0123456789ABCDEFG',
+          effectKey: `${input.effectKey}:stale-cancel`,
+          reason: 'user_request',
+        })
+      ).rejects.toThrow('RUNTIME_HANDLE_ATTEMPT_MISMATCH')
+      expect(cancellations).toHaveLength(0)
+      await activities.cancel({
+        executionId: input.executionId,
+        attemptId: input.attemptId,
+        effectKey: `${input.effectKey}:cancel`,
+        reason: 'user_request',
+      })
+      expect(cancellations).toHaveLength(1)
+      const preCancelled = {
+        ...input,
+        executionId: 'exe_01JABCDEF0123456789ABCDEFG',
+        attemptId: 'att_01JABCDEF0123456789ABCDEFG',
+        effectKey: 'wfl_01JABCDEF0123456789ABCDEFG:execution-lifecycle-v1:dispatch',
+      }
+      await activities.cancel({
+        executionId: preCancelled.executionId,
+        attemptId: preCancelled.attemptId,
+        effectKey: `${preCancelled.effectKey}:cancel`,
+        reason: 'deadline',
+      })
+      await expect(activities.dispatch(preCancelled)).resolves.toEqual({ outcome: 'cancelled' })
+      expect(cancellations).toHaveLength(2)
       expect(
         (
           await objectStore.get(
