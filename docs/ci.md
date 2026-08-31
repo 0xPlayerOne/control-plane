@@ -1,6 +1,6 @@
 # Continuous integration
 
-Code Foundry v0.40.0 is the CI control plane for this repository. Generated callers are pinned under `.github/workflows/` and use the staging-release
+Code Foundry v0.40.1 is the CI control plane for this repository. Generated callers are pinned under `.github/workflows/` and use the staging-release
 topology: feature branches target `staging`, and validated `staging` changes are
 promoted to `main`.
 

@@ -2,10 +2,13 @@
 
 ## Policy and runtime provenance
 
-- Code Foundry runtime: `v0.40.0` (`b5224cedd35838a31aee2fd1baa48fe5cf6d4fd4`)
+- Code Foundry runtime: `v0.40.1` (`523ea1ce213bade87bc2e63f16b1ab90e0a8b6e8`)
 - Upstream policy implementation: Code Foundry PR
   [#431](https://github.com/0xPlayerOne/code-foundry/pull/431), merged as
   `0d951230b9095d3b875db44ae8287335152eee60`
+- Upstream consumer-config repair: Code Foundry PR
+  [#433](https://github.com/0xPlayerOne/code-foundry/pull/433), merged as
+  `8d13173a36849528335f87a550072e08137f4473`
 - Repository policy: `staging_validation_mode: audit`
 - Stable aggregate: `Validation / Gate`
 - Default behavior for other Code Foundry consumers remains `fast`; only this
@@ -76,12 +79,13 @@ job rather than reusing the stopped developer-host database volume.
 
 Additional local gates passed:
 
-- Code Foundry `doctor` using the released v0.40.0 source;
+- Code Foundry `doctor` using the released v0.40.1 source;
 - `bun run format:check`;
 - `bun run lint`, including 41-package boundary validation;
 - `bun run type-check`, including OpenAPI, Drizzle, compatibility,
   requirements, architecture, and Railway IaC checks;
-- focused repository and requirements-ledger tests: 25 passed, 295 assertions.
+- focused repository, M9 hardening, and requirements-ledger tests: 32 passed,
+  308 assertions.
 
 ## Scheduled and release-only ownership
 
@@ -98,6 +102,6 @@ pinned upload action and fail if the expected evidence file is missing.
 ## Pull-request proof
 
 The Control Plane pull request and exact audit run are recorded after the
-branch executes the new v0.40.0 graph. Acceptance requires Unit, Integration,
+branch executes the new v0.40.1 graph. Acceptance requires Unit, Integration,
 E2E, Smoke, Security, CodeQL, and `Validation / Gate` to run without a hidden
 required skip.
