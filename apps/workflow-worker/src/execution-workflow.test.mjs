@@ -123,7 +123,8 @@ describe('Restate execution lifecycle', () => {
       waitForInteraction: async (interactionId) => ({
         interactionId,
         responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-        action: 'approve',
+        action: 'input',
+        value: { answer: 'continue' },
       }),
     })
 
@@ -133,9 +134,29 @@ describe('Restate execution lifecycle', () => {
       expect.objectContaining({
         interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-        action: 'approve',
+        action: 'input',
+        value: { answer: 'continue' },
       }),
     ])
+  })
+
+  test('rejects interaction signals whose action and value disagree', async () => {
+    const fake = fakeActivities()
+    fake.activities.dispatch = async () => ({
+      outcome: 'awaiting_input',
+      interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    })
+
+    await expect(
+      runExecutionLifecycle(input, fake.activities, {
+        waitForInteraction: async (interactionId) => ({
+          interactionId,
+          responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          action: 'input',
+        }),
+      })
+    ).rejects.toThrow('INTERACTION_SIGNAL_VALUE_INVALID')
+    expect(fake.interactionEffects).toEqual([])
   })
 
   test('pins workflow versioning and bounded activity policies', () => {

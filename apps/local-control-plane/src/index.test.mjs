@@ -265,6 +265,104 @@ describe('Local Control Plane composition', () => {
     }
   })
 
+  test('resumes a direct runtime with the durable interaction input value', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-direct-input-'))
+    const persistence = new SqlitePersistenceProvider({
+      path: join(directory, 'control-plane.sqlite'),
+    })
+    const objectStore = new FilesystemObjectStore({
+      rootDirectory: join(directory, 'artifacts'),
+      maxObjectBytes: 1024 * 1024,
+    })
+    const handle = {
+      handleId: 'local:att_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      attemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      startedAt: '2026-08-29T00:00:00.000Z',
+    }
+    const submitted = []
+    const driver = {
+      start: async () => handle,
+      progress: async function* () {
+        yield {
+          handleId: handle.handleId,
+          sequence: 1,
+          occurredAt: '2026-08-29T00:00:01.000Z',
+          type: 'interaction',
+          data: { interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV', kind: 'input' },
+        }
+      },
+      status: async () => ({
+        handle,
+        state: 'awaiting_input',
+        observedAt: '2026-08-29T00:00:01.000Z',
+      }),
+      submitInput: async (runtimeHandle, request) => {
+        submitted.push(request)
+        return {
+          handle: runtimeHandle,
+          state: 'completed',
+          observedAt: '2026-08-29T00:00:02.000Z',
+          result: {
+            outcome: 'completed',
+            output: { answer: request.text },
+            usage: { inputTokens: 1, outputTokens: 1, durationMs: 10 },
+            artifacts: [],
+          },
+        }
+      },
+      cleanup: async () => undefined,
+    }
+    const activities = new DirectRuntimeActivityPort(
+      persistence,
+      objectStore,
+      new TransportedRuntimeAdapter(new DirectLocalRuntimeTransport(driver), 'test')
+    )
+    const input = {
+      executionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      attemptId: handle.attemptId,
+      executionPlan: {
+        correlation: {
+          workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        },
+        executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        contentDigest: `sha256:${'a'.repeat(64)}`,
+        schemaVersion: 1,
+        runtimeRequirements: [],
+      },
+      effectKey: 'wfl_01ARZ3NDEKTSV4RRFFQ69G5FAV:execution-lifecycle-v1:dispatch',
+    }
+    try {
+      await persistence.migrate()
+      expect(await activities.dispatch(input)).toEqual({
+        outcome: 'awaiting_input',
+        interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      })
+      expect(
+        await activities.applyInteraction({
+          interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          action: 'input',
+          value: 'continue safely',
+          executionId: input.executionId,
+          attemptId: input.attemptId,
+          effectKey: 'wfl_01ARZ3NDEKTSV4RRFFQ69G5FAV:execution-lifecycle-v1:interaction',
+        })
+      ).toMatchObject({ outcome: 'completed' })
+      expect(submitted).toEqual([
+        {
+          interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          idempotencyKey: 'wfl_01ARZ3NDEKTSV4RRFFQ69G5FAV:execution-lifecycle-v1:interaction',
+          text: 'continue safely',
+        },
+      ])
+    } finally {
+      persistence.close()
+      objectStore.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('persists direct runtime completion through the shared durable lifecycle', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-local-lifecycle-'))
     const plan = createExecutionPlanTestFixture()

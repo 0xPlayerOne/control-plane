@@ -5,7 +5,10 @@ import type {
   RuntimeExecutionStatus,
   RuntimeAdapterWithTransport,
 } from '@control-plane/runtime-sdk'
-import type { WorkflowRuntimeOutcome } from '@control-plane/workflow-runtime'
+import type {
+  WorkflowInteractionValue,
+  WorkflowRuntimeOutcome,
+} from '@control-plane/workflow-runtime'
 import type { WorkflowRuntimeActivityPort } from '@control-plane/workflow-worker'
 
 const namespaces = {
@@ -51,6 +54,7 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
     interactionId: string
     responseId: string
     action: 'approve' | 'deny' | 'input' | 'grant' | 'resume' | 'cancel'
+    value?: WorkflowInteractionValue
     executionId: string
     attemptId: string
     effectKey: string
@@ -68,6 +72,20 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
         status = await this.runtime.cancel(handle, {
           idempotencyKey: input.effectKey,
           requestedAt: new Date().toISOString(),
+        })
+      } else if (input.action === 'input' && input.value !== undefined) {
+        const text = typeof input.value === 'string' ? input.value : JSON.stringify(input.value)
+        if (text.length === 0) {
+          return {
+            outcome: 'failed',
+            failureCode: 'LOCAL_INTERACTION_PAYLOAD_INVALID',
+            retryable: false,
+          }
+        }
+        status = await this.runtime.submitInput(handle, {
+          interactionId: input.interactionId,
+          idempotencyKey: input.effectKey,
+          text,
         })
       } else {
         return {
