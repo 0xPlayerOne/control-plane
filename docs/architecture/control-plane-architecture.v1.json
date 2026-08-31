@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "candidate": {
-    "commit": "d3e449471d02f791c52196ea296a5a8a653a4dd4",
-    "ref": "staging",
-    "recordedAt": "2026-08-30T17:50:10Z"
+    "commit": "57a7fe4c9529ba56fbeb183d1ce6567c8800b79a",
+    "ref": "feat/m11-standalone-e2e",
+    "recordedAt": "2026-08-30T21:31:00Z"
   },
   "packages": [
     {
       "name": "@control-plane/acp-adapter",
       "path": "packages/acp-adapter",
       "version": "1.2.0",
-      "lockVersion": "1.1.0",
+      "lockVersion": "1.2.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -44,7 +44,7 @@
       "name": "@control-plane/config",
       "path": "packages/config",
       "version": "1.3.0",
-      "lockVersion": "1.2.0",
+      "lockVersion": "1.3.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -89,7 +89,7 @@
       "name": "@control-plane/control-api",
       "path": "apps/control-api",
       "version": "1.3.0",
-      "lockVersion": "1.2.1",
+      "lockVersion": "1.3.0",
       "kind": "application",
       "private": true,
       "browser": false,
@@ -159,7 +159,7 @@
       "name": "@control-plane/database",
       "path": "packages/database",
       "version": "1.7.0",
-      "lockVersion": "1.6.0",
+      "lockVersion": "1.7.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -187,7 +187,7 @@
       "name": "@control-plane/deployment",
       "path": "packages/deployment",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -256,7 +256,7 @@
       "name": "@control-plane/hosted-control-plane",
       "path": "apps/hosted-control-plane",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "application",
       "private": true,
       "browser": false,
@@ -304,7 +304,7 @@
       "name": "@control-plane/local-control-plane",
       "path": "apps/local-control-plane",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "application",
       "private": true,
       "browser": false,
@@ -323,7 +323,8 @@
         "@control-plane/runtime-sdk",
         "@control-plane/secrets",
         "@control-plane/sqlite-persistence",
-        "@control-plane/workflow-runtime"
+        "@control-plane/workflow-runtime",
+        "@control-plane/workflow-worker"
       ],
       "externalDependencies": ["@nestjs/common", "@restatedev/restate-server", "fastify"],
       "developmentWorkspaceDependencies": [],
@@ -334,7 +335,7 @@
       "name": "@control-plane/managed-pi-adapter",
       "path": "packages/managed-pi-adapter",
       "version": "1.2.0",
-      "lockVersion": "1.1.0",
+      "lockVersion": "1.2.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -387,7 +388,7 @@
       "name": "@control-plane/object-store",
       "path": "packages/object-store",
       "version": "1.2.0",
-      "lockVersion": "1.1.1",
+      "lockVersion": "1.2.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -452,7 +453,7 @@
       "name": "@control-plane/profile-portability",
       "path": "packages/profile-portability",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -474,7 +475,7 @@
       "name": "@control-plane/remote-control-relay",
       "path": "packages/remote-control-relay",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -489,7 +490,7 @@
       "name": "@control-plane/restate-runtime",
       "path": "packages/restate-runtime",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -541,7 +542,7 @@
       "name": "@control-plane/runtime-sdk",
       "path": "packages/runtime-sdk",
       "version": "1.5.0",
-      "lockVersion": "1.4.0",
+      "lockVersion": "1.5.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -556,7 +557,7 @@
       "name": "@control-plane/runtime-worker",
       "path": "apps/runtime-worker",
       "version": "1.4.0",
-      "lockVersion": "1.3.0",
+      "lockVersion": "1.4.0",
       "kind": "application",
       "private": true,
       "browser": false,
@@ -606,7 +607,7 @@
       "name": "@control-plane/secrets",
       "path": "packages/secrets",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -621,7 +622,7 @@
       "name": "@control-plane/sqlite-persistence",
       "path": "packages/sqlite-persistence",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -726,7 +727,7 @@
       "name": "@control-plane/workflow-runtime",
       "path": "packages/workflow-runtime",
       "version": "1.1.0",
-      "lockVersion": "1.0.0",
+      "lockVersion": "1.1.0",
       "kind": "package",
       "private": true,
       "browser": false,
@@ -741,7 +742,7 @@
       "name": "@control-plane/workflow-worker",
       "path": "apps/workflow-worker",
       "version": "1.4.0",
-      "lockVersion": "1.3.1",
+      "lockVersion": "1.4.0",
       "kind": "application",
       "private": true,
       "browser": false,
@@ -1195,11 +1196,11 @@
         "observability": "BufferedObservabilityProvider",
         "persistence": "PostgreSQL repositories",
         "processes": "NodeProcessRuntimeProvider",
-        "runtimeTransport": "UnconfiguredHostedRuntime",
+        "runtimeTransport": "injected WorkflowRuntimeActivityPort or UnconfiguredHostedRuntime",
         "secrets": "Composite environment/private-file SecretsProvider",
         "workflow": "Remote Restate"
       },
-      "assessment": "Startup, migrations, readiness, persistence, storage, and Restate are wired, but every runtime dispatch fails HOSTED_RUNTIME_NOT_CONFIGURED.",
+      "assessment": "Startup, migrations, readiness, persistence, storage, and Restate are wired. An explicit runtime activity port is reachable and advertised as remote-gateway, but the production entrypoint still falls back to HOSTED_RUNTIME_NOT_CONFIGURED.",
       "evidence": [
         {
           "kind": "source",
@@ -1208,15 +1209,19 @@
         {
           "kind": "environment",
           "path": "docs/evidence/m10-operability-2026-08-30.md"
+        },
+        {
+          "kind": "environment",
+          "path": "docs/evidence/m11-standalone-2026-08-30.md"
         }
       ],
       "gap": {
         "issue": 188,
         "severity": "critical",
         "owner": "hosted-runtime",
-        "disposition": "Inject and certify a real remote RuntimeTransport/activity port before Hosted Server is a supported execution profile."
+        "disposition": "Compose and certify a real remote RuntimeTransport/activity port in the production entrypoint before Hosted Server is a supported execution profile."
       },
-      "sourceDigest": "sha256:de736adb15f4b467ce19866c784894213f6b07bb11a8d44415dffa5671475eb2"
+      "sourceDigest": "sha256:174a608b309070c5f1f4c11aef464b00daee030de8696ec661f172d98f9c211e"
     },
     {
       "id": "hosted-simple",
@@ -1230,11 +1235,11 @@
         "observability": "BufferedObservabilityProvider",
         "persistence": "SqlitePersistenceProvider",
         "processes": "NodeProcessRuntimeProvider",
-        "runtimeTransport": "optional direct-local RuntimeAdapterWithTransport",
+        "runtimeTransport": "DirectRuntimeActivityPort when injected; unavailable acceptance otherwise",
         "secrets": "Composite environment/private-file SecretsProvider",
         "workflow": "Local Restate"
       },
-      "assessment": "The all-in-one profile uses the shared Local core and rejects remote-gateway transport, but the production entrypoint can start with runtime transport unconfigured.",
+      "assessment": "The all-in-one profile uses the shared Local core, rejects remote-gateway transport, and fails execution acceptance explicitly when no direct runtime is injected. Managed Pi and ACP direct execution and SQLite restart recovery pass through the supported composition.",
       "evidence": [
         {
           "kind": "test",
@@ -1243,15 +1248,19 @@
         {
           "kind": "environment",
           "path": "docs/evidence/m10-operability-2026-08-30.md"
+        },
+        {
+          "kind": "environment",
+          "path": "docs/evidence/m11-standalone-2026-08-30.md"
         }
       ],
       "gap": {
         "issue": 188,
-        "severity": "high",
+        "severity": "medium",
         "owner": "hosted-simple-runtime",
-        "disposition": "Make supported direct runtime wiring explicit in readiness and fail closed when execution is advertised without it."
+        "disposition": "Document and package the supported direct runtime injection boundary for the standalone launcher."
       },
-      "sourceDigest": "sha256:3650a8d407a692c05c1ece806e8215855b0487aa7575e9e4a8fd1ca42258b5b7"
+      "sourceDigest": "sha256:710c9aea472a3e294fb53ec9c08db917308e0c4b30b62519452806cd077f670f"
     },
     {
       "id": "local",
@@ -1265,11 +1274,11 @@
         "observability": "BufferedObservabilityProvider",
         "persistence": "SqlitePersistenceProvider",
         "processes": "NodeProcessRuntimeProvider",
-        "runtimeTransport": "optional direct-local RuntimeAdapterWithTransport",
+        "runtimeTransport": "DirectRuntimeActivityPort when injected; unavailable acceptance otherwise",
         "secrets": "Composite environment/private-file SecretsProvider",
         "workflow": "Local Restate"
       },
-      "assessment": "The all-in-one profile shares domain, execution, and Restate code and prohibits remote-gateway transport, but the production entrypoint can report ready with runtime transport unconfigured.",
+      "assessment": "The all-in-one profile shares domain, execution, and Restate code, prohibits remote-gateway transport, and fails execution acceptance explicitly when no direct runtime is injected. Managed Pi and ACP direct execution and SQLite restart recovery pass through the supported composition.",
       "evidence": [
         {
           "kind": "test",
@@ -1278,15 +1287,19 @@
         {
           "kind": "environment",
           "path": "docs/evidence/m10-operability-2026-08-30.md"
+        },
+        {
+          "kind": "environment",
+          "path": "docs/evidence/m11-standalone-2026-08-30.md"
         }
       ],
       "gap": {
         "issue": 188,
-        "severity": "high",
+        "severity": "medium",
         "owner": "local-runtime",
-        "disposition": "Require or clearly classify direct RuntimeTransport readiness before accepting execution capability."
+        "disposition": "Document and package the supported direct runtime injection boundary for the standalone launcher."
       },
-      "sourceDigest": "sha256:3650a8d407a692c05c1ece806e8215855b0487aa7575e9e4a8fd1ca42258b5b7"
+      "sourceDigest": "sha256:710c9aea472a3e294fb53ec9c08db917308e0c4b30b62519452806cd077f670f"
     }
   ],
   "ownership": [
@@ -1456,8 +1469,8 @@
         "bun.lock workspace versions",
         "release manifest"
       ],
-      "classification": "partially_verified",
-      "assessment": "Several workspace package versions differ from bun.lock workspace metadata even though frozen installation succeeds.",
+      "classification": "verified",
+      "assessment": "Every workspace package version matches bun.lock and the corresponding release-please manifest entry; the manifest additionally owns the repository root version.",
       "evidence": [
         {
           "kind": "artifact",
@@ -1467,13 +1480,7 @@
           "kind": "artifact",
           "path": ".release-please-manifest.json"
         }
-      ],
-      "gap": {
-        "issue": 192,
-        "severity": "medium",
-        "owner": "release-engineering",
-        "disposition": "Regenerate and review Bun workspace metadata without changing dependency policy, then add manifest-version drift enforcement."
-      }
+      ]
     },
     {
       "id": "COMPAT-POSTGRES-MIGRATIONS",
@@ -1706,8 +1713,8 @@
       "id": "PERSIST-EXECUTION",
       "postgresql": "Typed execution and attempt tables with indexed lifecycle timestamps",
       "sqlite": "SqliteExecutionRepository stores domain-validated JSON in revisioned records",
-      "classification": "partially_verified",
-      "assessment": "Core lifecycle semantics are shared, but SQLite lacks typed lifecycle columns/indexes and wider attempt/retry query evidence.",
+      "classification": "verified",
+      "assessment": "SQLite and PostgreSQL preserve the shared domain lifecycle, attempts, optimistic transitions, terminal references, and restart recovery; storage layouts differ intentionally by profile.",
       "evidence": [
         {
           "kind": "source",
@@ -1716,14 +1723,20 @@
         {
           "kind": "source",
           "path": "packages/database/src/execution-repository.ts"
+        },
+        {
+          "kind": "test",
+          "path": "packages/sqlite-persistence/src/durability-repositories.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "packages/database/src/integration.test.mjs"
+        },
+        {
+          "kind": "environment",
+          "path": "docs/evidence/m11-standalone-2026-08-30.md"
         }
-      ],
-      "gap": {
-        "issue": 188,
-        "severity": "medium",
-        "owner": "sqlite-persistence",
-        "disposition": "Add parity tests for attempts, cancellation, timeout, retries, and lifecycle queries across both adapters."
-      }
+      ]
     },
     {
       "id": "PERSIST-EXECUTION-PLAN",

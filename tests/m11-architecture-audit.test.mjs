@@ -47,6 +47,9 @@ describe('M11.2 architecture audit', () => {
 
     expect(result.errors).toEqual([])
     expect(audit.packages).toHaveLength(41)
+    expect(
+      audit.packages.every(({ path, version }) => discovered.releaseManifest[path] === version)
+    ).toBe(true)
     expect(audit.operations.map(({ operation }) => operation).sort()).toEqual(publicOperations)
     expect(audit.profiles.map(({ id }) => id).sort()).toEqual(profileIds)
     for (const profile of audit.profiles) {
@@ -79,6 +82,16 @@ describe('M11.2 architecture audit', () => {
       discovered: cyclic,
     })
     expect(errors).toContain('workspace runtime dependency graph contains a cycle')
+
+    const releaseDrift = clone(discovered)
+    releaseDrift.releaseManifest[releaseDrift.packages[0].path] = '0.0.0-drift'
+    const releaseResult = await validateArchitectureAudit(audit, {
+      repositoryRoot,
+      discovered: releaseDrift,
+    })
+    expect(releaseResult.errors).toContain(
+      'workspace package versions drifted from release-please manifest'
+    )
   })
 
   test('classifies every unsupported or partial path with an owned M11 disposition', () => {
