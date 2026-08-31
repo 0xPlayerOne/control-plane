@@ -36,6 +36,13 @@ export type {
   RemoteRuntimeCommandFactory,
   RemoteRuntimeOutcomeWaiter,
 } from './remote-workflow-runtime.js'
+export { PollingRemoteRuntimeOutcomeWaiter } from './remote-runtime-waiter.js'
+export type {
+  PollingRemoteRuntimeOutcomeWaiterOptions,
+  RemoteRuntimeCommandReader,
+  RemoteRuntimeEventReader,
+  RemoteRuntimeExecutionReader,
+} from './remote-runtime-waiter.js'
 
 export const serviceName = 'workflow-worker'
 

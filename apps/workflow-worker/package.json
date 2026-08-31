@@ -9,6 +9,7 @@
     "@control-plane/database": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/execution-plan": "workspace:*",
+    "@control-plane/events": "workspace:*",
     "@control-plane/orchestration": "workspace:*",
     "@control-plane/object-store": "workspace:*",
     "@control-plane/telemetry": "workspace:*",

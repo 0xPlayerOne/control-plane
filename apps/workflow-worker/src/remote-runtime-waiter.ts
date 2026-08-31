@@ -1,0 +1,121 @@
+import type { Execution, RuntimeCommandRecord } from '@control-plane/domain'
+import type { ExecutionEvent } from '@control-plane/events'
+import type { RemoteRuntimeOutcomeWaiter } from './remote-workflow-runtime.js'
+import type { WorkflowRuntimeOutcome } from './execution-workflow.js'
+
+export interface RemoteRuntimeExecutionReader {
+  getExecution(executionId: string): Promise<Execution | undefined>
+}
+
+export interface RemoteRuntimeCommandReader {
+  get(commandId: string): Promise<RuntimeCommandRecord | undefined>
+}
+
+export interface RemoteRuntimeEventReader {
+  queryAfter(
+    executionId: string,
+    afterSequence: number,
+    limit: number
+  ): Promise<readonly ExecutionEvent[]>
+}
+
+export interface PollingRemoteRuntimeOutcomeWaiterOptions {
+  readonly executions: RemoteRuntimeExecutionReader
+  readonly commands: RemoteRuntimeCommandReader
+  readonly events: RemoteRuntimeEventReader
+  readonly now?: () => Date
+  readonly sleep?: (milliseconds: number) => Promise<void>
+  readonly pollIntervalMs?: number
+}
+
+export class PollingRemoteRuntimeOutcomeWaiter implements RemoteRuntimeOutcomeWaiter {
+  readonly #commands: RemoteRuntimeCommandReader
+  readonly #events: RemoteRuntimeEventReader
+  readonly #executions: RemoteRuntimeExecutionReader
+  readonly #now: () => Date
+  readonly #pollIntervalMs: number
+  readonly #sleep: (milliseconds: number) => Promise<void>
+
+  constructor(options: PollingRemoteRuntimeOutcomeWaiterOptions) {
+    this.#executions = options.executions
+    this.#commands = options.commands
+    this.#events = options.events
+    this.#now = options.now ?? (() => new Date())
+    this.#sleep = options.sleep ?? sleep
+    this.#pollIntervalMs = options.pollIntervalMs ?? 250
+    if (
+      !Number.isSafeInteger(this.#pollIntervalMs) ||
+      this.#pollIntervalMs < 10 ||
+      this.#pollIntervalMs > 10_000
+    ) {
+      throw new Error('REMOTE_RUNTIME_POLL_INTERVAL_INVALID')
+    }
+  }
+
+  async wait(input: {
+    readonly command: RuntimeCommandRecord
+    readonly executionId: string
+    readonly attemptId: string
+  }): Promise<WorkflowRuntimeOutcome> {
+    for (;;) {
+      const execution = await this.#executions.getExecution(input.executionId)
+      if (execution === undefined) throw new Error('REMOTE_RUNTIME_EXECUTION_MISSING')
+      const outcome = await this.#executionOutcome(execution)
+      if (outcome !== undefined) return outcome
+      const command = await this.#commands.get(input.command.commandId)
+      if (command === undefined) throw new Error('REMOTE_RUNTIME_COMMAND_MISSING')
+      if (command.status === 'failed') {
+        return {
+          outcome: 'failed',
+          failureCode: 'REMOTE_RUNTIME_COMMAND_FAILED',
+          retryable: false,
+        }
+      }
+      if (command.status === 'cancelled') return { outcome: 'cancelled' }
+      if (
+        command.status === 'expired' ||
+        this.#now().getTime() >= Date.parse(input.command.expiresAt)
+      ) {
+        return {
+          outcome: 'failed',
+          failureCode: 'REMOTE_RUNTIME_COMMAND_EXPIRED',
+          retryable: true,
+        }
+      }
+      await this.#sleep(this.#pollIntervalMs)
+    }
+  }
+
+  async #executionOutcome(execution: Execution): Promise<WorkflowRuntimeOutcome | undefined> {
+    if (execution.state === 'completed') {
+      if (execution.terminalResultRef === undefined) {
+        throw new Error('REMOTE_RUNTIME_RESULT_REFERENCE_MISSING')
+      }
+      return { outcome: 'completed', resultReference: execution.terminalResultRef }
+    }
+    if (execution.state === 'failed') {
+      return {
+        outcome: 'failed',
+        failureCode: execution.failure?.code ?? 'REMOTE_RUNTIME_FAILED',
+        retryable: false,
+      }
+    }
+    if (execution.state === 'cancelled') return { outcome: 'cancelled' }
+    if (execution.state === 'timed_out') {
+      return { outcome: 'failed', failureCode: 'REMOTE_RUNTIME_TIMED_OUT', retryable: false }
+    }
+    if (execution.state !== 'awaiting_input') return undefined
+    const events = await this.#events.queryAfter(execution.executionId, 0, 1_000)
+    const interaction = [...events]
+      .reverse()
+      .find((event) => event.type === 'interaction.requested')
+    const interactionId = interaction?.payload['interactionId']
+    return typeof interactionId === 'string'
+      ? { outcome: 'awaiting_input', interactionId }
+      : undefined
+  }
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}

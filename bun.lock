@@ -157,6 +157,7 @@
         "@control-plane/contracts": "workspace:*",
         "@control-plane/database": "workspace:*",
         "@control-plane/domain": "workspace:*",
+        "@control-plane/events": "workspace:*",
         "@control-plane/execution-plan": "workspace:*",
         "@control-plane/object-store": "workspace:*",
         "@control-plane/orchestration": "workspace:*",
