@@ -143,6 +143,42 @@ describe('Hosted server composition', () => {
     expect(calls).toEqual(['object-store:close'])
   })
 
+  test('composes an explicit remote runtime activity port for server execution', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-runtime-'))
+    const composition = new HostedServerControlPlaneComposition({
+      dataDirectory: directory,
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+      connection: {
+        database: {},
+        check: async () => undefined,
+        close: async () => undefined,
+      },
+      workflowRuntime: {
+        profile: 'hosted-server',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => undefined,
+      },
+      runtimeActivityPort: {
+        dispatch: async () => ({ outcome: 'cancelled' }),
+        applyInteraction: async () => ({ outcome: 'cancelled' }),
+        cleanup: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+    })
+    try {
+      await composition.start()
+      expect(await composition.manifest()).toMatchObject({
+        topology: { runtimeTransport: 'remote-gateway' },
+      })
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('fails closed when S3-compatible topology is declared without an adapter', async () => {
     expect(
       () =>

@@ -77,7 +77,7 @@ const traceStages = ['auth', 'service', 'persistence', 'execution', 'delivery', 
 const profilePorts = {
   cloud: {
     coordination: 'not-composed',
-    discovery: 'EmptyRuntimeDiscoveryRepository',
+    discovery: 'PostgresRuntimeDiscoveryRepository',
     objectStore: 'R2ObjectStore',
     observability: 'packages/telemetry',
     persistence: 'PostgreSQL/Neon repositories',
@@ -93,7 +93,7 @@ const profilePorts = {
     observability: 'BufferedObservabilityProvider',
     persistence: 'PostgreSQL repositories',
     processes: 'NodeProcessRuntimeProvider',
-    runtimeTransport: 'UnconfiguredHostedRuntime',
+    runtimeTransport: 'injected WorkflowRuntimeActivityPort or UnconfiguredHostedRuntime',
     secrets: 'Composite environment/private-file SecretsProvider',
     workflow: 'Remote Restate',
   },
@@ -104,7 +104,7 @@ const profilePorts = {
     observability: 'BufferedObservabilityProvider',
     persistence: 'SqlitePersistenceProvider',
     processes: 'NodeProcessRuntimeProvider',
-    runtimeTransport: 'optional direct-local RuntimeAdapterWithTransport',
+    runtimeTransport: 'DirectRuntimeActivityPort when injected; unavailable acceptance otherwise',
     secrets: 'Composite environment/private-file SecretsProvider',
     workflow: 'Local Restate',
   },
@@ -115,7 +115,7 @@ const profilePorts = {
     observability: 'BufferedObservabilityProvider',
     persistence: 'SqlitePersistenceProvider',
     processes: 'NodeProcessRuntimeProvider',
-    runtimeTransport: 'optional direct-local RuntimeAdapterWithTransport',
+    runtimeTransport: 'DirectRuntimeActivityPort when injected; unavailable acceptance otherwise',
     secrets: 'Composite environment/private-file SecretsProvider',
     workflow: 'Local Restate',
   },
@@ -124,6 +124,9 @@ const profilePorts = {
 export async function discoverArchitecture(rootUrl = new URL('..', import.meta.url)) {
   const root = fileURLToPath(rootUrl)
   const lock = JSONC.parse(await readFile(resolve(root, 'bun.lock'), 'utf8'))
+  const releaseManifest = JSON.parse(
+    await readFile(resolve(root, '.release-please-manifest.json'), 'utf8')
+  )
   const packages = (
     await Promise.all(
       ['apps', 'packages'].map(async (kind) => {
@@ -222,7 +225,14 @@ export async function discoverArchitecture(rootUrl = new URL('..', import.meta.u
       ].map(async ([profile, paths]) => [profile, await digestFiles(root, paths)])
     )
   )
-  return { packages, sdkOperations, openapiOperations, controllerPaths, profileSourceDigests }
+  return {
+    packages,
+    releaseManifest,
+    sdkOperations,
+    openapiOperations,
+    controllerPaths,
+    profileSourceDigests,
+  }
 }
 
 export async function validateArchitectureAudit(audit, options = {}) {
@@ -258,6 +268,11 @@ export async function validateArchitectureAudit(audit, options = {}) {
   }))
   if (JSON.stringify(audit.packages) !== JSON.stringify(discoveredPackages)) {
     errors.push('package inventory drifted from workspace manifests')
+  }
+  if (
+    discoveredPackages.some(({ path, version }) => discovered.releaseManifest?.[path] !== version)
+  ) {
+    errors.push('workspace package versions drifted from release-please manifest')
   }
   const packageByName = new Map(discoveredPackages.map((entry) => [entry.name, entry]))
   for (const entry of discoveredPackages.filter(({ layer }) => layer === 'core-port')) {

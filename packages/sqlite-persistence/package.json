@@ -24,10 +24,13 @@
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {
+    "@control-plane/contracts": "workspace:*",
     "@control-plane/context": "workspace:*",
     "@control-plane/deployment": "workspace:*",
     "@control-plane/domain": "workspace:*",
+    "@control-plane/events": "workspace:*",
     "@control-plane/execution-plan": "workspace:*",
+    "@control-plane/runtime-sdk": "workspace:*",
     "drizzle-orm": "0.45.2"
   }
 }

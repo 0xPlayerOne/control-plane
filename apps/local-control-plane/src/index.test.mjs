@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { DirectLocalRuntimeTransport, TransportedRuntimeAdapter } from '@control-plane/runtime-sdk'
 import { FilesystemObjectStore } from '@control-plane/object-store'
+import { createExecutionPlanTestFixture } from '@control-plane/execution-plan/testing'
 import { SqlitePersistenceProvider } from '@control-plane/sqlite-persistence'
 import {
-  DirectRuntimeExecutionActivities,
+  DirectRuntimeActivityPort,
   LocalApiServer,
   LocalControlPlaneComposition,
   createLocalApiAuthentication,
@@ -68,6 +69,12 @@ describe('Local Control Plane composition', () => {
       })
       expect(manifest.components.every(({ ready }) => ready)).toBe(true)
       expect((await composition.discovery.resolve('restate')).private).toBe(true)
+      expect(composition.executionEvents).toBeDefined()
+      expect(composition.statePromotionProposals).toBeDefined()
+      expect(composition.reconciliationCheckpoints).toBeDefined()
+      expect(composition.runtimeCommands).toBeDefined()
+      expect(composition.runtimeInventoryCheckpoints).toBeDefined()
+      expect(composition.runtimeEventEffects).toBeDefined()
     } finally {
       await composition.close()
       await rm(directory, { recursive: true, force: true })
@@ -158,6 +165,33 @@ describe('Local Control Plane composition', () => {
     ])
   })
 
+  test('fails execution acceptance closed when no direct runtime is configured', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-local-no-runtime-'))
+    const composition = new LocalControlPlaneComposition({
+      dataDirectory: directory,
+      workflowRuntime: {
+        profile: 'local',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+    })
+    try {
+      await composition.start()
+      await expect(
+        composition.executionAcceptanceService.accept({}, 'svc_agent-hq')
+      ).rejects.toMatchObject({
+        response: { code: 'EXECUTION_ACCEPTANCE_NOT_CONFIGURED' },
+      })
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('executes and replays a completed runtime effect through direct transport only', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-direct-runtime-'))
     const persistence = new SqlitePersistenceProvider({
@@ -194,23 +228,21 @@ describe('Local Control Plane composition', () => {
     }
     const transport = new DirectLocalRuntimeTransport(driver)
     const adapter = new TransportedRuntimeAdapter(transport, 'test')
-    const activities = new DirectRuntimeExecutionActivities(persistence, objectStore, adapter, {
-      get: async () => ({
-        schemaVersion: 1,
-        executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-        contentDigest: `sha256:${'a'.repeat(64)}`,
-        runtimeRequirements: [],
-      }),
-    })
+    const activities = new DirectRuntimeActivityPort(persistence, objectStore, adapter)
     try {
       await persistence.migrate()
       const input = {
         executionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         attemptId: handle.attemptId,
         executionPlan: {
+          correlation: {
+            workspaceId: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            projectId: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          },
           executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
           contentDigest: `sha256:${'a'.repeat(64)}`,
           schemaVersion: 1,
+          runtimeRequirements: [],
         },
         effectKey: 'wfl_01ARZ3NDEKTSV4RRFFQ69G5FAV:execution-lifecycle-v1:dispatch',
       }
@@ -220,11 +252,136 @@ describe('Local Control Plane composition', () => {
       expect(first).toMatchObject({ outcome: 'completed' })
       expect(starts).toBe(1)
       expect(
-        (await objectStore.get(first.resultReference.slice('object://'.length))).body
+        (
+          await objectStore.get(
+            `executions/${input.executionId}/attempts/${input.attemptId}/result.json`
+          )
+        ).body
       ).toBeTruthy()
     } finally {
       persistence.close()
       objectStore.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  test('persists direct runtime completion through the shared durable lifecycle', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-local-lifecycle-'))
+    const plan = createExecutionPlanTestFixture()
+    const handle = {
+      handleId: 'local:att_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      attemptId: 'att_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      startedAt: '2026-08-29T00:00:00.000Z',
+    }
+    const composition = new LocalControlPlaneComposition({
+      dataDirectory: directory,
+      workflowRuntime: {
+        profile: 'local',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        stop: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+      runtimeTransport: new TransportedRuntimeAdapter(
+        new DirectLocalRuntimeTransport({
+          start: async ({ attemptId }) => ({ ...handle, attemptId }),
+          progress: async function* () {},
+          status: async (runtimeHandle) => ({
+            handle: runtimeHandle,
+            state: 'completed',
+            observedAt: '2026-08-29T00:00:01.000Z',
+            result: {
+              outcome: 'completed',
+              output: { ok: true },
+              usage: { inputTokens: 1, outputTokens: 1, durationMs: 10 },
+              artifacts: [],
+            },
+          }),
+          cleanup: async () => undefined,
+        }),
+        'test'
+      ),
+    })
+    try {
+      await composition.start()
+      await composition.executionPlans.put(plan)
+      const accepted = await composition.commands.acceptExecution({
+        callerPrincipalId: 'svc_agent-hq',
+        operation: 'execution.accept',
+        commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        requestId: plan.correlation.requestId,
+        idempotencyKey: 'local-durable-lifecycle',
+        payloadHash: 'a'.repeat(64),
+        correlation: {
+          workspaceId: plan.correlation.workspaceId,
+          projectId: plan.correlation.projectId,
+          taskId: plan.correlation.taskId,
+          agentId: plan.correlation.agentId,
+        },
+        executionPlan: {
+          executionPlanId: plan.executionPlanId,
+          contentDigest: plan.contentDigest,
+          schemaVersion: plan.schemaVersion,
+        },
+        receivedAt: '2026-08-29T00:00:00.000Z',
+        retentionExpiresAt: '2026-09-29T00:00:00.000Z',
+      })
+      const executionId = accepted.execution.executionId
+      const attemptId = `att_${executionId.slice(4)}`
+      const workflowId = 'wfl_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+      const activities = composition.executionLifecycleActivities
+
+      await activities.persistStatus({
+        executionId,
+        state: 'queued',
+        effectKey: `${workflowId}:queued`,
+      })
+      await activities.ensureAttempt({
+        executionId,
+        workflowId,
+        effectKey: `${workflowId}:attempt`,
+      })
+      await activities.persistStatus({
+        executionId,
+        attemptId,
+        state: 'starting',
+        effectKey: `${workflowId}:starting`,
+      })
+      const outcome = await activities.dispatch({
+        executionId,
+        attemptId,
+        executionPlan: {
+          executionPlanId: plan.executionPlanId,
+          contentDigest: plan.contentDigest,
+          schemaVersion: plan.schemaVersion,
+        },
+        effectKey: `${workflowId}:dispatch`,
+      })
+      await activities.persistStatus({
+        executionId,
+        attemptId,
+        state: 'completed',
+        effectKey: `${workflowId}:completed`,
+        resultReference: outcome.resultReference,
+      })
+
+      expect(await composition.executions.getExecution(executionId)).toMatchObject({
+        state: 'completed',
+        latestAttemptId: attemptId,
+        terminalResultRef: outcome.resultReference,
+      })
+      expect(await composition.executions.getAttempt(attemptId)).toMatchObject({
+        state: 'completed',
+        terminalResultRef: outcome.resultReference,
+      })
+      expect(await composition.commandRepository.getByExecutionId(executionId)).toMatchObject({
+        status: 'completed',
+        resultReference: outcome.resultReference,
+      })
+    } finally {
+      await composition.close()
       await rm(directory, { recursive: true, force: true })
     }
   })

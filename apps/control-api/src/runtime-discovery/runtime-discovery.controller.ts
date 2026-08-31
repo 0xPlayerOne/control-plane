@@ -9,6 +9,14 @@ import { RuntimeDiscoveryService } from './runtime-discovery.service.js'
 export class RuntimeDiscoveryController {
   constructor(private readonly service: RuntimeDiscoveryService) {}
 
+  @Post('runtimes/list')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List workspace-scoped runtime nodes' })
+  @ApiOkResponse({ description: 'Normalized runtime node read models' })
+  listRuntimes(@Body() envelope: unknown) {
+    return this.service.listRuntimes(envelope)
+  }
+
   @Post('runtime-connections/list')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'List workspace-scoped normalized runtime connections' })

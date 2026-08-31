@@ -37,6 +37,7 @@ import {
 import { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.ts'
 import { PostgresReleaseAuditRepository } from './release-audit-repository.ts'
 import { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.ts'
+import { PostgresRuntimeDiscoveryRepository } from './runtime-discovery-repository.ts'
 import { PostgresRuntimeCommandRepository } from './runtime-command-repository.ts'
 import { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.ts'
 import { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.ts'
@@ -61,6 +62,7 @@ import {
   runtimeEventReceipts,
   runtimeInventoryCheckpoints,
   runtimeConnections,
+  runtimeDiscoveryProjections,
   statePromotionProposals,
 } from './schema/index.ts'
 import { createIsolatedTestDatabase } from './testing.ts'
@@ -106,6 +108,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'reconciliation_checkpoints',
         'release_audit_records',
         'runtime_connections',
+        'runtime_discovery_projections',
         'runtime_inventory_checkpoints',
       ])
     )
@@ -254,9 +257,71 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(reviews.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
     expect(reviews.filter(({ status }) => status === 'rejected')).toHaveLength(1)
     expect((await restartedProposals.get(proposal.proposalId))?.state).toBe('approved')
+    expect(
+      await restarted.mergePromotion({
+        proposalId: proposal.proposalId,
+        mutationId: 'stm_01JBBCDEF0123456789ABCDEFG',
+        mergedAt: '2026-08-28T12:04:00.000Z',
+      })
+    ).toMatchObject({ state: 'merged', resultingProjectStateRevision: 2 })
+
+    const createTransitionProposal = (proposalId, itemId, key, expiresAt) =>
+      restarted.createPromotionProposal({
+        ...scope,
+        proposalId,
+        baseRevision: 2,
+        sourceExecutionId: proposal.sourceExecutionId,
+        operations: [
+          {
+            ...proposal.operations[0],
+            item: { ...proposal.operations[0].item, itemId, key },
+          },
+        ],
+        createdAt: '2026-08-28T12:05:00.000Z',
+        expiresAt: expiresAt ?? '2026-08-29T12:05:00.000Z',
+      })
+    const rejected = await createTransitionProposal(
+      'spp_01JBBCDEF0123456789ABCDEFG',
+      'psi_01JBBCDEF0123456789ABCDEFG',
+      'execution.rejected'
+    )
+    expect(
+      await restarted.rejectPromotion({
+        proposalId: rejected.proposalId,
+        reviewingPrincipalRef: 'principal://reviewer-a',
+        reviewedAt: '2026-08-28T12:06:00.000Z',
+        reason: 'not applicable',
+      })
+    ).toMatchObject({ state: 'rejected' })
+    const expiring = await createTransitionProposal(
+      'spp_01JCBCDEF0123456789ABCDEFG',
+      'psi_01JCBCDEF0123456789ABCDEFG',
+      'execution.expired',
+      '2026-08-28T12:07:00.000Z'
+    )
+    expect(
+      await restarted.expirePromotion(expiring.proposalId, '2026-08-28T12:07:01.000Z')
+    ).toMatchObject({ state: 'expired' })
+    const superseded = await createTransitionProposal(
+      'spp_01JDBCDEF0123456789ABCDEFG',
+      'psi_01JDBCDEF0123456789ABCDEFG',
+      'execution.old'
+    )
+    const successor = await createTransitionProposal(
+      'spp_01JEBCDEF0123456789ABCDEFG',
+      'psi_01JEBCDEF0123456789ABCDEFG',
+      'execution.new'
+    )
+    expect(
+      await restarted.supersedePromotion(
+        superseded.proposalId,
+        successor.proposalId,
+        '2026-08-28T12:08:00.000Z'
+      )
+    ).toMatchObject({ state: 'superseded', supersededByProposalId: successor.proposalId })
     expect(await isolated.application.select().from(projectStates)).toHaveLength(1)
-    expect(await isolated.application.select().from(projectStateRevisions)).toHaveLength(2)
-    expect(await isolated.application.select().from(statePromotionProposals)).toHaveLength(1)
+    expect(await isolated.application.select().from(projectStateRevisions)).toHaveLength(3)
+    expect(await isolated.application.select().from(statePromotionProposals)).toHaveLength(5)
   })
 
   test('persists immutable ContextPackages across restart and fails closed on tampering', async () => {
@@ -268,6 +333,7 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
 
     const restarted = new PostgresContextPackageRepository(isolated.application)
     expect(await restarted.get(reference)).toEqual(package_)
+    expect(await restarted.getById(package_.contextPackageId)).toEqual(package_)
     expect(
       await restarted.get({ ...reference, contentDigest: `sha256:${'0'.repeat(64)}` })
     ).toBeUndefined()
@@ -276,7 +342,36 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
       sql`update context_packages set context_package = jsonb_set(context_package, '{objective}', '"tampered"'::jsonb)`
     )
     await expect(restarted.get(reference)).rejects.toThrow()
+    await expect(restarted.getById(package_.contextPackageId)).rejects.toThrow()
     expect(await isolated.application.select().from(contextPackages)).toHaveLength(1)
+  })
+
+  test('persists workspace-scoped runtime discovery projections across restart', async () => {
+    await isolated.migrate()
+    const repository = new PostgresRuntimeDiscoveryRepository(isolated.application)
+    const runtime = runtimeDiscoveryProjection()
+    const session = externalSessionDiscoveryProjection()
+    const scope = {
+      workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+      projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+      runtimeNodeRefId: runtime.node.runtimeNodeRefId,
+    }
+    await repository.putRuntimeConnection(scope.workspaceId, runtime)
+    await repository.putExternalSession(scope, session)
+
+    const restarted = new PostgresRuntimeDiscoveryRepository(isolated.application)
+    expect(await restarted.listRuntimeConnections(scope)).toEqual([runtime])
+    expect(await restarted.getRuntimeConnection(scope, runtime.runtimeConnectionId)).toEqual(
+      runtime
+    )
+    expect(await restarted.listExternalSessions(scope)).toEqual([session])
+    expect(await restarted.getExternalSession(scope, session.externalSessionId)).toEqual(session)
+    expect(
+      await restarted.listRuntimeConnections({
+        workspaceId: 'wsp_01JBBCDEF0123456789ABCDEFG',
+      })
+    ).toEqual([])
+    expect(await isolated.application.select().from(runtimeDiscoveryProjections)).toHaveLength(2)
   })
 
   test('persists immutable evaluation evidence across repository restart', async () => {
@@ -1465,3 +1560,60 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
     expect(await repository.list()).toEqual([approved])
   })
 })
+
+function runtimeDiscoveryProjection() {
+  const observedAt = '2026-08-30T12:00:00.000Z'
+  return {
+    runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+    runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
+    family: 'mock',
+    connectionType: 'managed_local',
+    location: 'local_device',
+    status: 'available',
+    node: {
+      runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+      location: 'local_device',
+      status: 'online',
+      health: 'online',
+      observedAt,
+    },
+    connection: { status: 'connected', health: 'healthy', availability: 'healthy' },
+    freshness: { state: 'fresh', observedAt },
+    versions: { adapter: '1.0.0', driver: '1.0.0', harness: '1.0.0' },
+    capabilities: ['tool.call'],
+    capabilityDetails: [{ name: 'tool.call', support: 'supported' }],
+    compatibility: { state: 'compatible', limitations: [] },
+    access: {
+      localProjectGrant: { required: true, state: 'granted' },
+      entitlement: { state: 'allowed' },
+    },
+    eligibility: { state: 'eligible', reasons: [], degradations: [], remediation: [] },
+    observedAt,
+    limitations: [],
+  }
+}
+
+function externalSessionDiscoveryProjection() {
+  const observedAt = '2026-08-30T12:00:00.000Z'
+  return {
+    externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+    runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+    projectId: 'prj_01JABCDEF0123456789ABCDEFG',
+    state: 'active',
+    recoverable: true,
+    display: { origin: 'created_through_control_plane' },
+    freshness: { state: 'fresh', observedAt },
+    capabilitySummary: {
+      version: 1,
+      operations: ['session.resume'],
+      controls: {
+        reference: { available: true },
+        resume: { available: true },
+        load: { available: true },
+        close: { available: true },
+        history: { available: false, reason: 'HISTORY_UNAVAILABLE' },
+      },
+    },
+    limitations: [],
+  }
+}

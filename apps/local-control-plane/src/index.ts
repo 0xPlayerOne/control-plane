@@ -68,6 +68,10 @@ export const start = (options: LocalControlPlaneStartOptions = {}) =>
       const application = await createControlApiApplication({
         executionAcceptanceService: composition.executionAcceptanceService,
         executionValidationService: composition.executionValidationService,
+        profileResolutionService: composition.profileResolutionService,
+        projectStateResolutionService: composition.projectStateResolutionService,
+        contextPackageResolutionService: composition.contextPackageResolutionService,
+        runtimeDiscoveryRepository: composition.runtimeDiscoveryRepository,
         serviceAuthenticator: authentication.authenticator,
         componentManifest: () => composition.manifest(),
         dependencyReadiness: async () =>

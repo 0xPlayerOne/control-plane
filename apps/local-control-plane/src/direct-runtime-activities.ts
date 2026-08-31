@@ -5,80 +5,33 @@ import type {
   RuntimeExecutionStatus,
   RuntimeAdapterWithTransport,
 } from '@control-plane/runtime-sdk'
-import type { ExecutionPlanRepository } from '@control-plane/execution-plan'
-import type {
-  ExecutionLifecycleActivities,
-  GraphActivityOutcome,
-  WorkflowRuntimeOutcome,
-} from '@control-plane/workflow-runtime'
+import type { WorkflowRuntimeOutcome } from '@control-plane/workflow-runtime'
+import type { WorkflowRuntimeActivityPort } from '@control-plane/workflow-worker'
 
 const namespaces = {
   effects: 'workflow-effects',
   handles: 'runtime-handles',
-  status: 'workflow-status',
 } as const
 
-export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActivities {
+export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
   constructor(
     readonly persistence: PersistenceProvider,
     readonly objectStore: ObjectStore,
-    readonly runtime: RuntimeAdapterWithTransport,
-    readonly plans: ExecutionPlanRepository
+    readonly runtime: RuntimeAdapterWithTransport
   ) {
     if (runtime.transportKind !== 'direct-local') {
       throw new Error('DIRECT_RUNTIME_TRANSPORT_REQUIRED')
     }
   }
 
-  ensureAttempt(input: {
-    executionId: string
-    workflowId: string
-    effectKey: string
-  }): Promise<{ attemptId: string }> {
-    return this.#effect(input.effectKey, async () => ({
-      attemptId: `att_${input.executionId.slice(4)}`,
-    }))
-  }
-
-  async persistStatus(input: {
-    executionId: string
-    attemptId?: string
-    state: string
-    effectKey: string
-    failure?: { classification: string; code: string }
-    resultReference?: string
-  }): Promise<void> {
-    await this.#effect(input.effectKey, async () => {
-      await this.persistence.transaction(async (transaction) => {
-        const id = recordId(input.executionId)
-        const existing = await transaction.get(namespaces.status, id)
-        await transaction.put({
-          namespace: namespaces.status,
-          id,
-          ...(existing === undefined ? {} : { expectedRevision: existing.revision }),
-          value: json(input),
-        })
-      })
-      return { persisted: true }
-    })
-  }
-
   dispatch(
-    input: Parameters<ExecutionLifecycleActivities['dispatch']>[0]
+    input: Parameters<WorkflowRuntimeActivityPort['dispatch']>[0]
   ): Promise<WorkflowRuntimeOutcome> {
     return this.#effect(input.effectKey, async () => {
-      const executionPlan = await this.plans.get(input.executionPlan)
-      if (executionPlan === undefined) {
-        return {
-          outcome: 'failed',
-          failureCode: 'EXECUTION_PLAN_NOT_FOUND',
-          retryable: false,
-        }
-      }
       const handle = await this.runtime.start({
         attemptId: input.attemptId,
         idempotencyKey: input.effectKey,
-        executionPlan,
+        executionPlan: input.executionPlan,
       })
       await this.#saveHandle(input.executionId, handle)
       let interactionId: string | undefined
@@ -127,22 +80,6 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
     })
   }
 
-  runGraphSegment(): Promise<GraphActivityOutcome> {
-    return Promise.resolve({
-      outcome: 'failed',
-      failureCode: 'LOCAL_GRAPH_RUNTIME_NOT_CONFIGURED',
-      retryable: false,
-    })
-  }
-
-  resumeGraphSegment(): Promise<GraphActivityOutcome> {
-    return this.runGraphSegment()
-  }
-
-  continueGraphSegment(): Promise<GraphActivityOutcome> {
-    return this.runGraphSegment()
-  }
-
   async cleanup(input: {
     executionId: string
     attemptId?: string
@@ -163,13 +100,14 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
   ): Promise<WorkflowRuntimeOutcome> {
     if (status.state === 'completed') {
       const key = `executions/${executionId}/attempts/${attemptId}/result.json`
+      const artifactId = `art_${executionId.slice(4)}`
       await this.objectStore.put({
         key,
         body: new TextEncoder().encode(JSON.stringify(status.result)),
         contentType: 'application/json',
         metadata: { execution: executionId, attempt: attemptId },
       })
-      return { outcome: 'completed', resultReference: `object://${key}` }
+      return { outcome: 'completed', resultReference: artifactId }
     }
     if (status.state === 'failed' || status.state === 'timed_out') {
       return {

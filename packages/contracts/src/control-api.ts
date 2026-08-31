@@ -324,7 +324,13 @@ export const ControlApiFixtures: ControlApiFixtureSet = Object.freeze({
         principal: {
           kind: 'agent_hq_service',
           principalId: 'svc_agent-hq',
-          scopes: ['profile:resolve', 'runtime:read', 'execution:validate', 'execution:accept'],
+          scopes: [
+            'profile:resolve',
+            'runtime:read',
+            'execution:validate',
+            'execution:accept',
+            'system:authenticate',
+          ],
           workspaceIds: [workspaceId],
           projectIds: [projectId],
         },

@@ -7,6 +7,7 @@ import {
   PostgresContextPackageRepository,
   PostgresExecutionPlanRepository,
   PostgresProjectStateRepository,
+  PostgresRuntimeDiscoveryRepository,
   type PostgresConnection,
 } from '@control-plane/database'
 import { CommandInboxService } from '@control-plane/domain'
@@ -22,6 +23,9 @@ import {
   RestateExecutionWorkflowDispatcher,
   createExecutionId,
 } from './executions/execution-acceptance.service.js'
+import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.js'
+import { RepositoryProjectStateResolutionService } from './queries/project-state-resolution.service.js'
+import { RepositoryContextPackageResolutionService } from './queries/context-package-resolution.service.js'
 
 const executionPlanCompilerVersion = '1.0.0'
 
@@ -32,6 +36,10 @@ export interface ManagedCloudControlApiComposition {
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly serviceAuthenticator: PolicyServiceAuthenticator
+  readonly profileResolutionService: RepositoryProfileResolutionService
+  readonly projectStateResolutionService: RepositoryProjectStateResolutionService
+  readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
+  readonly runtimeDiscoveryRepository: PostgresRuntimeDiscoveryRepository
 }
 
 export class ControlApiCloudCompositionError extends Error {
@@ -68,6 +76,8 @@ export function createManagedCloudControlApiComposition(
   const connection = connectionFactory(configuration.database)
   const catalog = new PostgresCatalogRepository(connection.database)
   const plans = new PostgresExecutionPlanRepository(connection.database)
+  const projectStates = new PostgresProjectStateRepository(connection.database)
+  const contextPackages = new PostgresContextPackageRepository(connection.database)
 
   return {
     connection,
@@ -83,12 +93,16 @@ export function createManagedCloudControlApiComposition(
     }),
     executionValidationService: new DurableExecutionValidationService({
       compilerVersion: executionPlanCompilerVersion,
-      contextPackages: new PostgresContextPackageRepository(connection.database),
+      contextPackages,
       plans,
       profiles: catalog,
-      projectStates: new PostgresProjectStateRepository(connection.database),
+      projectStates,
       skills: catalog,
     }),
+    profileResolutionService: new RepositoryProfileResolutionService(catalog),
+    projectStateResolutionService: new RepositoryProjectStateResolutionService(projectStates),
+    contextPackageResolutionService: new RepositoryContextPackageResolutionService(contextPackages),
+    runtimeDiscoveryRepository: new PostgresRuntimeDiscoveryRepository(connection.database),
     serviceAuthenticator,
   }
 }
