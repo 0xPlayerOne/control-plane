@@ -93,7 +93,8 @@ const profilePorts = {
     observability: 'BufferedObservabilityProvider',
     persistence: 'PostgreSQL repositories',
     processes: 'NodeProcessRuntimeProvider',
-    runtimeTransport: 'injected WorkflowRuntimeActivityPort or UnconfiguredHostedRuntime',
+    runtimeTransport:
+      'DurableRemoteWorkflowRuntime over PostgreSQL RuntimeCommand and discovery repositories',
     secrets: 'Composite environment/private-file SecretsProvider',
     workflow: 'Remote Restate',
   },

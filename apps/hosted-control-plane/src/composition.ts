@@ -14,9 +14,12 @@ import {
   PostgresCatalogRepository,
   PostgresCommandAcceptanceRepository,
   PostgresContextPackageRepository,
+  PostgresExecutionEventRepository,
   PostgresExecutionPlanRepository,
   PostgresExecutionRepository,
+  PostgresInteractionRepository,
   PostgresProjectStateRepository,
+  PostgresRuntimeCommandRepository,
   PostgresRuntimeDiscoveryRepository,
   type PostgresConnection,
 } from '@control-plane/database'
@@ -49,11 +52,14 @@ import {
   createRestateEndpointFactory,
   type RestateEndpointFactory,
   type RestateEndpointHandle,
-  type WorkflowRuntimeOutcome,
 } from '@control-plane/workflow-runtime'
 import {
   DisabledGraphSegmentActivities,
   DurableExecutionLifecycleActivities,
+  DurableRemoteWorkflowRuntime,
+  ManagedPiRemoteCommandFactory,
+  PollingRemoteRuntimeOutcomeWaiter,
+  RuntimeDiscoveryAttemptRouter,
   type WorkflowRuntimeActivityPort,
 } from '@control-plane/workflow-worker'
 
@@ -113,9 +119,10 @@ export class HostedServerControlPlaneComposition {
   readonly projectStateResolutionService: RepositoryProjectStateResolutionService
   readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
   readonly runtimeDiscoveryRepository: PostgresRuntimeDiscoveryRepository
+  readonly runtimeActivityPort: WorkflowRuntimeActivityPort
+  readonly runtimeAttemptRouter: RuntimeDiscoveryAttemptRouter
   readonly #endpointFactory: RestateEndpointFactory
   readonly #objectStoreKind: 'filesystem' | 's3-compatible'
-  readonly #runtimeConfigured: boolean
   #endpoint: RestateEndpointHandle | undefined
   #started = false
 
@@ -179,15 +186,39 @@ export class HostedServerControlPlaneComposition {
     this.runtimeDiscoveryRepository = new PostgresRuntimeDiscoveryRepository(
       this.connection.database
     )
-
-    this.#runtimeConfigured = options.runtimeActivityPort !== undefined
+    const executions = new PostgresExecutionRepository(this.connection.database)
+    const runtimeCommands = new PostgresRuntimeCommandRepository(this.connection.database)
+    const executionEvents = new PostgresExecutionEventRepository(this.connection.database)
+    const interactions = new PostgresInteractionRepository(this.connection.database)
+    this.runtimeActivityPort =
+      options.runtimeActivityPort ??
+      new DurableRemoteWorkflowRuntime({
+        attempts: executions,
+        commands: runtimeCommands,
+        factory: new ManagedPiRemoteCommandFactory({
+          contextPackages,
+          executions,
+          interactions,
+          runtimeDiscovery: {
+            getRuntimeConnection: ({ runtimeConnectionId, ...scope }) =>
+              this.runtimeDiscoveryRepository.getRuntimeConnection(scope, runtimeConnectionId),
+          },
+        }),
+        waiter: new PollingRemoteRuntimeOutcomeWaiter({
+          executions,
+          commands: runtimeCommands,
+          events: executionEvents,
+        }),
+      })
+    this.runtimeAttemptRouter = new RuntimeDiscoveryAttemptRouter({
+      discovery: this.runtimeDiscoveryRepository,
+    })
     const activities = new DurableExecutionLifecycleActivities({
-      lifecycle: new ExecutionLifecycleService(
-        new PostgresExecutionRepository(this.connection.database)
-      ),
+      lifecycle: new ExecutionLifecycleService(executions),
       plans,
-      runtime: options.runtimeActivityPort ?? new UnconfiguredHostedRuntime(),
+      runtime: this.runtimeActivityPort,
       graph: new DisabledGraphSegmentActivities(),
+      runtimeRouter: this.runtimeAttemptRouter,
       commands: new CommandInboxService({
         repository: new PostgresCommandAcceptanceRepository(this.connection.database),
         executionIdFactory: unavailableExecutionIdFactory,
@@ -271,7 +302,7 @@ export class HostedServerControlPlaneComposition {
       components,
       topology: {
         externalServices: 2,
-        runtimeTransport: this.#runtimeConfigured ? 'remote-gateway' : 'unconfigured',
+        runtimeTransport: 'remote-gateway',
         restateVersion: RESTATE_SERVER_VERSION,
         persistence: 'postgresql',
         objectStore: this.#objectStoreKind,
@@ -291,24 +322,6 @@ export class HostedServerControlPlaneComposition {
     await this.connection.close()
     this.coordination.close()
     this.observability.close()
-  }
-}
-
-class UnconfiguredHostedRuntime implements WorkflowRuntimeActivityPort {
-  dispatch(): Promise<WorkflowRuntimeOutcome> {
-    return Promise.resolve({
-      outcome: 'failed',
-      failureCode: 'HOSTED_RUNTIME_NOT_CONFIGURED',
-      retryable: false,
-    })
-  }
-
-  applyInteraction(): Promise<WorkflowRuntimeOutcome> {
-    return this.dispatch()
-  }
-
-  cleanup(): Promise<void> {
-    return Promise.resolve()
   }
 }
 

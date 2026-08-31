@@ -3,7 +3,10 @@ import { InMemoryRuntimeCommandRepository } from '@control-plane/domain'
 import { ReferenceRuntimeNode } from '@control-plane/runtime-gateway-protocol'
 import { golden } from '@control-plane/runtime-gateway-protocol/fixtures'
 import { RecordingGatewayMetrics } from './websocket-lifecycle.js'
-import { RuntimeCommandDeliveryService } from './runtime-command-delivery.js'
+import {
+  RuntimeCommandDeliveryService,
+  RuntimePendingCommandDispatcher,
+} from './runtime-command-delivery.js'
 
 const command = golden.command
 const resultReference = 'art_01JABCDEF0123456789ABCDEFG'
@@ -113,6 +116,60 @@ describe('durable Runtime Gateway command delivery', () => {
     ).rejects.toMatchObject({ code: 'RUNTIME_COMMAND_RESULT_CONFLICT' })
 
     expect(first.metrics.observations('runtime_gateway.command_ack_latency_ms')).toEqual([1_000])
+  })
+
+  test('records bounded inline command outcomes without inventing an Artifact reference', async () => {
+    const gateway = service(new InMemoryRuntimeCommandRepository(), new RecordingSender())
+    await gateway.enqueue(command)
+    await gateway.deliver(command.commandId, { channelGeneration: 1, sequence: 1 })
+
+    const outcome = await gateway.recordResult({ ...golden.result, status: 'failed' })
+
+    expect(outcome.record).toMatchObject({ status: 'failed', resultStatus: 'failed' })
+    expect(outcome.record.resultReference).toBeUndefined()
+  })
+
+  test('records command-bound error frames once without leaving the command dispatchable', async () => {
+    const gateway = service(new InMemoryRuntimeCommandRepository(), new RecordingSender())
+    await gateway.enqueue(command)
+    await gateway.deliver(command.commandId, { channelGeneration: 1, sequence: 1 })
+
+    const outcome = await gateway.recordError(golden.error)
+    const replay = await gateway.recordError(golden.error)
+
+    expect(outcome.record).toMatchObject({ status: 'failed', resultStatus: 'failed' })
+    expect(replay.duplicate).toBe(true)
+  })
+
+  test('dispatches only newly queued commands on an active node heartbeat', async () => {
+    const repository = new InMemoryRuntimeCommandRepository()
+    const sender = new RecordingSender()
+    const delivery = service(repository, sender)
+    await delivery.enqueue(command)
+    await delivery.enqueue({
+      ...command,
+      commandId: 'cmd_01JBBCDEF0123456789ABCDEFG',
+      idempotencyKey: 'runtime-command-second',
+    })
+    const dispatcher = new RuntimePendingCommandDispatcher({
+      repository,
+      delivery,
+      now: () => new Date('2026-08-25T12:00:01.000Z'),
+    })
+    const source = {
+      nodeId: command.nodeId,
+      workspaceId: command.workspaceId,
+      gatewayInstanceId: 'gateway-a',
+      connectionId: 'connection-a',
+      channelGeneration: 3,
+      protocolVersion: command.protocolVersion,
+      connectedAt: '2026-08-25T12:00:00.000Z',
+      lastHeartbeatAt: '2026-08-25T12:00:01.000Z',
+    }
+
+    expect(await dispatcher.dispatch(source, 12)).toBe(2)
+    expect(sender.envelopes.map(({ sequence }) => sequence)).toEqual([12, 13])
+    expect(await dispatcher.dispatch(source, 14)).toBe(0)
   })
 })
 

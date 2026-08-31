@@ -1,10 +1,12 @@
 import {
   GatewayInventoryEnvelopeSchema,
   GatewayProtocolManifest,
+  type GatewayEnvelope,
   type GatewayInventoryEnvelope,
 } from '@control-plane/runtime-gateway-protocol'
 import {
   RuntimeConnectionRegistrationSchema,
+  RuntimeCapabilitySchema,
   RuntimeHealthReportSchema,
   RuntimeInventoryCheckpointSchema,
   projectRuntimeConnectionDiscovery,
@@ -32,6 +34,99 @@ export interface RuntimeInventoryNormalizer {
     readonly inventory: GatewayInventoryEnvelope
     readonly nodeStatus: 'online' | 'offline' | 'unknown' | 'revoked'
   }): Promise<NormalizedRuntimeInventoryEntry>
+}
+
+export class DefaultRuntimeInventoryNormalizer implements RuntimeInventoryNormalizer {
+  async normalize(input: {
+    readonly driver: InventoryDriver
+    readonly inventory: GatewayInventoryEnvelope
+    readonly nodeStatus: 'online' | 'offline' | 'unknown' | 'revoked'
+  }): Promise<NormalizedRuntimeInventoryEntry> {
+    const { driver, inventory, nodeStatus } = input
+    if (driver.adapterVersion === undefined || driver.harnessVersion === undefined) {
+      throw new Error('RUNTIME_INVENTORY_VERSION_METADATA_REQUIRED')
+    }
+    const runtimeConnectionId = identifier(
+      'rtc',
+      `${inventory.workspaceId}:${inventory.nodeId}:${driver.opaqueRef}`
+    )
+    const runtimeDefinitionId = identifier('rtd', driver.driverFamily)
+    const identityDigest = digest(
+      `${inventory.workspaceId}:${inventory.nodeId}:${driver.opaqueRef}:${driver.driverFamily}`
+    )
+    const observedBefore = new Date(Date.parse(inventory.observedAt) - 1).toISOString()
+    const status =
+      driver.health === 'healthy'
+        ? 'connected'
+        : driver.health === 'degraded'
+          ? 'degraded'
+          : 'unavailable'
+    const capabilities = driver.capabilities.flatMap((name) => {
+      const capability = RuntimeCapabilitySchema.safeParse({ name, support: 'supported' })
+      return capability.success ? [capability.data] : []
+    })
+    const protocolVersion = `${driver.protocolVersion.major}.${driver.protocolVersion.minor}.0`
+    return {
+      registration: RuntimeConnectionRegistrationSchema.parse({
+        runtimeConnectionId,
+        identityDigest,
+        connectionType: 'managed_local',
+        runtimeNodeRefId: inventory.nodeId,
+        runtimeDefinitionId,
+        location: 'local_device',
+        opaqueNativeRef: driver.opaqueRef,
+        adapterVersion: driver.adapterVersion,
+        driverVersion: driver.driverVersion,
+        harnessVersion: driver.harnessVersion,
+        status,
+        health: driver.health,
+        capabilities,
+        compatibilityState: 'untested',
+        limitations: driver.limitations,
+        lastDiscoveredAt: observedBefore,
+        lastHeartbeatAt: observedBefore,
+        lastHealthCheckAt: observedBefore,
+      }),
+      healthReport: RuntimeHealthReportSchema.parse({
+        runtimeConnectionId,
+        reportSequence: inventory.snapshotVersion,
+        observedAt: inventory.observedAt,
+        discoveredAt: inventory.observedAt,
+        nodeStatus,
+        runtimeState: driver.health === 'unavailable' ? 'offline' : driver.health,
+        versions: {
+          adapter: driver.adapterVersion,
+          driver: driver.driverVersion,
+          harness: driver.harnessVersion,
+          protocol: protocolVersion,
+        },
+        capabilitySnapshot: {
+          version: inventory.snapshotVersion,
+          observedAt: inventory.observedAt,
+          ttlMs: 60_000,
+          verification: 'verified',
+          source: 'adapter_driver_negotiation',
+          capabilities,
+        },
+        limitations: driver.limitations,
+        diagnostics: [],
+      }),
+    }
+  }
+}
+
+export class RuntimeInventoryMessageHandler {
+  readonly #inventory: Pick<RuntimeInventoryIngestionService, 'ingest'>
+
+  constructor(options: { readonly inventory: Pick<RuntimeInventoryIngestionService, 'ingest'> }) {
+    this.#inventory = options.inventory
+  }
+
+  async handle(source: ActiveRuntimeNodeChannelRecord, envelope: GatewayEnvelope): Promise<void> {
+    const inventory = GatewayInventoryEnvelopeSchema.safeParse(envelope)
+    if (!inventory.success) throw new Error('RUNTIME_GATEWAY_FRAME_UNSUPPORTED')
+    await this.#inventory.ingest(inventory.data, source, 'online')
+  }
 }
 
 export interface RuntimeDiscoveryProjectionWriter {
@@ -388,6 +483,17 @@ function hashInventory(inventory: GatewayInventoryEnvelope): string {
       : { removedRuntimeRefs: [...inventory.removedRuntimeRefs].sort() }),
   }
   return `sha256:${createHash('sha256').update(JSON.stringify(canonical)).digest('hex')}`
+}
+
+const crockford = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+function identifier(prefix: 'rtc' | 'rtd', value: string): string {
+  const bytes = createHash('sha256').update(value).digest()
+  return `${prefix}_${Array.from(bytes.subarray(0, 26), (byte) => crockford[byte & 31]).join('')}`
+}
+
+function digest(value: string): string {
+  return `sha256:${createHash('sha256').update(value).digest('hex')}`
 }
 
 function fail(code: RuntimeInventoryIngestionErrorCode): never {

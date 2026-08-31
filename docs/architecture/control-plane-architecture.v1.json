@@ -750,12 +750,17 @@
       "workspaceDependencies": [
         "@control-plane/bootstrap",
         "@control-plane/config",
+        "@control-plane/context",
         "@control-plane/contracts",
         "@control-plane/database",
         "@control-plane/domain",
+        "@control-plane/events",
         "@control-plane/execution-plan",
+        "@control-plane/managed-pi-adapter",
         "@control-plane/object-store",
         "@control-plane/orchestration",
+        "@control-plane/runtime-gateway-protocol",
+        "@control-plane/runtime-sdk",
         "@control-plane/telemetry",
         "@control-plane/workflow-runtime"
       ],
@@ -1192,7 +1197,7 @@
       "id": "hosted-server",
       "entrypoint": "apps/hosted-control-plane/src/index.ts",
       "compositionRoot": "apps/hosted-control-plane/src/composition.ts",
-      "classification": "not_implemented",
+      "classification": "partially_verified",
       "ports": {
         "coordination": "LocalCoordinationProvider",
         "discovery": "StaticServiceDiscovery",
@@ -1200,11 +1205,11 @@
         "observability": "BufferedObservabilityProvider",
         "persistence": "PostgreSQL repositories",
         "processes": "NodeProcessRuntimeProvider",
-        "runtimeTransport": "injected WorkflowRuntimeActivityPort or UnconfiguredHostedRuntime",
+        "runtimeTransport": "DurableRemoteWorkflowRuntime over PostgreSQL RuntimeCommand and discovery repositories",
         "secrets": "Composite environment/private-file SecretsProvider",
         "workflow": "Remote Restate"
       },
-      "assessment": "Startup, migrations, readiness, persistence, storage, and Restate are wired. An explicit runtime activity port is reachable and advertised as remote-gateway, but the production entrypoint still falls back to HOSTED_RUNTIME_NOT_CONFIGURED.",
+      "assessment": "The production entrypoint now composes attempt routing, immutable Managed Pi command translation, the PostgreSQL RuntimeCommand ledger, and durable outcome polling by default. The authenticated WebSocket server and Artifact-backed remote RuntimeNode terminal bridge still require supported production composition and server-profile certification.",
       "evidence": [
         {
           "kind": "source",
@@ -1221,11 +1226,11 @@
       ],
       "gap": {
         "issue": 188,
-        "severity": "critical",
+        "severity": "high",
         "owner": "hosted-runtime",
-        "disposition": "Compose and certify a real remote RuntimeTransport/activity port in the production entrypoint before Hosted Server is a supported execution profile."
+        "disposition": "Compose the approved RuntimeNode identity source and Artifact-backed WebSocket bridge, then certify the Hosted Server restart matrix."
       },
-      "sourceDigest": "sha256:174a608b309070c5f1f4c11aef464b00daee030de8696ec661f172d98f9c211e"
+      "sourceDigest": "sha256:49a9877ee89547783d9078823a2195b3c337fcf285d3b168bfc5c2cceaf16c30"
     },
     {
       "id": "hosted-simple",

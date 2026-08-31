@@ -24,6 +24,32 @@ import type { GraphSegmentActivityPort } from './graph-segment-activity.js'
 import { CloudCertificationRuntime } from './cloud-certification-runtime.js'
 import { DisabledCloudRuntime } from './cloud-disabled-runtime.js'
 
+export { RuntimeDiscoveryAttemptRouter } from './runtime-attempt-router.js'
+export type {
+  RuntimeDiscoveryAttemptRouterOptions,
+  RuntimeDiscoveryReadPort,
+} from './runtime-attempt-router.js'
+export { DurableRemoteWorkflowRuntime } from './remote-workflow-runtime.js'
+export type {
+  DurableRemoteWorkflowRuntimeOptions,
+  RemoteRuntimeAttemptReader,
+  RemoteRuntimeCommandFactory,
+  RemoteRuntimeOutcomeWaiter,
+} from './remote-workflow-runtime.js'
+export { PollingRemoteRuntimeOutcomeWaiter } from './remote-runtime-waiter.js'
+export type {
+  PollingRemoteRuntimeOutcomeWaiterOptions,
+  RemoteRuntimeCommandReader,
+  RemoteRuntimeEventReader,
+  RemoteRuntimeExecutionReader,
+} from './remote-runtime-waiter.js'
+export { ManagedPiRemoteCommandFactory } from './managed-pi-remote-command.js'
+export type {
+  ManagedPiExecutionReader,
+  ManagedPiRemoteCommandFactoryOptions,
+  ManagedPiRuntimeDiscoveryReader,
+} from './managed-pi-remote-command.js'
+
 export const serviceName = 'workflow-worker'
 
 export interface WorkflowWorkerStartOptions {
