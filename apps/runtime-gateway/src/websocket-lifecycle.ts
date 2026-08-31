@@ -47,7 +47,14 @@ export interface RuntimeGatewayMessageHandler {
 }
 
 export interface RuntimeGatewayReconnectHandler {
-  reconcile(hello: GatewayHelloEnvelope, record: ActiveRuntimeNodeChannelRecord): Promise<unknown>
+  reconcile(
+    hello: GatewayHelloEnvelope,
+    record: ActiveRuntimeNodeChannelRecord
+  ): Promise<{ readonly redelivered?: number; readonly expired?: number } | undefined>
+}
+
+export interface RuntimeGatewayPendingCommandHandler {
+  dispatch(record: ActiveRuntimeNodeChannelRecord, sequence: number): Promise<number>
 }
 
 export interface RuntimeGatewayWebSocketLifecycleOptions {
@@ -59,6 +66,7 @@ export interface RuntimeGatewayWebSocketLifecycleOptions {
   readonly now?: () => Date
   readonly messages?: RuntimeGatewayMessageHandler
   readonly reconnect?: RuntimeGatewayReconnectHandler
+  readonly pending?: RuntimeGatewayPendingCommandHandler
 }
 
 export class RuntimeGatewayOutboundError extends Error {
@@ -80,6 +88,8 @@ interface LocalConnection {
   state: 'awaiting_hello' | 'active' | 'closed'
   record?: ActiveRuntimeNodeChannelRecord
   degraded: boolean
+  nextOutboundSequence: number
+  pendingDispatch: boolean
 }
 
 export class RuntimeGatewayWebSocketLifecycle {
@@ -90,6 +100,7 @@ export class RuntimeGatewayWebSocketLifecycle {
   readonly #messages: RuntimeGatewayMessageHandler | undefined
   readonly #metrics: GatewayMetrics
   readonly #now: () => Date
+  readonly #pending: RuntimeGatewayPendingCommandHandler | undefined
   readonly #reachability: RuntimeNodeReachabilityPublisher
   readonly #reconnect: RuntimeGatewayReconnectHandler | undefined
   readonly #unsubscribe: () => void
@@ -104,6 +115,7 @@ export class RuntimeGatewayWebSocketLifecycle {
     this.#now = options.now ?? (() => new Date())
     this.#messages = options.messages
     this.#reconnect = options.reconnect
+    this.#pending = options.pending
     this.#unsubscribe = this.#coordination.subscribeReplacements(
       this.#instanceId,
       async (record) => {
@@ -138,6 +150,8 @@ export class RuntimeGatewayWebSocketLifecycle {
       ...input,
       state: 'awaiting_hello',
       degraded: false,
+      nextOutboundSequence: 1,
+      pendingDispatch: false,
     })
     return true
   }
@@ -272,6 +286,7 @@ export class RuntimeGatewayWebSocketLifecycle {
     }
     connection.record = record
     connection.state = 'active'
+    connection.nextOutboundSequence = hello.lastAcknowledgedSequence + 1
     if (claim.previous !== undefined) this.#metrics.increment('runtime_gateway.reconnects')
     this.#metrics.increment('runtime_gateway.protocol_version', {
       version: versionLabel(negotiated),
@@ -280,7 +295,9 @@ export class RuntimeGatewayWebSocketLifecycle {
     await this.#publishReachability(record, 'online', 'channel_established', this.#now())
     connection.socket.send(JSON.stringify(serverHello(record, hello.lastAcknowledgedSequence)))
     try {
-      await this.#reconnect?.reconcile(hello, record)
+      const recovery = await this.#reconnect?.reconcile(hello, record)
+      connection.nextOutboundSequence +=
+        (recovery?.redelivered ?? 0) + (recovery?.expired ?? 0)
     } catch {
       await this.#disconnect(connection, 1011, 'reconnect_reconciliation_failed')
     }
@@ -324,6 +341,30 @@ export class RuntimeGatewayWebSocketLifecycle {
       'runtime_gateway.heartbeat_lag_ms',
       Math.max(0, now.getTime() - Date.parse(sentAt))
     )
+    await this.#dispatchPending(connection)
+  }
+
+  async #dispatchPending(connection: LocalConnection): Promise<void> {
+    if (
+      this.#pending === undefined ||
+      connection.record === undefined ||
+      connection.pendingDispatch
+    ) {
+      return
+    }
+    connection.pendingDispatch = true
+    try {
+      const delivered = await this.#pending.dispatch(
+        connection.record,
+        connection.nextOutboundSequence
+      )
+      if (!Number.isSafeInteger(delivered) || delivered < 0 || delivered > 1_000) {
+        throw new Error('RUNTIME_GATEWAY_PENDING_DISPATCH_INVALID')
+      }
+      connection.nextOutboundSequence += delivered
+    } finally {
+      connection.pendingDispatch = false
+    }
   }
 
   async #disconnect(

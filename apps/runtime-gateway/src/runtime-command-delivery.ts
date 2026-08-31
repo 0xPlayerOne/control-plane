@@ -13,6 +13,7 @@ import {
   type GatewayCommandEnvelope,
 } from '@control-plane/runtime-gateway-protocol'
 import type { GatewayMetrics } from './websocket-coordination.js'
+import type { ActiveRuntimeNodeChannelRecord } from './websocket-coordination.js'
 
 export interface RuntimeCommandSender {
   send(envelope: GatewayCommandEnvelope): Promise<void>
@@ -344,6 +345,51 @@ export class RuntimeCommandDeliveryService {
     ) {
       fail('RUNTIME_COMMAND_SCOPE_MISMATCH')
     }
+  }
+}
+
+export interface RuntimePendingCommandDispatcherOptions {
+  readonly repository: RuntimeCommandRepository
+  readonly delivery: Pick<RuntimeCommandDeliveryService, 'deliver'>
+  readonly now?: () => Date
+  readonly limit?: number
+}
+
+export class RuntimePendingCommandDispatcher {
+  readonly #delivery: RuntimePendingCommandDispatcherOptions['delivery']
+  readonly #limit: number
+  readonly #now: () => Date
+  readonly #repository: RuntimeCommandRepository
+
+  constructor(options: RuntimePendingCommandDispatcherOptions) {
+    this.#repository = options.repository
+    this.#delivery = options.delivery
+    this.#now = options.now ?? (() => new Date())
+    this.#limit = options.limit ?? 128
+    if (!Number.isSafeInteger(this.#limit) || this.#limit < 1 || this.#limit > 1_000) {
+      throw new Error('RUNTIME_PENDING_COMMAND_LIMIT_INVALID')
+    }
+  }
+
+  async dispatch(source: ActiveRuntimeNodeChannelRecord, firstSequence: number): Promise<number> {
+    if (!Number.isSafeInteger(firstSequence) || firstSequence < 1) {
+      throw new Error('RUNTIME_PENDING_COMMAND_SEQUENCE_INVALID')
+    }
+    const dispatchable = await this.#repository.listDispatchable(
+      source.nodeId,
+      this.#now().toISOString(),
+      this.#limit
+    )
+    let delivered = 0
+    for (const command of dispatchable) {
+      if (command.status !== 'queued' || command.workspaceId !== source.workspaceId) continue
+      const outcome = await this.#delivery.deliver(command.commandId, {
+        channelGeneration: source.channelGeneration,
+        sequence: firstSequence + delivered,
+      })
+      if (outcome.sent) delivered += 1
+    }
+    return delivered
   }
 }
 

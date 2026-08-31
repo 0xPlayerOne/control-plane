@@ -119,6 +119,30 @@ describe('Runtime Gateway WebSocket lifecycle', () => {
     ).toBe(1)
   })
 
+  test('dispatches newly queued commands on heartbeat after reconnect sequencing', async () => {
+    const dispatched = []
+    const fixture = setup('gateway-a', undefined, undefined, {}, undefined, {
+      dispatch: async (record, sequence) => {
+        dispatched.push({ record, sequence })
+        return 2
+      },
+    })
+    const socket = new FakeSocket()
+    fixture.gateway.open(connection('gwc-a', channel(1), socket))
+    await fixture.gateway.receive(
+      'gwc-a',
+      JSON.stringify({ ...golden.hello, lastAcknowledgedSequence: 7 })
+    )
+
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.heartbeat))
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.heartbeat))
+
+    expect(dispatched).toEqual([
+      { record: expect.objectContaining({ nodeId }), sequence: 8 },
+      { record: expect.objectContaining({ nodeId }), sequence: 10 },
+    ])
+  })
+
   test('disconnects an invalidated active channel before handling another frame', async () => {
     const handled = []
     const fixture = setup(
@@ -252,7 +276,8 @@ function setup(
   coordination = new InMemoryRuntimeNodeCoordination(),
   now,
   limits = {},
-  messages
+  messages,
+  pending
 ) {
   const reachability = new RecordingRuntimeNodeReachabilityPublisher()
   const metrics = new RecordingGatewayMetrics()
@@ -263,6 +288,7 @@ function setup(
     metrics,
     now: now ?? (() => new Date('2026-08-25T12:00:01.000Z')),
     messages,
+    pending,
     limits: {
       maxConnections: 8,
       maxConnectionsPerWorkspace: 8,
