@@ -8,6 +8,7 @@ import {
 import {
   GatewayAcknowledgementEnvelopeSchema,
   GatewayCommandEnvelopeSchema,
+  GatewayErrorEnvelopeSchema,
   GatewayResultEnvelopeSchema,
   type GatewayCommandEnvelope,
 } from '@control-plane/runtime-gateway-protocol'
@@ -228,6 +229,35 @@ export class RuntimeCommandDeliveryService {
       version: current.version + 1,
       ...(resultReference === undefined ? {} : { resultReference }),
       resultStatus: result.status,
+      resultRecordedAt: now,
+      updatedAt: now,
+    })
+    return { record: next, duplicate: false }
+  }
+
+  async recordError(
+    errorValue: unknown
+  ): Promise<{ readonly record: RuntimeCommandRecord; readonly duplicate: boolean }> {
+    const error = GatewayErrorEnvelopeSchema.parse(errorValue)
+    if (error.commandId === undefined || error.payloadHash === undefined) {
+      fail('RUNTIME_COMMAND_SCOPE_MISMATCH')
+    }
+    const current = await this.#required(error.commandId)
+    this.#assertRecordedResultScope(current, error)
+    if (error.payloadHash !== current.payloadHash) fail('RUNTIME_COMMAND_PAYLOAD_MISMATCH')
+    if (current.resultStatus !== undefined) {
+      if (current.resultStatus === 'failed' && current.resultReference === undefined) {
+        return { record: current, duplicate: true }
+      }
+      fail('RUNTIME_COMMAND_RESULT_CONFLICT')
+    }
+    if (isTerminal(current.status)) fail('RUNTIME_COMMAND_RESULT_CONFLICT')
+    const now = this.#now().toISOString()
+    const next = await this.#save(current, {
+      ...current,
+      status: 'failed',
+      version: current.version + 1,
+      resultStatus: 'failed',
       resultRecordedAt: now,
       updatedAt: now,
     })

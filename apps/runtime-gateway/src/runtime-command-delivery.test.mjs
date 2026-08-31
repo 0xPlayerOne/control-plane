@@ -125,6 +125,18 @@ describe('durable Runtime Gateway command delivery', () => {
     expect(outcome.record).toMatchObject({ status: 'failed', resultStatus: 'failed' })
     expect(outcome.record.resultReference).toBeUndefined()
   })
+
+  test('records command-bound error frames once without leaving the command dispatchable', async () => {
+    const gateway = service(new InMemoryRuntimeCommandRepository(), new RecordingSender())
+    await gateway.enqueue(command)
+    await gateway.deliver(command.commandId, { channelGeneration: 1, sequence: 1 })
+
+    const outcome = await gateway.recordError(golden.error)
+    const replay = await gateway.recordError(golden.error)
+
+    expect(outcome.record).toMatchObject({ status: 'failed', resultStatus: 'failed' })
+    expect(replay.duplicate).toBe(true)
+  })
 })
 
 function service(repository, sender, now = '2026-08-25T12:00:01.000Z') {
