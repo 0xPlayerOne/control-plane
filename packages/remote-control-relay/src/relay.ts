@@ -252,7 +252,9 @@ export class RelayCommandProcessor<Result> implements RelayHostCommandProcessor<
     envelopeInput: EncryptedRelayEnvelope,
     now: Date = new Date()
   ): Promise<RelayCommandResult<Result>> {
-    const envelope = EncryptedRelayEnvelopeSchema.parse(envelopeInput)
+    const parsed = EncryptedRelayEnvelopeSchema.safeParse(envelopeInput)
+    if (!parsed.success) throw new RelayEnvelopeError('RELAY_ENVELOPE_INVALID')
+    const envelope = parsed.data
     const inFlight = this.#inFlight.get(envelope.commandId)
     if (inFlight !== undefined) {
       if (inFlight.envelope !== JSON.stringify(envelope)) throw new Error('RELAY_COMMAND_CONFLICT')
