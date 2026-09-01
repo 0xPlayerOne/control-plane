@@ -27,6 +27,6 @@
     "@control-plane/contracts": "workspace:*",
     "@control-plane/domain": "workspace:*",
     "@control-plane/telemetry": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "4.5.2"
   }
 }
