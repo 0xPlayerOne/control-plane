@@ -131,7 +131,13 @@ function repositoryParts(value: string): { name: string; owner: string } | undef
 }
 
 function normalizePath(value: string): string | undefined {
-  const normalized = value.replace(/\/+/gu, '/').replace(/^\/+|\/+$/gu, '')
+  // Collapse repeated separators without a backtracking regexp. The value is
+  // repository-controlled metadata, but keeping this linear also protects the
+  // verifier when a malformed archive entry contains a very long separator run.
+  const normalized = value
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .join('/')
   if (normalized === '' || normalized === '.') return ''
   return safeRelativePath(normalized) ? normalized : undefined
 }
