@@ -11,6 +11,7 @@ import {
 import { z } from 'zod'
 
 const DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+const MAX_CONTRIBUTION_BYTES = 262_144
 const RequestSchema = z.object({
   workspaceId: IdentifierSchemas.workspaceId,
   scopeDigest: DigestSchema,
@@ -177,7 +178,7 @@ export class ContextProviderResolver {
         nowBucket: Math.floor(
           Date.parse(request.now) / (request.policy.maximumAgeSeconds * 1_000 || 1)
         ),
-        adapterVersion: 'context-provider-resolver/1',
+        adapterVersion: 'context-provider-resolver/2',
       })
     )
   }
@@ -260,8 +261,10 @@ export class ContextProviderResolver {
   ): ContextContribution[] {
     const parsed = z.array(ContextContributionSchema).max(128).safeParse(input)
     if (!parsed.success) throw new ContextProviderResolutionError('PROVIDER_OUTPUT_INVALID')
+    const normalized: ContextContribution[] = []
     let tokens = 0
     for (const entry of parsed.data) {
+      const normalizedEntry = normalizeContributionIntegrity(entry)
       if (
         entry.providerId !== provider.readModel.definition.providerId ||
         entry.connectionId !== provider.readModel.connection.connectionId ||
@@ -282,11 +285,12 @@ export class ContextProviderResolver {
         (entry.kind === 'memory' && !request.policy.includeMemory)
       )
         throw new ContextProviderResolutionError('PROVIDER_OUTPUT_INVALID')
-      tokens += entry.tokenCount
+      normalized.push(normalizedEntry)
+      tokens += normalizedEntry.tokenCount
     }
     if (tokens > request.policy.maximumTokens)
       throw new ContextProviderResolutionError('PROVIDER_BUDGET_EXCEEDED')
-    return [...parsed.data].sort(
+    return normalized.sort(
       (left, right) =>
         left.kind.localeCompare(right.kind) ||
         left.contributionId.localeCompare(right.contributionId)
@@ -405,13 +409,39 @@ export async function runContextProviderConformance(
   const request = RequestSchema.parse(requestInput)
   const first = await provider.retrieve(request)
   const second = await provider.retrieve(request)
+  const normalizedFirst = normalizeConformanceOutput(first)
+  const normalizedSecond = normalizeConformanceOutput(second)
   return {
     bounded:
+      normalizedFirst !== undefined &&
       first.length <= 128 &&
-      first.reduce((sum, contribution) => sum + contribution.tokenCount, 0) <=
+      normalizedFirst.reduce((sum, contribution) => sum + contribution.tokenCount, 0) <=
         request.policy.maximumTokens,
-    deterministic: JSON.stringify(first) === JSON.stringify(second),
+    deterministic:
+      normalizedFirst !== undefined &&
+      normalizedSecond !== undefined &&
+      JSON.stringify(normalizedFirst) === JSON.stringify(normalizedSecond),
     scopePreserved: first.every((contribution) => contribution.scopeDigest === request.scopeDigest),
+  }
+}
+
+function normalizeConformanceOutput(
+  contributions: readonly ContextContribution[]
+): ContextContribution[] | undefined {
+  try {
+    return contributions.map(normalizeContributionIntegrity)
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeContributionIntegrity(entry: ContextContribution): ContextContribution {
+  const contentBytes = Buffer.byteLength(entry.content, 'utf8')
+  if (contentBytes > MAX_CONTRIBUTION_BYTES || entry.contentDigest !== digest(entry.content))
+    throw new ContextProviderResolutionError('PROVIDER_OUTPUT_INVALID')
+  return {
+    ...entry,
+    tokenCount: Math.max(entry.tokenCount, Math.ceil(contentBytes / 4)),
   }
 }
 
