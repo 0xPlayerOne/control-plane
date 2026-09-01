@@ -20,6 +20,7 @@ import {
   ExecutionEventDraftSchema,
   ExecutionEventSchema,
   hashExecutionEventPayload,
+  sanitizeExecutionEventDraft,
   type ExecutionEvent,
   type ExecutionEventDraft,
   type ExecutionEventRepository,
@@ -493,18 +494,19 @@ async function appendEvent(
   transaction: RecordTransaction,
   draft: ExecutionEventDraft
 ): Promise<ExecutionEvent | undefined> {
-  const id = recordId(draft.eventId)
+  const sanitized = sanitizeExecutionEventDraft(draft)
+  const id = recordId(sanitized.eventId)
   if ((await transaction.get(namespaces.events, id)) !== undefined) return undefined
   const sequence =
     (await transaction.list(namespaces.events))
       .map((record) => ExecutionEventSchema.parse(record.value))
-      .filter((event) => event.executionId === draft.executionId)
+      .filter((event) => event.executionId === sanitized.executionId)
       .reduce((maximum, event) => Math.max(maximum, event.sequence), 0) + 1
   const event = ExecutionEventSchema.parse({
-    ...draft,
+    ...sanitized,
     sequence,
-    payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
-    payloadHash: hashExecutionEventPayload(draft.payload),
+    payloadBytes: Buffer.byteLength(JSON.stringify(sanitized.payload)),
+    payloadHash: hashExecutionEventPayload(sanitized.payload),
     publication: { status: 'pending', attempts: 0, version: 1 },
   })
   await transaction.put({ namespace: namespaces.events, id, value: json(event) })
