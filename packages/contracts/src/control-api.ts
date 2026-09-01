@@ -212,6 +212,18 @@ export const ExecutionAcceptanceRequestSchema = CommandContextSchema.extend({
     executionPlan: ExecutionPlanPublicReferenceSchema.extend({
       schemaVersion: z.number().int().positive(),
     }),
+    marketplacePluginReferences: z
+      .array(
+        z
+          .object({
+            canonicalContentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+            pluginId: z.string().regex(/^plugin:[a-z0-9-]+:[a-z0-9][a-z0-9-]{1,127}$/),
+            releaseId: z.string().regex(/^release:[a-f0-9]{64}$/),
+          })
+          .strict()
+      )
+      .max(128)
+      .optional(),
     parentExecutionId: IdentifierSchemas.executionId.optional(),
     deadlineAt: TimestampSchema.optional(),
     retentionExpiresAt: TimestampSchema,

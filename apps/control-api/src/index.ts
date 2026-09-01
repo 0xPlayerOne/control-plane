@@ -19,6 +19,8 @@ import type { RuntimeDiscoveryRepository } from './runtime-discovery/runtime-dis
 import type { ProfileResolutionService } from './queries/profile-resolution.service.js'
 import type { ProjectStateResolutionService } from './queries/project-state-resolution.service.js'
 import type { ContextPackageResolutionService } from './queries/context-package-resolution.service.js'
+import type { MarketplaceInstallationAuthority } from './marketplace/installation.js'
+import type { MarketplaceRegistryService } from './marketplace/registry.js'
 
 export const serviceName = 'control-api'
 
@@ -36,6 +38,8 @@ export interface ControlApiStartOptions {
   readonly projectStateResolutionService?: ProjectStateResolutionService
   readonly contextPackageResolutionService?: ContextPackageResolutionService
   readonly serviceAuthenticator?: ServiceAuthenticator
+  readonly marketplaceRegistryService?: MarketplaceRegistryService
+  readonly marketplaceInstallationService?: MarketplaceInstallationAuthority
 }
 
 export interface StartedControlApi {
@@ -87,6 +91,10 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
         options.contextPackageResolutionService ?? cloudComposition?.contextPackageResolutionService
       const runtimeDiscoveryRepository =
         options.runtimeDiscoveryRepository ?? cloudComposition?.runtimeDiscoveryRepository
+      const marketplaceRegistryService =
+        options.marketplaceRegistryService ?? cloudComposition?.marketplaceRegistryService
+      const marketplaceInstallationService =
+        options.marketplaceInstallationService ?? cloudComposition?.marketplaceInstallationService
       application = await createControlApiApplication({
         ...(executionAcceptanceService === undefined ? {} : { executionAcceptanceService }),
         ...(executionValidationService === undefined ? {} : { executionValidationService }),
@@ -101,6 +109,8 @@ export async function start(options: ControlApiStartOptions = {}): Promise<Start
           : { contextPackageResolutionService }),
         ...(runtimeDiscoveryRepository === undefined ? {} : { runtimeDiscoveryRepository }),
         ...(serviceAuthenticator === undefined ? {} : { serviceAuthenticator }),
+        ...(marketplaceRegistryService === undefined ? {} : { marketplaceRegistryService }),
+        ...(marketplaceInstallationService === undefined ? {} : { marketplaceInstallationService }),
       })
       registerResource('control-api-http', () => application?.close())
       if (options.listen !== false) {
@@ -135,6 +145,13 @@ export {
   RepositoryContextPackageResolutionService,
   type ContextPackageResolutionService,
 } from './queries/context-package-resolution.service.js'
+export { MarketplaceController } from './marketplace/marketplace.controller.js'
+export {
+  InMemoryMarketplaceInstallationRepository,
+  MarketplaceInstallationService,
+} from './marketplace/installation.js'
+export { GithubReleaseVerifier } from './marketplace/github-release-verifier.js'
+export { MarketplaceRegistryService } from './marketplace/registry.js'
 export type { ServiceAuthenticator } from './auth/service-authentication.js'
 export {
   createPrivateApiAuthentication,

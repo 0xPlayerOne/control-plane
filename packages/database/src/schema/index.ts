@@ -67,6 +67,10 @@ export {
 } from './runtime-discovery-projections.js'
 export { usageFundingSource, usageLedgerEntries, usageLedgerEntryKind } from './usage-ledger.js'
 export {
+  marketplaceInstallationState,
+  marketplaceInstallations,
+} from './marketplace-installations.js'
+export {
   reconciliationAction,
   reconciliationCheckpoints,
   reconciliationCheckpointState,

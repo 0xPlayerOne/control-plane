@@ -44,6 +44,17 @@ import {
   type RuntimeDiscoveryRepository,
 } from './runtime-discovery/runtime-discovery.repository.js'
 import { RuntimeDiscoveryService } from './runtime-discovery/runtime-discovery.service.js'
+import { MarketplaceController } from './marketplace/marketplace.controller.js'
+import { UnavailableMarketplaceInstallationService } from './marketplace/installation.js'
+import type { MarketplaceInstallationAuthority } from './marketplace/installation.js'
+import {
+  MarketplaceRegistryService,
+  UnavailableMarketplaceRegistryService,
+} from './marketplace/registry.js'
+import {
+  MARKETPLACE_INSTALLATION_SERVICE,
+  MARKETPLACE_REGISTRY_SERVICE,
+} from './marketplace/tokens.js'
 import { ProfileResolutionController } from './queries/profile-resolution.controller.js'
 import {
   PROFILE_RESOLUTION_SERVICE,
@@ -72,6 +83,8 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly profileResolutionService?: ProfileResolutionService
   readonly projectStateResolutionService?: ProjectStateResolutionService
   readonly contextPackageResolutionService?: ContextPackageResolutionService
+  readonly marketplaceRegistryService?: MarketplaceRegistryService
+  readonly marketplaceInstallationService?: MarketplaceInstallationAuthority
 }
 
 @Module({})
@@ -101,6 +114,7 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       ProfileResolutionController,
       ProjectStateResolutionController,
       RuntimeDiscoveryController,
+      MarketplaceController,
       SystemController,
     ],
     providers: [
@@ -143,6 +157,15 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       {
         provide: RUNTIME_DISCOVERY_REPOSITORY,
         useValue: options.runtimeDiscoveryRepository ?? new EmptyRuntimeDiscoveryRepository(),
+      },
+      {
+        provide: MARKETPLACE_REGISTRY_SERVICE,
+        useValue: options.marketplaceRegistryService ?? new UnavailableMarketplaceRegistryService(),
+      },
+      {
+        provide: MARKETPLACE_INSTALLATION_SERVICE,
+        useValue:
+          options.marketplaceInstallationService ?? new UnavailableMarketplaceInstallationService(),
       },
       RequestLoggingInterceptor,
       ServiceAuthenticationGuard,

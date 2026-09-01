@@ -569,6 +569,26 @@
                         "required": ["executionPlanId", "contentDigest", "schemaVersion"],
                         "type": "object"
                       },
+                      "marketplacePluginReferences": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "canonicalContentDigest": {
+                              "pattern": "^sha256:[a-f0-9]{64}$",
+                              "type": "string"
+                            },
+                            "pluginId": {
+                              "pattern": "^plugin:[a-z0-9-]+:[a-z0-9][a-z0-9-]{1,127}$",
+                              "type": "string"
+                            },
+                            "releaseId": { "pattern": "^release:[a-f0-9]{64}$", "type": "string" }
+                          },
+                          "required": ["canonicalContentDigest", "pluginId", "releaseId"],
+                          "type": "object"
+                        },
+                        "maxItems": 128,
+                        "type": "array"
+                      },
                       "parentExecutionId": {
                         "pattern": "^exe_[0-9A-HJKMNP-TV-Z]{26}$",
                         "type": "string"

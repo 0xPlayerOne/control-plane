@@ -71,6 +71,9 @@ export class DurableExecutionAcceptanceService implements ExecutionAcceptanceSer
           agentId: request.payload.agentId,
         },
         executionPlan: request.payload.executionPlan,
+        ...(request.payload.marketplacePluginReferences === undefined
+          ? {}
+          : { marketplacePluginReferences: request.payload.marketplacePluginReferences }),
         parentExecutionId: request.payload.parentExecutionId,
         receivedAt: request.issuedAt,
         retentionExpiresAt: request.payload.retentionExpiresAt,
