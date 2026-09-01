@@ -10,6 +10,7 @@ import {
   type GatewayCommandEnvelope,
 } from '@control-plane/runtime-gateway-protocol'
 import type { WorkflowInteractionResponse, WorkflowRuntimeOutcome } from './execution-workflow.js'
+import type { ExecutionWorkflowInput } from '@control-plane/orchestration'
 import type { WorkflowRuntimeActivityPort } from './cloud-execution-activities.js'
 
 export interface RemoteRuntimeAttemptReader {
@@ -20,6 +21,7 @@ interface RemoteRuntimeCommandInput {
   readonly executionId: string
   readonly attempt: ExecutionAttempt
   readonly effectKey: string
+  readonly marketplacePluginReferences?: ExecutionWorkflowInput['marketplacePluginReferences']
 }
 
 export interface RemoteRuntimeCommandFactory {
@@ -71,6 +73,7 @@ export class DurableRemoteWorkflowRuntime implements WorkflowRuntimeActivityPort
     readonly executionId: string
     readonly attemptId: string
     readonly executionPlan: ExecutionPlan
+    readonly marketplacePluginReferences?: ExecutionWorkflowInput['marketplacePluginReferences']
     readonly effectKey: string
   }): Promise<WorkflowRuntimeOutcome> {
     const attempt = await this.#requiredAttempt(input.executionId, input.attemptId)
@@ -79,6 +82,9 @@ export class DurableRemoteWorkflowRuntime implements WorkflowRuntimeActivityPort
         executionId: input.executionId,
         attempt,
         executionPlan: input.executionPlan,
+        ...(input.marketplacePluginReferences === undefined
+          ? {}
+          : { marketplacePluginReferences: input.marketplacePluginReferences }),
         effectKey: input.effectKey,
       })
     )

@@ -531,6 +531,28 @@ describe('Control API', () => {
     expect(fixture.repository.executionCount).toBe(1)
   })
 
+  test('carries exact marketplace pins into the durable workflow submission', async () => {
+    const fixture = executionAcceptanceFixture()
+    const marketplacePluginReferences = [
+      {
+        canonicalContentDigest: `sha256:${'f'.repeat(64)}`,
+        pluginId: 'plugin:openai-official:gmail',
+        releaseId: `release:${'e'.repeat(64)}`,
+      },
+    ]
+    const request = {
+      ...ControlApiFixtures.executionAcceptance.request,
+      payload: {
+        ...ControlApiFixtures.executionAcceptance.request.payload,
+        marketplacePluginReferences,
+      },
+    }
+
+    await fixture.service.accept(request, 'svc_agent-hq')
+
+    expect(fixture.submissions[0]).toMatchObject({ marketplacePluginReferences })
+  })
+
   test('rejects an acceptance payload conflict without another execution or workflow', async () => {
     const fixture = executionAcceptanceFixture()
     await fixture.service.accept(ControlApiFixtures.executionAcceptance.request, 'svc_agent-hq')
@@ -1025,6 +1047,8 @@ describe('Control API', () => {
     expect(document.paths).toHaveProperty('/v1/runtime-connections/list')
     expect(document.paths).toHaveProperty('/v1/runtimes/list')
     expect(document.paths).toHaveProperty('/v1/external-sessions/list')
+    expect(document.paths).toHaveProperty('/v1/marketplace/catalog')
+    expect(document.paths).toHaveProperty('/v1/marketplace/install')
     expect(document.paths).toHaveProperty('/health')
     expect(document.components?.securitySchemes).toHaveProperty('service-bearer')
   })

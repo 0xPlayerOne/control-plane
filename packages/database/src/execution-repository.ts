@@ -143,6 +143,7 @@ export function toExecutionRow(execution: Execution): typeof executions.$inferIn
     executionPlanId: execution.executionPlan.executionPlanId,
     executionPlanDigest: execution.executionPlan.contentDigest,
     executionPlanSchemaVersion: execution.executionPlan.schemaVersion,
+    marketplacePluginReferences: execution.marketplacePluginReferences ?? null,
     parentExecutionId: execution.parentExecutionId ?? null,
     attemptCount: execution.attemptCount,
     latestAttemptId: execution.latestAttemptId ?? null,
@@ -183,6 +184,9 @@ export function fromExecutionRow(row: ExecutionRow): Execution {
       contentDigest: row.executionPlanDigest,
       schemaVersion: row.executionPlanSchemaVersion,
     },
+    ...(row.marketplacePluginReferences === null || row.marketplacePluginReferences === undefined
+      ? {}
+      : { marketplacePluginReferences: row.marketplacePluginReferences }),
     ...(row.parentExecutionId ? { parentExecutionId: row.parentExecutionId } : {}),
     attemptCount: row.attemptCount,
     ...(row.latestAttemptId ? { latestAttemptId: row.latestAttemptId } : {}),

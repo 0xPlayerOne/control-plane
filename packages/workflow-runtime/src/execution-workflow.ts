@@ -44,6 +44,7 @@ export interface ExecutionLifecycleActivities {
     executionId: string
     attemptId: string
     executionPlan: ExecutionWorkflowInput['executionPlan']
+    marketplacePluginReferences?: ExecutionWorkflowInput['marketplacePluginReferences']
     effectKey: string
   }): Promise<WorkflowRuntimeOutcome>
   applyInteraction(
@@ -162,6 +163,9 @@ export async function runExecutionLifecycle(
         executionId: input.executionId,
         attemptId,
         executionPlan: input.executionPlan,
+        ...(input.marketplacePluginReferences === undefined
+          ? {}
+          : { marketplacePluginReferences: input.marketplacePluginReferences }),
         effectKey: key('dispatch'),
       }),
       control

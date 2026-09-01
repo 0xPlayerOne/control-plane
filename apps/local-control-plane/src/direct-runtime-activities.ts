@@ -42,7 +42,13 @@ export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
       const handle = await this.runtime.start({
         attemptId: input.attemptId,
         idempotencyKey: input.effectKey,
-        executionPlan: input.executionPlan,
+        executionPlan:
+          input.marketplacePluginReferences === undefined
+            ? input.executionPlan
+            : {
+                ...input.executionPlan,
+                marketplacePluginReferences: input.marketplacePluginReferences,
+              },
       })
       await this.#saveHandle(input.executionId, handle)
       const cancellation = await this.#cancellation(input.executionId)
