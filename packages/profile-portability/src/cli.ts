@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { chmod, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, open, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { randomUUID } from 'node:crypto'
@@ -16,6 +16,7 @@ import {
 } from './index.js'
 
 type LocalProfile = 'local' | 'hosted-simple'
+const MAX_SENSITIVE_VALUES_FILE_BYTES = 4 * 1024 * 1024
 
 interface CliIo {
   readonly stdout: (value: string) => void
@@ -49,6 +50,7 @@ export async function runPortabilityCli(
           {
             exportId: flags.get('export-id') ?? randomUUID(),
             includeSelectedHistory: flags.has('include-history'),
+            sensitiveValues: await readSensitiveValues(flags.get('sensitive-values-file')),
           }
         )
         const output = required(flags, 'output')
@@ -163,6 +165,36 @@ async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(resolve(path), 'utf8')) as unknown
 }
 
+async function readSensitiveValues(path: string | undefined): Promise<readonly string[]> {
+  if (path === undefined) return []
+  const input = JSON.parse(await readBoundedFile(path, MAX_SENSITIVE_VALUES_FILE_BYTES)) as unknown
+  if (
+    !Array.isArray(input) ||
+    input.length > 1_000 ||
+    input.some((value) => typeof value !== 'string' || value.length === 0 || value.length > 4_096)
+  ) {
+    throw new Error('INVALID_SENSITIVE_VALUES_FILE')
+  }
+  return [...new Set(input)]
+}
+
+async function readBoundedFile(path: string, maximumBytes: number): Promise<string> {
+  const handle = await open(resolve(path), 'r')
+  try {
+    const buffer = Buffer.allocUnsafe(maximumBytes + 1)
+    let total = 0
+    while (total < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, total, buffer.length - total, total)
+      if (bytesRead === 0) break
+      total += bytesRead
+    }
+    if (total > maximumBytes) throw new Error('SENSITIVE_VALUES_FILE_TOO_LARGE')
+    return buffer.subarray(0, total).toString('utf8')
+  } finally {
+    await handle.close()
+  }
+}
+
 async function writeJsonAtomically(path: string, value: unknown): Promise<void> {
   const target = resolve(path)
   const temporary = resolve(dirname(target), `.${randomUUID()}.tmp`)
@@ -197,15 +229,21 @@ function redactedPlan(plan: PortableImportPlan) {
       revision: record.revision,
       state,
     })),
-    artifactActions: plan.artifactActions,
-    unresolvedSecretReferences: plan.unresolvedSecretReferences,
-    unsupportedReferences: plan.unsupportedReferences,
+    artifactActions: plan.artifactActions.map(({ artifact, action }) => ({
+      key: artifact.key,
+      action,
+    })),
+    unresolvedSecretReferences: plan.unresolvedSecretReferences.map(({ provider, purpose }) => ({
+      provider,
+      purpose,
+    })),
+    unsupportedReferenceCount: plan.unsupportedReferences.length,
     conflicts: plan.conflicts,
   }
 }
 
 function usage(): string {
-  return 'Usage: control-plane-portability <verify|export|plan|import> --manifest/--database ...; import is dry-run unless --apply is provided'
+  return 'Usage: control-plane-portability <verify|export|plan|import> --manifest/--database ...; export accepts --sensitive-values-file; import is dry-run unless --apply is provided'
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -16,6 +16,7 @@ import {
   applyPortableImport,
   assertPortableManifest,
   exportPortableState,
+  finalizePortableManifest,
   planPortableImport,
   runProfileConformance,
 } from './index.ts'
@@ -216,6 +217,78 @@ describe('portable profile export and import', () => {
         )
       ).rejects.toBeInstanceOf(PortableMigrationError)
     }
+  })
+
+  test('inspects the complete manifest payload before export and import planning', async () => {
+    const unsafeArtifact = artifact('artifacts/unsafe.json', 'unsafe')
+    await expect(
+      exportPortableState(
+        source({ artifacts: [{ ...unsafeArtifact, metadata: { accessToken: 'opaque' } }] }),
+        { exportId: 'export-artifact-token', createdAt }
+      )
+    ).rejects.toMatchObject({ code: 'PORTABLE_SENSITIVE_VALUE', details: ['accessToken'] })
+    await expect(
+      exportPortableState(
+        source({
+          artifacts: [
+            { ...unsafeArtifact, metadata: { sourceLocation: '/Users/operator/private.json' } },
+          ],
+        }),
+        { exportId: 'export-artifact-path', createdAt }
+      )
+    ).rejects.toMatchObject({ code: 'PORTABLE_PRIVATE_PATH' })
+    await expect(
+      exportPortableState(
+        source({
+          secretReferences: [
+            { provider: 'host-secure', key: '/Users/operator/.secrets/model', purpose: 'model' },
+          ],
+        }),
+        { exportId: 'export-secret-path', createdAt }
+      )
+    ).rejects.toMatchObject({ code: 'PORTABLE_PRIVATE_PATH' })
+    for (const metadata of [
+      { clientSecret: 'opaque' },
+      { apiKey: 'opaque' },
+      { credentials: 'opaque' },
+      { sourceLocation: '/etc/shadow' },
+      { sourceLocation: 'C:/Users/operator/secret.json' },
+      { sourceLocation: '\\\\server\\share\\secret.json' },
+    ]) {
+      await expect(
+        exportPortableState(source({ artifacts: [{ ...unsafeArtifact, metadata }] }), {
+          exportId: 'export-artifact-unsafe',
+          createdAt,
+        })
+      ).rejects.toBeInstanceOf(PortableMigrationError)
+    }
+    await expect(
+      exportPortableState(source({ unsupportedReferences: [secretCanary] }), {
+        exportId: 'export-unsupported-canary',
+        createdAt,
+        sensitiveValues: [secretCanary],
+      })
+    ).rejects.toMatchObject({ code: 'PORTABLE_SENSITIVE_VALUE' })
+    await expect(
+      exportPortableState(source({ unsupportedReferences: ['/Users/operator/private.json'] }), {
+        exportId: 'export-unsupported-path',
+        createdAt,
+      })
+    ).rejects.toMatchObject({ code: 'PORTABLE_PRIVATE_PATH' })
+
+    const safeManifest = await exportPortableState(source(), {
+      exportId: 'export-import-safety',
+      createdAt,
+    })
+    const unsigned = { ...safeManifest }
+    Reflect.deleteProperty(unsigned, 'contentDigest')
+    const unsafeManifest = finalizePortableManifest({
+      ...unsigned,
+      artifacts: [{ ...unsafeArtifact, metadata: { clientSecret: secretCanary } }],
+    })
+    await expect(planPortableImport(unsafeManifest, new MemoryDestination())).rejects.toMatchObject(
+      { code: 'PORTABLE_SENSITIVE_VALUE' }
+    )
   })
 
   test('plans, applies, and idempotently replays Local to Hosted and Hosted to Local', async () => {
