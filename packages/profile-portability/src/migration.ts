@@ -21,8 +21,8 @@ import {
 } from './manifest.js'
 
 const PROHIBITED_FIELD =
-  /(?:authorization|credential|password|private[_-]?key|secret[_-]?value|token)$/i
-const PRIVATE_PATH = /^(?:\/(?:Users|home|root|private|var\/folders)\/|[A-Za-z]:\\Users\\)/
+  /(?:authorization|credentials?|password|passphrase|private[_-]?key|secret(?:[_-]?(?:value|key))?|api[_-]?key|access[_-]?key|token)$/i
+const PRIVATE_PATH = /^(?:\/|~[\\/]|[A-Za-z]:[\\/]|\\\\)/
 
 export interface PortableStateSnapshot {
   readonly records: readonly Omit<PortableRecord, 'contentDigest'>[]
@@ -87,8 +87,7 @@ export async function exportPortableState(
   const secretReferences = snapshot.secretReferences.map((reference) =>
     PortableSecretReferenceSchema.parse(reference)
   )
-  assertSafeExport({ records, artifacts, secretReferences }, options.sensitiveValues ?? [])
-  return finalizePortableManifest({
+  const manifest: Omit<PortableExportManifest, 'contentDigest'> = {
     schemaVersion: PORTABLE_EXPORT_SCHEMA_VERSION,
     contractVersion: PORTABLE_CONTRACT_VERSION,
     exportId: options.exportId,
@@ -108,7 +107,9 @@ export async function exportPortableState(
     artifacts,
     secretReferences,
     unsupportedReferences: [...(snapshot.unsupportedReferences ?? [])],
-  })
+  }
+  assertSafeExport(manifest, options.sensitiveValues ?? [])
+  return finalizePortableManifest(manifest)
 }
 
 export interface PortableRecordInspection {
@@ -174,6 +175,7 @@ export async function planPortableImport(
   } catch {
     throw new PortableMigrationError('PORTABLE_SCHEMA_INCOMPATIBLE')
   }
+  assertSafeExport(manifest, [])
   const missingCapabilities = manifest.compatibility.requiredCapabilities.filter(
     (capability) => !destination.capabilities.has(capability)
   )
@@ -287,18 +289,11 @@ export async function applyPortableImport(
   }
 }
 
-function assertSafeExport(
-  input: {
-    readonly records: readonly PortableRecord[]
-    readonly artifacts: readonly PortableArtifactReference[]
-    readonly secretReferences: readonly PortableSecretReference[]
-  },
-  sensitiveValues: readonly string[]
-): void {
+function assertSafeExport(input: unknown, sensitiveValues: readonly string[]): void {
   const serialized = JSON.stringify(input)
   const leaked = sensitiveValues.filter((value) => value.length > 0 && serialized.includes(value))
   if (leaked.length > 0) throw new PortableMigrationError('PORTABLE_SENSITIVE_VALUE')
-  inspectSafe(input.records.map(({ value }) => value))
+  inspectSafe(input)
 }
 
 function inspectSafe(value: unknown, key = ''): void {
