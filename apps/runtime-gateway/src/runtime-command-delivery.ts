@@ -323,7 +323,7 @@ export class RuntimeCommandDeliveryService {
       envelope.nodeId !== current.nodeId ||
       envelope.workspaceId !== current.workspaceId ||
       envelope.channelGeneration !== current.lastChannelGeneration ||
-      envelope.sequence < (current.lastSequence ?? 0)
+      envelope.sequence !== current.lastSequence
     ) {
       fail('RUNTIME_COMMAND_SCOPE_MISMATCH')
     }
