@@ -163,7 +163,7 @@ export class MarketplaceInstallationService {
       (candidate) => candidate.releaseId === request.payload.releaseId
     )
     let state: MarketplaceInstallationState = 'unavailable'
-    if (plugin && release)
+    if (snapshot.state === 'ready' && plugin && release)
       state = await this.#stateFor(
         request.payload.workspaceIdentity,
         plugin,
@@ -219,7 +219,9 @@ export class MarketplaceInstallationService {
     const compatibility = plugin.harnessCompatibility[payload.requestedHarness]
     if (
       !isObject(compatibility) ||
-      ['unsupported', 'blocked', 'rejected'].includes(stringValue(compatibility['status']))
+      ['unsupported', 'blocked', 'blocked-by-policy', 'rejected'].includes(
+        stringValue(compatibility['status'])
+      )
     )
       return 'rejected-by-policy'
     if (
@@ -227,14 +229,18 @@ export class MarketplaceInstallationService {
       !(await this.#policy.authorizeWorkspace({ identity, plugin, release }))
     )
       return 'rejected-by-policy'
-    if (
-      this.#policy.authorizeSecurityClassification &&
-      !(await this.#policy.authorizeSecurityClassification({
-        classification: plugin.securityClassification,
-        identity,
-      }))
-    )
+    const securityClassification = stringValue(plugin.securityClassification['level'])
+    if (this.#policy.authorizeSecurityClassification) {
+      if (
+        !(await this.#policy.authorizeSecurityClassification({
+          classification: plugin.securityClassification,
+          identity,
+        }))
+      )
+        return 'rejected-by-policy'
+    } else if (securityClassification !== 'low') {
       return 'rejected-by-policy'
+    }
     const connectors = await this.#policy.resolveConnectors?.({
       identity,
       names: release.requiredConnectors,
@@ -279,8 +285,7 @@ function parseEnvelope(value: MarketplaceInstallEnvelope): MarketplaceInstallEnv
     !/^sha256:[a-f0-9]{64}$/.test(stringValue(payload.canonicalContentDigest)) ||
     !stringValue(payload.requestedHarness) ||
     !stringValue(identity.workspaceId) ||
-    !stringValue(identity.userId) ||
-    value.workspaceId !== identity.workspaceId
+    !stringValue(identity.userId)
   )
     throw new BadRequestException({
       code: 'MARKETPLACE_REQUEST_INVALID',

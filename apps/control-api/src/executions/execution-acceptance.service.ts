@@ -91,6 +91,9 @@ export class DurableExecutionAcceptanceService implements ExecutionAcceptanceSer
             executionId: accepted.execution.executionId,
             workflowId: workflowIdFromExecutionId(accepted.execution.executionId),
             executionPlan: accepted.execution.executionPlan,
+            ...(accepted.execution.marketplacePluginReferences === undefined
+              ? {}
+              : { marketplacePluginReferences: accepted.execution.marketplacePluginReferences }),
             deadlineAt,
           })
         )

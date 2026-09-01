@@ -6,6 +6,7 @@ import {
   type ExecutionLifecycleService,
 } from '@control-plane/domain'
 import type { ExecutionPlan, ExecutionPlanRepository } from '@control-plane/execution-plan'
+import type { ExecutionWorkflowInput } from '@control-plane/orchestration'
 import type { GraphSegmentActivityPort } from './graph-segment-activity.js'
 import type {
   ExecutionLifecycleActivities,
@@ -18,6 +19,7 @@ export interface WorkflowRuntimeActivityPort {
     readonly executionId: string
     readonly attemptId: string
     readonly executionPlan: ExecutionPlan
+    readonly marketplacePluginReferences?: ExecutionWorkflowInput['marketplacePluginReferences']
     readonly effectKey: string
   }): Promise<WorkflowRuntimeOutcome>
   applyInteraction(

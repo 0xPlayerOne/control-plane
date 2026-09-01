@@ -18,6 +18,8 @@ export type GithubReleaseVerifierOptions = Readonly<{
   token?: string
   maxBytes?: number
   maxFiles?: number
+  requestTimeoutMs?: number
+  maxResponseBytes?: number
 }>
 
 export class GithubReleaseVerifier implements MarketplaceReleaseVerifier {
@@ -25,12 +27,16 @@ export class GithubReleaseVerifier implements MarketplaceReleaseVerifier {
   readonly #token: string | undefined
   readonly #maxBytes: number
   readonly #maxFiles: number
+  readonly #requestTimeoutMs: number
+  readonly #maxResponseBytes: number
 
   constructor(options: GithubReleaseVerifierOptions = {}) {
     this.#fetchImpl = options.fetchImpl ?? fetch
     this.#token = options.token
     this.#maxBytes = options.maxBytes ?? 50 * 1024 * 1024
     this.#maxFiles = options.maxFiles ?? 4_096
+    this.#requestTimeoutMs = options.requestTimeoutMs ?? 15_000
+    this.#maxResponseBytes = options.maxResponseBytes ?? 12 * 1024 * 1024
   }
 
   async verify(
@@ -43,12 +49,21 @@ export class GithubReleaseVerifier implements MarketplaceReleaseVerifier {
     )
     if (tree.truncated || !Array.isArray(tree.tree)) return false
     const prefix = normalizePath(input.release.pluginSubdirectory)
-    if (!prefix) return false
+    if (prefix === undefined) return false
     const files = new Map<string, Uint8Array>()
     let totalBytes = 0
     for (const entry of tree.tree) {
-      if (!entry.path || !entry.path.startsWith(`${prefix}/`)) continue
-      const relativePath = entry.path.slice(prefix.length + 1)
+      if (!entry.path) continue
+      const relativePath =
+        prefix === ''
+          ? entry.path
+          : entry.path.startsWith(`${prefix}/`)
+            ? entry.path.slice(prefix.length + 1)
+            : undefined
+      if (relativePath === undefined) continue
+      // GitHub includes directory nodes in recursive trees; only blobs are
+      // content-addressed. Symlinks inside the selected release are rejected.
+      if (entry.type === 'tree') continue
       if (!safeRelativePath(relativePath)) return false
       if (entry.mode === '120000' || entry.type !== 'blob' || !entry.sha) return false
       if (files.size >= this.#maxFiles || (entry.size ?? 0) > this.#maxBytes) return false
@@ -79,9 +94,13 @@ export class GithubReleaseVerifier implements MarketplaceReleaseVerifier {
         Accept: 'application/vnd.github+json',
         ...(this.#token ? { Authorization: `Bearer ${this.#token}` } : {}),
       },
+      signal: AbortSignal.timeout(this.#requestTimeoutMs),
     })
     if (!response.ok) throw new Error('GitHub release fetch failed')
-    return (await response.json()) as T
+    const body = await response.text()
+    if (new TextEncoder().encode(body).byteLength > this.#maxResponseBytes)
+      throw new Error('GitHub release response exceeds size limit')
+    return JSON.parse(body) as T
   }
 }
 
@@ -112,8 +131,9 @@ function repositoryParts(value: string): { name: string; owner: string } | undef
 }
 
 function normalizePath(value: string): string | undefined {
-  if (!safeRelativePath(value)) return undefined
-  return value.replace(/\/+/gu, '/').replace(/^\/+|\/+$/gu, '')
+  const normalized = value.replace(/\/+/gu, '/').replace(/^\/+|\/+$/gu, '')
+  if (normalized === '' || normalized === '.') return ''
+  return safeRelativePath(normalized) ? normalized : undefined
 }
 
 function safeRelativePath(value: string): boolean {

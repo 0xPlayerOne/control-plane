@@ -48,7 +48,7 @@ export class PostgresMarketplaceInstallationRepository implements MarketplaceIns
       })
       .onConflictDoNothing()
       .returning({ installationId: marketplaceInstallations.installationId })
-    if (inserted) return record
+    if (inserted !== undefined) return record
     const existing = await this.findByIdempotency(record.workspaceId, record.idempotencyKey)
     if (!existing) throw new Error('MARKETPLACE_INSTALLATION_PERSISTENCE_CONFLICT')
     return existing

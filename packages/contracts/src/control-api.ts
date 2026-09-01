@@ -141,6 +141,86 @@ export const ContextPackageResolutionResponseSchema = successResponse(
   z.object({ contextPackage: ContextPackagePublicReferenceSchema })
 )
 
+const MarketplacePluginReferenceContractSchema = z
+  .object({
+    pluginId: z.string().regex(/^plugin:[a-z0-9-]+:[a-z0-9][a-z0-9-]{1,127}$/),
+    releaseId: z.string().regex(/^release:[a-f0-9]{64}$/),
+    canonicalContentDigest: DigestSchema,
+  })
+  .strict()
+
+const MarketplaceIdentitySchema = z.object({
+  workspaceId: z.string().min(1).max(128),
+  userId: z.string().min(1).max(128),
+})
+
+const MarketplaceArtifactsSchema = z
+  .object({
+    'catalog.v1.json': z.string(),
+    'catalog-latest.v1.json': z.string(),
+    'catalog-summary.v1.json': z.string(),
+    'categories.v1.json': z.string(),
+    'compatibility.v1.json': z.string(),
+    'integrity.json': z.string(),
+    'sources.lock.json': z.string(),
+  })
+  .strict()
+
+export const MarketplaceCatalogRequestSchema = RequestContextSchema.extend({
+  operation: z.literal('marketplace.catalog.read'),
+  requestedAt: TimestampSchema,
+  parameters: z.object({ workspaceIdentity: MarketplaceIdentitySchema }),
+})
+
+export const MarketplaceCatalogResponseSchema = successResponse(
+  z.object({
+    catalogId: z.string().regex(/^catalog:[a-f0-9]{64}$/),
+    releaseId: z.string().regex(/^catalog:[a-f0-9]{64}$/),
+    state: z.enum(['ready', 'stale']),
+    artifacts: MarketplaceArtifactsSchema,
+    installations: z.array(
+      MarketplacePluginReferenceContractSchema.extend({
+        state: z.enum([
+          'pending-authorization',
+          'unavailable',
+          'rejected-by-policy',
+          'installed',
+          'superseded',
+        ]),
+      })
+    ),
+  })
+)
+
+export const MarketplaceInstallRequestSchema = CommandContextSchema.extend({
+  operation: z.literal('marketplace.install.request'),
+  issuedAt: TimestampSchema,
+  payload: MarketplacePluginReferenceContractSchema.extend({
+    requestedHarness: z.string().min(1).max(128),
+    workspaceIdentity: MarketplaceIdentitySchema,
+  }),
+})
+
+export const MarketplaceInstallResponseSchema = successResponse(
+  MarketplacePluginReferenceContractSchema.extend({
+    installationId: z.string().min(1).max(128),
+    catalogId: z.string().regex(/^catalog:[a-f0-9]{64}$/),
+    requestedHarness: z.string().min(1).max(128),
+    state: z.enum([
+      'pending-authorization',
+      'unavailable',
+      'rejected-by-policy',
+      'installed',
+      'superseded',
+    ]),
+  })
+)
+
+export type MarketplaceCatalogRequest = z.input<typeof MarketplaceCatalogRequestSchema>
+export type MarketplaceCatalogResponse = z.output<typeof MarketplaceCatalogResponseSchema>
+export type MarketplaceInstallRequest = z.input<typeof MarketplaceInstallRequestSchema>
+export type MarketplaceInstallResponse = z.output<typeof MarketplaceInstallResponseSchema>
+
 export const RuntimeReadModelSchema = z.object({
   runtimeNodeRefId: IdentifierSchemas.runtimeNodeRefId,
   runtimeConnectionId: IdentifierSchemas.runtimeConnectionId.optional(),

@@ -80,6 +80,8 @@ export type MarketplaceRegistryServiceOptions = Readonly<{
   latestUrl?: string
   token?: string
   releaseVerifier?: MarketplaceReleaseVerifier
+  requestTimeoutMs?: number
+  maxArtifactBytes?: number
 }>
 
 export class MarketplaceRegistryError extends Error {
@@ -134,6 +136,8 @@ export class MarketplaceRegistryService {
   readonly #latestUrl: string
   readonly #token: string | undefined
   readonly #releaseVerifier: MarketplaceReleaseVerifier | undefined
+  readonly #requestTimeoutMs: number
+  readonly #maxArtifactBytes: number
   #cache: MarketplaceCatalogSnapshot | undefined
 
   constructor(options: MarketplaceRegistryServiceOptions = {}) {
@@ -144,6 +148,8 @@ export class MarketplaceRegistryService {
       'https://github.com/0xPlayerOne/plugins/releases/latest/download/catalog-latest.v1.json'
     this.#token = options.token
     this.#releaseVerifier = options.releaseVerifier
+    this.#requestTimeoutMs = options.requestTimeoutMs ?? 15_000
+    this.#maxArtifactBytes = options.maxArtifactBytes ?? 12 * 1024 * 1024
   }
 
   async getCatalog(): Promise<MarketplaceCatalogSnapshot> {
@@ -244,9 +250,13 @@ export class MarketplaceRegistryService {
           Accept: 'application/json',
           ...(this.#token ? { Authorization: `Bearer ${this.#token}` } : {}),
         },
+        signal: AbortSignal.timeout(this.#requestTimeoutMs),
       })
       if (!response.ok) throw new Error('artifact request failed')
-      return await response.text()
+      const body = await response.text()
+      if (new TextEncoder().encode(body).byteLength > this.#maxArtifactBytes)
+        throw new Error('artifact response exceeds size limit')
+      return body
     } catch {
       throw new MarketplaceRegistryError(
         'MARKETPLACE_REGISTRY_UNAVAILABLE',
@@ -322,9 +332,7 @@ export function verifyArtifacts(artifacts: MarketplaceArtifacts): MarketplaceCat
   }
   if (artifacts['catalog-latest.v1.json'] !== artifacts['catalog.v1.json'])
     throw verificationError('Marketplace latest pointer is not byte-identical')
-  const body = Object.fromEntries(
-    Object.entries(catalog).filter(([key]) => key !== 'catalogId')
-  )
+  const body = Object.fromEntries(Object.entries(catalog).filter(([key]) => key !== 'catalogId'))
   if (`catalog:${digest(body).slice('sha256:'.length)}` !== catalog.catalogId)
     throw verificationError('Marketplace catalogId does not match its canonical body')
   return {
@@ -427,7 +435,8 @@ function parseRelease(value: unknown, index: string): MarketplaceRelease {
     !stringValue(release.resolvedRepositoryUrl) ||
     !/^[a-f0-9]{40}$/.test(stringValue(release.resolvedCommitSha)) ||
     !stringValue(release.pluginSubdirectory) ||
-    !Array.isArray(release.fileIndex)
+    !Array.isArray(release.fileIndex) ||
+    !release.fileIndex.every(isString)
   )
     throw verificationError(`Marketplace release schema is invalid: ${index}`)
   return {
@@ -440,7 +449,7 @@ function parseRelease(value: unknown, index: string): MarketplaceRelease {
     resolvedRepositoryUrl: release.resolvedRepositoryUrl,
     resolvedCommitSha: release.resolvedCommitSha,
     pluginSubdirectory: release.pluginSubdirectory,
-    fileIndex: release.fileIndex.filter(isString),
+    fileIndex: release.fileIndex,
   } as MarketplaceRelease
 }
 

@@ -5,6 +5,7 @@ import {
   type RuntimeConnectionDiscoveryReadModel,
 } from '@control-plane/contracts'
 import type { Execution, ExecutionAttempt, InteractionRepository } from '@control-plane/domain'
+import type { ExecutionWorkflowInput } from '@control-plane/orchestration'
 import type { ExecutionPlan } from '@control-plane/execution-plan'
 import { translateExecutionPlanToManagedPi } from '@control-plane/managed-pi-adapter'
 import {
@@ -54,6 +55,7 @@ export class ManagedPiRemoteCommandFactory implements RemoteRuntimeCommandFactor
     readonly executionId: string
     readonly attempt: ExecutionAttempt
     readonly executionPlan: ExecutionPlan
+    readonly marketplacePluginReferences?: ExecutionWorkflowInput['marketplacePluginReferences']
     readonly effectKey: string
   }): Promise<GatewayCommandEnvelope> {
     const contextPackageValue = await this.#contextPackages.get({
@@ -87,7 +89,13 @@ export class ManagedPiRemoteCommandFactory implements RemoteRuntimeCommandFactor
       requiredCapabilities: input.executionPlan.runtimeRequirements.map(
         ({ capability }) => capability
       ),
-      parameters: { configuration, grantRef: grants[0] },
+      parameters: {
+        configuration,
+        grantRef: grants[0],
+        ...(input.marketplacePluginReferences === undefined
+          ? {}
+          : { marketplacePluginReferences: input.marketplacePluginReferences }),
+      },
     })
   }
 

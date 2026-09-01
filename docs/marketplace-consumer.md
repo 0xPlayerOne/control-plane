@@ -35,6 +35,13 @@ Authenticated Agent HQ service principals use:
   idempotent request containing `pluginId`, exact `releaseId`, exact
   `canonicalContentDigest`, requested harness, and workspace/user identity.
 
+The envelope's top-level `workspaceId` is the Control Plane service scope used
+by authentication. The nested `workspaceIdentity.workspaceId` is Agent HQ's
+external workspace identity and is the scope used for installation records.
+These identifiers may use different namespaces and must not be compared for
+equality by a proxy; the service principal's authority remains the gate for
+the top-level Control Plane scope.
+
 The catalog response contains artifact JSON strings because Agent HQ performs
 the same independent verification before rendering. It never contains plugin
 source files, upstream archives, credentials, or executable content. The

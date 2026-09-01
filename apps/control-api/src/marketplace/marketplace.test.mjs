@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { Buffer } from 'node:buffer'
+import { TextEncoder } from 'node:util'
 import { createControlApiApplication } from '../application.ts'
 import { createInternalServicePrincipal } from '../auth/service-authentication.ts'
 import { GithubReleaseVerifier } from './github-release-verifier.ts'
@@ -6,7 +8,7 @@ import {
   InMemoryMarketplaceInstallationRepository,
   MarketplaceInstallationService,
 } from './installation.ts'
-import { MarketplaceRegistryService, digest, verifyArtifacts } from './registry.ts'
+import { MarketplaceRegistryService, bytesDigest, digest, verifyArtifacts } from './registry.ts'
 
 const ids = {
   traceId: 'trc_01JABCDEF0123456789ABCDEFG',
@@ -164,6 +166,63 @@ describe('Control Plane marketplace contract', () => {
     expect(await traversalVerifier.verify({ plugin, release })).toBe(false)
   })
 
+  test('verifies root and nested plugin trees while ignoring directory entries', async () => {
+    const content = new TextEncoder().encode('hello marketplace')
+    const canonicalContentDigest = bytesDigest(new Map([['README.md', content]]))
+    const plugin = pluginFixture()
+    const release = {
+      ...plugin.availableReleases[0],
+      canonicalContentDigest,
+      fileIndex: ['README.md'],
+      pluginSubdirectory: '.',
+      resolvedCommitSha: 'f'.repeat(40),
+    }
+    const verifier = new GithubReleaseVerifier({
+      fetchImpl: async (input) => {
+        if (String(input).includes('/git/trees/'))
+          return globalThis.Response.json({
+            tree: [
+              { path: 'plugins', type: 'tree' },
+              { mode: '100644', path: 'README.md', sha: 'a'.repeat(40), type: 'blob' },
+            ],
+          })
+        return globalThis.Response.json({
+          content: Buffer.from(content).toString('base64'),
+          encoding: 'base64',
+        })
+      },
+    })
+    expect(await verifier.verify({ plugin, release })).toBe(true)
+
+    const nestedRelease = {
+      ...release,
+      pluginSubdirectory: 'plugins/example',
+      resolvedCommitSha: '1'.repeat(40),
+    }
+    const nestedVerifier = new GithubReleaseVerifier({
+      fetchImpl: async (input) => {
+        if (String(input).includes('/git/trees/'))
+          return globalThis.Response.json({
+            tree: [
+              { path: 'plugins', type: 'tree' },
+              { path: 'plugins/example', type: 'tree' },
+              {
+                mode: '100644',
+                path: 'plugins/example/README.md',
+                sha: 'a'.repeat(40),
+                type: 'blob',
+              },
+            ],
+          })
+        return globalThis.Response.json({
+          content: Buffer.from(content).toString('base64'),
+          encoding: 'base64',
+        })
+      },
+    })
+    expect(await nestedVerifier.verify({ plugin, release: nestedRelease })).toBe(true)
+  })
+
   test('exposes authenticated discovery and idempotent install contracts without content', async () => {
     const fixture = snapshotFixture()
     const records = []
@@ -192,7 +251,12 @@ describe('Control Plane marketplace contract', () => {
           contractVersion: { major: 2, minor: 0 },
           correlation: { traceId: ids.traceId },
           operation: 'marketplace.catalog.read',
-          parameters: { workspaceIdentity: { userId: 'user-1', workspaceId: ids.workspaceId } },
+          parameters: {
+            workspaceIdentity: {
+              userId: 'user-1',
+              workspaceId: '550e8400-e29b-41d4-a716-446655440000',
+            },
+          },
           requestId: ids.requestId,
           requestedAt: '2026-08-31T00:00:00.000Z',
           workspaceId: ids.workspaceId,
@@ -268,8 +332,50 @@ describe('Control Plane marketplace contract', () => {
       releaseId: `release:${'c'.repeat(64)}`,
       state: 'installed',
     })
-    await expect(service.install({ ...envelope, workspaceId: 'other-workspace' })).rejects.toThrow(
+    await expect(service.install({ ...envelope, workspaceId: '' })).rejects.toThrow(
       'Marketplace installation request is invalid'
     )
+  })
+
+  test('fails closed for stale snapshots and sensitive plugins without policy authority', async () => {
+    const fixture = snapshotFixture()
+    const repository = new InMemoryMarketplaceInstallationRepository()
+    const service = new MarketplaceInstallationService({
+      registry: {
+        getCatalog: async () => ({ ...fixture.snapshot, state: 'stale' }),
+        verifyRelease: async () => true,
+      },
+      repository,
+    })
+    const envelope = {
+      idempotencyKey: 'marketplace-install-3',
+      payload: {
+        canonicalContentDigest: `sha256:${'b'.repeat(64)}`,
+        pluginId: 'plugin:openai-official:gmail',
+        releaseId: `release:${'c'.repeat(64)}`,
+        requestedHarness: 'codex',
+        workspaceIdentity: { userId: 'user-1', workspaceId: ids.workspaceId },
+      },
+      workspaceId: ids.workspaceId,
+    }
+    await expect(service.install(envelope)).resolves.toMatchObject({ state: 'unavailable' })
+
+    const sensitivePlugin = {
+      ...fixture.snapshot.catalog.plugins[0],
+      securityClassification: { level: 'sensitive' },
+    }
+    const sensitiveService = new MarketplaceInstallationService({
+      registry: {
+        getCatalog: async () => ({
+          ...fixture.snapshot,
+          catalog: { ...fixture.snapshot.catalog, plugins: [sensitivePlugin] },
+        }),
+        verifyRelease: async () => true,
+      },
+      repository: new InMemoryMarketplaceInstallationRepository(),
+    })
+    await expect(
+      sensitiveService.install({ ...envelope, idempotencyKey: 'marketplace-install-4' })
+    ).resolves.toMatchObject({ state: 'rejected-by-policy' })
   })
 })

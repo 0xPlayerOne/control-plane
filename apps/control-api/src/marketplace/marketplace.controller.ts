@@ -71,11 +71,7 @@ function readIdentity(value: unknown): { workspaceId: string; userId: string } {
     })
   const parameters = value['parameters'] as Record<string, unknown>
   const identity = parameters['workspaceIdentity'] as Record<string, unknown>
-  if (
-    !stringValue(identity['workspaceId']) ||
-    !stringValue(identity['userId']) ||
-    stringValue(value['workspaceId']) !== stringValue(identity['workspaceId'])
-  )
+  if (!stringValue(identity['workspaceId']) || !stringValue(identity['userId']))
     throw new ServiceUnavailableException({
       code: 'MARKETPLACE_REQUEST_INVALID',
       message: 'Marketplace catalog request is invalid',
