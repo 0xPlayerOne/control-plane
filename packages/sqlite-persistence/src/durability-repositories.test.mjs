@@ -259,9 +259,25 @@ describe('SQLite standalone durability repositories', () => {
         commandId: ids.commandId,
         eventSequence: 2,
         frameHash: 'a'.repeat(64),
-        draft: eventDraft('evt_01BRZ3NDEKTSV4RRFFQ69G5FAV'),
+        draft: {
+          ...eventDraft('evt_01BRZ3NDEKTSV4RRFFQ69G5FAV'),
+          payload: {
+            state: 'running',
+            privateKey: 'sqlite-runtime-secret-canary-9f4a',
+            nested: { signingKey: 'sqlite-runtime-secret-canary-9f4a' },
+          },
+        },
       }
-      expect(await effects.applyProgress(progress)).toMatchObject({ outcome: 'applied' })
+      expect(await effects.applyProgress(progress)).toMatchObject({
+        outcome: 'applied',
+        event: {
+          payload: {
+            state: 'running',
+            privateKey: '[REDACTED]',
+            nested: { signingKey: '[REDACTED]' },
+          },
+        },
+      })
       expect(await effects.applyProgress(progress)).toMatchObject({ outcome: 'duplicate' })
       expect(await effects.applyProgress({ ...progress, frameHash: 'b'.repeat(64) })).toEqual({
         outcome: 'conflict',
@@ -298,6 +314,9 @@ describe('SQLite standalone durability repositories', () => {
       const durableEffects = new SqliteRuntimeEventEffectSink(current())
       const durableExecutions = new SqliteExecutionRepository(current())
       expect(await durableEffects.applyTerminal(terminal)).toMatchObject({ outcome: 'duplicate' })
+      expect(JSON.stringify(await durableEffects.applyProgress(progress))).not.toContain(
+        'sqlite-runtime-secret-canary-9f4a'
+      )
       expect(await durableExecutions.getExecution(ids.executionId)).toMatchObject({
         state: 'completed',
         terminalResultRef: terminal.resultReference,

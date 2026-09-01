@@ -806,13 +806,26 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         type: 'attempt.progressed',
         schemaVersion: 1,
         correlation,
-        payload: { state: 'running' },
+        payload: {
+          state: 'running',
+          privateKey: 'postgres-runtime-secret-canary-9f4a',
+          nested: { signingKey: 'postgres-runtime-secret-canary-9f4a' },
+        },
         occurredAt: '2026-08-24T23:00:02.000Z',
         recordedAt: '2026-08-24T23:00:03.000Z',
         retentionExpiresAt: '2026-11-22T23:00:03.000Z',
       },
     }
-    expect(await sink.applyProgress(progress)).toMatchObject({ outcome: 'applied' })
+    expect(await sink.applyProgress(progress)).toMatchObject({
+      outcome: 'applied',
+      event: {
+        payload: {
+          state: 'running',
+          privateKey: '[REDACTED]',
+          nested: { signingKey: '[REDACTED]' },
+        },
+      },
+    })
     expect(
       await new PostgresRuntimeEventEffectSink(isolated.application).applyProgress(progress)
     ).toMatchObject({ outcome: 'duplicate' })

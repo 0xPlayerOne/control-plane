@@ -1,11 +1,36 @@
 import type { SpanOutcome } from './types.js'
 
-const sensitiveKeyPattern =
-  /^(?:access[_-]?token|api[_-]?key|authorization|client[_-]?secret|cookie|credential|file[_-]?contents?|id[_-]?token|model[_-]?input|passw(?:or)?d|prompt|refresh[_-]?token|secret|(?:aws[_-]?)?secret[_-]?access[_-]?key|token|tool[_-]?input)$/i
+const sensitiveKeys = new Set([
+  'accesstoken',
+  'apikey',
+  'authorization',
+  'awssecretaccesskey',
+  'clientsecret',
+  'cookie',
+  'credential',
+  'credentialref',
+  'encryptionkey',
+  'filecontent',
+  'filecontents',
+  'idtoken',
+  'modelinput',
+  'passwd',
+  'password',
+  'privatekey',
+  'prompt',
+  'refreshtoken',
+  'secret',
+  'secretaccesskey',
+  'secretkey',
+  'secretvalue',
+  'signingkey',
+  'token',
+  'toolinput',
+])
 const secretsInText = [
   {
     pattern:
-      /(api[_-]?key|authorization|credential|password|secret(?:[_-]?access[_-]?key)?|token)\s*[:=]\s*(?:Bearer\s+)?[^\s,;]+/gi,
+      /(access[_-]?token|api[_-]?key|authorization|client[_-]?secret|cookie|credential(?:[_-]?ref)?|encryption[_-]?key|file[_-]?contents?|id[_-]?token|model[_-]?input|passw(?:or)?d|private[_-]?key|prompt|refresh[_-]?token|secret(?:[_-]?(?:access[_-]?key|key|value))?|signing[_-]?key|token|tool[_-]?input)\s*[:=]\s*(?:Bearer\s+)?[^\s,;]+/gi,
     replacement: '$1=[REDACTED]',
   },
   { pattern: /\bBearer\s+[^\s,;]+/gi, replacement: 'Bearer [REDACTED]' },
@@ -35,6 +60,10 @@ function redactText(value: string): string {
   )
 }
 
+function isSensitiveKey(key: string): boolean {
+  return sensitiveKeys.has(key.replace(/[^a-z0-9]/gi, '').toLowerCase())
+}
+
 export function redactTelemetryValue(value: unknown): unknown {
   return redact(value, new WeakSet<object>())
 }
@@ -57,7 +86,7 @@ function redact(value: unknown, seen: WeakSet<object>): unknown {
 
   const result: Record<string, unknown> = {}
   for (const [key, nested] of Object.entries(value)) {
-    result[key] = sensitiveKeyPattern.test(key) ? '[REDACTED]' : redact(nested, seen)
+    result[key] = isSensitiveKey(key) ? '[REDACTED]' : redact(nested, seen)
   }
   return result
 }
@@ -67,7 +96,7 @@ export function sanitizeAttributes(
 ): Readonly<Record<string, boolean | number | string>> {
   const sanitized: Record<string, boolean | number | string> = {}
   for (const [key, value] of Object.entries(attributes)) {
-    if (sensitiveKeyPattern.test(key)) sanitized[key] = '[REDACTED]'
+    if (isSensitiveKey(key)) sanitized[key] = '[REDACTED]'
     else if (typeof value === 'boolean' || typeof value === 'number') sanitized[key] = value
     else if (typeof value === 'string') sanitized[key] = redactText(value)
   }
