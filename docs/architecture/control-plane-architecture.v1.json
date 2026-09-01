@@ -113,6 +113,7 @@
         "@nestjs/swagger",
         "class-transformer",
         "class-validator",
+        "drizzle-orm",
         "fastify",
         "reflect-metadata",
         "rxjs"
@@ -982,6 +983,84 @@
       "openApiHasRequestSchema": true
     },
     {
+      "id": "OP-MARKETPLACE-CATALOG",
+      "name": "marketplaceCatalog",
+      "operation": "marketplace.catalog.read",
+      "method": "POST",
+      "path": "/v1/marketplace/catalog",
+      "inOpenApi": true,
+      "controllerReachable": true,
+      "classification": "verified",
+      "trace": {
+        "auth": "service bearer with marketplace:read scope and workspace authority",
+        "service": "MarketplaceController -> MarketplaceRegistryService",
+        "persistence": "immutable registry release and installation repository projection",
+        "execution": "read-only catalog and installed-state projection",
+        "delivery": "verified catalog identity, release metadata, and scoped installation state",
+        "cleanup": "no external side effect"
+      },
+      "assessment": "The authenticated catalog operation verifies the immutable registry release, rejects stale or malformed snapshots, and returns only installation state scoped to the requested workspace.",
+      "evidence": [
+        {
+          "kind": "contract",
+          "path": "packages/contracts/src/control-api.ts"
+        },
+        {
+          "kind": "implementation",
+          "path": "apps/control-api/src/marketplace/marketplace.controller.ts"
+        },
+        {
+          "kind": "test",
+          "path": "apps/control-api/src/marketplace/marketplace.test.mjs"
+        }
+      ],
+      "openApiOperationId": "marketplace.catalog.read",
+      "openApiResponseStatuses": ["200", "default"],
+      "openApiSecured": true,
+      "openApiHasRequestSchema": true
+    },
+    {
+      "id": "OP-MARKETPLACE-INSTALL",
+      "name": "marketplaceInstall",
+      "operation": "marketplace.install.request",
+      "method": "POST",
+      "path": "/v1/marketplace/install",
+      "inOpenApi": true,
+      "controllerReachable": true,
+      "classification": "verified",
+      "trace": {
+        "auth": "service bearer with marketplace:install scope and workspace authority",
+        "service": "MarketplaceController -> MarketplaceInstallationService",
+        "persistence": "idempotent MarketplaceInstallationRepository record",
+        "execution": "verified immutable plugin reference carried into the accepted workflow runtime command",
+        "delivery": "installation authority state and stable installation identifier",
+        "cleanup": "reconciliation and stale registry state remain unavailable rather than installed"
+      },
+      "assessment": "The authenticated install operation enforces immutable release identity, harness and policy checks, idempotent persistence, and exact marketplace references on durable workflow submission.",
+      "evidence": [
+        {
+          "kind": "contract",
+          "path": "packages/contracts/src/control-api.ts"
+        },
+        {
+          "kind": "implementation",
+          "path": "apps/control-api/src/marketplace/installation.ts"
+        },
+        {
+          "kind": "test",
+          "path": "apps/control-api/src/application.test.mjs"
+        },
+        {
+          "kind": "test",
+          "path": "apps/control-api/src/marketplace/marketplace.test.mjs"
+        }
+      ],
+      "openApiOperationId": "marketplace.install.request",
+      "openApiResponseStatuses": ["200", "default"],
+      "openApiSecured": true,
+      "openApiHasRequestSchema": true
+    },
+    {
       "id": "OP-PROFILE-RESOLVE",
       "name": "resolveProfile",
       "operation": "profile.resolve",
@@ -1193,7 +1272,7 @@
         "owner": "managed-cloud-runtime",
         "disposition": "Wire a production RuntimeTransport/activity implementation and concrete discovery/provider ports before claiming general Cloud execution readiness."
       },
-      "sourceDigest": "sha256:8ed1fd30dc9d702df2025e8a091eaf997086f6323a44b7df3414bc928abcd2fe"
+      "sourceDigest": "sha256:73b512e434e1feebf407ae1a37083b9f11b903d9246f3902c2a73a8b1efab259"
     },
     {
       "id": "hosted-server",

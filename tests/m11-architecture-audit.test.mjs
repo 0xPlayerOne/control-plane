@@ -33,6 +33,8 @@ const publicOperations = [
   'execution.validate',
   'external-session.get',
   'external-session.list',
+  'marketplace.catalog.read',
+  'marketplace.install.request',
   'profile.resolve',
   'project-state.resolve',
   'runtime-connection.get',

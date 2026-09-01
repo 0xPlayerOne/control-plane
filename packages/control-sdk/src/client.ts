@@ -26,6 +26,10 @@ import {
   type RuntimeConnectionGetResponse,
   type RuntimeConnectionListRequest,
   type RuntimeConnectionListResponse,
+  type MarketplaceCatalogRequest,
+  type MarketplaceCatalogResponse,
+  type MarketplaceInstallRequest,
+  type MarketplaceInstallResponse,
 } from '@control-plane/contracts'
 import { ControlApiOperations } from './operations.js'
 
@@ -156,6 +160,14 @@ export class ControlPlaneClient {
 
   acceptExecution(input: ExecutionAcceptanceRequest): Promise<ExecutionAcceptanceResponse> {
     return this.#request(ControlApiOperations.acceptExecution, input)
+  }
+
+  marketplaceCatalog(input: MarketplaceCatalogRequest): Promise<MarketplaceCatalogResponse> {
+    return this.#request(ControlApiOperations.marketplaceCatalog, input)
+  }
+
+  marketplaceInstall(input: MarketplaceInstallRequest): Promise<MarketplaceInstallResponse> {
+    return this.#request(ControlApiOperations.marketplaceInstall, input)
   }
 
   async #request<RequestInput, RequestOutput, ResponseOutput>(

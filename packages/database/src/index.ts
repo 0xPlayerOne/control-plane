@@ -97,6 +97,8 @@ export {
   usageLedgerEntryKind,
   skillVersions,
   skills,
+  marketplaceInstallationState,
+  marketplaceInstallations,
 } from './schema/index.js'
 export { withDomainTransaction } from './transaction.js'
 export type { DomainTransaction } from './transaction.js'
