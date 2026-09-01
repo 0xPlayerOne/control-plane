@@ -324,6 +324,9 @@ test('uses a dependency-aware portable container build without AWS deployment as
 
 test('packages the hosted simple profile as one hardened user-owned composition', async () => {
   const compose = await readRepositoryFile('infrastructure/compose/compose.yaml')
+  const databaseRoles = await readRepositoryFile(
+    'infrastructure/compose/postgres/bootstrap-roles.sh'
+  )
   const dockerfile = await readRepositoryFile('infrastructure/containers/Dockerfile.hosted')
   const environment = await readRepositoryFile('infrastructure/compose/.env.example')
   const runbook = await readRepositoryFile('infrastructure/compose/README.md')
@@ -355,6 +358,23 @@ test('packages the hosted simple profile as one hardened user-owned composition'
   assert.match(compose, /restatedev\/restate:1\.7\.7@sha256:[a-f0-9]{64}/)
   assert.match(compose, /condition:\s*service_completed_successfully/)
   assert.match(compose, /DATABASE_MIGRATION_URL:/)
+  assert.match(compose, /postgresql:\/\/control_plane_migrator:/)
+  assert.match(compose, /postgresql:\/\/control_plane_app:/)
+  assert.doesNotMatch(compose, /DATABASE_(?:MIGRATION_)?URL:\s*postgresql:\/\/control_plane:/)
+  assert.match(compose, /POSTGRES_MIGRATION_PASSWORD: \$\{POSTGRES_MIGRATION_PASSWORD:-\}/)
+  assert.match(compose, /POSTGRES_APPLICATION_PASSWORD: \$\{POSTGRES_APPLICATION_PASSWORD:-\}/)
+  assert.match(databaseRoles, /ALTER DEFAULT PRIVILEGES FOR ROLE control_plane_migrator/)
+  assert.match(databaseRoles, /GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO control_plane_app/)
+  assert.match(databaseRoles, /PostgreSQL role passwords must be distinct/)
+  assert.match(databaseRoles, /ALTER DATABASE control_plane OWNER TO control_plane_migrator/)
+  assert.match(databaseRoles, /ALTER TABLE %I\.%I OWNER TO control_plane_migrator/)
+  assert.match(databaseRoles, /ALTER DOMAIN %I\.%I OWNER TO control_plane_migrator/)
+  assert.match(databaseRoles, /rolname IN \('control_plane', 'control_plane_app'\)/)
+  assert.match(databaseRoles, /deptype = 'e'/)
+  assert.doesNotMatch(databaseRoles, /REASSIGN OWNED BY control_plane/)
+  assert.match(databaseRoles, /REVOKE %I FROM control_plane_app/)
+  assert.match(databaseRoles, /REVOKE ALL PRIVILEGES ON ALL TABLES/)
+  assert.doesNotMatch(databaseRoles, /GRANT (?:ALL|CREATE).*TO control_plane_app/i)
   assert.match(compose, /APP_NAME:\s*hosted-control-plane/)
   assert.doesNotMatch(postgresBlock, /\n\s+ports:/)
   assert.doesNotMatch(restateBlock, /\n\s+ports:/)
