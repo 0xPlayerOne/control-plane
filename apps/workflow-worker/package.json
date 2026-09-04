@@ -18,7 +18,7 @@
     "@control-plane/runtime-gateway-protocol": "workspace:*",
     "@control-plane/runtime-sdk": "workspace:*",
     "@control-plane/workflow-runtime": "workspace:*",
-    "@restatedev/restate-sdk": "1.16.9"
+    "@restatedev/restate-sdk": "1.17.0"
   },
   "browser": false,
   "engines": {
