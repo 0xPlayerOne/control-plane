@@ -145,7 +145,7 @@ export class MarketplaceRegistryService {
     this.#immutableReleaseBaseUrl = options.immutableReleaseBaseUrl
     this.#latestUrl =
       options.latestUrl ??
-      'https://github.com/0xPlayerOne/plugins/releases/latest/download/catalog-latest.v1.json'
+      'https://github.com/adea-ai/plugins/releases/latest/download/catalog-latest.v1.json'
     this.#token = options.token
     this.#releaseVerifier = options.releaseVerifier
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 15_000

@@ -8,11 +8,11 @@ catalog metadata through authenticated API endpoints.
 The registry URLs are:
 
 - latest catalog:
-  `https://github.com/0xPlayerOne/plugins/releases/latest/download/catalog-latest.v1.json`
+  `https://github.com/adea-ai/plugins/releases/latest/download/catalog-latest.v1.json`
 - latest integrity manifest:
-  `https://github.com/0xPlayerOne/plugins/releases/latest/download/integrity.json`
+  `https://github.com/adea-ai/plugins/releases/latest/download/integrity.json`
 - immutable catalog release:
-  `https://github.com/0xPlayerOne/plugins/releases/download/catalog/<catalogId-suffix>/catalog.v1.json`
+  `https://github.com/adea-ai/plugins/releases/download/catalog/<catalogId-suffix>/catalog.v1.json`
 - immutable tag: `catalog/<catalogId-suffix>` for `catalog:<64 lowercase hex>`.
 
 The default implementation is server-only. Set `MARKETPLACE_REGISTRY_TOKEN`

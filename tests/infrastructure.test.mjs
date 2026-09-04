@@ -229,7 +229,7 @@ test('plans a deterministic Railway standby transition without deleting services
         {
           id: 'control-service',
           name: '@control-plane/control-api',
-          source: { repo: '0xPlayerOne/control-plane', image: null },
+          source: { repo: 'adea-ai/control-plane', image: null },
           repoTriggerCount: 1,
           deploymentId: 'control-deployment',
           deploymentStopped: false,
@@ -238,7 +238,7 @@ test('plans a deterministic Railway standby transition without deleting services
         {
           id: 'worker-service',
           name: '@control-plane/workflow-worker',
-          source: { repo: '0xPlayerOne/control-plane', image: null },
+          source: { repo: 'adea-ai/control-plane', image: null },
           repoTriggerCount: 1,
           deploymentId: 'worker-deployment',
           replicas: { running: 1 },
