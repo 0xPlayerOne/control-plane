@@ -11,10 +11,11 @@ export type ContractVersion = z.infer<typeof ContractVersionSchema>
 
 export const PublicContractManifest = Object.freeze({
   name: 'agent-hq-control-plane',
-  current: { major: 2, minor: 0 },
+  current: { major: 3, minor: 0 },
   supported: [
     { major: 1, minor: 0 },
     { major: 2, minor: 0 },
+    { major: 3, minor: 0 },
   ],
 })
 

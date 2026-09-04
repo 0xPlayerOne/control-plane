@@ -129,7 +129,7 @@ stack traces, queries, or persistence details.
 
 ## Compatibility and negotiation
 
-The current boundary is `1.0`.
+The current boundary is `3.0`.
 
 - A major version change is breaking. Removing or renaming fields, making an optional field required,
   narrowing valid values, or adding a closed-enum value requires a major version.
