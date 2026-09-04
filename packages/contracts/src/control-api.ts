@@ -345,7 +345,7 @@ export type ExecutionRequestValidationResponse = z.output<
 export type ExecutionAcceptanceRequest = z.input<typeof ExecutionAcceptanceRequestSchema>
 export type ExecutionAcceptanceResponse = z.output<typeof ExecutionAcceptanceResponseSchema>
 
-const contractVersion = { major: 2, minor: 0 } as const
+const contractVersion = { major: 3, minor: 0 } as const
 const requestId = 'req_01JABCDEF0123456789ABCDEFG'
 const commandId = 'cmd_01JABCDEF0123456789ABCDEFG'
 const workspaceId = 'wsp_01JABCDEF0123456789ABCDEFG'

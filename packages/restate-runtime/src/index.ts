@@ -9,7 +9,7 @@ import type {
   WorkflowRuntime,
 } from '@control-plane/deployment'
 
-export const RESTATE_SERVER_VERSION = '1.7.7'
+export const RESTATE_SERVER_VERSION = '1.7.8'
 const execFileAsync = promisify(execFile)
 
 export type RestateRuntimeErrorCode =
