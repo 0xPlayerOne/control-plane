@@ -325,7 +325,7 @@ async function createAgentHqApplication(runtimeModel, sessionModel) {
 function discoveryRequest(operation, parameters) {
   return {
     caller: { servicePrincipalId: 'svc_agent-hq' },
-    contractVersion: { major: 2, minor: 0 },
+    contractVersion: { major: 3, minor: 0 },
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     operation,
     parameters,

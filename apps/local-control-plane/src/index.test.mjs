@@ -64,7 +64,7 @@ describe('Local Control Plane composition', () => {
     const workflow = {
       profile: 'local',
       start: async () => calls.push('workflow:start'),
-      health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+      health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
       stop: async () => calls.push('workflow:stop'),
     }
     const composition = new LocalControlPlaneComposition({
@@ -118,7 +118,7 @@ describe('Local Control Plane composition', () => {
       topology: {
         externalServices: 0,
         runtimeTransport: 'direct-local',
-        restateVersion: '1.7.7',
+        restateVersion: '1.7.8',
         persistence: 'sqlite',
         objectStore: 'filesystem',
         remoteControl: 'disabled',
@@ -148,7 +148,7 @@ describe('Local Control Plane composition', () => {
       workflowRuntime: {
         profile: 'local',
         start: async () => calls.push('workflow:start'),
-        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
         stop: async () => calls.push('workflow:stop'),
       },
       endpointFactory: {
@@ -198,7 +198,7 @@ describe('Local Control Plane composition', () => {
       workflowRuntime: {
         profile: 'local',
         start: async () => undefined,
-        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
         stop: async () => undefined,
       },
       endpointFactory: {
@@ -445,7 +445,7 @@ describe('Local Control Plane composition', () => {
       workflowRuntime: {
         profile: 'local',
         start: async () => undefined,
-        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
         stop: async () => undefined,
       },
       endpointFactory: {
