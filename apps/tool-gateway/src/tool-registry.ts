@@ -83,6 +83,13 @@ export class ToolRegistry {
 
   constructor(readonly repository: ToolRegistryRepository) {}
 
+  validateSchemas(inputSchema: unknown, outputSchema: unknown): void {
+    const input = ToolVersionDraftSchema.shape.inputSchema.parse(inputSchema)
+    const output = ToolVersionDraftSchema.shape.outputSchema.parse(outputSchema)
+    this.#assertSchema(input)
+    this.#assertSchema(output)
+  }
+
   async createDefinition(input: unknown): Promise<ToolDefinition> {
     const definition = ToolDefinitionSchema.parse(input)
     if (!(await this.repository.insertDefinition(definition))) failRegistry('DEFINITION_EXISTS')
@@ -93,8 +100,7 @@ export class ToolRegistry {
     const draft = ToolVersionDraftSchema.parse(input)
     const definition = await this.repository.getDefinition(draft.toolDefinitionId)
     if (!definition) failRegistry('DEFINITION_MISSING')
-    this.#assertSchema(draft.inputSchema)
-    this.#assertSchema(draft.outputSchema)
+    this.validateSchemas(draft.inputSchema, draft.outputSchema)
     const versions = await this.repository.listVersions(draft.toolDefinitionId)
     if (versions.some(({ semanticVersion }) => semanticVersion === draft.semanticVersion)) {
       failRegistry('SEMANTIC_VERSION_CONFLICT')
