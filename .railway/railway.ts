@@ -1,6 +1,6 @@
 import { defineRailway, github, image, preserve, project, service, volume } from 'railway/iac'
 
-const repository = '0xPlayerOne/control-plane'
+const repository = 'adea-ai/control-plane'
 const restateImage =
   'docker.restate.dev/restatedev/restate:1.7.7@sha256:dd1695b61c9de877d24bf9afe8a0ac5fb0f66d175c1bc397975d2252bd784eb2'
 

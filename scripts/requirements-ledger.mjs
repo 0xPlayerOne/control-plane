@@ -350,7 +350,7 @@ export async function renderRequirementsReport(ledger) {
     '| --- | --- | --- | --- | --- | --- | --- | --- |',
     ...ledger.priorMilestoneAudits.map(
       (row) =>
-        `| [#${row.issue}](https://github.com/0xPlayerOne/control-plane/issues/${row.issue}) ${escapeCell(row.title)} | ${row.milestone} | ${row.classification} | ${escapeCell(row.owner)} | ${escapeCell(row.lane)} | ${row.evidence.map(formatEvidence).join('<br>')} | ${escapeCell(row.assessment)} | ${formatGap(row.gap)} |`
+        `| [#${row.issue}](https://github.com/adea-ai/control-plane/issues/${row.issue}) ${escapeCell(row.title)} | ${row.milestone} | ${row.classification} | ${escapeCell(row.owner)} | ${escapeCell(row.lane)} | ${row.evidence.map(formatEvidence).join('<br>')} | ${escapeCell(row.assessment)} | ${formatGap(row.gap)} |`
     ),
     '',
     '## Contradictions and supersessions',
@@ -359,7 +359,7 @@ export async function renderRequirementsReport(ledger) {
     '| --- | --- | --- | --- | --- |',
     ...ledger.contradictions.map(
       (row) =>
-        `| ${row.id} | ${escapeCell(row.topic)} | ${row.sources.map(escapeCell).join('<br>')} | ${escapeCell(row.resolution)} | [#${row.issue}](https://github.com/0xPlayerOne/control-plane/issues/${row.issue}) |`
+        `| ${row.id} | ${escapeCell(row.topic)} | ${row.sources.map(escapeCell).join('<br>')} | ${escapeCell(row.resolution)} | [#${row.issue}](https://github.com/adea-ai/control-plane/issues/${row.issue}) |`
     ),
     '',
     '## Verification runs',
@@ -443,7 +443,7 @@ function formatEvidence(evidence) {
 
 function formatGap(gap) {
   if (!gap) return '—'
-  return `[#${gap.issue}](https://github.com/0xPlayerOne/control-plane/issues/${gap.issue}) ${gap.severity}; ${escapeCell(gap.owner)}; ${escapeCell(gap.disposition)}`
+  return `[#${gap.issue}](https://github.com/adea-ai/control-plane/issues/${gap.issue}) ${gap.severity}; ${escapeCell(gap.owner)}; ${escapeCell(gap.disposition)}`
 }
 
 function escapeCell(value) {

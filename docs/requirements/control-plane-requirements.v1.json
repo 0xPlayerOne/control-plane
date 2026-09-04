@@ -46,7 +46,7 @@
       "title": "Control Plane PRD",
       "provider": "unavailable",
       "sourceId": "not-indexed-2026-08-30",
-      "uri": "https://github.com/0xPlayerOne/control-plane/issues/186",
+      "uri": "https://github.com/adea-ai/control-plane/issues/186",
       "updatedAt": "unavailable; audited 2026-08-30",
       "retrievalStatus": "missing",
       "gap": {
@@ -61,7 +61,7 @@
       "title": "Cortana PRD",
       "provider": "unavailable",
       "sourceId": "not-indexed-2026-08-30",
-      "uri": "https://github.com/0xPlayerOne/control-plane/issues/186",
+      "uri": "https://github.com/adea-ai/control-plane/issues/186",
       "updatedAt": "unavailable; audited 2026-08-30",
       "retrievalStatus": "missing",
       "gap": {
@@ -112,7 +112,7 @@
       "title": "RuntimeNode & Desktop Protocol Specification",
       "provider": "unavailable",
       "sourceId": "not-indexed-2026-08-30",
-      "uri": "https://github.com/0xPlayerOne/control-plane/issues/186",
+      "uri": "https://github.com/adea-ai/control-plane/issues/186",
       "updatedAt": "unavailable; audited 2026-08-30",
       "retrievalStatus": "missing",
       "gap": {
@@ -127,7 +127,7 @@
       "title": "Execution Consistency & Event Delivery Specification",
       "provider": "unavailable",
       "sourceId": "not-indexed-2026-08-30",
-      "uri": "https://github.com/0xPlayerOne/control-plane/issues/186",
+      "uri": "https://github.com/adea-ai/control-plane/issues/186",
       "updatedAt": "unavailable; audited 2026-08-30",
       "retrievalStatus": "missing",
       "gap": {
@@ -142,7 +142,7 @@
       "title": "Artifact Storage Specification",
       "provider": "unavailable",
       "sourceId": "not-indexed-2026-08-30",
-      "uri": "https://github.com/0xPlayerOne/control-plane/issues/186",
+      "uri": "https://github.com/adea-ai/control-plane/issues/186",
       "updatedAt": "unavailable; audited 2026-08-30",
       "retrievalStatus": "missing",
       "gap": {
@@ -157,7 +157,7 @@
       "title": "Security & Trust Model",
       "provider": "unavailable",
       "sourceId": "not-indexed-2026-08-30",
-      "uri": "https://github.com/0xPlayerOne/control-plane/issues/186",
+      "uri": "https://github.com/adea-ai/control-plane/issues/186",
       "updatedAt": "unavailable; audited 2026-08-30",
       "retrievalStatus": "missing",
       "gap": {
@@ -3285,721 +3285,721 @@
       "title": "M1.1: Bootstrap TypeScript monorepo and package boundaries",
       "milestone": "M1",
       "closedAt": "2026-08-23T01:56:02Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/1"
+      "url": "https://github.com/adea-ai/control-plane/issues/1"
     },
     {
       "issue": 2,
       "title": "M1.2: Create configuration, environment, and service bootstrap foundation",
       "milestone": "M1",
       "closedAt": "2026-08-23T02:08:32Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/2"
+      "url": "https://github.com/adea-ai/control-plane/issues/2"
     },
     {
       "issue": 3,
       "title": "M1.3: Create PostgreSQL and Drizzle persistence foundation",
       "milestone": "M1",
       "closedAt": "2026-08-23T02:33:20Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/3"
+      "url": "https://github.com/adea-ai/control-plane/issues/3"
     },
     {
       "issue": 4,
       "title": "M1.4: Scaffold NestJS/Fastify Control API and service conventions",
       "milestone": "M1",
       "closedAt": "2026-08-23T02:58:32Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/4"
+      "url": "https://github.com/adea-ai/control-plane/issues/4"
     },
     {
       "issue": 5,
       "title": "M1.5: Establish automated testing and local integration harness",
       "milestone": "M1",
       "closedAt": "2026-08-23T14:17:13Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/5"
+      "url": "https://github.com/adea-ai/control-plane/issues/5"
     },
     {
       "issue": 6,
       "title": "M1.6: Add structured logging, OpenTelemetry, and error tracking foundation",
       "milestone": "M1",
       "closedAt": "2026-08-23T14:37:32Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/6"
+      "url": "https://github.com/adea-ai/control-plane/issues/6"
     },
     {
       "issue": 7,
       "title": "M1.7: Configure GitHub Actions CI and repository quality gates",
       "milestone": "M1",
       "closedAt": "2026-08-23T15:27:49Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/7"
+      "url": "https://github.com/adea-ai/control-plane/issues/7"
     },
     {
       "issue": 8,
       "title": "M1.8: Define deployment and infrastructure baseline",
       "milestone": "M1",
       "closedAt": "2026-08-23T16:24:00Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/8"
+      "url": "https://github.com/adea-ai/control-plane/issues/8"
     },
     {
       "issue": 9,
       "title": "M1.9: Add platform-foundation acceptance test and architecture baseline",
       "milestone": "M1",
       "closedAt": "2026-08-23T16:56:00Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/9"
+      "url": "https://github.com/adea-ai/control-plane/issues/9"
     },
     {
       "issue": 10,
       "title": "M2.1: Define versioned Agent HQ service contracts and canonical identifiers",
       "milestone": "M2",
       "closedAt": "2026-08-23T17:44:33Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/10"
+      "url": "https://github.com/adea-ai/control-plane/issues/10"
     },
     {
       "issue": 11,
       "title": "M2.2: Implement service authentication and caller-scope validation",
       "milestone": "M2",
       "closedAt": "2026-08-23T18:11:03Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/11"
+      "url": "https://github.com/adea-ai/control-plane/issues/11"
     },
     {
       "issue": 12,
       "title": "M2.3: Implement immutable AgentProfile and Skill versioning",
       "milestone": "M2",
       "closedAt": "2026-08-23T18:26:11Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/12"
+      "url": "https://github.com/adea-ai/control-plane/issues/12"
     },
     {
       "issue": 13,
       "title": "M2.4: Define runtime capability and compatibility model",
       "milestone": "M2",
       "closedAt": "2026-08-23T18:42:04Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/13"
+      "url": "https://github.com/adea-ai/control-plane/issues/13"
     },
     {
       "issue": 14,
       "title": "M2.5: Define tool, model, policy, and execution-limit domain contracts",
       "milestone": "M2",
       "closedAt": "2026-08-23T18:58:36Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/14"
+      "url": "https://github.com/adea-ai/control-plane/issues/14"
     },
     {
       "issue": 15,
       "title": "M2.6: Implement revisioned ProjectState and promotion proposals",
       "milestone": "M2",
       "closedAt": "2026-08-23T19:38:30Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/15"
+      "url": "https://github.com/adea-ai/control-plane/issues/15"
     },
     {
       "issue": 16,
       "title": "M2.7: Implement reproducible ContextPackage compilation",
       "milestone": "M2",
       "closedAt": "2026-08-23T20:11:05Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/16"
+      "url": "https://github.com/adea-ai/control-plane/issues/16"
     },
     {
       "issue": 17,
       "title": "M2.8: Implement immutable ExecutionPlan compiler",
       "milestone": "M2",
       "closedAt": "2026-08-23T21:15:03Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/17"
+      "url": "https://github.com/adea-ai/control-plane/issues/17"
     },
     {
       "issue": 18,
       "title": "M2.9: Publish typed Control Plane SDK and contract-test harness",
       "milestone": "M2",
       "closedAt": "2026-08-23T22:12:26Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/18"
+      "url": "https://github.com/adea-ai/control-plane/issues/18"
     },
     {
       "issue": 19,
       "title": "M2.10: Add contracts and core-domain acceptance test",
       "milestone": "M2",
       "closedAt": "2026-08-24T00:30:37Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/19"
+      "url": "https://github.com/adea-ai/control-plane/issues/19"
     },
     {
       "issue": 20,
       "title": "M3.1: Implement Execution and ExecutionAttempt lifecycle",
       "milestone": "M3",
       "closedAt": "2026-08-24T02:10:35Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/20"
+      "url": "https://github.com/adea-ai/control-plane/issues/20"
     },
     {
       "issue": 21,
       "title": "M3.2: Implement CommandInbox idempotency and execution acceptance",
       "milestone": "M3",
       "closedAt": "2026-08-24T02:48:29Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/21"
+      "url": "https://github.com/adea-ai/control-plane/issues/21"
     },
     {
       "issue": 22,
       "title": "M3.3: Implement durable ExecutionEvent log and transactional outbox",
       "milestone": "M3",
       "closedAt": "2026-08-24T03:06:48Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/22"
+      "url": "https://github.com/adea-ai/control-plane/issues/22"
     },
     {
       "issue": 23,
       "title": "M3.4: Implement Temporal execution lifecycle workflows",
       "milestone": "M3",
       "closedAt": "2026-08-24T03:33:41Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/23"
+      "url": "https://github.com/adea-ai/control-plane/issues/23"
     },
     {
       "issue": 24,
       "title": "M3.5: Implement cancellation, approval, and awaiting-input interactions",
       "milestone": "M3",
       "closedAt": "2026-08-24T05:16:33Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/24"
+      "url": "https://github.com/adea-ai/control-plane/issues/24"
     },
     {
       "issue": 25,
       "title": "M3.6: Deliver normalized execution events to Agent HQ",
       "milestone": "M3",
       "closedAt": "2026-08-24T05:34:45Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/25"
+      "url": "https://github.com/adea-ai/control-plane/issues/25"
     },
     {
       "issue": 26,
       "title": "M3.7: Implement execution reconciliation and unknown-outcome recovery",
       "milestone": "M3",
       "closedAt": "2026-08-24T07:47:10Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/26"
+      "url": "https://github.com/adea-ai/control-plane/issues/26"
     },
     {
       "issue": 27,
       "title": "M3.8: Add durable execution end-to-end acceptance suite",
       "milestone": "M3",
       "closedAt": "2026-08-24T15:47:55Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/27"
+      "url": "https://github.com/adea-ai/control-plane/issues/27"
     },
     {
       "issue": 28,
       "title": "M4.1: Define RuntimeAdapter contract and conformance harness",
       "milestone": "M4",
       "closedAt": "2026-08-24T16:13:45Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/28"
+      "url": "https://github.com/adea-ai/control-plane/issues/28"
     },
     {
       "issue": 29,
       "title": "M4.2: Implement RuntimeConnection registry and inventory persistence",
       "milestone": "M4",
       "closedAt": "2026-08-24T16:35:54Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/29"
+      "url": "https://github.com/adea-ai/control-plane/issues/29"
     },
     {
       "issue": 30,
       "title": "M4.3: Implement runtime capability, health, and freshness ingestion",
       "milestone": "M4",
       "closedAt": "2026-08-24T17:01:34Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/30"
+      "url": "https://github.com/adea-ai/control-plane/issues/30"
     },
     {
       "issue": 31,
       "title": "M4.4: Implement deterministic runtime eligibility evaluation",
       "milestone": "M4",
       "closedAt": "2026-08-24T18:47:14Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/31"
+      "url": "https://github.com/adea-ai/control-plane/issues/31"
     },
     {
       "issue": 32,
       "title": "M4.5: Implement runtime routing and selection policy",
       "milestone": "M4",
       "closedAt": "2026-08-24T18:47:48Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/32"
+      "url": "https://github.com/adea-ai/control-plane/issues/32"
     },
     {
       "issue": 33,
       "title": "M4.6: Implement external session reference and capability model",
       "milestone": "M4",
       "closedAt": "2026-08-24T17:54:27Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/33"
+      "url": "https://github.com/adea-ai/control-plane/issues/33"
     },
     {
       "issue": 34,
       "title": "M4.7: Expose normalized runtime discovery read models to Agent HQ",
       "milestone": "M4",
       "closedAt": "2026-08-24T18:34:23Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/34"
+      "url": "https://github.com/adea-ai/control-plane/issues/34"
     },
     {
       "issue": 35,
       "title": "M4.8: Add runtime fabric routing and discovery acceptance suite",
       "milestone": "M4",
       "closedAt": "2026-08-24T18:46:36Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/35"
+      "url": "https://github.com/adea-ai/control-plane/issues/35"
     },
     {
       "issue": 36,
       "title": "M5.1: Define Runtime Gateway protocol and command envelopes",
       "milestone": "M5",
       "closedAt": "2026-08-25T00:19:24Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/36"
+      "url": "https://github.com/adea-ai/control-plane/issues/36"
     },
     {
       "issue": 37,
       "title": "M5.2: Implement RuntimeNode channel authentication and revocation",
       "milestone": "M5",
       "closedAt": "2026-08-25T00:35:44Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/37"
+      "url": "https://github.com/adea-ai/control-plane/issues/37"
     },
     {
       "issue": 38,
       "title": "M5.3: Implement scalable Runtime Gateway WebSocket lifecycle",
       "milestone": "M5",
       "closedAt": "2026-08-25T00:49:23Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/38"
+      "url": "https://github.com/adea-ai/control-plane/issues/38"
     },
     {
       "issue": 39,
       "title": "M5.4: Implement durable Runtime Gateway command ledger and ACK semantics",
       "milestone": "M5",
       "closedAt": "2026-08-25T01:14:38Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/39"
+      "url": "https://github.com/adea-ai/control-plane/issues/39"
     },
     {
       "issue": 40,
       "title": "M5.5: Ingest runtime progress, results, cancellation, and interaction events",
       "milestone": "M5",
       "closedAt": "2026-08-25T01:58:40Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/40"
+      "url": "https://github.com/adea-ai/control-plane/issues/40"
     },
     {
       "issue": 41,
       "title": "M5.6: Synchronize RuntimeNode inventory and health through the gateway",
       "milestone": "M5",
       "closedAt": "2026-08-25T02:13:28Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/41"
+      "url": "https://github.com/adea-ai/control-plane/issues/41"
     },
     {
       "issue": 42,
       "title": "M5.7: Implement gateway reconnect reconciliation and stale-command recovery",
       "milestone": "M5",
       "closedAt": "2026-08-25T02:20:33Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/42"
+      "url": "https://github.com/adea-ai/control-plane/issues/42"
     },
     {
       "issue": 43,
       "title": "M5.8: Add Runtime Gateway security and recovery acceptance suite",
       "milestone": "M5",
       "closedAt": "2026-08-25T02:28:44Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/43"
+      "url": "https://github.com/adea-ai/control-plane/issues/43"
     },
     {
       "issue": 44,
       "title": "M6.1: Implement ManagedPiAdapter configuration and event normalization",
       "milestone": "M6",
       "closedAt": "2026-08-25T04:32:12Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/44"
+      "url": "https://github.com/adea-ai/control-plane/issues/44"
     },
     {
       "issue": 45,
       "title": "M6.2: Integrate local managed Pi execution through Runtime Gateway",
       "milestone": "M6",
       "closedAt": "2026-08-25T04:50:26Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/45"
+      "url": "https://github.com/adea-ai/control-plane/issues/45"
     },
     {
       "issue": 46,
       "title": "M6.3: Implement hosted managed Pi runtime worker",
       "milestone": "M6",
       "closedAt": "2026-08-25T05:06:55Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/46"
+      "url": "https://github.com/adea-ai/control-plane/issues/46"
     },
     {
       "issue": 47,
       "title": "M6.4: Implement ACP RuntimeAdapter and protocol normalization",
       "milestone": "M6",
       "closedAt": "2026-08-25T05:22:44Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/47"
+      "url": "https://github.com/adea-ai/control-plane/issues/47"
     },
     {
       "issue": 48,
       "title": "M6.5: Implement ACP external session listing, reference, and resume operations",
       "milestone": "M6",
       "closedAt": "2026-08-25T05:38:00Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/48"
+      "url": "https://github.com/adea-ai/control-plane/issues/48"
     },
     {
       "issue": 49,
       "title": "M6.6: Integrate local ACP runtimes through Runtime Gateway",
       "milestone": "M6",
       "closedAt": "2026-08-25T06:01:33Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/49"
+      "url": "https://github.com/adea-ai/control-plane/issues/49"
     },
     {
       "issue": 50,
       "title": "M6.7: Establish runtime compatibility matrix and adapter certification",
       "milestone": "M6",
       "closedAt": "2026-08-25T06:20:57Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/50"
+      "url": "https://github.com/adea-ai/control-plane/issues/50"
     },
     {
       "issue": 51,
       "title": "M6.8: Add managed Pi and ACP cross-runtime acceptance suite",
       "milestone": "M6",
       "closedAt": "2026-08-25T06:44:24Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/51"
+      "url": "https://github.com/adea-ai/control-plane/issues/51"
     },
     {
       "issue": 52,
       "title": "M7.1: Implement Tool Gateway registry and provider-neutral tool contracts",
       "milestone": "M7",
       "closedAt": "2026-08-25T07:14:41Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/52"
+      "url": "https://github.com/adea-ai/control-plane/issues/52"
     },
     {
       "issue": 53,
       "title": "M7.2: Implement policy-controlled tool execution, approvals, and audit",
       "milestone": "M7",
       "closedAt": "2026-08-25T07:27:29Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/53"
+      "url": "https://github.com/adea-ai/control-plane/issues/53"
     },
     {
       "issue": 54,
       "title": "M7.3: Implement MCP tool interoperability adapter",
       "milestone": "M7",
       "closedAt": "2026-08-25T07:36:15Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/54"
+      "url": "https://github.com/adea-ai/control-plane/issues/54"
     },
     {
       "issue": 55,
       "title": "M7.4: Implement PolicyDecisionPoint and Cedar authorization adapter",
       "milestone": "M7",
       "closedAt": "2026-08-25T08:25:29Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/55"
+      "url": "https://github.com/adea-ai/control-plane/issues/55"
     },
     {
       "issue": 56,
       "title": "M7.5: Implement connector credential vault and scoped credential leases",
       "milestone": "M7",
       "closedAt": "2026-08-25T08:55:35Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/56"
+      "url": "https://github.com/adea-ai/control-plane/issues/56"
     },
     {
       "issue": 57,
       "title": "M7.6: Implement managed model gateway behind provider-neutral contracts",
       "milestone": "M7",
       "closedAt": "2026-08-25T15:59:15Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/57"
+      "url": "https://github.com/adea-ai/control-plane/issues/57"
     },
     {
       "issue": 58,
       "title": "M7.7: Implement deterministic model routing, health, and fallback policy",
       "milestone": "M7",
       "closedAt": "2026-08-25T16:06:25Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/58"
+      "url": "https://github.com/adea-ai/control-plane/issues/58"
     },
     {
       "issue": 59,
       "title": "M7.8: Implement SandboxProvider and E2B isolated execution adapter",
       "milestone": "M7",
       "closedAt": "2026-08-25T16:15:37Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/59"
+      "url": "https://github.com/adea-ai/control-plane/issues/59"
     },
     {
       "issue": 60,
       "title": "M7.9: Implement authoritative usage ledger, reservations, and budget enforcement",
       "milestone": "M7",
       "closedAt": "2026-08-25T16:28:28Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/60"
+      "url": "https://github.com/adea-ai/control-plane/issues/60"
     },
     {
       "issue": 61,
       "title": "M7.10: Add tools, models, policy, sandbox, and budget acceptance suite",
       "milestone": "M7",
       "closedAt": "2026-08-25T16:38:55Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/61"
+      "url": "https://github.com/adea-ai/control-plane/issues/61"
     },
     {
       "issue": 62,
       "title": "M8.1: Implement LangGraph orchestration adapter",
       "milestone": "M8",
       "closedAt": "2026-08-25T17:36:45Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/62"
+      "url": "https://github.com/adea-ai/control-plane/issues/62"
     },
     {
       "issue": 63,
       "title": "M8.2: Implement versioned graph definitions and checkpoint persistence",
       "milestone": "M8",
       "closedAt": "2026-08-25T17:44:18Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/63"
+      "url": "https://github.com/adea-ai/control-plane/issues/63"
     },
     {
       "issue": 64,
       "title": "M8.3: Implement Temporal-to-LangGraph segment and interrupt boundary",
       "milestone": "M8",
       "closedAt": "2026-08-25T17:58:01Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/64"
+      "url": "https://github.com/adea-ai/control-plane/issues/64"
     },
     {
       "issue": 65,
       "title": "M8.4: Implement delegated parent and child executions",
       "milestone": "M8",
       "closedAt": "2026-08-25T18:13:35Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/65"
+      "url": "https://github.com/adea-ai/control-plane/issues/65"
     },
     {
       "issue": 66,
       "title": "M8.5: Implement parallel delegation, context/budget inheritance, and state promotion",
       "milestone": "M8",
       "closedAt": "2026-08-25T18:22:05Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/66"
+      "url": "https://github.com/adea-ai/control-plane/issues/66"
     },
     {
       "issue": 67,
       "title": "M8.6: Add multi-agent delegation and orchestration acceptance suite",
       "milestone": "M8",
       "closedAt": "2026-08-25T18:34:39Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/67"
+      "url": "https://github.com/adea-ai/control-plane/issues/67"
     },
     {
       "issue": 68,
       "title": "M9.1: Complete GenAI observability, tracing, and operational diagnostics",
       "milestone": "M9",
       "closedAt": "2026-08-26T03:37:27Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/68"
+      "url": "https://github.com/adea-ai/control-plane/issues/68"
     },
     {
       "issue": 69,
       "title": "M9.2: Implement eval framework and profile, skill, runtime, and model release gates",
       "milestone": "M9",
       "closedAt": "2026-08-26T03:37:27Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/69"
+      "url": "https://github.com/adea-ai/control-plane/issues/69"
     },
     {
       "issue": 70,
       "title": "M9.3: Harden tenant isolation, policy boundaries, and secret leakage defenses",
       "milestone": "M9",
       "closedAt": "2026-08-26T03:37:28Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/70"
+      "url": "https://github.com/adea-ai/control-plane/issues/70"
     },
     {
       "issue": 71,
       "title": "M9.4: Add failure injection, chaos, and disaster-recovery validation",
       "milestone": "M9",
       "closedAt": "2026-08-26T03:37:28Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/71"
+      "url": "https://github.com/adea-ai/control-plane/issues/71"
     },
     {
       "issue": 72,
       "title": "M9.5: Establish load, performance, capacity, and cost baselines",
       "milestone": "M9",
       "closedAt": "2026-08-26T03:37:28Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/72"
+      "url": "https://github.com/adea-ai/control-plane/issues/72"
     },
     {
       "issue": 73,
       "title": "M9.6: Activate Railway staging and certify the managed-cloud deployment",
       "milestone": "M9",
       "closedAt": "2026-08-28T23:33:15Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/73"
+      "url": "https://github.com/adea-ai/control-plane/issues/73"
     },
     {
       "issue": 125,
       "title": "M7.11: Implement optional context and memory provider framework",
       "milestone": "M7",
       "closedAt": "2026-08-25T16:57:02Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/125"
+      "url": "https://github.com/adea-ai/control-plane/issues/125"
     },
     {
       "issue": 126,
       "title": "M7.12: Implement Cortana context provider adapter and ContextBundle pinning",
       "milestone": "M7",
       "closedAt": "2026-08-25T17:07:17Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/126"
+      "url": "https://github.com/adea-ai/control-plane/issues/126"
     },
     {
       "issue": 127,
       "title": "M7.13: Implement memory write proposals and provider write policy",
       "milestone": "M7",
       "closedAt": "2026-08-25T17:23:32Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/127"
+      "url": "https://github.com/adea-ai/control-plane/issues/127"
     },
     {
       "issue": 200,
       "title": "M10.1: Port Restate durable execution to Local and Hosted profiles",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:09Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/200"
+      "url": "https://github.com/adea-ai/control-plane/issues/200"
     },
     {
       "issue": 201,
       "title": "M10.2: Extract shared core and deployment-profile infrastructure ports",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:11Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/201"
+      "url": "https://github.com/adea-ai/control-plane/issues/201"
     },
     {
       "issue": 202,
       "title": "M10.3: Implement embedded SQLite persistence for the Local profile",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:13Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/202"
+      "url": "https://github.com/adea-ai/control-plane/issues/202"
     },
     {
       "issue": 203,
       "title": "M10.4: Implement the Local all-in-one Control Plane composition",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:18Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/203"
+      "url": "https://github.com/adea-ai/control-plane/issues/203"
     },
     {
       "issue": 204,
       "title": "M10.7: Ship the Hosted/VPS Docker Compose reference deployment",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:20Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/204"
+      "url": "https://github.com/adea-ai/control-plane/issues/204"
     },
     {
       "issue": 205,
       "title": "M10.5: Add direct-local RuntimeTransport and remove Runtime Gateway from the Local critical path",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:22Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/205"
+      "url": "https://github.com/adea-ai/control-plane/issues/205"
     },
     {
       "issue": 206,
       "title": "M10.8: Implement host-side durable remote-control relay and E2E payload contract",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:25Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/206"
+      "url": "https://github.com/adea-ai/control-plane/issues/206"
     },
     {
       "issue": 207,
       "title": "M10.9: Prove Local and Hosted conformance against the M9 cloud baseline",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:27Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/207"
+      "url": "https://github.com/adea-ai/control-plane/issues/207"
     },
     {
       "issue": 208,
       "title": "M10.10: Implement deployment-profile export, import, and migration tooling",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:29Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/208"
+      "url": "https://github.com/adea-ai/control-plane/issues/208"
     },
     {
       "issue": 209,
       "title": "M10.6: Add Local and Hosted SecretsProvider adapters",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:31Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/209"
+      "url": "https://github.com/adea-ai/control-plane/issues/209"
     },
     {
       "issue": 210,
       "title": "M9.10: Freeze v1 public schema, event, pagination, and error contracts",
       "milestone": "M9",
       "closedAt": "2026-08-28T09:29:25Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/210"
+      "url": "https://github.com/adea-ai/control-plane/issues/210"
     },
     {
       "issue": 211,
       "title": "M9.11: Finalize AgentProfile and Skill resolution, versioning, and trust rules",
       "milestone": "M9",
       "closedAt": "2026-08-28T09:47:06Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/211"
+      "url": "https://github.com/adea-ai/control-plane/issues/211"
     },
     {
       "issue": 212,
       "title": "M9.12: Finalize deterministic ContextProvider selection, caching, and default policy",
       "milestone": "M9",
       "closedAt": "2026-08-28T09:56:18Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/212"
+      "url": "https://github.com/adea-ai/control-plane/issues/212"
     },
     {
       "issue": 213,
       "title": "M9.13: Centralize operational defaults, retention, retry, and transport limits",
       "milestone": "M9",
       "closedAt": "2026-08-28T09:58:35Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/213"
+      "url": "https://github.com/adea-ai/control-plane/issues/213"
     },
     {
       "issue": 214,
       "title": "M10.11: Harden Local and Hosted deployment, backup, and runbooks",
       "milestone": "M10",
       "closedAt": "2026-08-30T05:55:34Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/214"
+      "url": "https://github.com/adea-ai/control-plane/issues/214"
     },
     {
       "issue": 215,
       "title": "M9.7: Replace the AWS/ECS deployment baseline with Railway-native service builds",
       "milestone": "M9",
       "closedAt": "2026-08-28T08:06:26Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/215"
+      "url": "https://github.com/adea-ai/control-plane/issues/215"
     },
     {
       "issue": 216,
       "title": "M9.8: Replace Temporal with Restate in the Railway managed-cloud profile",
       "milestone": "M9",
       "closedAt": "2026-08-28T08:57:43Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/216"
+      "url": "https://github.com/adea-ai/control-plane/issues/216"
     },
     {
       "issue": 217,
       "title": "M9.9: Wire Railway, Neon, R2, secrets, networking, and health contracts",
       "milestone": "M9",
       "closedAt": "2026-08-28T08:57:34Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/217"
+      "url": "https://github.com/adea-ai/control-plane/issues/217"
     },
     {
       "issue": 246,
       "title": "M9 follow-up: correct Restate dependency ownership and request identity",
       "milestone": "M9",
       "closedAt": "2026-08-28T16:59:03Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/246"
+      "url": "https://github.com/adea-ai/control-plane/issues/246"
     },
     {
       "issue": 248,
       "title": "M9: persist execution plans in Postgres for Cloud acceptance",
       "milestone": "M9",
       "closedAt": "2026-08-28T17:37:25Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/248"
+      "url": "https://github.com/adea-ai/control-plane/issues/248"
     },
     {
       "issue": 252,
       "title": "M9: persist ProjectState history and promotion proposals in Postgres",
       "milestone": "M9",
       "closedAt": "2026-08-28T17:47:24Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/252"
+      "url": "https://github.com/adea-ai/control-plane/issues/252"
     },
     {
       "issue": 254,
       "title": "M9: persist immutable ContextPackages in Postgres",
       "milestone": "M9",
       "closedAt": "2026-08-28T17:56:52Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/254"
+      "url": "https://github.com/adea-ai/control-plane/issues/254"
     },
     {
       "issue": 256,
       "title": "M9: add authenticated execution validation API",
       "milestone": "M9",
       "closedAt": "2026-08-28T18:07:16Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/256"
+      "url": "https://github.com/adea-ai/control-plane/issues/256"
     },
     {
       "issue": 258,
       "title": "M9: configure signed Cloud service credential verification",
       "milestone": "M9",
       "closedAt": "2026-08-28T18:31:43Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/258"
+      "url": "https://github.com/adea-ai/control-plane/issues/258"
     },
     {
       "issue": 260,
       "title": "M9: compose Neon-backed Cloud control-api startup",
       "milestone": "M9",
       "closedAt": "2026-08-28T19:06:00Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/260"
+      "url": "https://github.com/adea-ai/control-plane/issues/260"
     },
     {
       "issue": 263,
       "title": "M9: accept Cloud executions and submit Restate workflows",
       "milestone": "M9",
       "closedAt": "2026-08-28T19:41:30Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/263"
+      "url": "https://github.com/adea-ai/control-plane/issues/263"
     },
     {
       "issue": 266,
       "title": "M9.14: Finalize cost-minimized Railway staging and production standby",
       "milestone": "M9",
       "closedAt": "2026-08-29T02:47:46Z",
-      "url": "https://github.com/0xPlayerOne/control-plane/issues/266"
+      "url": "https://github.com/adea-ai/control-plane/issues/266"
     }
   ],
   "requirementInventory": [

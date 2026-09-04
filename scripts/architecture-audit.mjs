@@ -687,7 +687,7 @@ function formatEvidence(evidence) {
 
 function formatGap(gap) {
   if (!gap) return '—'
-  return `[#${gap.issue}](https://github.com/0xPlayerOne/control-plane/issues/${gap.issue}) ${gap.severity}; ${escapeCell(gap.owner)}; ${escapeCell(gap.disposition)}`
+  return `[#${gap.issue}](https://github.com/adea-ai/control-plane/issues/${gap.issue}) ${gap.severity}; ${escapeCell(gap.owner)}; ${escapeCell(gap.disposition)}`
 }
 
 function formatTrace(trace) {
