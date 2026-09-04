@@ -394,7 +394,7 @@ function composition(dataDirectory, runtimeTransport) {
     workflowRuntime: {
       profile: 'local',
       start: async () => undefined,
-      health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+      health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
       stop: async () => undefined,
     },
     endpointFactory: {
