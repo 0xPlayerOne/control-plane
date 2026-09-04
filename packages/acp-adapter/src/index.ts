@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   RuntimeAdapterError,
   RuntimeAdapterInspectionSchema,
@@ -40,6 +41,13 @@ import { z } from 'zod'
 const SemanticVersionSchema = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)
 const TimestampSchema = z.iso.datetime()
 const NativeSessionIdSchema = z.string().min(1).max(512)
+const MaximumObservationRepairs = 1_024
+const MaximumObservationRepairAttempts = 8
+const MaximumPendingPublications = 1_024
+const MaximumExternalSessionOperations = 1_024
+const MaximumTransportOperations = 896
+const MaximumCleanupTransportOperations = 128
+const CleanupOperationsPerCreate = 2
 const AcpInfoSchema = z
   .object({
     name: z.string().min(1).max(128),
@@ -205,14 +213,24 @@ export interface AcpTransportCall {
 
 export interface AcpTransport {
   connectionState(): 'connected' | 'disconnected'
-  request(method: string, params: Record<string, z.util.JSONType>): Promise<unknown>
-  respond(requestId: number, result: Record<string, z.util.JSONType>): Promise<void>
+  /** Repeating a create token must return the same native session. */
+  createSession(createToken: string, signal?: AbortSignal): Promise<{ readonly sessionId: string }>
+  request(
+    method: string,
+    params: Record<string, z.util.JSONType>,
+    signal?: AbortSignal
+  ): Promise<unknown>
+  respond(
+    requestId: number,
+    result: Record<string, z.util.JSONType>,
+    signal?: AbortSignal
+  ): Promise<void>
   updates(nativeSessionId: string, signal?: AbortSignal): AsyncIterable<AcpUpdate>
-  snapshot(nativeSessionId: string): Promise<AcpSnapshot>
-  cleanup(nativeSessionId: string): Promise<void>
+  snapshot(nativeSessionId: string, signal?: AbortSignal): Promise<AcpSnapshot>
+  cleanup(nativeSessionId: string, signal?: AbortSignal): Promise<void>
   replay?(
     nativeSessionId: string,
-    options?: { readonly afterSequence?: number }
+    options?: { readonly afterSequence?: number; readonly signal?: AbortSignal }
   ): Promise<AcpSessionReplay>
   replaySupport?(): boolean
 }
@@ -252,6 +270,7 @@ export interface AcpDriverOptions {
   readonly interactionId: (nativeRequestId: number) => string
   readonly now?: () => Date
   readonly protocolVersion?: number
+  readonly requestTimeoutMs?: number
   readonly externalSessions?: AcpExternalSessionsOptions
 }
 
@@ -272,11 +291,18 @@ export class AcpDriver implements RuntimeAdapter {
   readonly #interactionId: (nativeRequestId: number) => string
   readonly #now: () => Date
   readonly #protocolVersion: number
+  readonly #requestTimeoutMs: number
   readonly #externalSessions: AcpExternalSessionsOptions | undefined
   readonly #executions = new Map<string, AcpExecution>()
   readonly #starts = new Map<string, CachedValue<RuntimeExecutionHandle>>()
+  readonly #pendingStarts = new Map<string, CachedValue<Promise<RuntimeExecutionHandle>>>()
+  readonly #pendingAttempts = new Map<string, CachedValue<Promise<RuntimeExecutionHandle>>>()
+  readonly #createReclamations = new Map<string, Promise<void>>()
+  readonly #uncertainAttempts = new Set<string>()
   readonly #actions = new Map<string, CachedValue<RuntimeExecutionStatus>>()
   readonly #sessionActions = new Map<string, CachedValue<RuntimeSessionResult>>()
+  readonly #pendingSessionActions = new Map<string, CachedValue<Promise<RuntimeSessionResult>>>()
+  readonly #pendingSessionOperations = new Map<string, Promise<RuntimeSessionResult>>()
   readonly #interactions = new Map<
     string,
     {
@@ -286,7 +312,32 @@ export class AcpDriver implements RuntimeAdapter {
     }
   >()
   readonly #nativeByExternalSession = new Map<string, string>()
+  readonly #nativeSessionGenerations = new Map<string, string>()
+  readonly #pendingPublications = new Map<
+    string,
+    {
+      latestVersion: number
+      pending: ExternalSession | undefined
+      readonly promise: Promise<void>
+    }
+  >()
+  readonly #observationRepairs = new Map<
+    string,
+    {
+      readonly generation: string | undefined
+      attempt: number
+      timer: ReturnType<typeof setTimeout> | undefined
+    }
+  >()
   readonly #cleaned = new Set<string>()
+  readonly #pendingCleanups = new Map<string, Promise<void>>()
+  readonly #pendingFailedStartCleanups = new Map<string, Promise<boolean>>()
+  #externalSessionOperationCount = 0
+  #transportOperationCount = 0
+  #cleanupTransportOperationCount = 0
+  #createOperationCount = 0
+  #uncertainCreateOperationCount = 0
+  #createSequence = 0
   #initialize?: z.output<typeof AcpInitializeResultSchema>
 
   constructor(options: AcpDriverOptions) {
@@ -296,6 +347,14 @@ export class AcpDriver implements RuntimeAdapter {
     this.#interactionId = options.interactionId
     this.#now = options.now ?? (() => new Date())
     this.#protocolVersion = options.protocolVersion ?? 2
+    this.#requestTimeoutMs = options.requestTimeoutMs ?? 30_000
+    if (
+      !Number.isSafeInteger(this.#requestTimeoutMs) ||
+      this.#requestTimeoutMs < 1 ||
+      this.#requestTimeoutMs > 3_600_000
+    ) {
+      throw new Error('INVALID_ACP_REQUEST_TIMEOUT')
+    }
     this.#externalSessions = options.externalSessions
   }
 
@@ -358,30 +417,85 @@ export class AcpDriver implements RuntimeAdapter {
       if (replay.fingerprint !== fingerprint) fail('IDEMPOTENCY_CONFLICT', 'conflict', false)
       return structuredClone(replay.value)
     }
+    await this.#awaitCreateReclamation(request.attemptId)
+    if (this.#executions.has(`acp:${request.attemptId}`)) {
+      fail('ACP_ATTEMPT_ID_CONFLICT', 'conflict', false)
+    }
+    const pending = this.#pendingStarts.get(request.idempotencyKey)
+    if (pending) {
+      if (pending.fingerprint !== fingerprint) fail('IDEMPOTENCY_CONFLICT', 'conflict', false)
+      return structuredClone(await pending.value)
+    }
+    const pendingAttempt = this.#pendingAttempts.get(request.attemptId)
+    if (pendingAttempt) {
+      if (pendingAttempt.fingerprint !== fingerprint) {
+        fail('ACP_ATTEMPT_ID_CONFLICT', 'conflict', false)
+      }
+      return structuredClone(await pendingAttempt.value)
+    }
+    const started = this.#startOnce(request, fingerprint)
+    this.#pendingStarts.set(request.idempotencyKey, { fingerprint, value: started })
+    this.#pendingAttempts.set(request.attemptId, { fingerprint, value: started })
+    try {
+      return structuredClone(await started)
+    } finally {
+      if (this.#pendingStarts.get(request.idempotencyKey)?.value === started) {
+        this.#pendingStarts.delete(request.idempotencyKey)
+      }
+      if (this.#pendingAttempts.get(request.attemptId)?.value === started) {
+        this.#pendingAttempts.delete(request.attemptId)
+      }
+    }
+  }
+
+  async #startOnce(
+    request: ReturnType<typeof RuntimeStartRequestSchema.parse>,
+    fingerprint: string
+  ): Promise<RuntimeExecutionHandle> {
+    return this.#withCreateCapacity(() => this.#startOnceAdmitted(request, fingerprint))
+  }
+
+  async #startOnceAdmitted(
+    request: ReturnType<typeof RuntimeStartRequestSchema.parse>,
+    fingerprint: string
+  ): Promise<RuntimeExecutionHandle> {
     const inspection = await this.inspect(request.executionPlan.runtimeRequirements)
     if (inspection.health === 'unavailable' || !inspection.capabilityEvaluation?.eligible) {
       fail('ACP_RUNTIME_INELIGIBLE', 'unsupported', false)
     }
-    const sessionResult = z
-      .object({ sessionId: NativeSessionIdSchema })
-      .strict()
-      .parse(await this.#request('session/new', {}))
-    const nativeSessionId = sessionResult.sessionId
-    const externalSessionId = this.#externalSessionId(nativeSessionId)
-    this.#nativeByExternalSession.set(externalSessionId, nativeSessionId)
-    await this.#request('session/prompt', {
-      sessionId: nativeSessionId,
-      prompt: [{ type: 'text', text: acpPrompt(request.attemptId, request.executionPlan) }],
-    })
-    const handle = RuntimeExecutionHandleSchema.parse({
-      handleId: `acp:${request.attemptId}`,
-      attemptId: request.attemptId,
-      externalSessionId,
-      startedAt: this.#now().toISOString(),
-    })
-    this.#executions.set(handle.handleId, { handle, nativeSessionId })
-    this.#starts.set(request.idempotencyKey, { fingerprint, value: handle })
-    return structuredClone(handle)
+    const nativeSessionId = await this.#createNativeSession(request.attemptId)
+    let externalSessionId: string | undefined
+    let handle: RuntimeExecutionHandle | undefined
+    try {
+      externalSessionId = this.#externalSessionId(nativeSessionId)
+      handle = RuntimeExecutionHandleSchema.parse({
+        handleId: `acp:${request.attemptId}`,
+        attemptId: request.attemptId,
+        externalSessionId,
+        startedAt: this.#now().toISOString(),
+      })
+      await this.#request('session/prompt', {
+        sessionId: nativeSessionId,
+        prompt: [{ type: 'text', text: acpPrompt(request.attemptId, request.executionPlan) }],
+      })
+      this.#nativeByExternalSession.set(externalSessionId, nativeSessionId)
+      this.#executions.set(handle.handleId, { handle, nativeSessionId })
+      this.#starts.set(request.idempotencyKey, { fingerprint, value: handle })
+      return handle
+    } catch (error) {
+      if (
+        externalSessionId &&
+        this.#nativeByExternalSession.get(externalSessionId) === nativeSessionId
+      ) {
+        this.#nativeByExternalSession.delete(externalSessionId)
+      }
+      if (handle) this.#executions.delete(handle.handleId)
+      this.#starts.delete(request.idempotencyKey)
+      if (!(await this.#cleanupFailedStart(nativeSessionId))) {
+        this.#uncertainAttempts.add(request.attemptId)
+      }
+      throw error
+    }
   }
 
   async *progress(
@@ -416,9 +530,13 @@ export class AcpDriver implements RuntimeAdapter {
         if (!interaction || interaction.kind !== 'input') {
           fail('ACP_INTERACTION_MISSING', 'validation', false)
         }
-        await this.#transport.respond(interaction.requestId, {
-          outcome: { outcome: 'submitted', value: request.text },
-        })
+        await this.#transportCall((signal) =>
+          this.#transport.respond(
+            interaction.requestId,
+            { outcome: { outcome: 'submitted', value: request.text } },
+            signal
+          )
+        )
         return this.status(handle)
       }
     )
@@ -441,9 +559,13 @@ export class AcpDriver implements RuntimeAdapter {
         const desired = request.decision === 'approve' ? 'allow_once' : 'reject'
         const optionId = interaction.options?.find((option) => option === desired)
         if (!optionId) fail('ACP_PERMISSION_OPTION_UNSUPPORTED', 'unsupported', false)
-        await this.#transport.respond(interaction.requestId, {
-          outcome: { outcome: 'selected', optionId },
-        })
+        await this.#transportCall((signal) =>
+          this.#transport.respond(
+            interaction.requestId,
+            { outcome: { outcome: 'selected', optionId } },
+            signal
+          )
+        )
         return this.status(handle)
       }
     )
@@ -476,7 +598,9 @@ export class AcpDriver implements RuntimeAdapter {
     }
     return normalizeSnapshot(
       execution.handle,
-      await this.#transport.snapshot(execution.nativeSessionId)
+      await this.#transportCall((signal) =>
+        this.#transport.snapshot(execution.nativeSessionId, signal)
+      )
     )
   }
 
@@ -486,7 +610,33 @@ export class AcpDriver implements RuntimeAdapter {
 
   async session(operationInput: RuntimeSessionOperation): Promise<RuntimeSessionResult> {
     const operation = RuntimeSessionOperationSchema.parse(operationInput)
+    const key = stable(operation)
+    return this.#deadline((signal) => {
+      let pending = this.#pendingSessionOperations.get(key)
+      if (!pending) {
+        const promise = this.#externalSessions
+          ? this.#externalSessionCall(() => this.#sessionOperation(operation, signal))
+          : this.#sessionOperation(operation, signal)
+        pending = promise
+        this.#pendingSessionOperations.set(key, promise)
+        void promise
+          .finally(() => {
+            if (this.#pendingSessionOperations.get(key) === promise) {
+              this.#pendingSessionOperations.delete(key)
+            }
+          })
+          .catch(() => undefined)
+      }
+      return pending
+    })
+  }
+
+  async #sessionOperation(
+    operation: ReturnType<typeof RuntimeSessionOperationSchema.parse>,
+    signal: AbortSignal
+  ): Promise<RuntimeSessionResult> {
     const inspection = await this.inspect()
+    throwIfAborted(signal)
     const capability = `session.${operation.operation}`
     if (
       !inspection.capabilities.some(
@@ -496,17 +646,42 @@ export class AcpDriver implements RuntimeAdapter {
       fail('CAPABILITY_UNSUPPORTED', 'unsupported', false)
     }
     if (operation.operation === 'create') {
-      return this.#idempotentSession(operation.idempotencyKey, operation, async () => {
-        await this.#authorizeSession('create')
-        const result = z
-          .object({ sessionId: NativeSessionIdSchema })
-          .parse(await this.#request('session/new', {}))
-        await this.#observeNativeSession(result.sessionId, 'created_through_control_plane')
-        return this.#sessionResult('create', result.sessionId)
-      })
+      return this.#idempotentSession(operation.idempotencyKey, operation, () =>
+        this.#withCreateCapacity(async () => {
+          await withAbortSignal(signal, () => this.#authorizeSession('create'))
+          throwIfAborted(signal)
+          const uncertaintyKey = `session-create:${operation.idempotencyKey}`
+          await this.#awaitCreateReclamation(uncertaintyKey)
+          throwIfAborted(signal)
+          const nativeSessionId = await this.#createNativeSession(uncertaintyKey)
+          const generation = this.#nativeSessionGenerations.get(nativeSessionId)
+          try {
+            throwIfAborted(signal)
+            const pendingObservation = this.#observeNativeSession(
+              nativeSessionId,
+              'created_through_control_plane',
+              undefined,
+              'active',
+              generation
+            )
+            await withAbortSignal(signal, () => pendingObservation)
+            throwIfAborted(signal)
+            return this.#sessionResult('create', nativeSessionId)
+          } catch (error) {
+            const closed = await this.#cleanupFailedStart(nativeSessionId)
+            if (!closed) {
+              this.#uncertainAttempts.add(uncertaintyKey)
+            }
+            await this.#rollbackObservedSession(nativeSessionId, closed, false, generation)
+            this.#scheduleObservationCompensation(nativeSessionId, closed, generation)
+            throw error
+          }
+        })
+      )
     }
     if (operation.operation === 'list') {
-      await this.#authorizeSession('list')
+      await withAbortSignal(signal, () => this.#authorizeSession('list'))
+      throwIfAborted(signal)
       const result = z
         .object({
           sessions: z.array(
@@ -519,16 +694,16 @@ export class AcpDriver implements RuntimeAdapter {
           ),
         })
         .parse(await this.#request('session/list', {}))
+      throwIfAborted(signal)
       const observed = new Set<string>()
       for (const native of result.sessions) {
-        const session = await this.#observeNativeSession(
-          native.sessionId,
-          'native_discovery',
-          native.title
+        const session = await withAbortSignal(signal, () =>
+          this.#observeNativeSession(native.sessionId, 'native_discovery', native.title)
         )
         observed.add(session.sessionId)
       }
-      await this.#markUnlistedSessionsRemoved(observed)
+      await withAbortSignal(signal, () => this.#markUnlistedSessionsRemoved(observed))
+      throwIfAborted(signal)
       return RuntimeSessionResultSchema.parse({
         operation: 'list',
         sessions: result.sessions.map(({ sessionId }) =>
@@ -536,12 +711,13 @@ export class AcpDriver implements RuntimeAdapter {
         ),
       })
     }
-    const { nativeSessionId } = await this.#authorizedSessionReference(
-      operation.sessionId,
-      operation.operation
+    const { nativeSessionId } = await withAbortSignal(signal, () =>
+      this.#authorizedSessionReference(operation.sessionId, operation.operation)
     )
+    throwIfAborted(signal)
     if (operation.operation === 'history') {
       const replay = await this.#replay(nativeSessionId, operation.afterSequence)
+      throwIfAborted(signal)
       return RuntimeSessionResultSchema.parse({
         operation: 'history',
         session: this.#normalizedSession(nativeSessionId, 'active'),
@@ -563,7 +739,11 @@ export class AcpDriver implements RuntimeAdapter {
         operation,
         async () => {
           await this.#replay(nativeSessionId)
-          await this.#observeNativeSession(nativeSessionId, 'native_discovery')
+          throwIfAborted(signal)
+          await withAbortSignal(signal, () =>
+            this.#observeNativeSession(nativeSessionId, 'native_discovery')
+          )
+          throwIfAborted(signal)
           return RuntimeSessionResultSchema.parse({
             operation: 'load',
             session: this.#normalizedSession(nativeSessionId, 'active'),
@@ -577,7 +757,11 @@ export class AcpDriver implements RuntimeAdapter {
         operation,
         async () => {
           await this.#request('session/resume', { sessionId: nativeSessionId })
-          await this.#observeNativeSession(nativeSessionId, 'native_discovery')
+          throwIfAborted(signal)
+          await withAbortSignal(signal, () =>
+            this.#observeNativeSession(nativeSessionId, 'native_discovery')
+          )
+          throwIfAborted(signal)
           return RuntimeSessionResultSchema.parse({
             operation: 'resume',
             session: this.#normalizedSession(nativeSessionId, 'active'),
@@ -590,7 +774,11 @@ export class AcpDriver implements RuntimeAdapter {
       operation,
       async () => {
         await this.#request('session/close', { sessionId: nativeSessionId })
-        await this.#observeNativeSession(nativeSessionId, 'native_discovery', undefined, 'closed')
+        throwIfAborted(signal)
+        await withAbortSignal(signal, () =>
+          this.#observeNativeSession(nativeSessionId, 'native_discovery', undefined, 'closed')
+        )
+        throwIfAborted(signal)
         return RuntimeSessionResultSchema.parse({
           operation: 'close',
           session: this.#normalizedSession(nativeSessionId, 'closed'),
@@ -602,8 +790,21 @@ export class AcpDriver implements RuntimeAdapter {
   async cleanup(handleInput: RuntimeExecutionHandle): Promise<void> {
     const execution = this.#execution(handleInput)
     if (this.#cleaned.has(execution.handle.handleId)) return
-    await this.#transport.cleanup(execution.nativeSessionId)
-    this.#cleaned.add(execution.handle.handleId)
+    const pending = this.#pendingCleanups.get(execution.handle.handleId)
+    if (pending) return pending
+    const cleanup = this.#transportCall((signal) =>
+      this.#transport.cleanup(execution.nativeSessionId, signal)
+    ).then(() => {
+      this.#cleaned.add(execution.handle.handleId)
+    })
+    this.#pendingCleanups.set(execution.handle.handleId, cleanup)
+    try {
+      await cleanup
+    } finally {
+      if (this.#pendingCleanups.get(execution.handle.handleId) === cleanup) {
+        this.#pendingCleanups.delete(execution.handle.handleId)
+      }
+    }
   }
 
   async #initializeConnection(): Promise<z.output<typeof AcpInitializeResultSchema>> {
@@ -619,16 +820,318 @@ export class AcpDriver implements RuntimeAdapter {
     return this.#initialize
   }
 
-  async #request(method: string, params: Record<string, z.util.JSONType>): Promise<unknown> {
+  async #request(
+    method: string,
+    params: Record<string, z.util.JSONType>,
+    cleanup = false
+  ): Promise<unknown> {
     if (this.#transport.connectionState() === 'disconnected') {
       fail('ACP_DISCONNECTED', 'unavailable', true)
     }
     try {
-      return await this.#transport.request(method, params)
+      return await this.#transportCall(
+        (signal) => this.#transport.request(method, params, signal),
+        this.#requestTimeoutMs,
+        cleanup
+      )
     } catch (error) {
       if (error instanceof RuntimeAdapterError) throw error
       fail('ACP_TRANSPORT_FAILURE', 'unavailable', true)
     }
+  }
+
+  async #transportCall<Value>(
+    operation: (signal: AbortSignal) => Promise<Value>,
+    timeoutMs = this.#requestTimeoutMs,
+    cleanup = false
+  ): Promise<Value> {
+    return this.#deadline(
+      (signal) => this.#transportOperation(() => operation(signal), cleanup),
+      timeoutMs
+    )
+  }
+
+  #deadline<Value>(
+    operation: (signal: AbortSignal) => Promise<Value>,
+    timeoutMs = this.#requestTimeoutMs
+  ): Promise<Value> {
+    return withTimeout(
+      timeoutMs,
+      operation,
+      () =>
+        new RuntimeAdapterError({
+          code: 'ACP_REQUEST_TIMEOUT',
+          classification: 'timeout',
+          message: 'ACP_REQUEST_TIMEOUT',
+          retryable: true,
+        })
+    )
+  }
+
+  #transportOperation<Value>(operation: () => Promise<Value>, cleanup: boolean): Promise<Value> {
+    const count = cleanup ? this.#cleanupTransportOperationCount : this.#transportOperationCount
+    const maximum = cleanup ? MaximumCleanupTransportOperations : MaximumTransportOperations
+    if (count >= maximum) {
+      fail('ACP_TRANSPORT_BACKPRESSURE', 'unavailable', true)
+    }
+    if (cleanup) this.#cleanupTransportOperationCount += 1
+    else this.#transportOperationCount += 1
+    return Promise.resolve()
+      .then(operation)
+      .finally(() => {
+        if (cleanup) this.#cleanupTransportOperationCount -= 1
+        else this.#transportOperationCount -= 1
+      })
+  }
+
+  async #withCreateCapacity<Value>(operation: () => Promise<Value>): Promise<Value> {
+    if (
+      this.#cleanupTransportOperationCount +
+        CleanupOperationsPerCreate *
+          (this.#createOperationCount + this.#uncertainCreateOperationCount + 1) >
+      MaximumCleanupTransportOperations
+    ) {
+      fail('ACP_CREATE_BACKPRESSURE', 'unavailable', true)
+    }
+    this.#createOperationCount += 1
+    try {
+      return await operation()
+    } finally {
+      this.#createOperationCount -= 1
+    }
+  }
+
+  async #cleanupFailedStart(nativeSessionId: string): Promise<boolean> {
+    const pending = this.#pendingFailedStartCleanups.get(nativeSessionId)
+    if (pending) return pending
+    const cleanup = this.#cleanupFailedStartOnce(nativeSessionId)
+    this.#pendingFailedStartCleanups.set(nativeSessionId, cleanup)
+    try {
+      return await cleanup
+    } finally {
+      if (this.#pendingFailedStartCleanups.get(nativeSessionId) === cleanup) {
+        this.#pendingFailedStartCleanups.delete(nativeSessionId)
+      }
+    }
+  }
+
+  async #cleanupFailedStartOnce(nativeSessionId: string): Promise<boolean> {
+    let closed = false
+    try {
+      await this.#request('session/close', { sessionId: nativeSessionId }, true)
+      closed = true
+    } catch {
+      // Preserve the startup failure; transport cleanup is still attempted below.
+    }
+    try {
+      await this.#transportCall(
+        (signal) => this.#transport.cleanup(nativeSessionId, signal),
+        this.#requestTimeoutMs,
+        true
+      )
+    } catch {
+      // Preserve the startup failure rather than masking it with cleanup failure.
+    }
+    return closed
+  }
+
+  async #createNativeSession(attemptId: string): Promise<string> {
+    const createToken = `acp-create:${createHash('sha256')
+      .update(`${attemptId}:${++this.#createSequence}`)
+      .digest('hex')}`
+    let request: Promise<{ readonly sessionId: string }> | undefined
+    let result: unknown
+    try {
+      result = await this.#transportCall((signal) => {
+        request = Promise.resolve().then(() => this.#transport.createSession(createToken, signal))
+        return request
+      })
+    } catch (error) {
+      if (request) {
+        this.#uncertainAttempts.add(attemptId)
+        this.#uncertainCreateOperationCount += 1
+        const reclamation = this.#reclaimCreatedSession(attemptId, createToken).finally(() => {
+          if (this.#createReclamations.get(attemptId) === reclamation) {
+            this.#createReclamations.delete(attemptId)
+          }
+        })
+        const lateCleanup = request
+          .then(async (lateResult) => {
+            await reclamation.catch(() => undefined)
+            if (!this.#uncertainAttempts.has(attemptId)) return
+            const identifiable = z
+              .object({ sessionId: NativeSessionIdSchema })
+              .passthrough()
+              .safeParse(lateResult)
+            if (
+              identifiable.success &&
+              (await this.#cleanupFailedStart(identifiable.data.sessionId))
+            ) {
+              this.#uncertainAttempts.delete(attemptId)
+            }
+          })
+          .catch(() => undefined)
+        this.#createReclamations.set(attemptId, reclamation)
+        void reclamation.catch(() => undefined)
+        void Promise.allSettled([reclamation, lateCleanup]).then(() => {
+          this.#uncertainCreateOperationCount -= 1
+        })
+      }
+      throw error
+    }
+    const identifiable = z
+      .object({ sessionId: NativeSessionIdSchema })
+      .passthrough()
+      .safeParse(result)
+    try {
+      const nativeSessionId = z
+        .object({ sessionId: NativeSessionIdSchema })
+        .strict()
+        .parse(result).sessionId
+      this.#nativeSessionGenerations.set(nativeSessionId, createToken)
+      return nativeSessionId
+    } catch (error) {
+      if (identifiable.success && !(await this.#cleanupFailedStart(identifiable.data.sessionId))) {
+        this.#uncertainAttempts.add(attemptId)
+      }
+      throw error
+    }
+  }
+
+  async #reclaimCreatedSession(attemptId: string, createToken: string): Promise<void> {
+    let result: unknown
+    try {
+      result = await this.#transportCall((signal) =>
+        this.#transport.createSession(createToken, signal)
+      )
+    } catch {
+      return
+    }
+    const identifiable = z
+      .object({ sessionId: NativeSessionIdSchema })
+      .passthrough()
+      .safeParse(result)
+    if (!identifiable.success) return
+    if (await this.#cleanupFailedStart(identifiable.data.sessionId)) {
+      this.#uncertainAttempts.delete(attemptId)
+    }
+  }
+
+  async #awaitCreateReclamation(attemptId: string): Promise<void> {
+    const reclamation = this.#createReclamations.get(attemptId)
+    if (reclamation) await reclamation
+    if (this.#uncertainAttempts.has(attemptId)) {
+      fail('ACP_START_OUTCOME_UNKNOWN', 'conflict', false)
+    }
+  }
+
+  async #rollbackObservedSession(
+    nativeSessionId: string,
+    closed: boolean,
+    publishCorrection = false,
+    generation?: string
+  ): Promise<boolean> {
+    try {
+      if (
+        generation !== undefined &&
+        this.#nativeSessionGenerations.get(nativeSessionId) !== generation
+      ) {
+        return true
+      }
+      const externalSessionId = this.#externalSessionId(nativeSessionId)
+      if (this.#nativeByExternalSession.get(externalSessionId) === nativeSessionId) {
+        this.#nativeByExternalSession.delete(externalSessionId)
+      }
+      const externalSessions = this.#externalSessions
+      if (!closed || !externalSessions) return true
+      const timeoutMs = publishCorrection
+        ? Math.min(30_000, Math.max(1_000, this.#requestTimeoutMs * 4))
+        : this.#requestTimeoutMs
+      return await this.#deadline(
+        () =>
+          this.#externalSessionCall(async () => {
+            const connection = RuntimeConnectionSchema.parse(externalSessions.runtimeConnection())
+            const session = await externalSessions.registry.repository.findByNativeIdentity(
+              connection.runtimeConnectionId,
+              externalSessions.opaqueNativeSessionId(nativeSessionId)
+            )
+            if (
+              generation !== undefined &&
+              this.#nativeSessionGenerations.get(nativeSessionId) !== generation
+            ) {
+              return true
+            }
+            if (!session) return false
+            const corrected =
+              session.state === 'active'
+                ? await externalSessions.registry.update({
+                    externalSessionId: session.externalSessionId,
+                    expectedVersion: session.version,
+                    observedAt: this.#now().toISOString(),
+                    state: 'closed',
+                  })
+                : session
+            if (publishCorrection && corrected.state === 'closed') {
+              await this.#publishSessionDiscovery(corrected)
+            }
+            return true
+          }),
+        timeoutMs
+      )
+    } catch {
+      // Native cleanup remains authoritative; stale projection repair can be retried by discovery.
+      return false
+    }
+  }
+
+  #scheduleObservationCompensation(
+    nativeSessionId: string,
+    closed: boolean,
+    generation?: string
+  ): void {
+    if (!closed || !this.#externalSessions) return
+    const existing = this.#observationRepairs.get(nativeSessionId)
+    if (existing?.timer) clearTimeout(existing.timer)
+    if (!existing && this.#observationRepairs.size >= MaximumObservationRepairs) return
+    const repair: {
+      generation: string | undefined
+      attempt: number
+      timer: ReturnType<typeof setTimeout> | undefined
+    } = { generation, attempt: 0, timer: undefined }
+    this.#observationRepairs.set(nativeSessionId, repair)
+
+    const schedule = (): void => {
+      if (this.#observationRepairs.get(nativeSessionId) !== repair) return
+      const delayMs = Math.min(
+        30_000,
+        Math.max(20, this.#requestTimeoutMs * 2 ** Math.min(repair.attempt, 10))
+      )
+      const timer = setTimeout(() => {
+        void (async () => {
+          if (this.#observationRepairs.get(nativeSessionId) !== repair) return
+          const repaired = await this.#rollbackObservedSession(
+            nativeSessionId,
+            true,
+            true,
+            generation
+          )
+          if (this.#observationRepairs.get(nativeSessionId) !== repair) return
+          if (repaired) {
+            this.#observationRepairs.delete(nativeSessionId)
+            return
+          }
+          repair.attempt += 1
+          if (repair.attempt >= MaximumObservationRepairAttempts) {
+            this.#observationRepairs.delete(nativeSessionId)
+            return
+          }
+          schedule()
+        })()
+      }, delayMs)
+      repair.timer = timer
+      timer.unref?.()
+    }
+    schedule()
   }
 
   #execution(handleInput: RuntimeExecutionHandle): AcpExecution {
@@ -744,23 +1247,37 @@ export class AcpDriver implements RuntimeAdapter {
       if (replay.fingerprint !== fingerprint) fail('IDEMPOTENCY_CONFLICT', 'conflict', false)
       return structuredClone(replay.value)
     }
-    const value = RuntimeSessionResultSchema.parse(await action())
-    this.#sessionActions.set(key, { fingerprint, value })
-    return structuredClone(value)
+    const pending = this.#pendingSessionActions.get(key)
+    if (pending) {
+      if (pending.fingerprint !== fingerprint) fail('IDEMPOTENCY_CONFLICT', 'conflict', false)
+      return structuredClone(await pending.value)
+    }
+    const started = action().then((value) => RuntimeSessionResultSchema.parse(value))
+    this.#pendingSessionActions.set(key, { fingerprint, value: started })
+    try {
+      const value = await started
+      this.#sessionActions.set(key, { fingerprint, value })
+      return structuredClone(value)
+    } finally {
+      if (this.#pendingSessionActions.get(key)?.value === started) {
+        this.#pendingSessionActions.delete(key)
+      }
+    }
   }
 
   async #authorizeSession(
     operation: RuntimeSessionOperation['operation'],
     session?: ExternalSession
   ): Promise<void> {
-    if (!this.#externalSessions) return
-    if (!(await this.#externalSessions.authorize(operation, session))) {
+    const externalSessions = this.#externalSessions
+    if (!externalSessions) return
+    if (!(await this.#externalSessionCall(() => externalSessions.authorize(operation, session)))) {
       fail('ACP_SESSION_UNAUTHORIZED', 'validation', false)
     }
     if (session !== undefined) return
-    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
+    const connection = RuntimeConnectionSchema.parse(externalSessions.runtimeConnection())
     const connected =
-      this.#externalSessions.nodeStatus() === 'online' &&
+      externalSessions.nodeStatus() === 'online' &&
       !['unavailable', 'disconnected', 'expired', 'revoked'].includes(connection.status) &&
       !['offline', 'reconnecting', 'unknown', 'incompatible', 'revoked'].includes(
         connection.availabilityState ?? 'unknown'
@@ -777,16 +1294,19 @@ export class AcpDriver implements RuntimeAdapter {
     externalSessionId: string,
     operation: 'resume' | 'load' | 'close' | 'history'
   ): Promise<{ readonly nativeSessionId: string; readonly session?: ExternalSession }> {
-    if (!this.#externalSessions) {
+    const externalSessions = this.#externalSessions
+    if (!externalSessions) {
       const nativeSessionId = this.#nativeByExternalSession.get(externalSessionId)
       if (!nativeSessionId) fail('ACP_SESSION_REFERENCE_MISSING', 'validation', false)
       return { nativeSessionId }
     }
-    const session = await this.#externalSessions.registry.get(externalSessionId)
+    const session = await this.#externalSessionCall(() =>
+      externalSessions.registry.get(externalSessionId)
+    )
     await this.#authorizeSession(operation, session)
     const context = {
-      connection: RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection()),
-      nodeStatus: this.#externalSessions.nodeStatus(),
+      connection: RuntimeConnectionSchema.parse(externalSessions.runtimeConnection()),
+      nodeStatus: externalSessions.nodeStatus(),
       evaluatedAt: this.#now().toISOString(),
     }
     const availability = assessExternalSession(session, context).operations[operation]
@@ -799,8 +1319,8 @@ export class AcpDriver implements RuntimeAdapter {
       ].includes(availability.reason)
       fail('ACP_SESSION_OPERATION_UNAVAILABLE', 'unavailable', retryable)
     }
-    const nativeSessionId = await this.#externalSessions.resolveNativeSessionId(
-      session.opaqueNativeSessionId
+    const nativeSessionId = await this.#externalSessionCall(() =>
+      externalSessions.resolveNativeSessionId(session.opaqueNativeSessionId)
     )
     if (!nativeSessionId) fail('ACP_SESSION_REFERENCE_STALE', 'unavailable', true)
     this.#nativeByExternalSession.set(externalSessionId, nativeSessionId)
@@ -811,7 +1331,21 @@ export class AcpDriver implements RuntimeAdapter {
     nativeSessionId: string,
     origin: 'native_discovery' | 'created_through_control_plane',
     displayName?: string,
-    state: 'active' | 'closed' = 'active'
+    state: 'active' | 'closed' = 'active',
+    generation?: string
+  ) {
+    if (!this.#externalSessions) return this.#normalizedSession(nativeSessionId, state)
+    return this.#externalSessionCall(() =>
+      this.#observeNativeSessionUnbounded(nativeSessionId, origin, displayName, state, generation)
+    )
+  }
+
+  async #observeNativeSessionUnbounded(
+    nativeSessionId: string,
+    origin: 'native_discovery' | 'created_through_control_plane',
+    displayName?: string,
+    state: 'active' | 'closed' = 'active',
+    generation?: string
   ) {
     const normalized = this.#normalizedSession(nativeSessionId, state)
     if (!this.#externalSessions) return normalized
@@ -831,6 +1365,12 @@ export class AcpDriver implements RuntimeAdapter {
       connection.runtimeConnectionId,
       this.#externalSessions.opaqueNativeSessionId(nativeSessionId)
     )
+    if (
+      generation !== undefined &&
+      this.#nativeSessionGenerations.get(nativeSessionId) !== generation
+    ) {
+      return normalized
+    }
     const safeDisplayName = safeNativeDisplayName(displayName)
     if (!existing) {
       const session = await this.#externalSessions.registry.register({
@@ -855,7 +1395,12 @@ export class AcpDriver implements RuntimeAdapter {
         },
         lastObservedAt: observedAt,
       })
-      await this.#publishSessionDiscovery(session)
+      if (
+        generation === undefined ||
+        this.#nativeSessionGenerations.get(nativeSessionId) === generation
+      ) {
+        await this.#publishSessionDiscovery(session)
+      }
       return normalized
     }
     const session = await this.#externalSessions.registry.update({
@@ -869,62 +1414,123 @@ export class AcpDriver implements RuntimeAdapter {
         ...(safeDisplayName === undefined ? {} : { displayName: safeDisplayName }),
       },
     })
-    await this.#publishSessionDiscovery(session)
+    if (
+      generation === undefined ||
+      this.#nativeSessionGenerations.get(nativeSessionId) === generation
+    ) {
+      await this.#publishSessionDiscovery(session)
+    }
     return normalized
   }
 
+  #externalSessionCall<Value>(operation: () => Promise<Value>): Promise<Value> {
+    if (this.#externalSessionOperationCount >= MaximumExternalSessionOperations) {
+      fail('ACP_EXTERNAL_SESSION_BACKPRESSURE', 'unavailable', true)
+    }
+    this.#externalSessionOperationCount += 1
+    return Promise.resolve()
+      .then(operation)
+      .finally(() => {
+        this.#externalSessionOperationCount -= 1
+      })
+  }
+
   async #markUnlistedSessionsRemoved(observed: ReadonlySet<string>): Promise<void> {
-    if (!this.#externalSessions) return
-    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
-    const sessions = await this.#externalSessions.registry.list({
-      workspaceId: this.#externalSessions.workspaceId,
-      ...(this.#externalSessions.projectId === undefined
-        ? {}
-        : { projectId: this.#externalSessions.projectId }),
-      runtimeConnectionId: connection.runtimeConnectionId,
-    })
+    const externalSessions = this.#externalSessions
+    if (!externalSessions) return
+    const connection = RuntimeConnectionSchema.parse(externalSessions.runtimeConnection())
+    const sessions = await this.#externalSessionCall(() =>
+      externalSessions.registry.list({
+        workspaceId: externalSessions.workspaceId,
+        ...(externalSessions.projectId === undefined
+          ? {}
+          : { projectId: externalSessions.projectId }),
+        runtimeConnectionId: connection.runtimeConnectionId,
+      })
+    )
     for (const session of sessions) {
       if (session.state !== 'active' || observed.has(session.externalSessionId)) continue
-      const updated = await this.#externalSessions.registry.update({
-        externalSessionId: session.externalSessionId,
-        expectedVersion: session.version,
-        observedAt: this.#now().toISOString(),
-        state: 'removed',
-      })
+      const updated = await this.#externalSessionCall(() =>
+        externalSessions.registry.update({
+          externalSessionId: session.externalSessionId,
+          expectedVersion: session.version,
+          observedAt: this.#now().toISOString(),
+          state: 'removed',
+        })
+      )
       await this.#publishSessionDiscovery(updated)
     }
   }
 
   async #publishSessionDiscovery(session: ExternalSession): Promise<void> {
     if (!this.#externalSessions?.publishDiscovery) return
-    const connection = RuntimeConnectionSchema.parse(this.#externalSessions.runtimeConnection())
-    const evaluatedAt = this.#now().toISOString()
-    await this.#externalSessions.publishDiscovery({
-      scope: {
-        workspaceId: this.#externalSessions.workspaceId,
-        ...(this.#externalSessions.projectId === undefined
-          ? {}
-          : { projectId: this.#externalSessions.projectId }),
-        ...(connection.runtimeNodeRefId === undefined
-          ? {}
-          : { runtimeNodeRefId: connection.runtimeNodeRefId }),
-      },
-      model: projectExternalSessionDiscovery({
-        session,
-        assessment: assessExternalSession(session, {
-          connection,
-          nodeStatus: this.#externalSessions.nodeStatus(),
-          evaluatedAt,
-        }),
-      }),
+    const existing = this.#pendingPublications.get(session.externalSessionId)
+    if (existing) {
+      if (session.version > existing.latestVersion) {
+        existing.latestVersion = session.version
+        existing.pending = session
+      }
+      return
+    }
+    if (this.#pendingPublications.size >= MaximumPendingPublications) {
+      fail('ACP_DISCOVERY_BACKPRESSURE', 'unavailable', true)
+    }
+    const state: {
+      latestVersion: number
+      pending: ExternalSession | undefined
+      promise: Promise<void>
+    } = {
+      latestVersion: session.version,
+      pending: session,
+      promise: Promise.resolve(),
+    }
+    const publication = Promise.resolve().then(async () => {
+      while (state.pending) {
+        const next = state.pending
+        state.pending = undefined
+        const externalSessions = this.#externalSessions
+        if (!externalSessions?.publishDiscovery) return
+        const connection = RuntimeConnectionSchema.parse(externalSessions.runtimeConnection())
+        const evaluatedAt = this.#now().toISOString()
+        await externalSessions.publishDiscovery({
+          scope: {
+            workspaceId: externalSessions.workspaceId,
+            ...(externalSessions.projectId === undefined
+              ? {}
+              : { projectId: externalSessions.projectId }),
+            ...(connection.runtimeNodeRefId === undefined
+              ? {}
+              : { runtimeNodeRefId: connection.runtimeNodeRefId }),
+          },
+          model: projectExternalSessionDiscovery({
+            session: next,
+            assessment: assessExternalSession(next, {
+              connection,
+              nodeStatus: externalSessions.nodeStatus(),
+              evaluatedAt,
+            }),
+          }),
+        })
+      }
     })
+    state.promise = publication.finally(() => {
+      if (this.#pendingPublications.get(session.externalSessionId) === state) {
+        this.#pendingPublications.delete(session.externalSessionId)
+      }
+    })
+    this.#pendingPublications.set(session.externalSessionId, state)
+    await state.promise
   }
 
   async #replay(nativeSessionId: string, afterSequence?: number): Promise<AcpSessionReplay> {
-    if (!this.#transport.replay) fail('CAPABILITY_UNSUPPORTED', 'unsupported', false)
-    return this.#transport.replay(nativeSessionId, {
-      ...(afterSequence === undefined ? {} : { afterSequence }),
-    })
+    const replay = this.#transport.replay
+    if (!replay) fail('CAPABILITY_UNSUPPORTED', 'unsupported', false)
+    return this.#transportCall((signal) =>
+      replay.call(this.#transport, nativeSessionId, {
+        ...(afterSequence === undefined ? {} : { afterSequence }),
+        signal,
+      })
+    )
   }
 
   #normalizedSession(nativeSessionId: string, state: 'active' | 'closed') {
@@ -1120,6 +1726,8 @@ export class ReferenceAcpTransport implements AcpTransport {
     { readonly sessionId: string; readonly title?: string }
   >()
   readonly #effects = new Map<string, number>()
+  readonly #createdSessions = new Map<string, string>()
+  readonly #pendingCreatedSessions = new Map<string, Promise<{ readonly sessionId: string }>>()
   #replays = 0
   #state: 'connected' | 'disconnected' = 'connected'
 
@@ -1139,7 +1747,35 @@ export class ReferenceAcpTransport implements AcpTransport {
     return this.#state
   }
 
-  async request(method: string, params: Record<string, z.util.JSONType>): Promise<unknown> {
+  async createSession(
+    createToken: string,
+    signal?: AbortSignal
+  ): Promise<{ readonly sessionId: string }> {
+    const existing = this.#createdSessions.get(createToken)
+    if (existing) return { sessionId: existing }
+    const pending = this.#pendingCreatedSessions.get(createToken)
+    if (pending) return pending
+    const created = this.request('session/new', {}, signal).then((result) => {
+      const parsed = z.object({ sessionId: NativeSessionIdSchema }).strict().parse(result)
+      this.#createdSessions.set(createToken, parsed.sessionId)
+      return parsed
+    })
+    this.#pendingCreatedSessions.set(createToken, created)
+    try {
+      return await created
+    } finally {
+      if (this.#pendingCreatedSessions.get(createToken) === created) {
+        this.#pendingCreatedSessions.delete(createToken)
+      }
+    }
+  }
+
+  async request(
+    method: string,
+    params: Record<string, z.util.JSONType>,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    if (signal?.aborted) throw new Error('ACP_REQUEST_ABORTED')
     if (this.#state === 'disconnected') throw new Error('ACP_DISCONNECTED')
     this.#calls.push({ method, params: structuredClone(params) })
     if (method === 'initialize') {
@@ -1382,6 +2018,81 @@ function fail(
   retryable: boolean
 ): never {
   throw new RuntimeAdapterError({ code, classification, message: code, retryable })
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) fail('ACP_REQUEST_TIMEOUT', 'timeout', true)
+}
+
+function withAbortSignal<Value>(
+  signal: AbortSignal,
+  operation: () => Promise<Value>
+): Promise<Value> {
+  if (signal.aborted) {
+    return Promise.reject(
+      new RuntimeAdapterError({
+        code: 'ACP_REQUEST_TIMEOUT',
+        classification: 'timeout',
+        message: 'ACP_REQUEST_TIMEOUT',
+        retryable: true,
+      })
+    )
+  }
+  return new Promise<Value>((resolve, reject) => {
+    let settled = false
+    const finish = (complete: () => void) => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', abort)
+      complete()
+    }
+    const abort = () =>
+      finish(() =>
+        reject(
+          new RuntimeAdapterError({
+            code: 'ACP_REQUEST_TIMEOUT',
+            classification: 'timeout',
+            message: 'ACP_REQUEST_TIMEOUT',
+            retryable: true,
+          })
+        )
+      )
+    signal.addEventListener('abort', abort, { once: true })
+    Promise.resolve()
+      .then(operation)
+      .then(
+        (value) => finish(() => resolve(value)),
+        (error: unknown) => finish(() => reject(error))
+      )
+  })
+}
+
+function withTimeout<Value>(
+  timeoutMs: number,
+  operation: (signal: AbortSignal) => Promise<Value>,
+  timeoutError: () => Error
+): Promise<Value> {
+  const controller = new AbortController()
+  return new Promise<Value>((resolve, reject) => {
+    let settled = false
+    const finish = (complete: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      complete()
+    }
+    const timer = setTimeout(() => {
+      finish(() => reject(timeoutError()))
+      controller.abort()
+    }, timeoutMs)
+    timer.unref?.()
+    Promise.resolve()
+      .then(() => operation(controller.signal))
+      .then(
+        (value) => finish(() => resolve(value)),
+        (error: unknown) => finish(() => reject(error))
+      )
+  })
 }
 
 function stable(value: unknown): string {

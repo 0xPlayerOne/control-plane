@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import { executionConstraintFixtures } from '@control-plane/domain'
 import {
   DirectLocalRuntimeTransport,
@@ -229,4 +230,354 @@ describe('ACP RuntimeAdapter', () => {
     })
     expect(transport.effectCount(attemptId)).toBe(1)
   })
+
+  test('bounds transport waits and cleans failed starts without masking the original error', async () => {
+    const transport = new HangingAcpTransport()
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+
+    await expect(
+      driver.start({ attemptId, idempotencyKey: 'acp:hanging-prompt', executionPlan: plan() })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    expect(transport.closeCount).toBe(1)
+    expect(transport.cleanupCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(0)
+
+    transport.failCleanup = true
+    await expect(
+      driver.start({ attemptId, idempotencyKey: 'acp:hanging-prompt-retry', executionPlan: plan() })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    expect(transport.closeCount).toBe(2)
+    expect(transport.cleanupCount).toBe(2)
+  })
+
+  test('applies the same deadline to snapshot transport calls', async () => {
+    const transport = new HangingSnapshotTransport({ scenario: 'complete' })
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+    const handle = await driver.start({
+      attemptId,
+      idempotencyKey: 'acp:hanging-snapshot',
+      executionPlan: plan(),
+    })
+
+    await expect(driver.status(handle)).rejects.toMatchObject({
+      code: 'ACP_REQUEST_TIMEOUT',
+      classification: 'timeout',
+    })
+  })
+
+  test('cleans the native session when post-create identity mapping fails', async () => {
+    const transport = new HangingAcpTransport()
+    transport.hangPrompt = false
+    const driver = directDriver(transport, { externalSessionId: () => 'invalid-session-id' })
+
+    await expect(
+      driver.start({ attemptId, idempotencyKey: 'acp:invalid-session-id', executionPlan: plan() })
+    ).rejects.toThrow()
+    expect(transport.closeCount).toBe(1)
+    expect(transport.cleanupCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(0)
+  })
+
+  test('times out and cleans transports that ignore abort signals', async () => {
+    const transport = new HangingAcpTransport()
+    transport.ignoreAbort = true
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+
+    await expect(
+      driver.start({ attemptId, idempotencyKey: 'acp:ignored-abort', executionPlan: plan() })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    expect(transport.closeCount).toBe(1)
+    expect(transport.cleanupCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(0)
+  })
+
+  test('reclaims a session identified by a late session/new response', async () => {
+    const transport = new HangingAcpTransport()
+    transport.delayNewMs = 25
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+
+    await expect(
+      driver.start({ attemptId, idempotencyKey: 'acp:late-new', executionPlan: plan() })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    await delay(40)
+    expect(transport.closeCount).toBe(1)
+    expect(transport.cleanupCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(0)
+  })
+
+  test('cleans an identifiable session/new response that fails strict validation', async () => {
+    const transport = new HangingAcpTransport()
+    transport.extraNewField = true
+    const driver = directDriver(transport)
+
+    await expect(
+      driver.start({ attemptId, idempotencyKey: 'acp:invalid-new', executionPlan: plan() })
+    ).rejects.toThrow()
+    expect(transport.closeCount).toBe(1)
+    expect(transport.cleanupCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(0)
+  })
+
+  test('coalesces concurrent starts with the same idempotency key', async () => {
+    const transport = new HangingAcpTransport()
+    transport.hangPrompt = false
+    const driver = directDriver(transport)
+    const request = { attemptId, idempotencyKey: 'acp:concurrent', executionPlan: plan() }
+
+    const [first, second] = await Promise.all([driver.start(request), driver.start(request)])
+
+    expect(second).toEqual(first)
+    expect(transport.newCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(1)
+  })
+
+  test('reconciles rejection after create side effects before allowing retry', async () => {
+    const transport = new HangingAcpTransport()
+    transport.rejectFirstNewOnAbort = true
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+    const request = { attemptId, idempotencyKey: 'acp:rejected-new', executionPlan: plan() }
+
+    await expect(driver.start(request)).rejects.toMatchObject({
+      code: 'ACP_REQUEST_TIMEOUT',
+      classification: 'timeout',
+    })
+    transport.hangPrompt = false
+    const handle = await driver.start(request)
+
+    expect(handle.attemptId).toBe(attemptId)
+    expect(transport.cleanupCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(1)
+  })
+
+  test('rejects concurrent reuse of an attempt ID under a different idempotency key', async () => {
+    const transport = new HangingAcpTransport()
+    transport.hangPrompt = false
+    transport.delayNewMs = 20
+    const driver = directDriver(transport)
+    const first = driver.start({
+      attemptId,
+      idempotencyKey: 'acp:attempt-owner',
+      executionPlan: plan(),
+    })
+
+    await expect(
+      driver.start({
+        attemptId,
+        idempotencyKey: 'acp:attempt-conflict',
+        executionPlan: plan(),
+      })
+    ).rejects.toMatchObject({ code: 'ACP_ATTEMPT_ID_CONFLICT', classification: 'conflict' })
+    await first
+    expect(transport.newCount).toBe(1)
+  })
+
+  test('reconciles create side effects even when the original promise ignores abort', async () => {
+    const transport = new HangingAcpTransport()
+    transport.ignoreFirstNewAbort = true
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+    const request = { attemptId, idempotencyKey: 'acp:ignored-new-abort', executionPlan: plan() }
+
+    await expect(driver.start(request)).rejects.toMatchObject({
+      code: 'ACP_REQUEST_TIMEOUT',
+      classification: 'timeout',
+    })
+    transport.hangPrompt = false
+    const handle = await driver.start(request)
+
+    expect(handle.attemptId).toBe(attemptId)
+    expect(transport.closeCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(1)
+  })
+
+  test('blocks retry when failed-start remote close cannot be confirmed', async () => {
+    const transport = new HangingAcpTransport()
+    transport.failClose = true
+    transport.cleanupReclaims = false
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+    const request = { attemptId, idempotencyKey: 'acp:uncertain-close', executionPlan: plan() }
+
+    await expect(driver.start(request)).rejects.toMatchObject({
+      code: 'ACP_REQUEST_TIMEOUT',
+      classification: 'timeout',
+    })
+    await expect(driver.start(request)).rejects.toMatchObject({
+      code: 'ACP_START_OUTCOME_UNKNOWN',
+      classification: 'conflict',
+    })
+    expect(transport.activeSessionCount).toBe(1)
+    expect(transport.newCount).toBe(1)
+  })
+
+  test('reconciles and coalesces explicit session creation', async () => {
+    const transport = new HangingAcpTransport()
+    transport.delayNewMs = 25
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+    const operation = { operation: 'create', idempotencyKey: 'acp:session-create' }
+
+    await expect(driver.session(operation)).rejects.toMatchObject({
+      code: 'ACP_REQUEST_TIMEOUT',
+      classification: 'timeout',
+    })
+    await delay(30)
+    transport.delayNewMs = 0
+    const [first, second] = await Promise.all([
+      driver.session(operation),
+      driver.session(operation),
+    ])
+
+    expect(second).toEqual(first)
+    expect(transport.closeCount).toBe(1)
+    expect(transport.newCount).toBe(2)
+    expect(transport.activeSessionCount).toBe(1)
+  })
+
+  test('reconciles a synchronous create throw after its side effect', async () => {
+    const transport = new SynchronousThrowCreateTransport()
+    const driver = directDriver(transport, { requestTimeoutMs: 10 })
+    const request = { attemptId, idempotencyKey: 'acp:sync-create-throw', executionPlan: plan() }
+
+    await expect(driver.start(request)).rejects.toThrow('SYNC_CREATE_FAILURE')
+    const handle = await driver.start(request)
+
+    expect(handle.attemptId).toBe(attemptId)
+    expect(transport.closeCount).toBe(1)
+    expect(transport.activeSessionCount).toBe(1)
+  })
+
+  test('coalesces concurrent public cleanup calls exactly once', async () => {
+    const transport = new HangingAcpTransport()
+    transport.hangPrompt = false
+    const driver = directDriver(transport)
+    const handle = await driver.start({
+      attemptId,
+      idempotencyKey: 'acp:cleanup-once',
+      executionPlan: plan(),
+    })
+
+    await Promise.all([driver.cleanup(handle), driver.cleanup(handle)])
+
+    expect(transport.cleanupCount).toBe(1)
+  })
 })
+
+function directDriver(transport, options = {}) {
+  return new AcpDriver({
+    transport,
+    adapterVersion: '1.0.0',
+    externalSessionId: () => 'ses_01JABCDEF0123456789ABCDEFG',
+    interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
+    now: () => new Date(now),
+    ...options,
+  })
+}
+
+class HangingAcpTransport extends ReferenceAcpTransport {
+  activeSessions = new Set()
+  closeCount = 0
+  cleanupCount = 0
+  failCleanup = false
+  hangPrompt = true
+  ignoreAbort = false
+  delayNewMs = 0
+  extraNewField = false
+  newCount = 0
+  rejectFirstNewOnAbort = false
+  ignoreFirstNewAbort = false
+  failClose = false
+  cleanupReclaims = true
+  createdSessions = new Map()
+
+  get activeSessionCount() {
+    return this.activeSessions.size
+  }
+
+  async createSession(createToken, signal) {
+    const existing = this.createdSessions.get(createToken)
+    if (existing) return { sessionId: existing }
+    const result = await super.request('session/new', {}, signal)
+    this.newCount += 1
+    this.activeSessions.add(result.sessionId)
+    this.createdSessions.set(createToken, result.sessionId)
+    if (this.rejectFirstNewOnAbort && this.newCount === 1) {
+      await waitForAbort(signal)
+    }
+    if (this.ignoreFirstNewAbort && this.newCount === 1) {
+      return new Promise(() => {})
+    }
+    if (this.delayNewMs > 0) {
+      await delay(this.delayNewMs)
+    }
+    if (this.extraNewField) return { ...result, unexpected: true }
+    return result
+  }
+
+  async request(method, params, signal) {
+    if (method === 'session/prompt' && this.hangPrompt) {
+      if (this.ignoreAbort) return new Promise(() => {})
+      return waitForAbort(signal)
+    }
+    if (method === 'session/close' && this.failClose) {
+      this.closeCount += 1
+      throw new Error('SIMULATED_CLOSE_FAILURE')
+    }
+    const result = await super.request(method, params, signal)
+    if (method === 'session/close') {
+      this.closeCount += 1
+      this.activeSessions.delete(params.sessionId)
+    }
+    return result
+  }
+
+  async cleanup(nativeSessionId, signal) {
+    this.cleanupCount += 1
+    if (this.cleanupReclaims) this.activeSessions.delete(nativeSessionId)
+    if (!signal) throw new Error('MISSING_ABORT_SIGNAL')
+    if (this.failCleanup) throw new Error('SIMULATED_CLEANUP_FAILURE')
+  }
+}
+
+class HangingSnapshotTransport extends ReferenceAcpTransport {
+  async snapshot(_nativeSessionId, signal) {
+    return waitForAbort(signal)
+  }
+}
+
+class SynchronousThrowCreateTransport extends ReferenceAcpTransport {
+  activeSessions = new Set()
+  createdSessions = new Map()
+  closeCount = 0
+  throwFirst = true
+
+  get activeSessionCount() {
+    return this.activeSessions.size
+  }
+
+  createSession(createToken) {
+    const existing = this.createdSessions.get(createToken)
+    if (existing) return Promise.resolve({ sessionId: existing })
+    const sessionId = 'native-session-1'
+    this.createdSessions.set(createToken, sessionId)
+    this.activeSessions.add(sessionId)
+    if (this.throwFirst) {
+      this.throwFirst = false
+      throw new Error('SYNC_CREATE_FAILURE')
+    }
+    return Promise.resolve({ sessionId })
+  }
+
+  async request(method, params, signal) {
+    if (method === 'session/close') {
+      this.closeCount += 1
+      this.activeSessions.delete(params.sessionId)
+      return {}
+    }
+    return super.request(method, params, signal)
+  }
+}
+
+function waitForAbort(signal) {
+  if (!signal) throw new Error('MISSING_ABORT_SIGNAL')
+  return new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('ABORTED')), { once: true })
+  })
+}

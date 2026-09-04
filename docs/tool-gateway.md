@@ -67,6 +67,16 @@ server, remote tool name/version, schema digest, and discovery time. A changed s
 new immutable version; an execution already pinned to the previous digest fails closed instead of
 silently using the changed remote contract.
 
+Discovery is a bounded provider trust boundary. The adapter rejects catalogs above 256 tools,
+responses above the managed-cloud 1 MiB gateway-frame limit, and either input or output schema above
+the 256 KiB remote-metadata limit or 32 levels of nesting before it hashes or publishes any tool.
+Tool identity and descriptive fields are bounded, and each tool may declare at most 64 unique
+capabilities. Every `McpClientPort` must declare and implement raw-frame enforcement; the adapter
+passes the 1 MiB ceiling into every discovery call and rejects clients without that guarantee. This
+keeps an oversized wire response from being materialized before the parsed catalog is checked.
+The complete catalog's schemas are compiled before registry state changes, and the immutable source
+digest includes capabilities and read-only status so authority-only drift publishes a new version.
+
 MCP calls use the same policy-controlled Tool Gateway path as every other executor. Disconnects,
 removed tools, protocol errors, timeouts, invalid output, and oversized output are exposed as
 bounded error codes. The server's vault or lease reference stays inside the adapter and is supplied

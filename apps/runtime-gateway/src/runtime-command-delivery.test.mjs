@@ -37,6 +37,28 @@ describe('durable Runtime Gateway command delivery', () => {
     expect(restarted.metrics.counterValue('runtime_gateway.command_redeliveries')).toBe(1)
   })
 
+  test('rejects acknowledgements for a sequence that was never dispatched', async () => {
+    const gateway = service(new InMemoryRuntimeCommandRepository(), new RecordingSender())
+    await gateway.enqueue(command)
+
+    await expect(
+      gateway.acknowledge({ ...golden.ack, channelGeneration: 1, sequence: 1 })
+    ).rejects.toMatchObject({ code: 'RUNTIME_COMMAND_SCOPE_MISMATCH' })
+    expect(await gateway.get(command.commandId)).toMatchObject({ status: 'queued' })
+
+    await gateway.deliver(command.commandId, { channelGeneration: 1, sequence: 10 })
+
+    await expect(
+      gateway.acknowledge({ ...golden.ack, channelGeneration: 1, sequence: 11 })
+    ).rejects.toMatchObject({ code: 'RUNTIME_COMMAND_SCOPE_MISMATCH' })
+    const retained = await gateway.get(command.commandId)
+    expect(retained).toMatchObject({
+      status: 'dispatched',
+      lastSequence: 10,
+    })
+    expect(retained?.acknowledgementReference).toBeUndefined()
+  })
+
   test('uses the RuntimeNode ledger to return the recorded outcome after loss before ACK', async () => {
     const repository = new InMemoryRuntimeCommandRepository()
     const node = new ReferenceRuntimeNode({ now: () => new Date('2026-08-25T12:00:01.000Z') })

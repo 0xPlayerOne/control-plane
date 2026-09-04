@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm'
 import process from 'node:process'
 import { loadDatabaseCredentials } from '@control-plane/config'
 import { contextPackageSerializationFixtures } from '@control-plane/context'
+import { NeonEncryptedSecretProvider } from '@control-plane/credential-vault'
 import {
   CommandInboxService,
   ExecutionLifecycleService,
@@ -22,6 +23,7 @@ import {
 } from '@control-plane/runtime-sdk'
 import { PostgresCommandAcceptanceRepository } from './command-inbox-repository.ts'
 import { PostgresContextPackageRepository } from './context-package-repository.ts'
+import { PostgresEncryptedSecretStore } from './credential-secret-store.ts'
 import { PostgresDelegationRepository } from './delegation-repository.ts'
 import { PostgresExecutionEventRepository } from './execution-event-repository.ts'
 import { PostgresExternalSessionRepository } from './external-session-repository.ts'
@@ -45,6 +47,7 @@ import { PostgresUsageLedgerRepository } from './usage-ledger-repository.ts'
 import {
   commandInbox,
   contextPackages,
+  credentialSecrets,
   delegations,
   evaluationRuns,
   executionEvents,
@@ -112,6 +115,52 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         'runtime_inventory_checkpoints',
       ])
     )
+  })
+
+  test('persists aad-v1 credential rows and marks pre-migration rows as fail-closed legacy', async () => {
+    await isolated.migrate()
+    const store = new PostgresEncryptedSecretStore(isolated.application)
+    const provider = new NeonEncryptedSecretProvider({
+      store,
+      encryptionKey: 'a'.repeat(64),
+      keyReference: 'control-plane-secret-key-v1',
+    })
+    const reference = await provider.store({
+      credentialId: 'cred_01JABCDEF0123456789ABCDEFG',
+      revision: 1,
+      secret: 'database-secret-value',
+    })
+
+    expect(await provider.resolve(reference)).toBe('database-secret-value')
+    expect(
+      await isolated.application
+        .select({ encryptionVersion: credentialSecrets.encryptionVersion })
+        .from(credentialSecrets)
+        .where(eq(credentialSecrets.locator, reference.locator))
+    ).toEqual([{ encryptionVersion: 'aad-v1' }])
+
+    const legacyLocator = 'neon://credential-secrets/cred_01JBBCDEF0123456789ABCDEFG'
+    await isolated.application.insert(credentialSecrets).values({
+      locator: legacyLocator,
+      version: '1',
+      ciphertext: 'AA',
+      iv: 'AAAAAAAAAAAAAAAA',
+      authTag: 'AAAAAAAAAAAAAAAAAAAAAA',
+      keyReference: 'control-plane-secret-key-v1',
+    })
+    expect(await store.get({ locator: legacyLocator, version: '1' })).toMatchObject({
+      encryptionVersion: 'legacy-v0',
+    })
+    await expect(
+      provider.resolve({
+        backend: 'neon-encrypted',
+        locator: legacyLocator,
+        version: '1',
+        keyReference: 'control-plane-secret-key-v1',
+        encryptionVersion: 'aad-v1',
+        ciphertextDigest: `sha256:${'0'.repeat(64)}`,
+      })
+    ).rejects.toThrow('SECRET_LEGACY_FORMAT')
   })
 
   test('persists immutable execution plans across repository restart', async () => {
@@ -757,13 +806,26 @@ describe.skipIf(!integrationEnabled)('PostgreSQL persistence foundation', () => 
         type: 'attempt.progressed',
         schemaVersion: 1,
         correlation,
-        payload: { state: 'running' },
+        payload: {
+          state: 'running',
+          privateKey: 'postgres-runtime-secret-canary-9f4a',
+          nested: { signingKey: 'postgres-runtime-secret-canary-9f4a' },
+        },
         occurredAt: '2026-08-24T23:00:02.000Z',
         recordedAt: '2026-08-24T23:00:03.000Z',
         retentionExpiresAt: '2026-11-22T23:00:03.000Z',
       },
     }
-    expect(await sink.applyProgress(progress)).toMatchObject({ outcome: 'applied' })
+    expect(await sink.applyProgress(progress)).toMatchObject({
+      outcome: 'applied',
+      event: {
+        payload: {
+          state: 'running',
+          privateKey: '[REDACTED]',
+          nested: { signingKey: '[REDACTED]' },
+        },
+      },
+    })
     expect(
       await new PostgresRuntimeEventEffectSink(isolated.application).applyProgress(progress)
     ).toMatchObject({ outcome: 'duplicate' })
