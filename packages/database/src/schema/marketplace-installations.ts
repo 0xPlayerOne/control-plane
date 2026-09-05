@@ -12,11 +12,11 @@ export const marketplaceInstallations = pgTable(
   'marketplace_installations',
   {
     installationId: varchar('installation_id', { length: 64 }).primaryKey(),
-    catalogId: varchar('catalog_id', { length: 71 }).notNull(),
+    catalogId: varchar('catalog_id', { length: 72 }).notNull(),
     workspaceId: varchar('workspace_id', { length: 256 }).notNull(),
     userId: varchar('user_id', { length: 256 }).notNull(),
     pluginId: varchar('plugin_id', { length: 192 }).notNull(),
-    releaseId: varchar('release_id', { length: 71 }).notNull(),
+    releaseId: varchar('release_id', { length: 72 }).notNull(),
     canonicalContentDigest: varchar('canonical_content_digest', { length: 71 }).notNull(),
     requestedHarness: varchar('requested_harness', { length: 64 }).notNull(),
     requiredConnectors: jsonb('required_connectors').$type<readonly string[]>().notNull(),
