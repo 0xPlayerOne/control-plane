@@ -1,4 +1,5 @@
 import {
+  createQueuedRuntimeCommandRecord,
   RuntimeCommandRecordSchema,
   RuntimeCommandResultReferenceSchema,
   type RuntimeCommandRecord,
@@ -7,10 +8,12 @@ import {
 import {
   GatewayAcknowledgementEnvelopeSchema,
   GatewayCommandEnvelopeSchema,
+  GatewayErrorEnvelopeSchema,
   GatewayResultEnvelopeSchema,
   type GatewayCommandEnvelope,
 } from '@control-plane/runtime-gateway-protocol'
 import type { GatewayMetrics } from './websocket-coordination.js'
+import type { ActiveRuntimeNodeChannelRecord } from './websocket-coordination.js'
 
 export interface RuntimeCommandSender {
   send(envelope: GatewayCommandEnvelope): Promise<void>
@@ -69,24 +72,7 @@ export class RuntimeCommandDeliveryService {
       throw new RuntimeCommandDeliveryError('RUNTIME_COMMAND_SCOPE_MISMATCH')
     }
     const now = this.#now().toISOString()
-    const record = RuntimeCommandRecordSchema.parse({
-      commandId: command.commandId,
-      executionId: command.executionId,
-      attemptId: command.attemptId,
-      nodeId: command.nodeId,
-      runtimeConnectionId: command.runtimeConnectionId,
-      workspaceId: command.workspaceId,
-      idempotencyKey: command.idempotencyKey,
-      payloadHash: command.payloadHash,
-      commandEnvelope: command,
-      issuedAt: command.issuedAt,
-      expiresAt: command.expiresAt,
-      status: 'queued',
-      version: 1,
-      deliveryAttempts: 0,
-      createdAt: now,
-      updatedAt: now,
-    })
+    const record = createQueuedRuntimeCommandRecord(command, now)
     const created = await this.#repository.create(record)
     if (created.outcome === 'conflict') {
       throw new RuntimeCommandDeliveryError('RUNTIME_COMMAND_PAYLOAD_MISMATCH')
@@ -216,16 +202,19 @@ export class RuntimeCommandDeliveryService {
 
   async recordResult(
     resultValue: unknown,
-    resultReferenceValue: unknown
+    resultReferenceValue?: unknown
   ): Promise<{ readonly record: RuntimeCommandRecord; readonly duplicate: boolean }> {
     const result = GatewayResultEnvelopeSchema.parse(resultValue)
-    const resultReference = RuntimeCommandResultReferenceSchema.parse(resultReferenceValue)
+    const resultReference =
+      resultReferenceValue === undefined
+        ? undefined
+        : RuntimeCommandResultReferenceSchema.parse(resultReferenceValue)
     const current = await this.#required(result.commandId)
     this.#assertRecordedResultScope(current, result)
     if (result.payloadHash !== current.payloadHash) {
       fail('RUNTIME_COMMAND_PAYLOAD_MISMATCH')
     }
-    if (current.resultReference !== undefined) {
+    if (current.resultStatus !== undefined) {
       if (current.resultReference === resultReference && current.resultStatus === result.status) {
         return { record: current, duplicate: true }
       }
@@ -239,8 +228,37 @@ export class RuntimeCommandDeliveryService {
       ...current,
       status: result.status,
       version: current.version + 1,
-      resultReference,
+      ...(resultReference === undefined ? {} : { resultReference }),
       resultStatus: result.status,
+      resultRecordedAt: now,
+      updatedAt: now,
+    })
+    return { record: next, duplicate: false }
+  }
+
+  async recordError(
+    errorValue: unknown
+  ): Promise<{ readonly record: RuntimeCommandRecord; readonly duplicate: boolean }> {
+    const error = GatewayErrorEnvelopeSchema.parse(errorValue)
+    if (error.commandId === undefined || error.payloadHash === undefined) {
+      fail('RUNTIME_COMMAND_SCOPE_MISMATCH')
+    }
+    const current = await this.#required(error.commandId)
+    this.#assertRecordedResultScope(current, error)
+    if (error.payloadHash !== current.payloadHash) fail('RUNTIME_COMMAND_PAYLOAD_MISMATCH')
+    if (current.resultStatus !== undefined) {
+      if (current.resultStatus === 'failed' && current.resultReference === undefined) {
+        return { record: current, duplicate: true }
+      }
+      fail('RUNTIME_COMMAND_RESULT_CONFLICT')
+    }
+    if (isTerminal(current.status)) fail('RUNTIME_COMMAND_RESULT_CONFLICT')
+    const now = this.#now().toISOString()
+    const next = await this.#save(current, {
+      ...current,
+      status: 'failed',
+      version: current.version + 1,
+      resultStatus: 'failed',
       resultRecordedAt: now,
       updatedAt: now,
     })
@@ -305,7 +323,7 @@ export class RuntimeCommandDeliveryService {
       envelope.nodeId !== current.nodeId ||
       envelope.workspaceId !== current.workspaceId ||
       envelope.channelGeneration !== current.lastChannelGeneration ||
-      envelope.sequence < (current.lastSequence ?? 0)
+      envelope.sequence !== current.lastSequence
     ) {
       fail('RUNTIME_COMMAND_SCOPE_MISMATCH')
     }
@@ -327,6 +345,51 @@ export class RuntimeCommandDeliveryService {
     ) {
       fail('RUNTIME_COMMAND_SCOPE_MISMATCH')
     }
+  }
+}
+
+export interface RuntimePendingCommandDispatcherOptions {
+  readonly repository: RuntimeCommandRepository
+  readonly delivery: Pick<RuntimeCommandDeliveryService, 'deliver'>
+  readonly now?: () => Date
+  readonly limit?: number
+}
+
+export class RuntimePendingCommandDispatcher {
+  readonly #delivery: RuntimePendingCommandDispatcherOptions['delivery']
+  readonly #limit: number
+  readonly #now: () => Date
+  readonly #repository: RuntimeCommandRepository
+
+  constructor(options: RuntimePendingCommandDispatcherOptions) {
+    this.#repository = options.repository
+    this.#delivery = options.delivery
+    this.#now = options.now ?? (() => new Date())
+    this.#limit = options.limit ?? 128
+    if (!Number.isSafeInteger(this.#limit) || this.#limit < 1 || this.#limit > 1_000) {
+      throw new Error('RUNTIME_PENDING_COMMAND_LIMIT_INVALID')
+    }
+  }
+
+  async dispatch(source: ActiveRuntimeNodeChannelRecord, firstSequence: number): Promise<number> {
+    if (!Number.isSafeInteger(firstSequence) || firstSequence < 1) {
+      throw new Error('RUNTIME_PENDING_COMMAND_SEQUENCE_INVALID')
+    }
+    const dispatchable = await this.#repository.listDispatchable(
+      source.nodeId,
+      this.#now().toISOString(),
+      this.#limit
+    )
+    let delivered = 0
+    for (const command of dispatchable) {
+      if (command.status !== 'queued' || command.workspaceId !== source.workspaceId) continue
+      const outcome = await this.#delivery.deliver(command.commandId, {
+        channelGeneration: source.channelGeneration,
+        sequence: firstSequence + delivered,
+      })
+      if (outcome.sent) delivered += 1
+    }
+    return delivered
   }
 }
 

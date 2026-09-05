@@ -108,6 +108,11 @@ optimistically versioned, capability snapshots cannot regress or conflict at one
 revocation is terminal. The PostgreSQL record preserves only the scoped opaque reference and normalized
 metadata, not native ownership or unrestricted session state.
 
+ACP session discovery publishes each normalized create, observation update, and removal through an
+optional projection port. Supported compositions bind that port to their scoped SQLite or PostgreSQL
+discovery repository; projection failure fails the adapter operation so retry can repair the public
+read model without exposing native session identifiers.
+
 ## Agent HQ discovery read models
 
 The Control API exposes authenticated v1 list/get operations for runtime connections and external
@@ -153,3 +158,12 @@ Tested-version metadata records the exact public contract, adapter, driver, and 
 to establish compatibility. Equality helpers compare parsed normalized definitions and capability sets
 independent of capability ordering. The neutral adapter contract and mock do not implement discovery,
 installation, native authentication, or concrete Pi/ACP execution.
+
+The Local managed Pi process client is a concrete direct execution path, but its claims remain
+bounded. It inspects the configured Pi executable, supports the explicit `0.84.x` launcher range,
+streams text and usage through strict RPC framing, accepts cancellation, and exposes steering input
+as degraded. It disables Pi-native tools and ambient configuration and therefore does not advertise
+filesystem, tool, approval, Artifact, or restart-reconciliation capabilities. Exact immutable
+Profile/Skill/ContextPackage inputs are resolved and checked before process start. A plan requiring
+an omitted capability is rejected by normal RuntimeAdapter eligibility rather than executed with a
+weaker policy.

@@ -64,6 +64,8 @@ export class CloudCertificationRuntime implements WorkflowRuntimeActivityPort {
     }
   }
 
+  async cancel(): Promise<void> {}
+
   async cleanup(): Promise<void> {}
 
   async #verifyRetained(

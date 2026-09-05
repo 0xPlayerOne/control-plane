@@ -133,7 +133,11 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
     const parsed = GraphCancellationRequestSchema.safeParse(input)
     if (!parsed.success) throw new OrchestrationError('INVALID_GRAPH_REQUEST', false)
     this.#active.get(activeKey(parsed.data.executionId, parsed.data.threadId))?.abort()
-    const cancelled = await this.#operations.cancel(parsed.data.executionId, parsed.data.threadId)
+    const cancelled = await this.#operations.cancel(
+      parsed.data.executionId,
+      parsed.data.threadId,
+      parsed.data.idempotencyKey
+    )
     await this.#events.publish(
       createGraphEvent({
         ...correlation(parsed.data),
@@ -142,7 +146,8 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         type: 'graph.cancelled',
         occurredAt: this.#now(),
         details: { reason: parsed.data.reason },
-      })
+      }),
+      parsed.data.idempotencyKey
     )
     return cancelled
   }
@@ -180,7 +185,7 @@ export class LangGraphOrchestrationAdapter implements OrchestrationPort {
         details,
       })
       emitted.push(event)
-      await this.#events.publish(event)
+      await this.#events.publish(event, `${request.idempotencyKey}:event:${sequence}`)
     }
     try {
       await emit(initialEvent)

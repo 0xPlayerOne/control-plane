@@ -2,6 +2,7 @@ import { ExecutionSchema, type Execution } from '@control-plane/domain'
 import {
   ExecutionEventSchema,
   hashExecutionEventPayload,
+  sanitizeExecutionEventDraft,
   type ExecutionEvent,
   type ExecutionEventDraft,
   type ExecutionEventRepository,
@@ -141,18 +142,19 @@ export async function appendExecutionEventInTransaction(
   transaction: DatabaseTransaction,
   draft: ExecutionEventDraft
 ) {
-  await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${draft.executionId}))`)
+  const sanitized = sanitizeExecutionEventDraft(draft)
+  await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${sanitized.executionId}))`)
   const [latest] = await transaction
     .select({ sequence: executionEvents.sequence })
     .from(executionEvents)
-    .where(eq(executionEvents.executionId, draft.executionId))
+    .where(eq(executionEvents.executionId, sanitized.executionId))
     .orderBy(sql`${executionEvents.sequence} desc`)
     .limit(1)
   const event = ExecutionEventSchema.parse({
-    ...draft,
+    ...sanitized,
     sequence: (latest?.sequence ?? 0) + 1,
-    payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
-    payloadHash: hashExecutionEventPayload(draft.payload),
+    payloadBytes: Buffer.byteLength(JSON.stringify(sanitized.payload)),
+    payloadHash: hashExecutionEventPayload(sanitized.payload),
     publication: { status: 'pending', attempts: 0, version: 1 },
   })
   const [inserted] = await transaction

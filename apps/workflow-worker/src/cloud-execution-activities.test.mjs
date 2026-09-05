@@ -12,6 +12,63 @@ const ids = {
 }
 
 describe('durable Cloud execution activities', () => {
+  test('freezes the selected remote runtime on the durable attempt before dispatch', async () => {
+    const repository = new InMemoryExecutionRepository()
+    const lifecycle = new ExecutionLifecycleService(repository)
+    const plans = new InMemoryExecutionPlanRepository()
+    const plan = executionPlan()
+    await plans.put(plan)
+    await lifecycle.createExecution({
+      executionId: ids.executionId,
+      correlation: plan.correlation,
+      executionPlan: {
+        executionPlanId: plan.executionPlanId,
+        contentDigest: plan.contentDigest,
+        schemaVersion: plan.schemaVersion,
+      },
+      acceptedAt: '2026-08-28T12:00:00.000Z',
+    })
+    const selected = {
+      runtimeDefinitionId: 'rtd_01JABCDEF0123456789ABCDEFG',
+      runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+      runtimeConnectionId: 'rtc_01JABCDEF0123456789ABCDEFG',
+      routingDecision: {
+        routingVersion: 1,
+        policy: {
+          policyId: 'runtime-routing-v1',
+          version: 1,
+          digest: `sha256:${'a'.repeat(64)}`,
+        },
+        evaluatedAt: '2026-08-28T12:00:00.000Z',
+        inputDigest: `sha256:${'b'.repeat(64)}`,
+        decisionDigest: `sha256:${'c'.repeat(64)}`,
+        selectedRank: 1,
+        candidateCount: 1,
+        reasonCodes: ['RUNTIME_SELECTED'],
+      },
+    }
+    let resolutions = 0
+    const activity = activities({
+      lifecycle,
+      plans,
+      runtime: runtimePort(),
+      runtimeRouter: {
+        resolve: async (input) => {
+          resolutions += 1
+          expect(input.executionPlan).toEqual(plan)
+          expect(input.execution.executionId).toBe(ids.executionId)
+          return selected
+        },
+      },
+    })
+
+    await activity.persistStatus(status('queued'))
+    await activity.ensureAttempt(attemptInput())
+    await activity.ensureAttempt(attemptInput())
+    expect(await repository.getAttempt(ids.attemptId)).toMatchObject({ runtime: selected })
+    expect(resolutions).toBe(1)
+  })
+
   test('converges lifecycle replay on one attempt and one terminal result across restart', async () => {
     const repository = new InMemoryExecutionRepository()
     const lifecycle = new ExecutionLifecycleService(repository)
@@ -148,7 +205,7 @@ describe('durable Cloud execution activities', () => {
   })
 })
 
-function activities({ lifecycle, plans, runtime }) {
+function activities({ lifecycle, plans, runtime, runtimeRouter }) {
   return new DurableExecutionLifecycleActivities({
     lifecycle,
     plans,
@@ -173,6 +230,7 @@ function activities({ lifecycle, plans, runtime }) {
     commands: {
       transitionExecutionCommand: async (input) => runtime.commandTransitions.push(input),
     },
+    ...(runtimeRouter === undefined ? {} : { runtimeRouter }),
     now: () => '2026-08-28T12:00:01.000Z',
   })
 }

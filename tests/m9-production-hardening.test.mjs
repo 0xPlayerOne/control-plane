@@ -237,7 +237,7 @@ describe('M9 production hardening acceptance', () => {
     assert.match(workflow, /- run: bun run test:unit/)
     assert.match(workflow, /- run: bun run test:isolation-matrix/)
     assert.match(workflow, /- run: bun run test:secret-canaries/)
-    assert.match(workflow, /- run: bun run test:recovery-matrix/)
+    assert.match(workflow, /bun run test:recovery-matrix \| tee m11-evidence\/recovery\.log/)
     assert.match(workflow, /concurrency:[\s\S]*group:.*github\.event_name/)
     assert.match(
       operations,

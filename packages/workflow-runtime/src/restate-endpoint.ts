@@ -6,8 +6,10 @@ import {
 } from '@control-plane/orchestration'
 import {
   runExecutionLifecycle,
+  type ActivityRaceResult,
   type ExecutionLifecycleActivities,
   type ExecutionWorkflowResult,
+  type TerminalControl,
   type WorkflowInteractionResponse,
 } from './execution-workflow.js'
 
@@ -36,6 +38,7 @@ const defaultActivities: ExecutionLifecycleActivities = {
   runGraphSegment: unavailable,
   resumeGraphSegment: unavailable,
   continueGraphSegment: unavailable,
+  cancelActive: unavailable,
   cleanup: unavailable,
 }
 
@@ -64,8 +67,6 @@ export function createRestateWorkflowDefinition(
   })
 }
 
-type TerminalControl = { readonly cancelled: true } | { readonly deadlineReached: true }
-
 async function runRestateExecution(
   ctx: restate.WorkflowContext,
   inputValue: unknown,
@@ -74,35 +75,34 @@ async function runRestateExecution(
   const input: ExecutionWorkflowInput = ExecutionWorkflowInputSchema.parse(inputValue)
   const deadlineDelay = Math.max(0, Date.parse(input.deadlineAt) - (await ctx.date.now()))
   const terminalControl = ctx.promise<TerminalControl>(terminalControlPromiseName)
-  const waitForInteraction = async (
-    interactionId: string
-  ): Promise<WorkflowInteractionResponse> => {
-    const outcome = await restate.RestatePromise.race([
-      ctx.promise<WorkflowInteractionResponse>(interactionPromiseName(interactionId)).get(),
-      terminalControl.get(),
-      ctx
-        .sleep(deadlineDelay, 'execution-deadline')
-        .map(() => ({ deadlineReached: true }) as const),
-    ])
-    if ('cancelled' in outcome) throw new RestateTerminalControlError({ cancelled: true })
-    if ('deadlineReached' in outcome)
-      throw new RestateTerminalControlError({ deadlineReached: true })
-    return outcome
-  }
-  try {
-    return await runExecutionLifecycle(input, createDurableActivities(ctx, activities), {
-      waitForInteraction,
-    })
-  } catch (error) {
-    if (!(error instanceof RestateTerminalControlError)) throw error
-    return runExecutionLifecycle(input, createDurableActivities(ctx, activities), error.control)
-  }
-}
-
-class RestateTerminalControlError extends Error {
-  constructor(readonly control: TerminalControl) {
-    super('WORKFLOW_TERMINAL_CONTROL')
-  }
+  const deadlineControl = ctx
+    .sleep(deadlineDelay, 'execution-deadline')
+    .map(() => ({ deadlineReached: true }) as const)
+  const terminalOutcome = () =>
+    terminalControl.get().map((control) => ({ type: 'terminal', control }) as const)
+  const deadlineOutcome = () =>
+    deadlineControl.map((control) => ({ type: 'terminal', control }) as const)
+  const waitForInteraction = (interactionId: string): Promise<WorkflowInteractionResponse> =>
+    ctx.promise<WorkflowInteractionResponse>(interactionPromiseName(interactionId)).get()
+  return runExecutionLifecycle(input, createDurableActivities(ctx, activities), {
+    waitForInteraction,
+    raceActivity: async <Value>(activity: Promise<Value>) =>
+      restate.RestatePromise.race([
+        (activity as restate.RestatePromise<Value>).map(
+          (value) => ({ type: 'activity', value }) as const
+        ),
+        terminalOutcome(),
+        deadlineOutcome(),
+      ]) as Promise<ActivityRaceResult<Value>>,
+    checkTerminal: async () => {
+      const outcome = await restate.RestatePromise.race([
+        terminalOutcome(),
+        deadlineOutcome(),
+        ctx.sleep(0, 'terminal-control-check').map(() => ({ type: 'clear' }) as const),
+      ])
+      return outcome.type === 'terminal' ? outcome.control : undefined
+    },
+  })
 }
 
 function createDurableActivities(
@@ -121,6 +121,7 @@ function createDurableActivities(
       ctx.run('resume-graph-segment', () => activities.resumeGraphSegment(input)),
     continueGraphSegment: (input) =>
       ctx.run('continue-graph-segment', () => activities.continueGraphSegment(input)),
+    cancelActive: (input) => ctx.run('cancel-active', () => activities.cancelActive(input)),
     cleanup: (input) => ctx.run('cleanup', () => activities.cleanup(input)),
   }
 }

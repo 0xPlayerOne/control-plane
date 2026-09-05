@@ -20,23 +20,29 @@ import type {
   ExecutionAcceptancePort,
   RemoteControlHostAdapter,
 } from '@control-plane/remote-control-relay'
+import {
+  UnavailableExecutionAcceptanceService,
+  type ExecutionAcceptanceService,
+} from '@control-plane/control-api'
 import type { RuntimeAdapterWithTransport } from '@control-plane/runtime-sdk'
 import {
   CompositeSecretsProvider,
   EnvironmentSecretsProvider,
   PrivateFileSecretsProvider,
 } from '@control-plane/secrets'
-import {
-  SqliteExecutionPlanRepository,
-  SqlitePersistenceProvider,
-} from '@control-plane/sqlite-persistence'
+import { SqlitePersistenceProvider } from '@control-plane/sqlite-persistence'
 import {
   createRestateEndpointFactory,
   type ExecutionLifecycleActivities,
   type RestateEndpointFactory,
   type RestateEndpointHandle,
 } from '@control-plane/workflow-runtime'
-import { DirectRuntimeExecutionActivities } from './direct-runtime-activities.js'
+import { ExecutionLifecycleService } from '@control-plane/domain'
+import {
+  DisabledGraphSegmentActivities,
+  DurableExecutionLifecycleActivities,
+} from '@control-plane/workflow-worker'
+import { DirectRuntimeActivityPort } from './direct-runtime-activities.js'
 import { LocalControlApiComposition } from './local-api-composition.js'
 
 const require = createRequire(import.meta.url)
@@ -68,6 +74,11 @@ export interface LocalControlPlaneCompositionOptions {
   readonly endpointFactory?: RestateEndpointFactory
   readonly activities?: ExecutionLifecycleActivities
   readonly runtimeTransport?: RuntimeAdapterWithTransport
+  readonly runtimeFactory?: (input: {
+    readonly catalog: LocalControlApiComposition['catalog']
+    readonly contextPackages: LocalControlApiComposition['contextPackages']
+    readonly dataDirectory: string
+  }) => RuntimeAdapterWithTransport
   readonly secrets?: SecretsProvider
   readonly remoteControl?: RemoteControlHostAdapter<unknown>
   readonly remoteControlFactory?: (
@@ -86,8 +97,25 @@ export class LocalControlPlaneComposition {
   readonly secrets: SecretsProvider
   readonly runtimeTransport: RuntimeAdapterWithTransport | undefined
   readonly remoteControl: RemoteControlHostAdapter<unknown> | undefined
-  readonly executionAcceptanceService: LocalControlApiComposition['executionAcceptanceService']
+  readonly executionAcceptanceService: ExecutionAcceptanceService
   readonly executionValidationService: LocalControlApiComposition['executionValidationService']
+  readonly profileResolutionService: LocalControlApiComposition['profileResolutionService']
+  readonly projectStateResolutionService: LocalControlApiComposition['projectStateResolutionService']
+  readonly contextPackageResolutionService: LocalControlApiComposition['contextPackageResolutionService']
+  readonly executionEvents: LocalControlApiComposition['executionEvents']
+  readonly statePromotionProposals: LocalControlApiComposition['statePromotionProposals']
+  readonly reconciliationCheckpoints: LocalControlApiComposition['reconciliationCheckpoints']
+  readonly runtimeCommands: LocalControlApiComposition['runtimeCommands']
+  readonly runtimeInventoryCheckpoints: LocalControlApiComposition['runtimeInventoryCheckpoints']
+  readonly runtimeEventEffects: LocalControlApiComposition['runtimeEventEffects']
+  readonly runtimeDiscoveryRepository: LocalControlApiComposition['runtimeDiscoveryRepository']
+  readonly catalog: LocalControlApiComposition['catalog']
+  readonly contextPackages: LocalControlApiComposition['contextPackages']
+  readonly executionPlans: LocalControlApiComposition['executionPlans']
+  readonly executions: LocalControlApiComposition['executions']
+  readonly commands: LocalControlApiComposition['commands']
+  readonly commandRepository: LocalControlApiComposition['commandRepository']
+  readonly executionLifecycleActivities: ExecutionLifecycleActivities
   readonly coordination = new LocalCoordinationProvider()
   readonly observability = new BufferedObservabilityProvider()
   readonly discovery: StaticServiceDiscovery
@@ -119,34 +147,69 @@ export class LocalControlPlaneComposition {
           rootDirectory: join(this.dataDirectory, 'secrets'),
         }),
       })
-    if (options.runtimeTransport?.transportKind === 'remote-gateway') {
+    if (options.runtimeTransport !== undefined && options.runtimeFactory !== undefined) {
+      throw new Error('LOCAL_RUNTIME_CONFIGURATION_CONFLICT')
+    }
+    const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
+    const runtimeTransport =
+      options.runtimeTransport ??
+      options.runtimeFactory?.({
+        catalog: controlApi.catalog,
+        contextPackages: controlApi.contextPackages,
+        dataDirectory: this.dataDirectory,
+      })
+    if (runtimeTransport?.transportKind === 'remote-gateway') {
       throw new Error('LOCAL_RUNTIME_TRANSPORT_MUST_BE_DIRECT')
     }
-    this.runtimeTransport = options.runtimeTransport
-    const controlApi = new LocalControlApiComposition(this.persistence, 'http://127.0.0.1:8080')
-    this.executionAcceptanceService = controlApi.executionAcceptanceService
+    this.runtimeTransport = runtimeTransport
+    this.executionAcceptanceService =
+      options.activities === undefined && runtimeTransport === undefined
+        ? new UnavailableExecutionAcceptanceService()
+        : controlApi.executionAcceptanceService
     this.executionValidationService = controlApi.executionValidationService
+    this.profileResolutionService = controlApi.profileResolutionService
+    this.projectStateResolutionService = controlApi.projectStateResolutionService
+    this.contextPackageResolutionService = controlApi.contextPackageResolutionService
+    this.executionEvents = controlApi.executionEvents
+    this.statePromotionProposals = controlApi.statePromotionProposals
+    this.reconciliationCheckpoints = controlApi.reconciliationCheckpoints
+    this.runtimeCommands = controlApi.runtimeCommands
+    this.runtimeInventoryCheckpoints = controlApi.runtimeInventoryCheckpoints
+    this.runtimeEventEffects = controlApi.runtimeEventEffects
+    this.runtimeDiscoveryRepository = controlApi.runtimeDiscoveryRepository
+    this.catalog = controlApi.catalog
+    this.contextPackages = controlApi.contextPackages
+    this.executionPlans = controlApi.executionPlans
+    this.executions = controlApi.executions
+    this.commands = controlApi.commands
+    this.commandRepository = controlApi.commandRepository
     if (options.remoteControl !== undefined && options.remoteControlFactory !== undefined) {
       throw new Error('LOCAL_REMOTE_CONTROL_CONFIGURATION_CONFLICT')
     }
     this.remoteControl =
       options.remoteControl ?? options.remoteControlFactory?.(this.executionAcceptanceService)
-    const activities =
+    const activities: ExecutionLifecycleActivities | undefined =
       options.activities ??
-      (options.runtimeTransport === undefined
+      (runtimeTransport === undefined
         ? undefined
-        : new DirectRuntimeExecutionActivities(
-            this.persistence,
-            this.objectStore,
-            options.runtimeTransport,
-            new SqliteExecutionPlanRepository(this.persistence)
-          ))
+        : new DurableExecutionLifecycleActivities({
+            lifecycle: new ExecutionLifecycleService(this.executions),
+            plans: this.executionPlans,
+            runtime: new DirectRuntimeActivityPort(
+              this.persistence,
+              this.objectStore,
+              runtimeTransport
+            ),
+            graph: new DisabledGraphSegmentActivities(),
+            commands: this.commands,
+          }))
+    this.executionLifecycleActivities = activities ?? new UnconfiguredLocalExecutionActivities()
     this.#endpointFactory =
       options.endpointFactory ??
       createRestateEndpointFactory({
         host: '127.0.0.1',
         port: workflowEndpointPort,
-        ...(activities === undefined ? {} : { activities }),
+        activities: this.executionLifecycleActivities,
       })
     this.workflow =
       options.workflowRuntime ??
@@ -232,5 +295,43 @@ export class LocalControlPlaneComposition {
     this.persistence.close()
     this.coordination.close()
     this.observability.close()
+  }
+}
+
+class UnconfiguredLocalExecutionActivities implements ExecutionLifecycleActivities {
+  async ensureAttempt(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async persistStatus(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async dispatch(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async applyInteraction(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async runGraphSegment(): Promise<never> {
+    throw new Error('LOCAL_GRAPH_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async resumeGraphSegment(): Promise<never> {
+    throw new Error('LOCAL_GRAPH_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async continueGraphSegment(): Promise<never> {
+    throw new Error('LOCAL_GRAPH_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async cancelActive(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
+  }
+
+  async cleanup(): Promise<never> {
+    throw new Error('LOCAL_RUNTIME_NOT_CONFIGURED')
   }
 }

@@ -9,6 +9,7 @@ import {
 import { z } from 'zod'
 
 const TimestampSchema = z.iso.datetime()
+const maximumCredentialLeaseClockSkewMs = 30_000
 const ReferenceSchema = z
   .string()
   .min(1)
@@ -61,6 +62,7 @@ export interface EncryptedSecretReference {
   readonly locator: string
   readonly version: string
   readonly keyReference: string
+  readonly encryptionVersion: 'memory-v1' | 'aad-v1'
   readonly ciphertextDigest: `sha256:${string}`
 }
 
@@ -233,11 +235,16 @@ export class CredentialVault {
     if (metadata.status === 'revoked') fail('CREDENTIAL_REVOKED')
     if (metadata.status === 'expired') fail('CREDENTIAL_EXPIRED')
     if (metadata.workspaceId !== input.workspaceId) fail('LEASE_SCOPE_MISMATCH')
-    const ttl = Date.parse(input.expiresAt) - Date.parse(input.requestedAt)
-    if (ttl <= 0 || ttl > 300_000 || Date.parse(input.expiresAt) <= Date.parse(this.#now())) {
+    const issuedAt = TimestampSchema.parse(this.#now())
+    const requestedAt = TimestampSchema.parse(input.requestedAt)
+    const expiresAt = TimestampSchema.parse(input.expiresAt)
+    const issuedAtMilliseconds = Date.parse(issuedAt)
+    const requestClockSkew = Math.abs(Date.parse(requestedAt) - issuedAtMilliseconds)
+    const ttl = Date.parse(expiresAt) - issuedAtMilliseconds
+    if (requestClockSkew > maximumCredentialLeaseClockSkewMs || ttl <= 0 || ttl > 300_000) {
       fail('LEASE_EXPIRED')
     }
-    if (metadata.expiresAt && Date.parse(input.expiresAt) > Date.parse(metadata.expiresAt)) {
+    if (metadata.expiresAt && Date.parse(expiresAt) > Date.parse(metadata.expiresAt)) {
       fail('LEASE_EXPIRED')
     }
     let decision: z.output<typeof PolicyDecisionSchema>
@@ -263,7 +270,7 @@ export class CredentialVault {
               resourceRef: input.resourceRef,
             },
           },
-          context: { workspaceId: metadata.workspaceId, requestedAt: input.requestedAt },
+          context: { workspaceId: metadata.workspaceId, requestedAt: issuedAt },
           policySnapshot: input.policySnapshot,
         })
       )
@@ -285,12 +292,12 @@ export class CredentialVault {
       principalRef: input.principalRef,
       operation: input.operation,
       resourceRef: input.resourceRef,
-      capabilityRef: `lease://${leaseId}/${hash({ leaseId, decisionId: decision.decisionId, expiresAt: input.expiresAt })}`,
+      capabilityRef: `lease://${leaseId}/${hash({ leaseId, decisionId: decision.decisionId, expiresAt })}`,
       status: 'active',
       policySnapshot: decision.policySnapshot,
       policyDecisionId: decision.decisionId,
-      issuedAt: input.requestedAt,
-      expiresAt: input.expiresAt,
+      issuedAt,
+      expiresAt,
     })
     this.#leases.set(lease.capabilityRef, { lease, secretReference })
     this.#record('lease.issued', metadata, leaseId)
@@ -408,6 +415,7 @@ export class InMemorySecretProvider implements SecretProvider {
       locator,
       version: String(input.revision),
       keyReference: 'memory://test-kms',
+      encryptionVersion: 'memory-v1' as const,
       ciphertextDigest: `sha256:${hash(input.secret)}` as const,
     }
   }
@@ -429,6 +437,8 @@ export class InMemorySecretProvider implements SecretProvider {
   }
 }
 
+export type SecretEncryptionVersion = 'legacy-v0' | 'aad-v1'
+
 export interface EncryptedSecretStore {
   put(input: {
     readonly locator: string
@@ -437,6 +447,7 @@ export interface EncryptedSecretStore {
     readonly iv: string
     readonly authTag: string
     readonly keyReference: string
+    readonly encryptionVersion: 'aad-v1'
   }): Promise<void>
   get(input: { readonly locator: string; readonly version: string }): Promise<
     | {
@@ -444,6 +455,7 @@ export interface EncryptedSecretStore {
         readonly iv: string
         readonly authTag: string
         readonly keyReference: string
+        readonly encryptionVersion: SecretEncryptionVersion
       }
     | undefined
   >
@@ -473,6 +485,14 @@ export class NeonEncryptedSecretProvider implements SecretProvider {
     const version = String(input.revision)
     const iv = randomBytes(12)
     const cipher = createCipheriv('aes-256-gcm', this.#key, iv)
+    cipher.setAAD(
+      secretAssociatedData({
+        locator,
+        version,
+        keyReference: this.#keyReference,
+        encryptionVersion: 'aad-v1',
+      })
+    )
     const ciphertext = Buffer.concat([cipher.update(input.secret, 'utf8'), cipher.final()])
     const authTag = cipher.getAuthTag()
     await this.#store.put({
@@ -482,24 +502,43 @@ export class NeonEncryptedSecretProvider implements SecretProvider {
       iv: iv.toString('base64url'),
       authTag: authTag.toString('base64url'),
       keyReference: this.#keyReference,
+      encryptionVersion: 'aad-v1',
     })
     return {
       backend: 'neon-encrypted' as const,
       locator,
       version,
       keyReference: this.#keyReference,
+      encryptionVersion: 'aad-v1' as const,
       ciphertextDigest: `sha256:${hash(input.secret)}` as const,
     }
   }
 
   async resolve(reference: EncryptedSecretReference): Promise<string> {
     const record = await this.#store.get({ locator: reference.locator, version: reference.version })
-    if (!record || record.keyReference !== this.#keyReference) throw new Error('SECRET_MISSING')
+    if (
+      !record ||
+      reference.keyReference !== this.#keyReference ||
+      record.keyReference !== reference.keyReference
+    ) {
+      throw new Error('SECRET_MISSING')
+    }
+    if (reference.encryptionVersion !== 'aad-v1' || record.encryptionVersion !== 'aad-v1') {
+      throw new Error('SECRET_LEGACY_FORMAT')
+    }
     try {
       const decipher = createDecipheriv(
         'aes-256-gcm',
         this.#key,
         Buffer.from(record.iv, 'base64url')
+      )
+      decipher.setAAD(
+        secretAssociatedData({
+          locator: reference.locator,
+          version: reference.version,
+          keyReference: record.keyReference,
+          encryptionVersion: record.encryptionVersion,
+        })
       )
       decipher.setAuthTag(Buffer.from(record.authTag, 'base64url'))
       return Buffer.concat([
@@ -514,6 +553,24 @@ export class NeonEncryptedSecretProvider implements SecretProvider {
   revoke(reference: EncryptedSecretReference): Promise<void> {
     return this.#store.delete({ locator: reference.locator, version: reference.version })
   }
+}
+
+function secretAssociatedData(input: {
+  readonly locator: string
+  readonly version: string
+  readonly keyReference: string
+  readonly encryptionVersion: 'aad-v1'
+}): Buffer {
+  return Buffer.from(
+    JSON.stringify([
+      'control-plane-credential-secret',
+      input.encryptionVersion,
+      input.locator,
+      input.version,
+      input.keyReference,
+    ]),
+    'utf8'
+  )
 }
 
 function decodeEncryptionKey(value: string): Buffer {

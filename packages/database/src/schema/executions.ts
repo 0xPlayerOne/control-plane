@@ -10,7 +10,7 @@ import {
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core'
-import type { AttemptRoutingDecision } from '@control-plane/domain'
+import type { AttemptRoutingDecision, MarketplacePluginReference } from '@control-plane/domain'
 
 export const executionState = pgEnum('execution_state', [
   'accepted',
@@ -82,6 +82,9 @@ export const executions = pgTable(
     executionPlanId: identifier('execution_plan_id').notNull(),
     executionPlanDigest: varchar('execution_plan_digest', { length: 71 }).notNull(),
     executionPlanSchemaVersion: integer('execution_plan_schema_version').notNull(),
+    marketplacePluginReferences: jsonb('marketplace_plugin_references').$type<
+      readonly MarketplacePluginReference[]
+    >(),
     parentExecutionId: identifier('parent_execution_id'),
     attemptCount: integer('attempt_count').notNull(),
     latestAttemptId: identifier('latest_attempt_id'),

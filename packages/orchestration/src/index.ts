@@ -2,6 +2,13 @@ import { IdentifierSchemas } from '@control-plane/contracts'
 import { z } from 'zod'
 
 const DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+const MarketplacePluginReferenceSchema = z
+  .object({
+    pluginId: z.string().regex(/^plugin:[a-z0-9-]+:[a-z0-9][a-z0-9-]{1,127}$/),
+    releaseId: z.string().regex(/^release:[a-f0-9]{64}$/),
+    canonicalContentDigest: DigestSchema,
+  })
+  .strict()
 const TimestampSchema = z.iso.datetime()
 const SafeReferenceSchema = z
   .string()
@@ -53,6 +60,7 @@ export const GraphCancellationRequestSchema = GraphCorrelationSchema.extend({
   graph: GraphReferenceSchema,
   threadId: SafeReferenceSchema,
   reason: z.enum(['user_request', 'parent_cancelled', 'deadline', 'policy', 'shutdown']),
+  idempotencyKey: SafeReferenceSchema,
 }).strict()
 
 export const GraphEventSchema = GraphCorrelationSchema.extend({
@@ -133,6 +141,7 @@ export const ExecutionWorkflowInputSchema = z
       })
       .strict(),
     deadlineAt: TimestampSchema,
+    marketplacePluginReferences: z.array(MarketplacePluginReferenceSchema).max(128).optional(),
     graph: z
       .object({
         workspaceId: IdentifierSchemas.workspaceId,
@@ -166,11 +175,11 @@ export type ExecutionWorkflowInput = z.output<typeof ExecutionWorkflowInputSchem
 
 export interface GraphNodeOperationPort {
   invoke(operation: GraphNodeOperation): Promise<Readonly<Record<string, unknown>>>
-  cancel(executionId: string, threadId: string): Promise<boolean>
+  cancel(executionId: string, threadId: string, idempotencyKey: string): Promise<boolean>
 }
 
 export interface GraphEventPublisher {
-  publish(event: GraphEvent): Promise<void>
+  publish(event: GraphEvent, idempotencyKey: string): Promise<void>
 }
 
 export interface OrchestrationPort {

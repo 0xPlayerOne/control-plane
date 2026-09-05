@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import {
   ExternalSessionRegistry,
   DirectLocalRuntimeTransport,
@@ -57,7 +58,23 @@ function connection(overrides = {}) {
 }
 
 function fixture(options = {}) {
+  const projections = []
   const registry = new ExternalSessionRegistry(new InMemoryExternalSessionRepository())
+  if (options.findDelayMs) {
+    const findByNativeIdentity = registry.repository.findByNativeIdentity.bind(registry.repository)
+    registry.repository.findByNativeIdentity = async (...arguments_) => {
+      await delay(options.findDelayMs)
+      return findByNativeIdentity(...arguments_)
+    }
+  } else if (options.firstFindDelayMs) {
+    const findByNativeIdentity = registry.repository.findByNativeIdentity.bind(registry.repository)
+    let findCount = 0
+    registry.repository.findByNativeIdentity = async (...arguments_) => {
+      findCount += 1
+      if (findCount === 1) await delay(options.firstFindDelayMs)
+      return findByNativeIdentity(...arguments_)
+    }
+  }
   const transport = new ReferenceAcpTransport({
     now: () => now,
     nativeSessions: [
@@ -69,6 +86,7 @@ function fixture(options = {}) {
   })
   let currentConnection = connection()
   let nodeStatus = 'online'
+  let publishDelayMs = options.publishDelayMs ?? 0
   const externalIds = new Map([
     ['native-session-1', 'ses_01JABCDEF0123456789ABCDEFG'],
     ['native-session-2', 'ses_01JBBCDEF0123456789ABCDEFG'],
@@ -85,6 +103,7 @@ function fixture(options = {}) {
         externalSessionId: (nativeSessionId) => externalIds.get(nativeSessionId),
         interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
         now: () => new Date(now),
+        requestTimeoutMs: options.requestTimeoutMs,
         externalSessions: {
           registry,
           runtimeConnection: () => currentConnection,
@@ -99,7 +118,20 @@ function fixture(options = {}) {
                   ([, opaque]) => opaque === opaqueNativeSessionId
                 )?.[0],
           capabilityTtlMs: 300_000,
-          authorize: async () => options.authorized !== false,
+          authorize: options.hangAuthorize
+            ? async () => new Promise(() => {})
+            : options.authorizeDelayMs
+              ? async () => {
+                  await delay(options.authorizeDelayMs)
+                  return options.authorized !== false
+                }
+              : async () => options.authorized !== false,
+          publishDiscovery: options.hangPublish
+            ? async () => new Promise(() => {})
+            : async (projection) => {
+                if (publishDelayMs) await delay(publishDelayMs)
+                projections.push(projection)
+              },
         },
       })
     ),
@@ -108,16 +140,46 @@ function fixture(options = {}) {
     adapter,
     registry,
     transport,
+    projections,
     setConnection: (value) => {
       currentConnection = value
     },
     setNodeStatus: (value) => {
       nodeStatus = value
     },
+    setPublishDelay: (value) => {
+      publishDelayMs = value
+    },
   }
 }
 
 describe('ACP external sessions', () => {
+  test('publishes safe discovery projections for live session lifecycle changes', async () => {
+    const { adapter, projections, transport } = fixture()
+
+    await adapter.session({ operation: 'list' })
+    expect(projections).toHaveLength(2)
+    expect(projections[0]).toMatchObject({
+      scope: {
+        workspaceId: ids.workspace,
+        projectId: ids.project,
+        runtimeNodeRefId: 'rnr_01JABCDEF0123456789ABCDEFG',
+      },
+      model: {
+        externalSessionId: 'ses_01JABCDEF0123456789ABCDEFG',
+        state: 'active',
+        display: { displayName: 'Planning session' },
+      },
+    })
+    expect(JSON.stringify(projections)).not.toMatch(/native-session|nses_|\/Users\//)
+
+    transport.removeNativeSession('native-session-2')
+    await adapter.session({ operation: 'list' })
+    expect(projections.at(-1)).toMatchObject({
+      model: { externalSessionId: 'ses_01JBBCDEF0123456789ABCDEFG', state: 'removed' },
+    })
+  })
+
   test('lists native sessions as scoped opaque references and public read models', async () => {
     const { adapter, registry } = fixture()
     const result = await adapter.session({ operation: 'list' })
@@ -286,4 +348,122 @@ describe('ACP external sessions', () => {
       })
     ).rejects.toMatchObject({ code: 'ACP_SESSION_REFERENCE_STALE', retryable: true })
   })
+
+  test('bounds post-create discovery publication and closes the native session', async () => {
+    const { adapter, registry, transport } = fixture({ hangPublish: true, requestTimeoutMs: 10 })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:create:hanging-publish' })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    await delay(30)
+    expect(transport.calls().map(({ method }) => method)).toContain('session/close')
+    expect(await registry.get('ses_01JABCDEF0123456789ABCDEFG')).toMatchObject({
+      state: 'closed',
+    })
+  })
+
+  test('bounds non-create external-session callbacks', async () => {
+    const { adapter } = fixture({ hangAuthorize: true, requestTimeoutMs: 10 })
+
+    await expect(adapter.session({ operation: 'list' })).rejects.toMatchObject({
+      code: 'ACP_REQUEST_TIMEOUT',
+      classification: 'timeout',
+    })
+  })
+
+  test('does not create a session after late authorization crosses the deadline', async () => {
+    const { adapter, transport } = fixture({ authorizeDelayMs: 25, requestTimeoutMs: 10 })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:create:late-auth' })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    await delay(40)
+    expect(transport.calls().map(({ method }) => method)).not.toContain('session/new')
+  })
+
+  test('compensates an active registry write completed after timeout', async () => {
+    const { adapter, registry } = fixture({ findDelayMs: 25, requestTimeoutMs: 10 })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:create:late-registry' })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    await waitForExpectation(async () => {
+      expect(await registry.get('ses_01JABCDEF0123456789ABCDEFG')).toMatchObject({
+        state: 'closed',
+      })
+    })
+  })
+
+  test('keeps a durable repair record for registry writes that outlive early retries', async () => {
+    const { adapter, registry } = fixture({ firstFindDelayMs: 250, requestTimeoutMs: 10 })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:create:very-late-registry' })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    await waitForExpectation(async () => {
+      expect(await registry.get('ses_01JABCDEF0123456789ABCDEFG')).toMatchObject({
+        state: 'closed',
+      })
+    })
+  })
+
+  test('publishes a closed correction after a late active projection', async () => {
+    const { adapter, projections, registry } = fixture({
+      publishDelayMs: 25,
+      requestTimeoutMs: 10,
+    })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:create:late-publish' })
+    ).rejects.toMatchObject({ code: 'ACP_REQUEST_TIMEOUT', classification: 'timeout' })
+    await waitForExpectation(async () => {
+      expect(await registry.get('ses_01JABCDEF0123456789ABCDEFG')).toMatchObject({
+        state: 'closed',
+      })
+      expect(projections.at(-1)).toMatchObject({ model: { state: 'closed' } })
+    })
+  })
+
+  test('does not let late compensation close a newer reused native session', async () => {
+    const { adapter, projections, registry, setPublishDelay } = fixture({
+      publishDelayMs: 25,
+      requestTimeoutMs: 10,
+    })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:create:generation-one' })
+    ).rejects.toMatchObject({ classification: 'timeout' })
+    setPublishDelay(0)
+    const created = await adapter.session({
+      operation: 'create',
+      idempotencyKey: 'session:create:generation-two',
+    })
+    expect(created).toMatchObject({ session: { state: 'active' } })
+    await adapter.session({
+      operation: 'close',
+      sessionId: created.session.sessionId,
+      idempotencyKey: 'session:close:generation-two',
+    })
+    await waitForExpectation(async () => {
+      expect(await registry.get('ses_01JABCDEF0123456789ABCDEFG')).toMatchObject({
+        state: 'closed',
+      })
+      expect(projections.at(-1)).toMatchObject({ model: { state: 'closed' } })
+    })
+  })
 })
+
+async function waitForExpectation(assertion, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs
+  let lastError
+  while (Date.now() < deadline) {
+    try {
+      await assertion()
+      return
+    } catch (error) {
+      lastError = error
+      await delay(20)
+    }
+  }
+  throw lastError
+}

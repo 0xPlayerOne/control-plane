@@ -83,6 +83,13 @@ export class ToolRegistry {
 
   constructor(readonly repository: ToolRegistryRepository) {}
 
+  validateSchemas(inputSchema: unknown, outputSchema: unknown): void {
+    const input = ToolVersionDraftSchema.shape.inputSchema.parse(inputSchema)
+    const output = ToolVersionDraftSchema.shape.outputSchema.parse(outputSchema)
+    this.#assertSchema(input)
+    this.#assertSchema(output)
+  }
+
   async createDefinition(input: unknown): Promise<ToolDefinition> {
     const definition = ToolDefinitionSchema.parse(input)
     if (!(await this.repository.insertDefinition(definition))) failRegistry('DEFINITION_EXISTS')
@@ -93,8 +100,7 @@ export class ToolRegistry {
     const draft = ToolVersionDraftSchema.parse(input)
     const definition = await this.repository.getDefinition(draft.toolDefinitionId)
     if (!definition) failRegistry('DEFINITION_MISSING')
-    this.#assertSchema(draft.inputSchema)
-    this.#assertSchema(draft.outputSchema)
+    this.validateSchemas(draft.inputSchema, draft.outputSchema)
     const versions = await this.repository.listVersions(draft.toolDefinitionId)
     if (versions.some(({ semanticVersion }) => semanticVersion === draft.semanticVersion)) {
       failRegistry('SEMANTIC_VERSION_CONFLICT')
@@ -278,11 +284,15 @@ export class ToolGateway {
     while (attempts < retryPolicy.maxAttempts) {
       attempts += 1
       try {
-        result = await withTimeout(executor.execute(request, version), version.limits.timeoutMs)
+        result = await withTimeout(
+          (signal) => executor.execute(request, version, signal),
+          version.limits.timeoutMs
+        )
         break
       } catch (error) {
         const normalized = normalizeExecutorError(error)
         const retry =
+          normalized.code !== 'TIMEOUT' &&
           operation.idempotency !== 'none' &&
           normalized.retryable &&
           retryPolicy.retryableErrorCodes.includes(normalized.code) &&
@@ -342,13 +352,14 @@ export class FakeToolExecutor implements ToolExecutor {
   constructor(
     readonly respond: (
       request: ToolExecutionRequest,
-      version: ToolVersion
+      version: ToolVersion,
+      signal: AbortSignal
     ) => unknown | Promise<unknown>
   ) {}
 
-  async execute(request: ToolExecutionRequest, version: ToolVersion) {
+  async execute(request: ToolExecutionRequest, version: ToolVersion, signal: AbortSignal) {
     this.requests.push(clone(request))
-    return { output: await this.respond(request, version) }
+    return { output: await this.respond(request, version, signal) }
   }
 }
 
@@ -415,16 +426,22 @@ function failGateway(code: ToolGatewayErrorCode): never {
   throw new ToolGatewayError(code)
 }
 
-async function withTimeout<Value>(promise: Promise<Value>, timeoutMs: number): Promise<Value> {
+async function withTimeout<Value>(
+  operation: (signal: AbortSignal) => Promise<Value>,
+  timeoutMs: number
+): Promise<Value> {
+  const timeoutError = new ToolExecutorError('TIMEOUT', true, 'unknown')
+  const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
-      promise,
+      operation(controller.signal),
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new ToolExecutorError('TIMEOUT', true, 'unknown')),
-          timeoutMs
-        )
+        timer = setTimeout(() => {
+          controller.abort(timeoutError)
+          reject(timeoutError)
+        }, timeoutMs)
+        timer.unref?.()
       }),
     ])
   } finally {

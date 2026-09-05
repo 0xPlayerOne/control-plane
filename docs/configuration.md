@@ -83,6 +83,18 @@ Local and Hosted compositions consume the same typed configuration model through
 
 Profile-specific configuration may select persistence, object store, secrets, runtime transport, process supervision and service discovery. It may not redefine Task/Execution/Profile/Skill/ProjectState/ContextProvider semantics.
 
+The standalone Local entrypoint selects the packaged managed Pi RPC client only when
+`CONTROL_PLANE_LOCAL_RUNTIME=managed-pi`. It then requires
+`CONTROL_PLANE_MANAGED_PI_PROVIDER`, `CONTROL_PLANE_MANAGED_PI_MODEL`,
+`CONTROL_PLANE_MANAGED_PI_MODEL_ALIAS`, `CONTROL_PLANE_MANAGED_PI_MODEL_CAPABILITIES`,
+`CONTROL_PLANE_MANAGED_PI_PROVIDER_CLASS`, and `CONTROL_PLANE_MANAGED_PI_DATA_RESIDENCY`; the
+executable defaults to `pi` and may be overridden by `CONTROL_PLANE_MANAGED_PI_EXECUTABLE`. These
+values choose and attest a runtime route but do not carry credentials. The route must satisfy the
+immutable model alias, capability, provider-class, provider-deny, and residency policy. The child
+process inherits only the documented Pi/home/path allowlist, so service/bootstrap secrets never
+become ambient runtime authority. Unknown runtime families and incomplete or ineligible model
+selection fail startup.
+
 ## Current service surfaces
 
 The accepted Cloud process topology has two application services plus one infrastructure runtime:

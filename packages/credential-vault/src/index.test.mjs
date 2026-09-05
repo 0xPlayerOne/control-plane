@@ -83,6 +83,46 @@ describe('connector credential vault', () => {
     })
   })
 
+  test('rejects caller timestamps outside the clock-skew window before policy evaluation', async () => {
+    const { vault } = await fixture()
+    const policyRequestCount = allowPdp.requests.length
+
+    await expect(
+      vault.lease(
+        leaseRequest({
+          requestedAt: '2027-08-25T09:00:00.000Z',
+          expiresAt: '2027-08-25T09:05:00.000Z',
+        })
+      )
+    ).rejects.toMatchObject({ code: 'LEASE_EXPIRED' })
+    await expect(
+      vault.lease(
+        leaseRequest({
+          credentialLeaseId: 'crl_01JABCDEF0123456789ABCDEFH',
+          requestedAt: '2020-08-25T09:00:00.000Z',
+          expiresAt: '2026-08-25T09:05:00.000Z',
+        })
+      )
+    ).rejects.toMatchObject({ code: 'LEASE_EXPIRED' })
+    expect(allowPdp.requests).toHaveLength(policyRequestCount)
+  })
+
+  test('uses the vault clock at the exact accepted skew and lease lifetime boundaries', async () => {
+    const { vault } = await fixture()
+    const lease = await vault.lease(
+      leaseRequest({
+        requestedAt: '2026-08-25T08:59:30.000Z',
+        expiresAt: '2026-08-25T09:05:00.000Z',
+      })
+    )
+
+    expect(lease).toMatchObject({
+      issuedAt: '2026-08-25T09:00:00.000Z',
+      expiresAt: '2026-08-25T09:05:00.000Z',
+    })
+    expect(allowPdp.requests.at(-1).context.requestedAt).toBe(lease.issuedAt)
+  })
+
   test('uses a secret only inside the provider callback and blocks runtime/model egress', async () => {
     const { vault } = await fixture()
     const lease = await vault.lease(leaseRequest())
@@ -244,6 +284,7 @@ describe('connector credential vault', () => {
     })
     const { vault, metadata } = await fixture(provider)
     expect([...records.values()][0].ciphertext).not.toContain(secret)
+    expect([...records.values()][0].encryptionVersion).toBe('aad-v1')
     expect(JSON.stringify(metadata)).not.toContain(secret)
     expect(JSON.stringify(await vault.audit())).not.toContain(secret)
     expect(
@@ -255,5 +296,58 @@ describe('connector credential vault', () => {
         })
       )
     ).toBe(secret)
+  })
+
+  test('binds encrypted secrets to their locator, version, key reference, and format', async () => {
+    const records = new Map()
+    const store = {
+      async put(input) {
+        records.set(`${input.locator}:${input.version}`, { ...input })
+      },
+      async get(input) {
+        const record = records.get(`${input.locator}:${input.version}`)
+        return record === undefined ? undefined : { ...record }
+      },
+      async delete(input) {
+        records.delete(`${input.locator}:${input.version}`)
+      },
+    }
+    const provider = new NeonEncryptedSecretProvider({
+      store,
+      encryptionKey: 'a'.repeat(64),
+      keyReference: 'control-plane-secret-key-v1',
+    })
+    const first = await provider.store({
+      credentialId: 'cred_01JABCDEF0123456789ABCDEFG',
+      revision: 1,
+      secret: 'first-secret-value',
+    })
+    const second = await provider.store({
+      credentialId: 'cred_01JBBCDEF0123456789ABCDEFG',
+      revision: 1,
+      secret: 'second-secret-value',
+    })
+    const firstRecord = records.get(`${first.locator}:${first.version}`)
+    const secondKey = `${second.locator}:${second.version}`
+    const secondRecord = records.get(secondKey)
+
+    records.set(secondKey, {
+      ...secondRecord,
+      ciphertext: firstRecord.ciphertext,
+      iv: firstRecord.iv,
+      authTag: firstRecord.authTag,
+    })
+    await expect(provider.resolve(second)).rejects.toThrow('SECRET_CORRUPTED')
+
+    records.set(secondKey, { ...secondRecord, encryptionVersion: 'legacy-v0' })
+    await expect(provider.resolve(second)).rejects.toThrow('SECRET_LEGACY_FORMAT')
+
+    records.set(secondKey, { ...secondRecord, keyReference: 'control-plane-secret-key-v2' })
+    await expect(provider.resolve(second)).rejects.toThrow('SECRET_MISSING')
+
+    records.set(secondKey, secondRecord)
+    await expect(
+      provider.resolve({ ...second, keyReference: 'control-plane-secret-key-v2' })
+    ).rejects.toThrow('SECRET_MISSING')
   })
 })

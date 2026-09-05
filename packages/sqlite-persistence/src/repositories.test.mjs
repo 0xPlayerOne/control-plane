@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { CommandInboxService } from '@control-plane/domain'
-import { SqliteCommandAcceptanceRepository, SqlitePersistenceProvider } from './index.ts'
+import { contextPackageSerializationFixtures } from '@control-plane/context'
+import {
+  SqliteCommandAcceptanceRepository,
+  SqliteContextPackageRepository,
+  SqlitePersistenceProvider,
+  SqliteRuntimeDiscoveryRepository,
+} from './index.ts'
 
 const ids = {
   commandId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -14,6 +20,8 @@ const ids = {
   agentId: 'agt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
   executionId: 'exe_01ARZ3NDEKTSV4RRFFQ69G5FAV',
   executionPlanId: 'pln_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+  runtimeNodeRefId: 'rnr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+  runtimeConnectionId: 'rtc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
 }
 
 const receivedAt = '2026-08-24T10:00:00.000Z'
@@ -53,6 +61,74 @@ function service(provider) {
 }
 
 describe('SQLite domain repositories', () => {
+  test('persists workspace-scoped runtime discovery projections across reopen', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-sqlite-discovery-'))
+    const path = join(directory, 'control-plane.sqlite')
+    let provider = new SqlitePersistenceProvider({ path })
+    try {
+      await provider.migrate()
+      const repository = new SqliteRuntimeDiscoveryRepository(provider)
+      await repository.putRuntimeConnection(ids.workspaceId, runtimeDiscoveryModel())
+      await repository.putExternalSession(
+        {
+          workspaceId: ids.workspaceId,
+          projectId: ids.projectId,
+          runtimeNodeRefId: ids.runtimeNodeRefId,
+        },
+        externalSessionDiscoveryModel()
+      )
+      provider.close()
+
+      provider = new SqlitePersistenceProvider({ path })
+      await provider.migrate()
+      const reopened = new SqliteRuntimeDiscoveryRepository(provider)
+      expect(await reopened.listRuntimeConnections({ workspaceId: ids.workspaceId })).toEqual([
+        runtimeDiscoveryModel(),
+      ])
+      expect(
+        await reopened.getRuntimeConnection(
+          { workspaceId: ids.workspaceId },
+          ids.runtimeConnectionId
+        )
+      ).toEqual(runtimeDiscoveryModel())
+      expect(
+        await reopened.listExternalSessions({
+          workspaceId: ids.workspaceId,
+          projectId: ids.projectId,
+        })
+      ).toEqual([externalSessionDiscoveryModel()])
+      expect(
+        await reopened.listRuntimeConnections({
+          workspaceId: 'wsp_01BRZ3NDEKTSV4RRFFQ69G5FAV',
+        })
+      ).toEqual([])
+    } finally {
+      provider.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  test('resolves an immutable ContextPackage by stable ID after reopen', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-sqlite-context-'))
+    const path = join(directory, 'control-plane.sqlite')
+    let provider = new SqlitePersistenceProvider({ path })
+    try {
+      await provider.migrate()
+      const package_ = contextPackageSerializationFixtures.futurePi
+      await new SqliteContextPackageRepository(provider).put(package_)
+      provider.close()
+
+      provider = new SqlitePersistenceProvider({ path })
+      await provider.migrate()
+      const repository = new SqliteContextPackageRepository(provider)
+      expect(await repository.getById(package_.contextPackageId)).toEqual(package_)
+      expect(await repository.getById('ctx_01JABCDEF0123456789ABCDEFG')).toBeUndefined()
+    } finally {
+      provider.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('serializes concurrent acceptance and replays it after a full reopen', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-sqlite-domain-'))
     const path = join(directory, 'control-plane.sqlite')
@@ -82,3 +158,58 @@ describe('SQLite domain repositories', () => {
     }
   })
 })
+
+function runtimeDiscoveryModel() {
+  return {
+    runtimeConnectionId: ids.runtimeConnectionId,
+    runtimeDefinitionId: 'rtd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    family: 'mock',
+    connectionType: 'managed_local',
+    location: 'local_device',
+    status: 'available',
+    node: {
+      runtimeNodeRefId: ids.runtimeNodeRefId,
+      location: 'local_device',
+      status: 'online',
+      health: 'online',
+      observedAt: receivedAt,
+    },
+    connection: { status: 'connected', health: 'healthy', availability: 'healthy' },
+    freshness: { state: 'fresh', observedAt: receivedAt },
+    versions: { adapter: '1.0.0', driver: '1.0.0', harness: '1.0.0' },
+    capabilities: ['tool.call'],
+    capabilityDetails: [{ name: 'tool.call', support: 'supported' }],
+    compatibility: { state: 'compatible', limitations: [] },
+    access: {
+      localProjectGrant: { required: true, state: 'granted' },
+      entitlement: { state: 'allowed' },
+    },
+    eligibility: { state: 'eligible', reasons: [], degradations: [], remediation: [] },
+    observedAt: receivedAt,
+    limitations: [],
+  }
+}
+
+function externalSessionDiscoveryModel() {
+  return {
+    externalSessionId: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    runtimeConnectionId: ids.runtimeConnectionId,
+    projectId: ids.projectId,
+    state: 'active',
+    recoverable: true,
+    display: { origin: 'created_through_control_plane' },
+    freshness: { state: 'fresh', observedAt: receivedAt },
+    capabilitySummary: {
+      version: 1,
+      operations: ['session.resume'],
+      controls: {
+        reference: { available: true },
+        resume: { available: true },
+        load: { available: true },
+        close: { available: true },
+        history: { available: false, reason: 'HISTORY_UNAVAILABLE' },
+      },
+    },
+    limitations: [],
+  }
+}

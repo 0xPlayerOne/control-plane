@@ -229,8 +229,30 @@ export class MemoryWriteService {
       )
     const provider = this.#assertProvider()
     this.#assertScope(proposal, provider)
-    proposal = await this.#transition(proposal, 'committing', observedAt)
     const request = toWriteRequest(proposal)
+    if (proposal.state === 'reconciliation_required') {
+      if (!provider.capabilities.idempotentStatus) fail('MEMORY_WRITE_AMBIGUOUS')
+      let status: Awaited<ReturnType<MemoryProviderWriter['status']>>
+      try {
+        status = await provider.status(request.idempotencyKey)
+      } catch {
+        fail('MEMORY_WRITE_AMBIGUOUS')
+      }
+      if (status.status === 'committed')
+        return this.#transition(
+          proposal,
+          'committed',
+          observedAt,
+          'reconciled',
+          status.providerMemoryRef
+        )
+      if (status.status === 'rejected') {
+        await this.#transition(proposal, 'failed', observedAt, 'failed')
+        fail('MEMORY_WRITE_REJECTED')
+      }
+      fail('MEMORY_WRITE_AMBIGUOUS')
+    }
+    proposal = await this.#transition(proposal, 'committing', observedAt)
     let result: Awaited<ReturnType<MemoryProviderWriter['write']>>
     let reconciled = false
     try {
@@ -239,8 +261,12 @@ export class MemoryWriteService {
       result = { status: 'unknown' }
     }
     if (result.status === 'unknown' && provider.capabilities.idempotentStatus) {
-      result = await provider.status(request.idempotencyKey)
-      reconciled = result.status === 'committed'
+      try {
+        result = await provider.status(request.idempotencyKey)
+        reconciled = result.status === 'committed'
+      } catch {
+        result = { status: 'unknown' }
+      }
     }
     if (result.status === 'committed')
       return this.#transition(

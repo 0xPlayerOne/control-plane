@@ -218,6 +218,13 @@ export class SqliteContextPackageRepository implements ContextPackageRepository 
       return package_.contentDigest === reference.contentDigest ? package_ : undefined
     })
   }
+
+  async getById(contextPackageId: string): Promise<ContextPackage | undefined> {
+    return this.provider.transaction(async (transaction) => {
+      const record = await transaction.get(namespaces.contextPackages, recordId(contextPackageId))
+      return record === undefined ? undefined : assertContextPackageIntegrity(record.value)
+    })
+  }
 }
 
 export class SqliteProjectStateRepository implements ProjectStateRepository {

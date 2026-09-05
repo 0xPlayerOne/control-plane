@@ -159,6 +159,12 @@ Restate is the canonical durable workflow runtime across profiles.
 - M9.8 completed the **Railway cloud** migration from Temporal to Restate, including networking, health, persistence, restart/redeploy, observability, and in-flight execution behavior.
 - M10.1 owns packaging/porting the already accepted Restate workflow implementation to Local and Hosted profiles.
 
+The execution lifecycle races user cancellation and the absolute execution deadline against every
+active runtime or graph activity. Terminal control dispatches an idempotent cancellation activity,
+then persists `cancelled` or `timed_out`; it also rechecks control immediately before persisting a
+normal terminal result. Runtime and graph adapters must therefore expose attempt-bound cancellation
+rather than relying on a late completion to resolve the race.
+
 Do not make M10 responsible for getting cloud Restate working for the first time.
 
 ## Configuration and secrets

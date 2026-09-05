@@ -19,12 +19,14 @@ function fakeActivities({ failDispatchOnce = false } = {}) {
   const statusUpdates = []
   let dispatchCalls = 0
   const interactionEffects = []
+  const cancellations = []
   return {
     attempts,
     effects,
     states,
     statusUpdates,
     interactionEffects,
+    cancellations,
     activities: {
       ensureAttempt: async ({ executionId, effectKey }) => {
         if (!attempts.has(effectKey)) attempts.set(effectKey, `att_${executionId.slice(4)}`)
@@ -43,6 +45,9 @@ function fakeActivities({ failDispatchOnce = false } = {}) {
       applyInteraction: async (interaction) => {
         interactionEffects.push(interaction)
         return { outcome: 'completed', resultReference: 'art_01ARZ3NDEKTSV4RRFFQ69G5FAV' }
+      },
+      cancelActive: async (cancellation) => {
+        cancellations.push(cancellation)
       },
       cleanup: async () => undefined,
     },
@@ -95,6 +100,80 @@ describe('Restate execution lifecycle', () => {
     expect(timedOut.states.at(-1)).toBe('timed_out')
   })
 
+  test('lets terminal control cancel a pending dispatch before completion can be persisted', async () => {
+    const fake = fakeActivities()
+    let resolveDispatch
+    let resolveTerminal
+    fake.activities.dispatch = () =>
+      new Promise((resolve) => {
+        resolveDispatch = resolve
+      })
+    const terminal = new Promise((resolve) => {
+      resolveTerminal = resolve
+    })
+    const execution = runExecutionLifecycle(input, fake.activities, {
+      raceActivity: async (activity) =>
+        Promise.race([
+          activity.then((value) => ({ type: 'activity', value })),
+          terminal.then((control) => ({ type: 'terminal', control })),
+        ]),
+    })
+
+    while (resolveDispatch === undefined) await Promise.resolve()
+    resolveTerminal({ cancelled: true })
+    resolveDispatch({ outcome: 'completed', resultReference: 'art_late' })
+
+    await expect(execution).resolves.toMatchObject({ status: 'cancelled' })
+    expect(fake.states).not.toContain('completed')
+    expect(fake.cancellations).toEqual([
+      expect.objectContaining({ reason: 'user_request', executionId: input.executionId }),
+    ])
+  })
+
+  test('rechecks terminal control after activity completion before persisting success', async () => {
+    const fake = fakeActivities()
+    const result = await runExecutionLifecycle(input, fake.activities, {
+      checkTerminal: async () => ({ deadlineReached: true }),
+    })
+
+    expect(result.status).toBe('timed_out')
+    expect(fake.states).not.toContain('completed')
+    expect(fake.cancellations).toEqual([
+      expect.objectContaining({ reason: 'deadline', executionId: input.executionId }),
+    ])
+  })
+
+  test('cancels the active attempt when terminal control wins an interaction wait', async () => {
+    const fake = fakeActivities()
+    fake.activities.dispatch = async () => ({
+      outcome: 'awaiting_input',
+      interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    })
+    let resolveTerminal
+    let waiting = false
+    const terminal = new Promise((resolve) => {
+      resolveTerminal = resolve
+    })
+    const execution = runExecutionLifecycle(input, fake.activities, {
+      waitForInteraction: () => {
+        waiting = true
+        return new Promise(() => {})
+      },
+      raceActivity: async (activity) =>
+        Promise.race([
+          activity.then((value) => ({ type: 'activity', value })),
+          terminal.then((control) => ({ type: 'terminal', control })),
+        ]),
+    })
+
+    while (!waiting) await Promise.resolve()
+    resolveTerminal({ cancelled: true })
+
+    await expect(execution).resolves.toMatchObject({ status: 'cancelled' })
+    expect(fake.cancellations).toHaveLength(1)
+    expect(fake.states).not.toContain('completed')
+  })
+
   test('persists bounded runtime failure metadata', async () => {
     const fake = fakeActivities()
     fake.activities.dispatch = async () => ({
@@ -123,7 +202,8 @@ describe('Restate execution lifecycle', () => {
       waitForInteraction: async (interactionId) => ({
         interactionId,
         responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-        action: 'approve',
+        action: 'input',
+        value: { answer: 'continue' },
       }),
     })
 
@@ -133,9 +213,29 @@ describe('Restate execution lifecycle', () => {
       expect.objectContaining({
         interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-        action: 'approve',
+        action: 'input',
+        value: { answer: 'continue' },
       }),
     ])
+  })
+
+  test('rejects interaction signals whose action and value disagree', async () => {
+    const fake = fakeActivities()
+    fake.activities.dispatch = async () => ({
+      outcome: 'awaiting_input',
+      interactionId: 'int_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    })
+
+    await expect(
+      runExecutionLifecycle(input, fake.activities, {
+        waitForInteraction: async (interactionId) => ({
+          interactionId,
+          responseId: 'cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          action: 'input',
+        }),
+      })
+    ).rejects.toThrow('INTERACTION_SIGNAL_VALUE_INVALID')
+    expect(fake.interactionEffects).toEqual([])
   })
 
   test('pins workflow versioning and bounded activity policies', () => {

@@ -12,6 +12,17 @@ import {
   type ManagedPiStatus,
 } from '@control-plane/managed-pi-adapter'
 import {
+  ObjectStoreError,
+  type ObjectStore,
+  type StoredObjectDescriptor,
+} from '@control-plane/object-store'
+import {
+  GatewayCommandEnvelopeSchema,
+  GatewayResultEnvelopeSchema,
+  type GatewayCommandEnvelope,
+  type GatewayResultEnvelope,
+} from '@control-plane/runtime-gateway-protocol'
+import {
   RuntimeAdapterError,
   RuntimeApprovalRequestSchema,
   RuntimeArtifactReferenceSchema,
@@ -108,6 +119,89 @@ export interface HostedArtifactStore {
     readonly mediaType: string
     readonly value: z.util.JSONType
   }): Promise<z.output<typeof RuntimeArtifactReferenceSchema>>
+}
+
+export interface HostedManagedPiTerminalBridgeOptions {
+  readonly artifactStore: HostedArtifactStore
+}
+
+export class HostedManagedPiTerminalBridge {
+  readonly #artifactStore: HostedArtifactStore
+
+  constructor(options: HostedManagedPiTerminalBridgeOptions) {
+    this.#artifactStore = options.artifactStore
+  }
+
+  async result(input: {
+    readonly command: GatewayCommandEnvelope
+    readonly status: ManagedPiStatus
+    readonly sequence: number
+  }): Promise<GatewayResultEnvelope | undefined> {
+    const command = GatewayCommandEnvelopeSchema.parse(input.command)
+    const status = ManagedPiStatusSchema.parse(input.status)
+    const sequence = z.number().int().nonnegative().max(2_147_483_647).parse(input.sequence)
+    const attemptId = z
+      .string()
+      .regex(/^att_[0-9A-HJKMNP-TV-Z]{26}$/)
+      .parse(command.attemptId)
+    if (sequence <= command.sequence) throw new Error('HOSTED_GATEWAY_SEQUENCE_STALE')
+
+    if (
+      status.state === 'queued' ||
+      status.state === 'running' ||
+      status.state === 'waiting_input' ||
+      status.state === 'stopping' ||
+      status.state === 'unknown'
+    ) {
+      return undefined
+    }
+
+    const common = {
+      type: 'result' as const,
+      schemaVersion: 1 as const,
+      protocolVersion: command.protocolVersion,
+      sequence,
+      nodeId: command.nodeId,
+      workspaceId: command.workspaceId,
+      traceId: command.traceId,
+      sentAt: status.observedAt,
+      channelGeneration: command.channelGeneration,
+      commandId: command.commandId,
+      payloadHash: command.payloadHash,
+      completedAt: status.observedAt,
+    }
+    if (status.state === 'succeeded') {
+      const artifact = await this.#artifactStore.persist({
+        attemptId,
+        mediaType: 'application/json',
+        value: z.json().parse(status.result),
+      })
+      return GatewayResultEnvelopeSchema.parse({
+        ...common,
+        status: 'succeeded',
+        result: {
+          artifact: {
+            artifactId: artifact.artifactId,
+            digest: artifact.digest,
+            mediaType: artifact.mediaType,
+            sizeBytes: artifact.sizeBytes,
+          },
+        },
+      })
+    }
+    if (status.state === 'cancelled') {
+      return GatewayResultEnvelopeSchema.parse({
+        ...common,
+        status: 'cancelled',
+        result: { data: {} },
+      })
+    }
+    return GatewayResultEnvelopeSchema.parse({
+      ...common,
+      status: 'failed',
+      result: { data: { error: status.error } },
+    })
+  }
 }
 
 export interface RuntimeHostProvider {
@@ -291,6 +385,87 @@ export class InMemoryHostedArtifactStore implements HostedArtifactStore {
 
   references(): Array<z.output<typeof RuntimeArtifactReferenceSchema>> {
     return this.#records.map(({ reference }) => structuredClone(reference))
+  }
+}
+
+export class ObjectStoreHostedArtifactStore implements HostedArtifactStore {
+  readonly #objectStore: ObjectStore
+  readonly #pending = new Map<
+    string,
+    {
+      readonly fingerprint: string
+      readonly result: Promise<z.output<typeof RuntimeArtifactReferenceSchema>>
+    }
+  >()
+
+  constructor(objectStore: ObjectStore) {
+    this.#objectStore = objectStore
+  }
+
+  persist(input: {
+    readonly attemptId: string
+    readonly mediaType: string
+    readonly value: z.util.JSONType
+  }): Promise<z.output<typeof RuntimeArtifactReferenceSchema>> {
+    const attemptId = z
+      .string()
+      .regex(/^att_[0-9A-HJKMNP-TV-Z]{26}$/)
+      .parse(input.attemptId)
+    const mediaType = z.string().min(1).max(255).parse(input.mediaType)
+    const body = new TextEncoder().encode(canonicalJson(z.json().parse(input.value)))
+    const fingerprint = createHash('sha256')
+      .update(mediaType)
+      .update('\0')
+      .update(body)
+      .digest('hex')
+    const current = this.#pending.get(attemptId)
+    if (current !== undefined) {
+      if (current.fingerprint !== fingerprint) return Promise.reject(artifactConflict())
+      return current.result
+    }
+    const result = this.#persist({ attemptId, mediaType, body })
+    this.#pending.set(attemptId, { fingerprint, result })
+    return result.catch((error: unknown) => {
+      this.#pending.delete(attemptId)
+      throw error
+    })
+  }
+
+  async #persist(input: {
+    readonly attemptId: string
+    readonly mediaType: string
+    readonly body: Uint8Array
+  }): Promise<z.output<typeof RuntimeArtifactReferenceSchema>> {
+    const key = `runtime-results/${input.attemptId}/result.json`
+    const expectedDigest = `sha256:${createHash('sha256').update(input.body).digest('hex')}`
+    let existing: StoredObjectDescriptor | undefined
+    try {
+      existing = await this.#objectStore.head(key)
+    } catch (error) {
+      if (!(error instanceof ObjectStoreError) || error.code !== 'OBJECT_STORE_NOT_FOUND') {
+        throw error
+      }
+    }
+    if (existing !== undefined) {
+      if (
+        existing.sha256 !== expectedDigest ||
+        existing.size !== input.body.byteLength ||
+        existing.contentType !== input.mediaType
+      ) {
+        throw artifactConflict()
+      }
+      return artifactReference(input.attemptId, existing)
+    }
+    const stored = await this.#objectStore.put({
+      key,
+      body: input.body,
+      contentType: input.mediaType,
+      metadata: { attempt: input.attemptId },
+    })
+    if (stored.sha256 !== expectedDigest || stored.size !== input.body.byteLength) {
+      throw new Error('HOSTED_ARTIFACT_INTEGRITY_FAILURE')
+    }
+    return artifactReference(input.attemptId, stored)
   }
 }
 
@@ -694,4 +869,38 @@ function unavailableHost(): RuntimeAdapterError {
 
 function stable(value: unknown): string {
   return JSON.stringify(value)
+}
+
+function canonicalJson(value: z.util.JSONType): string {
+  return JSON.stringify(canonicalValue(value))
+}
+
+function canonicalValue(value: z.util.JSONType): z.util.JSONType {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, canonicalValue(child)])
+    )
+  }
+  return value
+}
+
+function artifactReference(
+  attemptId: string,
+  stored: StoredObjectDescriptor
+): z.output<typeof RuntimeArtifactReferenceSchema> {
+  return RuntimeArtifactReferenceSchema.parse({
+    artifactId: `art_${attemptId.slice(4)}`,
+    version: 1,
+    mediaType: stored.contentType,
+    digest: stored.sha256,
+    sizeBytes: stored.size,
+    locator: `artifact://${stored.key}`,
+  })
+}
+
+function artifactConflict(): Error {
+  return new Error('HOSTED_ARTIFACT_RESULT_CONFLICT')
 }

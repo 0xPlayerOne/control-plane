@@ -22,6 +22,7 @@ export {
 export { PostgresReconciliationCheckpointRepository } from './reconciliation-checkpoint-repository.js'
 export { PostgresReleaseAuditRepository } from './release-audit-repository.js'
 export { PostgresRuntimeConnectionRepository } from './runtime-connection-repository.js'
+export { PostgresRuntimeDiscoveryRepository } from './runtime-discovery-repository.js'
 export { PostgresRuntimeCommandRepository } from './runtime-command-repository.js'
 export { PostgresRuntimeEventEffectSink } from './runtime-event-effect-sink.js'
 export { PostgresRuntimeInventoryCheckpointRepository } from './runtime-inventory-checkpoint-repository.js'
@@ -78,6 +79,8 @@ export {
   runtimeCompatibilityState,
   runtimeConnectionHealth,
   runtimeConnections,
+  runtimeDiscoveryProjections,
+  runtimeDiscoveryResourceKind,
   runtimeConnectionLocation,
   runtimeConnectionStatus,
   runtimeConnectionType,
@@ -94,6 +97,8 @@ export {
   usageLedgerEntryKind,
   skillVersions,
   skills,
+  marketplaceInstallationState,
+  marketplaceInstallations,
 } from './schema/index.js'
 export { withDomainTransaction } from './transaction.js'
 export type { DomainTransaction } from './transaction.js'
