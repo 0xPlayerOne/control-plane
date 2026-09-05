@@ -1,6 +1,6 @@
 {
   "name": "@control-plane/workflow-worker",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "main": "./dist/index.js",
   "dependencies": {
     "@control-plane/bootstrap": "workspace:*",

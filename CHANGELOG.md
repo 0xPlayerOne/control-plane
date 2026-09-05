@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.1](https://github.com/adea-ai/control-plane/compare/workspace-v1.8.0...workspace-v1.8.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **ci:** assert live workspace-manifest consistency in audit test ([#363](https://github.com/adea-ai/control-plane/issues/363)) ([7050b92](https://github.com/adea-ai/control-plane/commit/7050b92fe6f51a26eabce1e5fdc757818535d940))
+* **ci:** ignore release-owned versions in architecture package drift check ([#361](https://github.com/adea-ai/control-plane/issues/361)) ([11e9f45](https://github.com/adea-ai/control-plane/commit/11e9f45c248313e6b28dfe1c61a0dd59ecf68043))
+
+
+### Maintenance
+
+* review-policy-gate ([#357](https://github.com/adea-ai/control-plane/issues/357)) ([d152f2c](https://github.com/adea-ai/control-plane/commit/d152f2c1a3159a5fd4b194eeb84254d474f3d41d))
+
 ## [1.8.0](https://github.com/0xPlayerOne/control-plane/compare/workspace-v1.7.5...workspace-v1.8.0) (2026-08-30)
 
 
