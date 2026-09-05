@@ -1,0 +1,2 @@
+ALTER TABLE "marketplace_installations" ALTER COLUMN "catalog_id" SET DATA TYPE varchar(72);--> statement-breakpoint
+ALTER TABLE "marketplace_installations" ALTER COLUMN "release_id" SET DATA TYPE varchar(72);

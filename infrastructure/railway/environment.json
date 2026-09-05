@@ -36,7 +36,7 @@
       "neon": {
         "provider": "neon",
         "project": "control-plane",
-        "branch": "main"
+        "branch": "production"
       }
     }
   },

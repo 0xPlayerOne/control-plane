@@ -23,9 +23,12 @@ The repository-owned managed-cloud compositions now connect both `control-api` a
 commands, executions, ProjectState, and ContextPackages; the workflow worker persists execution and
 attempt lifecycle transitions and loads the exact accepted plan before runtime dispatch.
 
-- the dedicated Control Plane Neon project has separate `staging` and `main`
-  branches; `staging` is the Railway staging database and `main` is the Railway
-  production database;
+- the dedicated Control Plane Neon project has separate `staging` and
+  `production` branches named after the Railway environments they serve:
+  `staging` is the Railway staging database and `production` is the Railway
+  production database. The Git source branches remain `staging` and `main`;
+  only the Git branch names differ from the environment names, and the explicit
+  mapping below is the authority for the join;
 - Railway's `staging` and `production` environments must each supply their own
   `DATABASE_URL`, `DATABASE_MIGRATION_URL`, and `DATABASE_ADMIN_URL` values;
 - the Control Plane Drizzle/domain schema is applied to the staging branch by an
@@ -71,10 +74,18 @@ Managed-cloud values are injected through the M9 Railway/Neon configuration boun
 
 The environment mapping is intentionally explicit and credential-free in source:
 
-| Railway environment | Git source branch | Neon branch | Application environment |
-| ------------------- | ----------------- | ----------- | ----------------------- |
-| `staging`           | `staging`         | `staging`   | `staging`               |
-| `production`        | `main`            | `main`      | `production`            |
+| Railway environment | Git source branch | Neon branch  | Application environment |
+| ------------------- | ----------------- | ------------ | ----------------------- |
+| `staging`           | `staging`         | `staging`    | `staging`               |
+| `production`        | `main`            | `production` | `production`            |
+
+Naming convention: Neon branches and Railway environments share the environment
+name (`staging`, `production`); Git source branches keep the release-flow names
+(`staging`, `main`). This matches the Agent HQ Neon project, which also names
+its durable branches after environments (`development`, `staging`,
+`production`). Control Plane has no shared `development` Neon branch by policy:
+local development uses the pinned Compose PostgreSQL fixture and tests use
+disposable isolated databases.
 
 Only the runtime URL is provided to application services. The migration URL is
 used by the explicit database migration job, and the admin URL is reserved for
