@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/adea-ai/control-plane/compare/object-store-v1.2.0...object-store-v1.2.1) (2026-09-05)
+
+
+### Maintenance
+
+* review-policy-gate ([#357](https://github.com/adea-ai/control-plane/issues/357)) ([d152f2c](https://github.com/adea-ai/control-plane/commit/d152f2c1a3159a5fd4b194eeb84254d474f3d41d))
+
 ## [1.2.0](https://github.com/0xPlayerOne/control-plane/compare/object-store-v1.1.1...object-store-v1.2.0) (2026-08-30)
 
 

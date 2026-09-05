@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/adea-ai/control-plane/compare/events-v1.3.0...events-v1.3.1) (2026-09-05)
+
+
+### Maintenance
+
+* review-policy-gate ([#357](https://github.com/adea-ai/control-plane/issues/357)) ([d152f2c](https://github.com/adea-ai/control-plane/commit/d152f2c1a3159a5fd4b194eeb84254d474f3d41d))
+
 ## [1.3.0](https://github.com/0xPlayerOne/control-plane/compare/events-v1.2.1...events-v1.3.0) (2026-08-29)
 
 
