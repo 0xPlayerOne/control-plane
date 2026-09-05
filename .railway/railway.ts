@@ -28,7 +28,7 @@ export default defineRailway((context) => {
       restartPolicyType: 'ON_FAILURE',
       restartPolicyMaxRetries: 5,
       limitOverride: {
-        containers: { cpu: 0.25, memoryBytes: 268_435_456 },
+        containers: { cpu: 0.25, memoryBytes: 1_073_741_824 },
       },
     },
     networking: { privateNetworkEndpoint: 'control-planecontrol-api' },
