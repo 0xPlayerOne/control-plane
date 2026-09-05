@@ -80,6 +80,56 @@ describe('telemetry safety and correlation', () => {
     expect(input.nested.safe).toBe('visible')
   })
 
+  test('redacts compound secret keys without over-redacting unrelated names', () => {
+    const secretCanary = 'compound-secret-canary-9f4a'
+
+    expect(
+      redactTelemetryValue({
+        privateKey: secretCanary,
+        signing_key: secretCanary,
+        'encryption-key': secretCanary,
+        SecretValue: secretCanary,
+        secretKey: secretCanary,
+        credentialRef: secretCanary,
+        publicKey: 'visible-public-key',
+        keyId: 'visible-key-id',
+        credentialId: 'visible-credential-id',
+        monkey: 'visible-monkey',
+        secretary: 'visible-secretary',
+        tokenizer: 'visible-tokenizer',
+      })
+    ).toEqual({
+      privateKey: '[REDACTED]',
+      signing_key: '[REDACTED]',
+      'encryption-key': '[REDACTED]',
+      SecretValue: '[REDACTED]',
+      secretKey: '[REDACTED]',
+      credentialRef: '[REDACTED]',
+      publicKey: 'visible-public-key',
+      keyId: 'visible-key-id',
+      credentialId: 'visible-credential-id',
+      monkey: 'visible-monkey',
+      secretary: 'visible-secretary',
+      tokenizer: 'visible-tokenizer',
+    })
+  })
+
+  test('redacts compound secret assignments embedded in diagnostic text', () => {
+    const secretCanary = 'compound-text-secret-canary-9f4a'
+    const diagnostic = [
+      `privateKey=${secretCanary}`,
+      `signingKey: ${secretCanary}`,
+      `encryption_key=${secretCanary}`,
+      `secretKey=${secretCanary}`,
+      `secret-value: ${secretCanary}`,
+      `credentialRef=${secretCanary}`,
+    ].join(', ')
+
+    expect(redactTelemetryValue(diagnostic)).toBe(
+      'privateKey=[REDACTED], signingKey=[REDACTED], encryption_key=[REDACTED], secretKey=[REDACTED], secret-value=[REDACTED], credentialRef=[REDACTED]'
+    )
+  })
+
   test('keeps a secret canary out of structured logs', () => {
     const secretCanary = 'secret-canary-log-9f4a'
     const lines = []

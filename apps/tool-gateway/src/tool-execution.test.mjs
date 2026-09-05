@@ -398,7 +398,10 @@ describe('policy-controlled durable tool execution', () => {
 
   test('does not retry an ambiguous non-idempotent timeout and requires reconciliation', async () => {
     const { service, executor } = await fixture({
-      executorResponse: () => new Promise(() => {}),
+      executorResponse: (_request, _version, signal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        }),
       versionOverrides: {
         operations: [
           {

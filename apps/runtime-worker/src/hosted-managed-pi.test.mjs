@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { executionConstraintFixtures } from '@control-plane/domain'
 import {
@@ -5,6 +8,8 @@ import {
   ManagedPiDriver,
   translateExecutionPlanToManagedPi,
 } from '@control-plane/managed-pi-adapter'
+import { FilesystemObjectStore } from '@control-plane/object-store'
+import { GatewayResultEnvelopeSchema } from '@control-plane/runtime-gateway-protocol'
 import {
   evaluateRuntimeEligibility,
   RemoteRuntimeGatewayTransport,
@@ -13,8 +18,10 @@ import {
 } from '@control-plane/runtime-sdk'
 import {
   HostedManagedPiClient,
+  HostedManagedPiTerminalBridge,
   HostedManagedPiWorker,
   InMemoryHostedArtifactStore,
+  ObjectStoreHostedArtifactStore,
   ReferenceRuntimeHostProvider,
   buildHostedManagedPiRuntimeConnection,
 } from './hosted-managed-pi.ts'
@@ -99,6 +106,117 @@ function fixture(scenario = 'complete') {
 }
 
 describe('hosted managed Pi runtime worker', () => {
+  test('publishes terminal hosted output as an Artifact-backed gateway result', async () => {
+    const artifactStore = new InMemoryHostedArtifactStore({ now: () => now })
+    const bridge = new HostedManagedPiTerminalBridge({ artifactStore })
+    const command = gatewayCommand()
+
+    expect(
+      await bridge.result({
+        command,
+        status: { state: 'running', observedAt: now },
+        sequence: 7,
+      })
+    ).toBeUndefined()
+
+    const result = await bridge.result({
+      command,
+      status: {
+        state: 'succeeded',
+        observedAt: now,
+        result: {
+          output: { answer: 'hosted-managed-pi-complete' },
+          usage: { inputTokens: 12, outputTokens: 4, durationMs: 120 },
+          artifacts: [],
+        },
+      },
+      sequence: 8,
+    })
+
+    expect(GatewayResultEnvelopeSchema.parse(result)).toMatchObject({
+      type: 'result',
+      sequence: 8,
+      commandId: command.commandId,
+      status: 'succeeded',
+      result: {
+        artifact: {
+          artifactId: `art_${'0'.repeat(25)}1`,
+          mediaType: 'application/json',
+        },
+      },
+    })
+    expect(artifactStore.references()).toHaveLength(1)
+  })
+
+  test('maps terminal hosted failures without persisting false success artifacts', async () => {
+    const artifactStore = new InMemoryHostedArtifactStore({ now: () => now })
+    const bridge = new HostedManagedPiTerminalBridge({ artifactStore })
+    const command = gatewayCommand()
+    const error = {
+      code: 'HOSTED_PI_WORKER_CRASHED',
+      classification: 'infrastructure',
+      message: 'Hosted managed Pi worker crashed',
+      retryable: true,
+    }
+
+    expect(
+      await bridge.result({
+        command,
+        status: { state: 'errored', observedAt: now, error },
+        sequence: 9,
+      })
+    ).toMatchObject({ status: 'failed', result: { data: { error } } })
+    expect(
+      await bridge.result({
+        command,
+        status: { state: 'cancelled', observedAt: now },
+        sequence: 10,
+      })
+    ).toMatchObject({ status: 'cancelled', result: { data: {} } })
+    expect(artifactStore.references()).toHaveLength(0)
+  })
+
+  test('persists one replay-safe terminal Artifact through the configured ObjectStore', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-artifact-'))
+    const objectStore = new FilesystemObjectStore({
+      rootDirectory: directory,
+      maxObjectBytes: 1024 * 1024,
+    })
+    const artifactStore = new ObjectStoreHostedArtifactStore(objectStore)
+    try {
+      const first = await artifactStore.persist({
+        attemptId: ids.attemptId,
+        mediaType: 'application/json',
+        value: { nested: { answer: 'complete' }, ok: true },
+      })
+      const replay = await new ObjectStoreHostedArtifactStore(objectStore).persist({
+        attemptId: ids.attemptId,
+        mediaType: 'application/json',
+        value: { ok: true, nested: { answer: 'complete' } },
+      })
+      expect(replay).toEqual(first)
+      expect(first).toMatchObject({
+        artifactId: `art_${ids.attemptId.slice(4)}`,
+        mediaType: 'application/json',
+        locator: `artifact://runtime-results/${ids.attemptId}/result.json`,
+      })
+      expect(await objectStore.get(`runtime-results/${ids.attemptId}/result.json`)).toMatchObject({
+        sha256: first.digest,
+        size: first.sizeBytes,
+      })
+      await expect(
+        new ObjectStoreHostedArtifactStore(objectStore).persist({
+          attemptId: ids.attemptId,
+          mediaType: 'application/json',
+          value: { ok: false },
+        })
+      ).rejects.toThrow('HOSTED_ARTIFACT_RESULT_CONFLICT')
+    } finally {
+      objectStore.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   test('uses the same normalized plan as local managed Pi under bounded delegated authority', async () => {
     const { adapter, host, artifactStore } = fixture()
     const handle = await adapter.start({
@@ -314,3 +432,30 @@ describe('hosted managed Pi runtime worker', () => {
     expect(await worker.readiness()).toEqual({ ready: false, reason: 'HOST_UNAVAILABLE' })
   })
 })
+
+function gatewayCommand() {
+  return {
+    type: 'command',
+    schemaVersion: 1,
+    protocolVersion: { major: 1, minor: 5 },
+    sequence: 6,
+    nodeId: 'rnr_01JABCDEF0123456789ABCDEFG',
+    workspaceId: 'wsp_01JABCDEF0123456789ABCDEFG',
+    traceId: 'trc_01JABCDEF0123456789ABCDEFG',
+    sentAt: now,
+    channelGeneration: 1,
+    commandId: 'cmd_01JABCDEF0123456789ABCDEFG',
+    idempotencyKey: 'hosted-pi:gateway',
+    payloadHash: digest('e'),
+    issuedAt: now,
+    expiresAt: '2026-08-25T12:01:00.000Z',
+    family: 'runtime',
+    operation: 'runtime.execute',
+    driver: { family: 'managed-pi', version: '1.0.0' },
+    runtimeConnectionId: ids.runtimeConnectionId,
+    executionId: 'exe_01JABCDEF0123456789ABCDEFG',
+    attemptId: ids.attemptId,
+    requiredCapabilities: ['runtime.execute'],
+    payload: { version: 1, parameters: { fixture: true } },
+  }
+}

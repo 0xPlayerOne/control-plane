@@ -26,7 +26,7 @@ export class PostgresContextPackageRepository implements ContextPackageRepositor
       .returning({ contextPackageId: contextPackages.contextPackageId })
     if (inserted.length === 1) return reference
 
-    const existing = await this.#getById(package_.contextPackageId)
+    const existing = await this.getById(package_.contextPackageId)
     if (!existing || !isDeepStrictEqual(existing, package_)) {
       throw new Error('CONTEXT_PACKAGE_ID_CONFLICT')
     }
@@ -48,7 +48,7 @@ export class PostgresContextPackageRepository implements ContextPackageRepositor
     return row ? fromRow(row) : undefined
   }
 
-  async #getById(contextPackageId: string): Promise<ContextPackage | undefined> {
+  async getById(contextPackageId: string): Promise<ContextPackage | undefined> {
     const [row] = await this.database
       .select()
       .from(contextPackages)

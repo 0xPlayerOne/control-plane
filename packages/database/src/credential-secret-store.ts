@@ -22,6 +22,7 @@ export class PostgresEncryptedSecretStore implements EncryptedSecretStore {
         iv: credentialSecrets.iv,
         authTag: credentialSecrets.authTag,
         keyReference: credentialSecrets.keyReference,
+        encryptionVersion: credentialSecrets.encryptionVersion,
       })
       .from(credentialSecrets)
       .where(

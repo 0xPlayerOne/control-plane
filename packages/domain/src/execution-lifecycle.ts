@@ -46,6 +46,14 @@ export const ExecutionPlanPinSchema = z
   })
   .strict()
 
+export const MarketplacePluginReferenceSchema = z
+  .object({
+    pluginId: z.string().regex(/^plugin:[a-z0-9-]+:[a-z0-9][a-z0-9-]{1,127}$/),
+    releaseId: z.string().regex(/^release:[a-f0-9]{64}$/),
+    canonicalContentDigest: DigestSchema,
+  })
+  .strict()
+
 export const ExecutionCorrelationSchema = z
   .object({
     workspaceId: IdentifierSchemas.workspaceId,
@@ -118,6 +126,7 @@ export const ExecutionSchema = z
     version: z.number().int().positive(),
     correlation: ExecutionCorrelationSchema,
     executionPlan: ExecutionPlanPinSchema,
+    marketplacePluginReferences: z.array(MarketplacePluginReferenceSchema).max(128).optional(),
     parentExecutionId: IdentifierSchemas.executionId.optional(),
     attemptCount: z.number().int().nonnegative(),
     latestAttemptId: IdentifierSchemas.attemptId.optional(),
@@ -162,6 +171,7 @@ export const ExecutionAttemptSchema = z
 export type ExecutionState = z.output<typeof ExecutionStateSchema>
 export type ExecutionAttemptState = z.output<typeof ExecutionAttemptStateSchema>
 export type Execution = z.output<typeof ExecutionSchema>
+export type MarketplacePluginReference = z.output<typeof MarketplacePluginReferenceSchema>
 export type ExecutionAttempt = z.output<typeof ExecutionAttemptSchema>
 export type AttemptRoutingDecision = z.output<typeof AttemptRoutingDecisionSchema>
 
@@ -278,6 +288,7 @@ const CreateExecutionSchema = z
     executionId: IdentifierSchemas.executionId,
     correlation: ExecutionCorrelationSchema,
     executionPlan: ExecutionPlanPinSchema,
+    marketplacePluginReferences: z.array(MarketplacePluginReferenceSchema).max(128).optional(),
     parentExecutionId: IdentifierSchemas.executionId.optional(),
     acceptedAt: TimestampSchema,
     deadlineAt: TimestampSchema.optional(),
@@ -327,6 +338,9 @@ export class ExecutionLifecycleService {
       state: 'accepted',
       version: 1,
       attemptCount: 0,
+      ...(parsed.marketplacePluginReferences === undefined
+        ? {}
+        : { marketplacePluginReferences: parsed.marketplacePluginReferences }),
       createdAt: parsed.acceptedAt,
       updatedAt: parsed.acceptedAt,
     })
@@ -568,6 +582,8 @@ function hasSameImmutableExecutionIdentity(left: Execution, right: Execution): b
     left.parentExecutionId === right.parentExecutionId &&
     JSON.stringify(left.correlation) === JSON.stringify(right.correlation) &&
     JSON.stringify(left.executionPlan) === JSON.stringify(right.executionPlan) &&
+    JSON.stringify(left.marketplacePluginReferences) ===
+      JSON.stringify(right.marketplacePluginReferences) &&
     left.acceptedAt === right.acceptedAt &&
     left.createdAt === right.createdAt
   )

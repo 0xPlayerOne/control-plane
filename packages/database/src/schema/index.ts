@@ -61,7 +61,15 @@ export {
   runtimeEventReceipts,
 } from './runtime-event-receipts.js'
 export { runtimeInventoryCheckpoints } from './runtime-inventory-checkpoints.js'
+export {
+  runtimeDiscoveryProjections,
+  runtimeDiscoveryResourceKind,
+} from './runtime-discovery-projections.js'
 export { usageFundingSource, usageLedgerEntries, usageLedgerEntryKind } from './usage-ledger.js'
+export {
+  marketplaceInstallationState,
+  marketplaceInstallations,
+} from './marketplace-installations.js'
 export {
   reconciliationAction,
   reconciliationCheckpoints,

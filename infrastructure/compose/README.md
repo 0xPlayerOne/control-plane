@@ -22,13 +22,16 @@ The API binds to `127.0.0.1:3000` by default. Readiness is available at `/ready`
 
 The `server` profile runs three long-lived services: the all-in-one hosted Control Plane, PostgreSQL, and Restate. A one-shot migration container applies the versioned schema before the Control Plane starts. PostgreSQL and Restate stay private on the Compose network; only the Control API is published to host loopback.
 
-Set a URL-safe PostgreSQL password before the first start. An empty value fails closed because PostgreSQL refuses initialization.
+Set three distinct URL-safe PostgreSQL passwords before the first start: the bootstrap administrator,
+the schema migrator, and the long-running application role. Empty values fail closed. The application
+role receives only schema usage plus table DML and sequence access; it cannot create database objects.
 
 ```sh
 cd infrastructure/compose
 cp .env.example .env
-password=$(openssl rand -hex 32)
-# Put the generated value in POSTGRES_PASSWORD in .env without printing it again.
+# Generate each value separately and put it in POSTGRES_PASSWORD,
+# POSTGRES_MIGRATION_PASSWORD, and POSTGRES_APPLICATION_PASSWORD in .env.
+openssl rand -hex 32
 mkdir -p data/server/control-plane data/server/postgres data/server/restate
 sudo chown 1000:1000 data/server/control-plane
 sudo chown 70:70 data/server/postgres
@@ -37,6 +40,13 @@ chmod 700 data/server data/server/*
 docker compose --profile server up --build -d
 docker compose --profile server ps
 ```
+
+The one-shot `database-bootstrap` service creates or updates the distinct roles before
+`database-migrate` runs. It is idempotent for existing data directories: it transfers objects owned
+by the former `control_plane` application/owner role to `control_plane_migrator`, reapplies bounded
+runtime grants, and then migrations run as the migrator. Back up PostgreSQL before the first upgrade
+from a release that used one shared role. Never reuse any of the three passwords or point
+`DATABASE_URL` at the bootstrap or migration role.
 
 The server component manifest reports `hosted-server`, PostgreSQL persistence, filesystem artifacts, and the separate Restate dependency. An S3-compatible ObjectStore is optional and replaces only the object-store adapter; Neon is a supported PostgreSQL provider but is not required. To enable it, set `HOSTED_OBJECT_STORE=s3-compatible` plus `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. The endpoint must use HTTPS and all values are required together. Cloudflare R2 works through this seam with region `auto`.
 

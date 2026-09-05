@@ -23,6 +23,9 @@ import {
   RestateExecutionWorkflowDispatcher,
 } from './executions/execution-acceptance.service.ts'
 import { DurableExecutionValidationService } from './executions/execution-validation.service.ts'
+import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.ts'
+import { RepositoryProjectStateResolutionService } from './queries/project-state-resolution.service.ts'
+import { RepositoryContextPackageResolutionService } from './queries/context-package-resolution.service.ts'
 import { InMemoryRuntimeDiscoveryRepository } from './runtime-discovery/runtime-discovery.repository.ts'
 
 class FakeProcessAdapter {
@@ -62,7 +65,10 @@ async function createApplication(
   serviceAuthenticator,
   runtimeDiscoveryRepository,
   executionValidationService,
-  executionAcceptanceService
+  executionAcceptanceService,
+  profileResolutionService,
+  projectStateResolutionService,
+  contextPackageResolutionService
 ) {
   const application = await createControlApiApplication({
     health: () => ({ status: 'ok', metadata }),
@@ -71,6 +77,9 @@ async function createApplication(
     readiness: () => ({ status: 'ready', metadata }),
     executionAcceptanceService,
     executionValidationService,
+    profileResolutionService,
+    projectStateResolutionService,
+    contextPackageResolutionService,
     serviceAuthenticator,
     runtimeDiscoveryRepository,
   })
@@ -83,6 +92,135 @@ afterEach(async () => {
 })
 
 describe('Control API', () => {
+  test('verifies an authenticated service principal through the public contract', async () => {
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: {
+          ...validServiceClaims(),
+          scopes: ControlApiFixtures.authentication.response.data.principal.scopes,
+        },
+      })
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/authentication/verify',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.authentication.request,
+    })
+
+    expect(response.json()).toEqual(ControlApiFixtures.authentication.response)
+    expect(response.statusCode).toBe(200)
+  })
+
+  test('resolves the latest published profile through the public contract', async () => {
+    const profile = executionProfile(executionConstraintFixtures.read)
+    const service = new RepositoryProfileResolutionService({
+      getAgentProfileVersion: async () => undefined,
+      listAgentProfileVersions: async () => [
+        { ...profile, lifecycle: 'draft', version: 4 },
+        profile,
+      ],
+    })
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['profile:resolve'] },
+      }),
+      undefined,
+      undefined,
+      undefined,
+      service
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/profiles/resolve',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.profileResolution.request,
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(ControlApiFixtures.profileResolution.response)
+  })
+
+  test('resolves an immutable ProjectState revision through the public contract', async () => {
+    const reference = ControlApiFixtures.projectStateReference
+    const state = {
+      schemaVersion: 1,
+      ...reference,
+      items: [],
+      createdAt: '2026-08-23T11:00:00.000Z',
+      updatedAt: '2026-08-23T11:00:00.000Z',
+    }
+    const service = new RepositoryProjectStateResolutionService({
+      get: async () => state,
+      getAtRevision: async () => state,
+    })
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['project-state:read'] },
+      }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      service
+    )
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/project-states/resolve',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: ControlApiFixtures.projectStateResolution.request,
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(ControlApiFixtures.projectStateResolution.response)
+  })
+
+  test('resolves a scoped ContextPackage reference through the public contract', async () => {
+    const package_ = contextPackageSerializationFixtures.futurePi
+    const service = new RepositoryContextPackageResolutionService({
+      getById: async () => package_,
+    })
+    const application = await createApplication(
+      [],
+      policyAuthenticator({
+        claims: { ...validServiceClaims(), scopes: ['context:read'] },
+      }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      service
+    )
+    const request = {
+      ...ControlApiFixtures.contextPackageResolution.request,
+      workspaceId: package_.projectState.workspaceId,
+      projectId: package_.projectState.projectId,
+      parameters: { contextPackageId: package_.contextPackageId },
+    }
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/v1/context-packages/resolve',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: request,
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().data.contextPackage).toEqual({
+      contextPackageId: package_.contextPackageId,
+      contentDigest: package_.contentDigest,
+      schemaVersion: package_.schemaVersion,
+      compilerVersion: package_.compiler.version,
+    })
+  })
+
   test('exposes health, readiness, and security headers', async () => {
     await withTestApplication(createApplication, async (application) => {
       const health = await application.inject({ method: 'GET', url: '/health' })
@@ -391,6 +529,28 @@ describe('Control API', () => {
     expect(replay.data).toEqual({ ...first.data, replayed: true })
     expect(fixture.submissions).toHaveLength(1)
     expect(fixture.repository.executionCount).toBe(1)
+  })
+
+  test('carries exact marketplace pins into the durable workflow submission', async () => {
+    const fixture = executionAcceptanceFixture()
+    const marketplacePluginReferences = [
+      {
+        canonicalContentDigest: `sha256:${'f'.repeat(64)}`,
+        pluginId: 'plugin:openai-official:gmail',
+        releaseId: `release:${'e'.repeat(64)}`,
+      },
+    ]
+    const request = {
+      ...ControlApiFixtures.executionAcceptance.request,
+      payload: {
+        ...ControlApiFixtures.executionAcceptance.request.payload,
+        marketplacePluginReferences,
+      },
+    }
+
+    await fixture.service.accept(request, 'svc_agent-hq')
+
+    expect(fixture.submissions[0]).toMatchObject({ marketplacePluginReferences })
   })
 
   test('rejects an acceptance payload conflict without another execution or workflow', async () => {
@@ -755,6 +915,15 @@ describe('Control API', () => {
         runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
       }),
     })
+    const runtimes = await application.inject({
+      method: 'POST',
+      url: '/v1/runtimes/list',
+      headers: { authorization: 'Bearer valid-agent-hq-token' },
+      payload: discoveryRequest('runtime.list', {
+        status: 'unavailable',
+        requiredCapabilities: ['session.resume'],
+      }),
+    })
     const sessionList = await application.inject({
       method: 'POST',
       url: '/v1/external-sessions/list',
@@ -777,6 +946,20 @@ describe('Control API', () => {
       },
     })
     expect(runtimeGet.statusCode).toBe(200)
+    expect(runtimes.statusCode).toBe(200)
+    expect(runtimes.json().data.runtimes).toEqual([
+      {
+        runtimeNodeRefId: runtimeModel().node.runtimeNodeRefId,
+        runtimeConnectionId: runtimeModel().runtimeConnectionId,
+        runtimeDefinitionId: runtimeModel().runtimeDefinitionId,
+        family: runtimeModel().family,
+        location: runtimeModel().node.location,
+        status: 'unavailable',
+        observedAt: runtimeModel().observedAt,
+        capabilities: runtimeModel().capabilities,
+        limitations: runtimeModel().limitations,
+      },
+    ])
     expect(sessionList.statusCode).toBe(200)
     expect(sessionList.json().data.externalSessions[0].capabilitySummary.controls.resume).toEqual({
       available: false,
@@ -862,7 +1045,10 @@ describe('Control API', () => {
     expect(document.paths).toHaveProperty('/v1/executions/validate')
     expect(document.paths).toHaveProperty('/v1/executions/accept')
     expect(document.paths).toHaveProperty('/v1/runtime-connections/list')
+    expect(document.paths).toHaveProperty('/v1/runtimes/list')
     expect(document.paths).toHaveProperty('/v1/external-sessions/list')
+    expect(document.paths).toHaveProperty('/v1/marketplace/catalog')
+    expect(document.paths).toHaveProperty('/v1/marketplace/install')
     expect(document.paths).toHaveProperty('/health')
     expect(document.components?.securitySchemes).toHaveProperty('service-bearer')
   })

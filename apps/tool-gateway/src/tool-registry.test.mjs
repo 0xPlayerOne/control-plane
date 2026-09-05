@@ -173,4 +173,48 @@ describe('Tool Gateway registry', () => {
       toolVersionId: ids.version,
     })
   })
+
+  test('aborts a timed-out attempt, returns when cancellation is ignored, and never retries', async () => {
+    const registry = new ToolRegistry(new InMemoryToolRegistryRepository())
+    await registry.createDefinition(definition)
+    await registry.publishVersion({
+      ...version,
+      operations: [
+        {
+          ...version.operations[0],
+          retryPolicy: { maxAttempts: 2, retryableErrorCodes: ['TIMEOUT'] },
+        },
+      ],
+      limits: { ...version.limits, timeoutMs: 10 },
+    })
+    const gateway = new ToolGateway(registry)
+    const events = []
+    let attempts = 0
+    gateway.registerExecutor('internal', 'files-v1', {
+      execute: async (_request, _version, signal) => {
+        const attempt = ++attempts
+        events.push(`started:${attempt}`)
+        return new Promise(() => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              events.push(`aborted:${attempt}`)
+            },
+            { once: true }
+          )
+        })
+      },
+    })
+
+    const outcome = await Promise.race([
+      gateway.execute(request).then(
+        () => 'unexpected-success',
+        (error) => error
+      ),
+      new Promise((resolve) => globalThis.setTimeout(() => resolve('gateway-hung'), 100)),
+    ])
+    expect(outcome).toMatchObject({ code: 'EXECUTION_TIMEOUT', executorCode: 'TIMEOUT' })
+    expect(events).toEqual(['started:1', 'aborted:1'])
+    expect(attempts).toBe(1)
+  })
 })

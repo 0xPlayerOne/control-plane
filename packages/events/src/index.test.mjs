@@ -73,6 +73,38 @@ describe('ExecutionEvent log', () => {
     expect(JSON.stringify(event)).not.toContain(secretCanary)
   })
 
+  test('redacts compound secret keys before persisting generic event payloads', async () => {
+    const secretCanary = 'compound-secret-canary-event-9f4a'
+    const { repository, service } = setup()
+    const event = await service.append({
+      ...base('evt_01BBZ3NDEKTSV4RRFFQ69G5FAV'),
+      payload: {
+        privateKey: secretCanary,
+        nested: {
+          signingKey: secretCanary,
+          encryption_key: secretCanary,
+          secretValue: secretCanary,
+          credentialRef: secretCanary,
+          tokenizer: 'visible-tokenizer',
+        },
+      },
+    })
+    const [persisted] = await repository.queryAfter(executionId, 0, 10)
+
+    expect(event.payload).toEqual({
+      privateKey: '[REDACTED]',
+      nested: {
+        signingKey: '[REDACTED]',
+        encryption_key: '[REDACTED]',
+        secretValue: '[REDACTED]',
+        credentialRef: '[REDACTED]',
+        tokenizer: 'visible-tokenizer',
+      },
+    })
+    expect(persisted).toEqual(event)
+    expect(JSON.stringify(persisted)).not.toContain(secretCanary)
+  })
+
   test('rejects oversized payloads and non-normalized event names', async () => {
     const { service } = setup()
     await expect(

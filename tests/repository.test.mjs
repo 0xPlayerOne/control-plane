@@ -9,7 +9,11 @@ import {
   parseCoverageMinimum,
   summarizeLcov,
 } from '../scripts/check-coverage.mjs'
-import { discoverTestFiles } from '../scripts/run-bun-test-group.mjs'
+import {
+  discoverTestFiles,
+  discoverTestInventory,
+  normalizedBunTestArguments,
+} from '../scripts/run-bun-test-group.mjs'
 
 const apps = [
   'control-api',
@@ -67,6 +71,8 @@ test('defines root quality and build commands', async () => {
     'format:check',
     'check:boundaries',
     'db:check',
+    'requirements:check',
+    'architecture:check',
   ]) {
     assert.equal(typeof manifest.scripts[script], 'string', `${script} must be defined`)
   }
@@ -96,6 +102,7 @@ test('configures an uploadable Code Foundry coverage report', async () => {
 
 test('discovers disjoint Bun test groups for Code Foundry', async () => {
   const unit = await discoverTestFiles('unit')
+  const integration = await discoverTestFiles('integration')
   const e2e = await discoverTestFiles('e2e')
   const smoke = await discoverTestFiles('smoke')
 
@@ -105,6 +112,17 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
   assert.ok(unit.includes('packages/production-readiness/src/load-testing.test.mjs'))
   assert.ok(!unit.includes('packages/database/src/integration.test.mjs'))
   assert.ok(!unit.includes('packages/testing/src/postgres.integration.test.mjs'))
+  assert.deepEqual(integration, [
+    'packages/database/src/integration.test.mjs',
+    'packages/langgraph-adapter/src/postgres-checkpointer.integration.test.mjs',
+    'packages/profile-portability/src/postgres.integration.test.mjs',
+    'packages/testing/src/postgres.integration.test.mjs',
+  ])
+  const portabilityManifest = await readJson('packages/profile-portability/package.json')
+  assert.match(
+    portabilityManifest.scripts['test:integration'],
+    /src\/postgres\.integration\.test\.mjs/
+  )
   assert.deepEqual(e2e, [
     'tests/m2-core-domain.test.mjs',
     'tests/m3-durable-execution.test.mjs',
@@ -117,13 +135,43 @@ test('discovers disjoint Bun test groups for Code Foundry', async () => {
     'tests/m9-production-hardening.test.mjs',
     'tests/m10-portability-conformance.test.mjs',
     'tests/m10-operability.test.mjs',
+    'tests/m11-standalone-e2e.test.mjs',
   ])
   assert.deepEqual(smoke, [
     'tests/foundation.test.mjs',
     'tests/infrastructure.test.mjs',
+    'tests/m11-architecture-audit.test.mjs',
+    'tests/m11-requirements-ledger.test.mjs',
     'tests/repository.test.mjs',
   ])
-  assert.equal(new Set([...unit, ...e2e, ...smoke]).size, unit.length + e2e.length + smoke.length)
+  const inventory = await discoverTestInventory()
+  const owned = [...unit, ...integration, ...e2e, ...smoke]
+  assert.equal(new Set(owned).size, owned.length)
+  assert.deepEqual(
+    inventory.map(({ path }) => path),
+    [...owned].sort()
+  )
+  assert.ok(
+    inventory.every(({ primaryLane }) =>
+      ['unit', 'integration', 'e2e', 'smoke'].includes(primaryLane)
+    )
+  )
+})
+
+test('enforces deterministic Bun seeds and forbids automatic retries', () => {
+  assert.deepEqual(normalizedBunTestArguments(['--timeout', '30000']), [
+    '--randomize',
+    '--seed',
+    '1104',
+    '--timeout',
+    '30000',
+  ])
+  assert.deepEqual(normalizedBunTestArguments(['--seed=42', '--randomize']), [
+    '--seed=42',
+    '--randomize',
+  ])
+  assert.throws(() => normalizedBunTestArguments(['--retry', '1']), /automatic retries/i)
+  assert.throws(() => normalizedBunTestArguments(['--rerun-each=2']), /automatic retries/i)
 })
 
 test('enforces aggregate line and function coverage from LCOV', () => {
@@ -161,7 +209,8 @@ test('configures the Code Foundry CI baseline for the public staging-release rep
   assert.match(config, /^codeql: auto$/m)
   assert.match(config, /^dependency_review: auto$/m)
   assert.match(config, /^opencode_security: true$/m)
-  assert.match(config, /^runtime_ref: v0\.39\.4$/m)
+  assert.match(config, /^staging_validation_mode: audit$/m)
+  assert.match(config, /^runtime_ref: v0\.40\.1$/m)
   for (const runner of [
     'runner',
     'ci_runner',
@@ -210,7 +259,7 @@ test('generates the staging-release Code Foundry callers with parallel validatio
 
   assert.match(
     validation,
-    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.39\.4/
+    /uses: 0xPlayerOne\/code-foundry\/\.github\/workflows\/validation\.yml@v0\.40\.1/
   )
   assert.equal((validation.match(/if: vars\.CI_BILLING_PAUSED != 'true'/g) ?? []).length, 2)
   assert.match(validation, /cancel-in-progress: true/)
@@ -218,7 +267,7 @@ test('generates the staging-release Code Foundry callers with parallel validatio
   assert.match(validation, /branches: \[main, staging\]/)
   assert.match(validation, /validation mode/)
   assert.match(validation, /mode: \$\{\{ needs\.mode\.outputs\.mode \}\}/)
-  assert.match(release, /release\.yml@v0\.39\.4/)
+  assert.match(release, /release\.yml@v0\.40\.1/)
   assert.match(release, /release-while-paused:/)
   assert.match(release, /billing-pause-bypass:/)
   assert.match(draftPr, /if: vars\.CI_BILLING_PAUSED != 'true'/)
@@ -230,7 +279,7 @@ test('generates the staging-release Code Foundry callers with parallel validatio
     'utf8'
   )
   assert.match(releasePr, /branches: \[staging\]/)
-  assert.match(releasePr, /release-pr\.yml@v0\.39\.4/)
+  assert.match(releasePr, /release-pr\.yml@v0\.40\.1/)
   const opencodeSecurity = await readFile(
     new URL('../.github/workflows/opencode-security.yml', import.meta.url),
     'utf8'
@@ -252,6 +301,26 @@ test('documents required, public-repository, and future CI gates', async () => {
   assert.match(documentation, /migration/i)
   assert.match(documentation, /E2E/i)
   assert.match(documentation, /deploy/i)
+})
+
+test('retains immutable load, recovery, and container evidence artifacts', async () => {
+  const workflow = await readFile(
+    new URL('../.github/workflows/m9-production-readiness.yml', import.meta.url),
+    'utf8'
+  )
+
+  assert.equal(
+    (
+      workflow.match(/uses: actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a/g) ??
+      []
+    ).length,
+    3
+  )
+  assert.equal((workflow.match(/retention-days: 30/g) ?? []).length, 3)
+  assert.match(workflow, /name: m11-load-\$\{\{ github\.sha \}\}/)
+  assert.match(workflow, /name: m11-recovery-\$\{\{ github\.sha \}\}/)
+  assert.match(workflow, /name: m11-containers-\$\{\{ github\.sha \}\}/)
+  assert.match(workflow, /if-no-files-found: error/)
 })
 
 test('provides a documented isolated integration-test runner', async () => {

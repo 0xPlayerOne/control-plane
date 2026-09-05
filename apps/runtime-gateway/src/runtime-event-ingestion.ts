@@ -78,12 +78,87 @@ export interface RuntimeAdapterEventNormalizer {
   ): Promise<RuntimeExecutionProgress>
   normalizeResult(
     input: RuntimeNormalizerInput<GatewayResultEnvelope>
-  ): Promise<NormalizedRuntimeTerminal>
+  ): Promise<NormalizedRuntimeTerminal | undefined>
   normalizeError(
     input: RuntimeNormalizerInput<
       GatewayErrorEnvelope & { readonly commandId: string; readonly payloadHash: string }
     >
   ): Promise<NormalizedRuntimeTerminal>
+}
+
+export class DefaultRuntimeAdapterEventNormalizer implements RuntimeAdapterEventNormalizer {
+  async normalizeProgress(
+    input: RuntimeNormalizerInput<GatewayProgressEnvelope>
+  ): Promise<RuntimeExecutionProgress> {
+    const kind = input.frame.event.kind
+    const type = kind.includes('interaction')
+      ? 'interaction'
+      : kind.includes('usage')
+        ? 'usage'
+        : kind.includes('artifact')
+          ? 'artifact'
+          : kind.includes('status')
+            ? 'status'
+            : 'output'
+    const command = GatewayCommandEnvelopeSchema.parse(input.command.commandEnvelope)
+    const handleId = input.frame.event.data['handleId']
+    return RuntimeExecutionProgressSchema.parse({
+      handleId:
+        typeof handleId === 'string' && handleId.length > 0 && handleId.length <= 256
+          ? handleId
+          : `${command.driver.family}:${input.attempt.attemptId}`,
+      sequence: input.frame.eventSequence,
+      occurredAt: input.frame.sentAt,
+      type,
+      data: input.frame.event.data,
+    })
+  }
+
+  async normalizeResult(
+    input: RuntimeNormalizerInput<GatewayResultEnvelope>
+  ): Promise<NormalizedRuntimeTerminal | undefined> {
+    const { frame } = input
+    if (frame.status === 'cancelled') {
+      return { state: 'cancelled', payload: { status: 'cancelled' } }
+    }
+    if (frame.status === 'failed') {
+      const data = 'data' in frame.result ? frame.result.data : {}
+      const error = data['error']
+      const code = runtimeFailureCode(error)
+      const retryable = runtimeFailureRetryable(error)
+      return {
+        state: 'failed',
+        failure: { classification: 'runtime_error', code },
+        payload: { status: 'failed', code, retryable },
+      }
+    }
+    if ('data' in frame.result) return undefined
+    const { artifact } = frame.result
+    return {
+      state: 'completed',
+      resultReference: artifact.artifactId,
+      payload: {
+        status: 'succeeded',
+        artifact: {
+          digest: artifact.digest,
+          mediaType: artifact.mediaType,
+          sizeBytes: artifact.sizeBytes,
+        },
+      },
+    }
+  }
+
+  async normalizeError(
+    input: RuntimeNormalizerInput<
+      GatewayErrorEnvelope & { readonly commandId: string; readonly payloadHash: string }
+    >
+  ): Promise<NormalizedRuntimeTerminal> {
+    return {
+      state: 'failed',
+      failure: { classification: 'runtime_error', code: input.frame.code },
+      payload: { code: input.frame.code, retryable: input.frame.retryable },
+    }
+  }
 }
 
 export interface RuntimeEventIngestionServiceOptions {
@@ -179,12 +254,13 @@ export class RuntimeEventIngestionService {
     const frame = GatewayResultEnvelopeSchema.parse(frameValue)
     const context = await this.#context(frame, source, true)
     if ('data' in frame.result) this.#assertInlineBound(frame.result.data)
-    let normalized: NormalizedRuntimeTerminal
+    let normalized: NormalizedRuntimeTerminal | undefined
     try {
       normalized = await this.#normalizer.normalizeResult({ frame, ...context })
     } catch {
       return this.#reject(frame, 'RUNTIME_EVENT_NORMALIZATION_FAILED')
     }
+    if (normalized === undefined) return { outcome: 'applied' }
     const expectedState = {
       succeeded: 'completed',
       failed: 'failed',
@@ -415,6 +491,20 @@ function validateTerminal(terminal: NormalizedRuntimeTerminal): void {
   } else if (terminal.failure !== undefined || terminal.resultReference !== undefined) {
     fail('RUNTIME_EVENT_NORMALIZATION_FAILED')
   }
+}
+
+function runtimeFailureCode(value: unknown): string {
+  if (typeof value !== 'object' || value === null) return 'RUNTIME_FAILED'
+  const code = (value as Record<string, unknown>)['code']
+  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(code) ? code : 'RUNTIME_FAILED'
+}
+
+function runtimeFailureRetryable(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Record<string, unknown>)['retryable'] === true
+  )
 }
 
 function progressEventType(type: RuntimeExecutionProgress['type']): string {

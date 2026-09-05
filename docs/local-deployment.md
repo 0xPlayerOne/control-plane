@@ -14,6 +14,52 @@ unexpected Control Plane or Restate failure. A failed component makes readiness 
 must not silently move work to Cloud. Host sleep/wake preserves the process and data directory; on
 wake the desktop rechecks `/ready` and restarts the composition if Restate did not recover.
 
+The supported runtime seams are the `runtimeTransport` and `runtimeFactory` options on
+`LocalControlPlaneComposition` (or the same fields under `start({ compositionOptions })`). The
+factory runs only after the SQLite catalog and ContextPackage repositories exist, so a packaged
+client can resolve immutable inputs without copying repository internals into the adapter contract.
+The result must be a `RuntimeAdapterWithTransport` whose `transportKind` is `direct-local`.
+
+The standalone launcher packages managed Pi with:
+
+```sh
+CONTROL_PLANE_LOCAL_RUNTIME=managed-pi \
+CONTROL_PLANE_MANAGED_PI_EXECUTABLE=/absolute/path/to/pi \
+CONTROL_PLANE_MANAGED_PI_PROVIDER=openai-codex \
+CONTROL_PLANE_MANAGED_PI_MODEL=gpt-5.4 \
+CONTROL_PLANE_MANAGED_PI_MODEL_ALIAS=reasoning.standard \
+CONTROL_PLANE_MANAGED_PI_MODEL_CAPABILITIES=tool_calling,structured_output \
+CONTROL_PLANE_MANAGED_PI_PROVIDER_CLASS=managed \
+CONTROL_PLANE_MANAGED_PI_DATA_RESIDENCY=us \
+bun run --cwd apps/local-control-plane start
+```
+
+This path is `ManagedPiAdapter -> DirectLocalRuntimeTransport -> ManagedPiDriver ->
+ManagedPiProcessClient -> Pi RPC`. Before starting Pi, it resolves the exact published
+AgentProfile/Skill versions and the content-addressed ContextPackage from SQLite and rejects any
+missing, draft, or mismatched pin. Pi receives the materialized input through strict JSONL RPC.
+Ambient tools, extensions, skills, prompt templates, themes, context files, project trust, and
+session persistence are disabled. The child receives only `HOME`, `PATH`,
+`PI_CODING_AGENT_DIR`, and `PI_CODING_AGENT_SESSION_DIR` when those names are present; Control Plane
+database, relay, API, and service credentials are not inherited. Provider/model selectors are
+non-secret. Native Pi authentication remains in the explicitly selected Pi configuration directory.
+The configured logical alias, declared model capabilities, provider class, provider deny-list, and
+data residency must satisfy the immutable ExecutionPlan model policy or materialization fails closed.
+
+The packaged process client currently accepts Pi `>=0.84.0 <0.85.0`, exposes streaming,
+cancellation, and degraded steering input, and does not claim approval interactions, native tools,
+or in-flight process recovery. Plans requiring those unsupported capabilities remain ineligible.
+The historical injected client certification remains `>=0.52.0 <0.53.0`; the two ranges are not
+silently conflated. ACP uses the equivalent injected `AcpAdapter` and `AcpDriver` seam until a
+concrete supported ACP launcher is selected. A remote-gateway adapter is rejected, and omitting a
+runtime deliberately leaves execution acceptance unavailable rather than selecting a fixture or
+silently routing to Cloud.
+
+Runtime interactions use the same durable workflow signal as other profiles. Input responses carry
+the bounded structured value validated by the interaction domain and are translated to the direct
+driver only after the workflow resumes. Approval, denial, cancellation, and input effects retain
+their stable workflow effect key, so replay does not submit a second native action.
+
 The data directory is one recovery unit: `control-plane.sqlite` (including any SQLite sidecars),
 `restate/`, `artifacts/`, `secrets/`, and generated private API authentication state. It must remain
 owner-only. Do not back up one of those paths independently while work is admitted.

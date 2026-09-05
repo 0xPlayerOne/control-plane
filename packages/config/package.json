@@ -24,6 +24,6 @@
     "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.5.4"
   }
 }

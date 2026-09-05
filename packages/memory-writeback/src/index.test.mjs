@@ -145,6 +145,12 @@ describe('provider-neutral memory write proposals', () => {
     const nonIdempotent = harness(
       provider('ambiguous', { writeCommit: true, idempotentStatus: false })
     )
+    let writeCount = 0
+    const write = nonIdempotent.provider.write.bind(nonIdempotent.provider)
+    nonIdempotent.provider.write = async (request) => {
+      writeCount += 1
+      return write(request)
+    }
     const ambiguousProposal = await prepareApproved(nonIdempotent)
     await expect(
       nonIdempotent.service.commit(ambiguousProposal.proposalId, later)
@@ -153,6 +159,117 @@ describe('provider-neutral memory write proposals', () => {
       state: 'reconciliation_required',
       outcome: { code: 'ambiguous' },
     })
+    expect(writeCount).toBe(1)
+    await expect(
+      nonIdempotent.service.commit(ambiguousProposal.proposalId, later)
+    ).rejects.toMatchObject({ code: 'MEMORY_WRITE_AMBIGUOUS' })
+    expect(writeCount).toBe(1)
+    expect(await nonIdempotent.repository.get(ambiguousProposal.proposalId)).toMatchObject({
+      state: 'reconciliation_required',
+      outcome: { code: 'ambiguous' },
+    })
+  })
+
+  test('reconciles an ambiguous idempotent write through status without replaying the effect', async () => {
+    const context = harness(provider('ambiguous'))
+    let writeCount = 0
+    const write = context.provider.write.bind(context.provider)
+    context.provider.write = async (request) => {
+      writeCount += 1
+      return write(request)
+    }
+    let status = { status: 'unknown' }
+    context.provider.status = async () => status
+    let rejectNextTransition = false
+    const compareAndSet = context.repository.compareAndSet.bind(context.repository)
+    context.repository.compareAndSet = async (expectedVersion, next) => {
+      if (rejectNextTransition) {
+        rejectNextTransition = false
+        return false
+      }
+      return compareAndSet(expectedVersion, next)
+    }
+    const prepared = await prepareApproved(context)
+
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_WRITE_AMBIGUOUS',
+    })
+    expect(writeCount).toBe(1)
+    status = { status: 'committed', providerMemoryRef: 'memory://reconciled' }
+    rejectNextTransition = true
+
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_PROPOSAL_CONFLICT',
+    })
+    expect(writeCount).toBe(1)
+    expect((await context.repository.get(prepared.proposalId)).state).toBe(
+      'reconciliation_required'
+    )
+
+    expect(await context.service.commit(prepared.proposalId, later)).toMatchObject({
+      state: 'committed',
+      outcome: { code: 'reconciled', providerMemoryRef: 'memory://reconciled' },
+    })
+    expect(writeCount).toBe(1)
+  })
+
+  test('fails a status-rejected reconciliation without replaying the write', async () => {
+    const context = harness(provider('ambiguous'))
+    let writeCount = 0
+    const write = context.provider.write.bind(context.provider)
+    context.provider.write = async (request) => {
+      writeCount += 1
+      return write(request)
+    }
+    let status = { status: 'unknown' }
+    context.provider.status = async () => status
+    const prepared = await prepareApproved(context)
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_WRITE_AMBIGUOUS',
+    })
+    const parked = await context.repository.get(prepared.proposalId)
+    status = { status: 'rejected' }
+
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_WRITE_REJECTED',
+    })
+    expect(writeCount).toBe(1)
+    expect(await context.repository.get(prepared.proposalId)).toMatchObject({
+      state: 'failed',
+      version: parked.version + 1,
+      outcome: { code: 'failed' },
+    })
+  })
+
+  test('keeps unknown and unavailable status reconciliation parked without replay', async () => {
+    const context = harness(provider('ambiguous'))
+    let writeCount = 0
+    const write = context.provider.write.bind(context.provider)
+    context.provider.write = async (request) => {
+      writeCount += 1
+      return write(request)
+    }
+    context.provider.status = async () => ({ status: 'unknown' })
+    const prepared = await prepareApproved(context)
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_WRITE_AMBIGUOUS',
+    })
+    const parked = await context.repository.get(prepared.proposalId)
+
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_WRITE_AMBIGUOUS',
+    })
+    expect(writeCount).toBe(1)
+    expect(await context.repository.get(prepared.proposalId)).toEqual(parked)
+
+    context.provider.status = async () => {
+      throw new Error('status unavailable')
+    }
+    await expect(context.service.commit(prepared.proposalId, later)).rejects.toMatchObject({
+      code: 'MEMORY_WRITE_AMBIGUOUS',
+    })
+    expect(writeCount).toBe(1)
+    expect(await context.repository.get(prepared.proposalId)).toEqual(parked)
   })
 
   test('rejects cross-scope authority, unbounded content, source documents, and conflicting dedupe', async () => {

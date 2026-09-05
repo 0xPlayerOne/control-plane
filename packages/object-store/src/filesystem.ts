@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, resolve, sep } from 'node:path'
+import { constants } from 'node:fs'
+import { lstat, mkdir, open, realpath, rename, rm } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import type {
   ObjectStore,
   PutObjectInput,
@@ -28,6 +29,9 @@ export interface FilesystemObjectStoreOptions {
 export class FilesystemObjectStore implements ObjectStore {
   readonly #root: string
   readonly #maxObjectBytes: number
+  #canonicalRoot: string | undefined
+  #rootDevice: number | undefined
+  #rootInode: number | undefined
   #closed = false
 
   constructor(options: FilesystemObjectStoreOptions) {
@@ -35,13 +39,15 @@ export class FilesystemObjectStore implements ObjectStore {
       invalidInput()
     }
     if (options.maxObjectBytes <= 0) invalidInput()
+    if (process.platform === 'win32' || constants.O_NOFOLLOW === undefined) {
+      throw providerFailure()
+    }
     this.#root = resolve(options.rootDirectory)
     this.#maxObjectBytes = options.maxObjectBytes
   }
 
   async put(input: PutObjectInput): Promise<StoredObjectDescriptor> {
     this.#assertOpen()
-    const paths = this.#paths(input.key)
     if (!(input.body instanceof Uint8Array)) invalidInput()
     if (input.body.byteLength > this.#maxObjectBytes) tooLarge()
     const metadata = validMetadata(input.metadata ?? {})
@@ -54,18 +60,26 @@ export class FilesystemObjectStore implements ObjectStore {
       sha256: digest(input.body),
       metadata,
     }
-    await mkdir(dirname(paths.body), { recursive: true, mode: 0o700 })
-    await chmod(dirname(paths.body), 0o700)
+    const paths = await this.#paths(input.key, true)
+    await Promise.all([
+      assertRegularFileOrMissing(paths.body),
+      assertRegularFileOrMissing(paths.metadata),
+    ])
     const nonce = randomUUID()
     const bodyTemporary = `${paths.body}.${nonce}.tmp`
     const metadataTemporary = `${paths.metadata}.${nonce}.tmp`
     try {
-      await writeFile(bodyTemporary, input.body, { flag: 'wx', mode: 0o600 })
-      await writeFile(metadataTemporary, JSON.stringify(descriptor), { flag: 'wx', mode: 0o600 })
+      await writeExclusive(bodyTemporary, input.body)
+      await writeExclusive(metadataTemporary, JSON.stringify(descriptor))
+      await this.#paths(input.key, false)
+      await Promise.all([
+        assertRegularFileOrMissing(paths.body),
+        assertRegularFileOrMissing(paths.metadata),
+      ])
       await rename(bodyTemporary, paths.body)
+      await this.#paths(input.key, false)
+      await assertRegularFileOrMissing(paths.metadata)
       await rename(metadataTemporary, paths.metadata)
-      await chmod(paths.body, 0o600)
-      await chmod(paths.metadata, 0o600)
       return publicDescriptor(descriptor)
     } catch (error) {
       await rm(bodyTemporary, { force: true }).catch(() => undefined)
@@ -76,58 +90,111 @@ export class FilesystemObjectStore implements ObjectStore {
   }
 
   async get(key: string): Promise<StoredObject> {
-    const descriptor = await this.#readDescriptor(key)
-    const paths = this.#paths(key)
-    try {
-      const body = new Uint8Array(await readFile(paths.body))
-      if (body.byteLength !== descriptor.size || digest(body) !== descriptor.sha256) {
-        integrityFailure()
-      }
-      return { ...descriptor, body }
-    } catch (error) {
-      if (error instanceof ObjectStoreError) throw error
-      throw notFound()
-    }
+    return this.#readObject(key, true)
   }
 
-  head(key: string): Promise<StoredObjectDescriptor> {
-    return this.#readDescriptor(key)
+  async head(key: string): Promise<StoredObjectDescriptor> {
+    return this.#readObject(key, false)
   }
 
   async delete(key: string): Promise<void> {
     this.#assertOpen()
-    const paths = this.#paths(key)
-    await Promise.all([rm(paths.body, { force: true }), rm(paths.metadata, { force: true })]).catch(
-      () => {
-        throw providerFailure()
-      }
-    )
+    let paths: { readonly body: string; readonly metadata: string }
+    try {
+      paths = await this.#paths(key, false)
+    } catch (error) {
+      if (error instanceof ObjectStoreError && error.code === 'OBJECT_STORE_NOT_FOUND') return
+      throw error
+    }
+    await Promise.all([
+      assertRegularFileOrMissing(paths.body),
+      assertRegularFileOrMissing(paths.metadata),
+    ])
+    try {
+      await this.#paths(key, false)
+      await Promise.all([rm(paths.body, { force: true }), rm(paths.metadata, { force: true })])
+    } catch (error) {
+      if (error instanceof ObjectStoreError) throw error
+      throw providerFailure()
+    }
   }
 
   close(): void {
     this.#closed = true
   }
 
-  async #readDescriptor(key: string): Promise<StoredObjectDescriptor> {
+  async #readObject(key: string, includeBody: true): Promise<StoredObject>
+  async #readObject(key: string, includeBody: false): Promise<StoredObjectDescriptor>
+  async #readObject(
+    key: string,
+    includeBody: boolean
+  ): Promise<StoredObject | StoredObjectDescriptor> {
     this.#assertOpen()
-    const paths = this.#paths(key)
+    let metadataHandle: Awaited<ReturnType<typeof open>> | undefined
+    let bodyHandle: Awaited<ReturnType<typeof open>> | undefined
     try {
-      const metadata = JSON.parse(await readFile(paths.metadata, 'utf8')) as unknown
+      const paths = await this.#paths(key, false)
+      await Promise.all([assertRegularFile(paths.body), assertRegularFile(paths.metadata)])
+      metadataHandle = await openNoFollow(paths.metadata)
+      bodyHandle = await openNoFollow(paths.body)
+      const metadata = JSON.parse(await metadataHandle.readFile('utf8')) as unknown
       const descriptor = parseMetadata(metadata, key, this.#maxObjectBytes)
-      const bodyStat = await stat(paths.body)
+      const bodyStat = await bodyHandle.stat()
       if (!bodyStat.isFile() || bodyStat.size !== descriptor.size) integrityFailure()
-      return publicDescriptor(descriptor)
+      const publicMetadata = publicDescriptor(descriptor)
+      if (!includeBody) return publicMetadata
+      const body = new Uint8Array(await bodyHandle.readFile())
+      if (body.byteLength !== descriptor.size || digest(body) !== descriptor.sha256) {
+        integrityFailure()
+      }
+      return { ...publicMetadata, body }
     } catch (error) {
       if (error instanceof ObjectStoreError) throw error
-      throw notFound()
+      if (isSymlinkLoop(error)) integrityFailure()
+      if (isMissing(error)) notFound()
+      if (error instanceof SyntaxError) integrityFailure()
+      throw providerFailure()
+    } finally {
+      await bodyHandle?.close().catch(() => undefined)
+      await metadataHandle?.close().catch(() => undefined)
     }
   }
 
-  #paths(key: string): { readonly body: string; readonly metadata: string } {
+  async #paths(
+    key: string,
+    createRoot: boolean
+  ): Promise<{ readonly body: string; readonly metadata: string }> {
     const validKey = validateKey(key)
-    const body = resolve(this.#root, ...validKey.split('/'))
-    if (body !== this.#root && !body.startsWith(`${this.#root}${sep}`)) invalidInput()
+    const root = await this.#secureRoot(createRoot)
+    const body = resolve(root, `sha256-${createHash('sha256').update(validKey).digest('hex')}`)
     return { body, metadata: `${body}${METADATA_SUFFIX}` }
+  }
+
+  async #secureRoot(create: boolean): Promise<string> {
+    try {
+      if (create) await mkdir(this.#root, { recursive: true, mode: 0o700 })
+      const lexicalEntry = await lstat(this.#root)
+      if (lexicalEntry.isSymbolicLink() || !lexicalEntry.isDirectory()) integrityFailure()
+      const canonicalRoot = this.#canonicalRoot ?? (await realpath(this.#root))
+      const canonicalEntry = await lstat(canonicalRoot)
+      if (!canonicalEntry.isDirectory() || (canonicalEntry.mode & 0o077) !== 0) integrityFailure()
+      if (this.#canonicalRoot === undefined) {
+        this.#canonicalRoot = canonicalRoot
+        this.#rootDevice = canonicalEntry.dev
+        this.#rootInode = canonicalEntry.ino
+      } else if (
+        canonicalRoot !== this.#canonicalRoot ||
+        canonicalEntry.dev !== this.#rootDevice ||
+        canonicalEntry.ino !== this.#rootInode
+      ) {
+        integrityFailure()
+      }
+      return canonicalRoot
+    } catch (error) {
+      if (error instanceof ObjectStoreError) throw error
+      if (isMissing(error)) notFound()
+      throw providerFailure()
+    }
   }
 
   #assertOpen(): void {
@@ -212,6 +279,60 @@ function validMetadata(input: unknown): Readonly<Record<string, string>> {
 
 function digest(body: Uint8Array): `sha256:${string}` {
   return `sha256:${createHash('sha256').update(body).digest('hex')}`
+}
+
+async function assertRegularFile(path: string): Promise<void> {
+  let entry: Awaited<ReturnType<typeof lstat>>
+  try {
+    entry = await lstat(path)
+  } catch (error) {
+    if (isMissing(error)) notFound()
+    throw providerFailure()
+  }
+  if (entry.isSymbolicLink() || !entry.isFile()) integrityFailure()
+}
+
+async function assertRegularFileOrMissing(path: string): Promise<void> {
+  try {
+    const entry = await lstat(path)
+    if (entry.isSymbolicLink() || !entry.isFile()) integrityFailure()
+  } catch (error) {
+    if (isMissing(error)) return
+    if (error instanceof ObjectStoreError) throw error
+    throw providerFailure()
+  }
+}
+
+async function openNoFollow(path: string): ReturnType<typeof open> {
+  if (constants.O_NOFOLLOW === undefined) throw providerFailure()
+  return open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
+}
+
+async function writeExclusive(path: string, body: Uint8Array | string): Promise<void> {
+  if (constants.O_NOFOLLOW === undefined) throw providerFailure()
+  const handle = await open(
+    path,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+    0o600
+  )
+  try {
+    await handle.writeFile(body)
+  } finally {
+    await handle.close()
+  }
+}
+
+function isMissing(error: unknown): boolean {
+  return errorCode(error) === 'ENOENT'
+}
+
+function isSymlinkLoop(error: unknown): boolean {
+  return errorCode(error) === 'ELOOP'
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
+  return typeof error.code === 'string' ? error.code : undefined
 }
 
 function invalidInput(): never {

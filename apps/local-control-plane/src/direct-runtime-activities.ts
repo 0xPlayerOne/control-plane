@@ -5,82 +5,58 @@ import type {
   RuntimeExecutionStatus,
   RuntimeAdapterWithTransport,
 } from '@control-plane/runtime-sdk'
-import type { ExecutionPlanRepository } from '@control-plane/execution-plan'
 import type {
-  ExecutionLifecycleActivities,
-  GraphActivityOutcome,
+  WorkflowInteractionValue,
   WorkflowRuntimeOutcome,
 } from '@control-plane/workflow-runtime'
+import type { WorkflowRuntimeActivityPort } from '@control-plane/workflow-worker'
 
 const namespaces = {
   effects: 'workflow-effects',
   handles: 'runtime-handles',
-  status: 'workflow-status',
+  cancellations: 'runtime-cancellations',
 } as const
 
-export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActivities {
+interface DirectRuntimeCancellationIntent {
+  readonly attemptId: string
+  readonly effectKey: string
+  readonly reason: 'user_request' | 'deadline'
+  readonly requestedAt: string
+}
+
+export class DirectRuntimeActivityPort implements WorkflowRuntimeActivityPort {
   constructor(
     readonly persistence: PersistenceProvider,
     readonly objectStore: ObjectStore,
-    readonly runtime: RuntimeAdapterWithTransport,
-    readonly plans: ExecutionPlanRepository
+    readonly runtime: RuntimeAdapterWithTransport
   ) {
     if (runtime.transportKind !== 'direct-local') {
       throw new Error('DIRECT_RUNTIME_TRANSPORT_REQUIRED')
     }
   }
 
-  ensureAttempt(input: {
-    executionId: string
-    workflowId: string
-    effectKey: string
-  }): Promise<{ attemptId: string }> {
-    return this.#effect(input.effectKey, async () => ({
-      attemptId: `att_${input.executionId.slice(4)}`,
-    }))
-  }
-
-  async persistStatus(input: {
-    executionId: string
-    attemptId?: string
-    state: string
-    effectKey: string
-    failure?: { classification: string; code: string }
-    resultReference?: string
-  }): Promise<void> {
-    await this.#effect(input.effectKey, async () => {
-      await this.persistence.transaction(async (transaction) => {
-        const id = recordId(input.executionId)
-        const existing = await transaction.get(namespaces.status, id)
-        await transaction.put({
-          namespace: namespaces.status,
-          id,
-          ...(existing === undefined ? {} : { expectedRevision: existing.revision }),
-          value: json(input),
-        })
-      })
-      return { persisted: true }
-    })
-  }
-
   dispatch(
-    input: Parameters<ExecutionLifecycleActivities['dispatch']>[0]
+    input: Parameters<WorkflowRuntimeActivityPort['dispatch']>[0]
   ): Promise<WorkflowRuntimeOutcome> {
     return this.#effect(input.effectKey, async () => {
-      const executionPlan = await this.plans.get(input.executionPlan)
-      if (executionPlan === undefined) {
-        return {
-          outcome: 'failed',
-          failureCode: 'EXECUTION_PLAN_NOT_FOUND',
-          retryable: false,
-        }
-      }
       const handle = await this.runtime.start({
         attemptId: input.attemptId,
         idempotencyKey: input.effectKey,
-        executionPlan,
+        executionPlan:
+          input.marketplacePluginReferences === undefined
+            ? input.executionPlan
+            : {
+                ...input.executionPlan,
+                marketplacePluginReferences: input.marketplacePluginReferences,
+              },
       })
       await this.#saveHandle(input.executionId, handle)
+      const cancellation = await this.#cancellation(input.executionId)
+      if (cancellation !== undefined) {
+        this.#assertAttempt(handle, cancellation.attemptId)
+        await this.#cancelHandle(handle, cancellation)
+        return { outcome: 'cancelled' }
+      }
       let interactionId: string | undefined
       for await (const progress of this.runtime.progress(handle)) {
         const candidate = progress.data['interactionId']
@@ -98,12 +74,13 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
     interactionId: string
     responseId: string
     action: 'approve' | 'deny' | 'input' | 'grant' | 'resume' | 'cancel'
+    value?: WorkflowInteractionValue
     executionId: string
     attemptId: string
     effectKey: string
   }): Promise<WorkflowRuntimeOutcome> {
     return this.#effect(input.effectKey, async () => {
-      const handle = await this.#handle(input.executionId, true)
+      const handle = await this.#handle(input.executionId, input.attemptId, true)
       let status: RuntimeExecutionStatus
       if (input.action === 'approve' || input.action === 'deny') {
         status = await this.runtime.submitApproval(handle, {
@@ -116,6 +93,20 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
           idempotencyKey: input.effectKey,
           requestedAt: new Date().toISOString(),
         })
+      } else if (input.action === 'input' && input.value !== undefined) {
+        const text = typeof input.value === 'string' ? input.value : JSON.stringify(input.value)
+        if (text.length === 0) {
+          return {
+            outcome: 'failed',
+            failureCode: 'LOCAL_INTERACTION_PAYLOAD_INVALID',
+            retryable: false,
+          }
+        }
+        status = await this.runtime.submitInput(handle, {
+          interactionId: input.interactionId,
+          idempotencyKey: input.effectKey,
+          text,
+        })
       } else {
         return {
           outcome: 'failed',
@@ -127,20 +118,16 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
     })
   }
 
-  runGraphSegment(): Promise<GraphActivityOutcome> {
-    return Promise.resolve({
-      outcome: 'failed',
-      failureCode: 'LOCAL_GRAPH_RUNTIME_NOT_CONFIGURED',
-      retryable: false,
-    })
-  }
-
-  resumeGraphSegment(): Promise<GraphActivityOutcome> {
-    return this.runGraphSegment()
-  }
-
-  continueGraphSegment(): Promise<GraphActivityOutcome> {
-    return this.runGraphSegment()
+  async cancel(input: {
+    executionId: string
+    attemptId: string
+    effectKey: string
+    reason: 'user_request' | 'deadline'
+  }): Promise<void> {
+    const existingHandle = await this.#handle(input.executionId, input.attemptId, false)
+    const intent = await this.#recordCancellation(input)
+    const handle = existingHandle ?? (await this.#handle(input.executionId, input.attemptId, false))
+    if (handle !== undefined) await this.#cancelHandle(handle, intent)
   }
 
   async cleanup(input: {
@@ -149,7 +136,7 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
     effectKey: string
   }): Promise<void> {
     await this.#effect(input.effectKey, async () => {
-      const handle = await this.#handle(input.executionId, false)
+      const handle = await this.#handle(input.executionId, input.attemptId, false)
       if (handle !== undefined) await this.runtime.cleanup(handle)
       return { cleaned: true }
     })
@@ -163,13 +150,14 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
   ): Promise<WorkflowRuntimeOutcome> {
     if (status.state === 'completed') {
       const key = `executions/${executionId}/attempts/${attemptId}/result.json`
+      const artifactId = `art_${executionId.slice(4)}`
       await this.objectStore.put({
         key,
         body: new TextEncoder().encode(JSON.stringify(status.result)),
         contentType: 'application/json',
         metadata: { execution: executionId, attempt: attemptId },
       })
-      return { outcome: 'completed', resultReference: `object://${key}` }
+      return { outcome: 'completed', resultReference: artifactId }
     }
     if (status.state === 'failed' || status.state === 'timed_out') {
       return {
@@ -201,9 +189,72 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
     })
   }
 
-  async #handle(executionId: string, required: true): Promise<RuntimeExecutionHandle>
-  async #handle(executionId: string, required: false): Promise<RuntimeExecutionHandle | undefined>
-  async #handle(executionId: string, required = true): Promise<RuntimeExecutionHandle | undefined> {
+  async #recordCancellation(input: {
+    executionId: string
+    attemptId: string
+    effectKey: string
+    reason: 'user_request' | 'deadline'
+  }): Promise<DirectRuntimeCancellationIntent> {
+    return this.persistence.transaction(async (transaction) => {
+      const id = recordId(input.executionId)
+      const current = await transaction.get(namespaces.cancellations, id)
+      if (current !== undefined) {
+        const intent = current.value as unknown as DirectRuntimeCancellationIntent
+        if (
+          intent.attemptId !== input.attemptId ||
+          intent.effectKey !== input.effectKey ||
+          intent.reason !== input.reason
+        ) {
+          throw new Error('RUNTIME_CANCELLATION_CONFLICT')
+        }
+        return intent
+      }
+      const intent: DirectRuntimeCancellationIntent = {
+        attemptId: input.attemptId,
+        effectKey: input.effectKey,
+        reason: input.reason,
+        requestedAt: new Date().toISOString(),
+      }
+      await transaction.put({ namespace: namespaces.cancellations, id, value: json(intent) })
+      return intent
+    })
+  }
+
+  async #cancellation(executionId: string): Promise<DirectRuntimeCancellationIntent | undefined> {
+    const record = await this.persistence.transaction(async (transaction) =>
+      transaction.get(namespaces.cancellations, recordId(executionId))
+    )
+    return record?.value as unknown as DirectRuntimeCancellationIntent | undefined
+  }
+
+  async #cancelHandle(
+    handle: RuntimeExecutionHandle,
+    intent: DirectRuntimeCancellationIntent
+  ): Promise<void> {
+    await this.#effect(intent.effectKey, async () => {
+      await this.runtime.cancel(handle, {
+        idempotencyKey: intent.effectKey,
+        requestedAt: intent.requestedAt,
+      })
+      return { cancelled: true, reason: intent.reason }
+    })
+  }
+
+  async #handle(
+    executionId: string,
+    attemptId: string | undefined,
+    required: true
+  ): Promise<RuntimeExecutionHandle>
+  async #handle(
+    executionId: string,
+    attemptId: string | undefined,
+    required: false
+  ): Promise<RuntimeExecutionHandle | undefined>
+  async #handle(
+    executionId: string,
+    attemptId: string | undefined,
+    required = true
+  ): Promise<RuntimeExecutionHandle | undefined> {
     const handle = await this.persistence.transaction(async (transaction) =>
       transaction.get(namespaces.handles, recordId(executionId))
     )
@@ -211,7 +262,13 @@ export class DirectRuntimeExecutionActivities implements ExecutionLifecycleActiv
       if (required) throw new Error('RUNTIME_HANDLE_MISSING')
       return undefined
     }
-    return handle.value as unknown as RuntimeExecutionHandle
+    const value = handle.value as unknown as RuntimeExecutionHandle
+    if (attemptId !== undefined) this.#assertAttempt(value, attemptId)
+    return value
+  }
+
+  #assertAttempt(handle: RuntimeExecutionHandle, attemptId: string): void {
+    if (handle.attemptId !== attemptId) throw new Error('RUNTIME_HANDLE_ATTEMPT_MISMATCH')
   }
 
   async #effect<Result extends JsonValue>(

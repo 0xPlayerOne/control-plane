@@ -104,10 +104,36 @@ services:
     restart: 'no'
     entrypoint: [bun, --cwd=packages/database, run, db:migrate]
     environment:
-      DATABASE_MIGRATION_URL: postgresql://control_plane:${POSTGRES_PASSWORD:-}@postgres:5432/control_plane
+      DATABASE_MIGRATION_URL: postgresql://control_plane_migrator:${POSTGRES_MIGRATION_PASSWORD:-}@postgres:5432/control_plane
+    depends_on:
+      database-bootstrap:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+
+  database-bootstrap:
+    image: postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+    profiles: [server]
+    restart: 'no'
+    entrypoint: [/bin/sh, /opt/control-plane/bootstrap-roles.sh]
+    environment:
+      PGDATABASE: control_plane
+      PGHOST: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      PGUSER: control_plane
+      POSTGRES_APPLICATION_PASSWORD: ${POSTGRES_APPLICATION_PASSWORD:-}
+      POSTGRES_MIGRATION_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:-}
+    volumes:
+      - type: bind
+        source: ./postgres/bootstrap-roles.sh
+        target: /opt/control-plane/bootstrap-roles.sh
+        read_only: true
     depends_on:
       postgres:
         condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
 
@@ -159,7 +185,7 @@ services:
       COMMIT_SHA: ${CONTROL_PLANE_COMMIT_SHA:-self-hosted}
       CONTROL_PLANE_BIND_HOST: 0.0.0.0
       CONTROL_PLANE_DATA_DIR: /var/lib/control-plane
-      DATABASE_URL: postgresql://control_plane:${POSTGRES_PASSWORD:-}@postgres:5432/control_plane
+      DATABASE_URL: postgresql://control_plane_app:${POSTGRES_APPLICATION_PASSWORD:-}@postgres:5432/control_plane
       HOSTED_CONTROL_PLANE_PORT: '3000'
       INSTANCE_ID: ${CONTROL_PLANE_INSTANCE_ID:-hosted-server}
       HOSTED_OBJECT_STORE: ${HOSTED_OBJECT_STORE:-filesystem}

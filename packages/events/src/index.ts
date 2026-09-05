@@ -63,6 +63,13 @@ export const ExecutionEventDraftSchema = ExecutionEventSchema.omit({
   archivedAt: true,
 })
 
+export function sanitizeExecutionEventDraft(draft: ExecutionEventDraft): ExecutionEventDraft {
+  return ExecutionEventDraftSchema.parse({
+    ...draft,
+    payload: redactTelemetryValue(draft.payload),
+  })
+}
+
 export interface ExecutionEventRepository {
   append(draft: ExecutionEventDraft): Promise<ExecutionEvent | undefined>
   get(eventId: string): Promise<ExecutionEvent | undefined>
@@ -81,16 +88,17 @@ export class InMemoryExecutionEventRepository implements ExecutionEventRepositor
   readonly #sequences = new Map<string, number>()
 
   async append(draft: ExecutionEventDraft): Promise<ExecutionEvent | undefined> {
-    if (this.#events.has(draft.eventId)) return undefined
-    const sequence = (this.#sequences.get(draft.executionId) ?? 0) + 1
+    const sanitized = sanitizeExecutionEventDraft(draft)
+    if (this.#events.has(sanitized.eventId)) return undefined
+    const sequence = (this.#sequences.get(sanitized.executionId) ?? 0) + 1
     const event = ExecutionEventSchema.parse({
-      ...draft,
+      ...sanitized,
       sequence,
-      payloadBytes: Buffer.byteLength(JSON.stringify(draft.payload)),
-      payloadHash: hashExecutionEventPayload(draft.payload),
+      payloadBytes: Buffer.byteLength(JSON.stringify(sanitized.payload)),
+      payloadHash: hashExecutionEventPayload(sanitized.payload),
       publication: { status: 'pending', attempts: 0, version: 1 },
     })
-    this.#sequences.set(draft.executionId, sequence)
+    this.#sequences.set(sanitized.executionId, sequence)
     this.#events.set(event.eventId, clone(event))
     return event
   }

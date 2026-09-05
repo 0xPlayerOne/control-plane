@@ -1,6 +1,11 @@
 import { IdentifierSchemas, type ErrorClass } from '@control-plane/contracts'
 import { z } from 'zod'
-import { ExecutionPlanPinSchema, ExecutionSchema, type Execution } from './execution-lifecycle.js'
+import {
+  ExecutionPlanPinSchema,
+  ExecutionSchema,
+  MarketplacePluginReferenceSchema,
+  type Execution,
+} from './execution-lifecycle.js'
 
 const TimestampSchema = z.iso.datetime()
 const PayloadHashSchema = z.string().regex(/^[a-f0-9]{64}$/)
@@ -194,6 +199,7 @@ const AcceptExecutionSchema = z
       })
       .strict(),
     executionPlan: ExecutionPlanPinSchema,
+    marketplacePluginReferences: z.array(MarketplacePluginReferenceSchema).max(128).optional(),
     parentExecutionId: IdentifierSchemas.executionId.optional(),
     receivedAt: TimestampSchema,
     retentionExpiresAt: TimestampSchema,
@@ -302,6 +308,9 @@ export class CommandInboxService {
       version: 1,
       correlation: { ...parsed.correlation, requestId: parsed.requestId },
       executionPlan: parsed.executionPlan,
+      ...(parsed.marketplacePluginReferences === undefined
+        ? {}
+        : { marketplacePluginReferences: parsed.marketplacePluginReferences }),
       parentExecutionId: parsed.parentExecutionId,
       attemptCount: 0,
       acceptedAt: parsed.receivedAt,

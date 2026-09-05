@@ -489,6 +489,90 @@ describe('opaque delivery and durable command idempotency', () => {
     expect((await adapter.health()).ready).toBe(false)
   })
 
+  test('acknowledges a malformed external envelope so later commands are not starved', async () => {
+    const { key, envelope } = await fixture()
+    const keys = new HostEncryptionKeyRing(hostId)
+    keys.import(key, 'active')
+    const acknowledged = new Set()
+    const projections = []
+    const records = [
+      {
+        deliveryId: 'malformed-delivery',
+        hostId,
+        workspaceId,
+        commandId: 'malformed-command',
+        receivedAt: issuedAt,
+        envelope: { schemaVersion: 1 },
+        attempts: 1,
+        acknowledged: false,
+      },
+      {
+        deliveryId: 'valid-delivery',
+        hostId,
+        workspaceId,
+        commandId: envelope.commandId,
+        receivedAt: issuedAt,
+        envelope,
+        attempts: 1,
+        acknowledged: false,
+      },
+    ]
+    const relay = {
+      register() {},
+      revoke() {},
+      pull(_hostId, limit = 100) {
+        return records.filter(({ deliveryId }) => !acknowledged.has(deliveryId)).slice(0, limit)
+      },
+      acknowledge(deliveryId) {
+        acknowledged.add(deliveryId)
+      },
+      pullMetadata() {
+        return []
+      },
+      acknowledgeMetadata() {},
+      publishResult() {},
+      publishProjection(projection) {
+        projections.push(projection)
+      },
+      health: () => Promise.resolve(true),
+    }
+    const processor = new RelayCommandProcessor(
+      hostId,
+      workspaceId,
+      (keyId, now) => keys.decryptKey(keyId, now),
+      new InMemoryRelayCommandResultRepository(),
+      async () => ({ executionId: 'execution-1' })
+    )
+    const adapter = new RemoteControlHostAdapter({
+      workspaceId,
+      hostId,
+      keys,
+      relay,
+      commands: processor,
+      now: () => observedAt,
+      pullLimit: 1,
+    })
+    await adapter.start()
+
+    expect(await adapter.poll()).toEqual({
+      delivered: 1,
+      accepted: 0,
+      duplicates: 0,
+      rejected: 1,
+      deferred: 0,
+    })
+    expect(acknowledged.has('malformed-delivery')).toBe(true)
+    expect(projections.at(-1)).toMatchObject({
+      commandId: 'malformed-command',
+      state: 'rejected',
+      reasonCode: 'RELAY_ENVELOPE_INVALID',
+    })
+    expect(await adapter.poll()).toMatchObject({ accepted: 1, deferred: 0, delivered: 1 })
+    expect(acknowledged.has('valid-delivery')).toBe(true)
+
+    await adapter.stop()
+  })
+
   test('continuously polls after startup without overlapping command effects', async () => {
     const { key, envelope } = await fixture()
     const keys = new HostEncryptionKeyRing(hostId)

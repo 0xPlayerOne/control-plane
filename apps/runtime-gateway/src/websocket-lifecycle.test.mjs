@@ -40,6 +40,24 @@ describe('Runtime Gateway WebSocket lifecycle', () => {
     ).toBe(1)
   })
 
+  test('sends a scoped durable command through the authenticated active channel', async () => {
+    const fixture = setup('gateway-a')
+    const socket = new FakeSocket()
+    fixture.gateway.open(connection('gwc-a', channel(1), socket))
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.hello))
+
+    await fixture.gateway.send(golden.command)
+
+    expect(JSON.parse(socket.sent.at(-1))).toEqual(golden.command)
+    await expect(
+      fixture.gateway.send({ ...golden.command, nodeId: otherNodeId })
+    ).rejects.toMatchObject({ code: 'RUNTIME_GATEWAY_CHANNEL_UNAVAILABLE' })
+    socket.bufferedBytes = 1_025
+    await expect(fixture.gateway.send(golden.command)).rejects.toMatchObject({
+      code: 'RUNTIME_GATEWAY_CHANNEL_BACKPRESSURED',
+    })
+  })
+
   test('reconnects across instances and replaces stale logical sessions deterministically', async () => {
     const coordination = new InMemoryRuntimeNodeCoordination()
     const durableState = new Map([['cmd_pending', { result: 'retained' }]])
@@ -99,6 +117,30 @@ describe('Runtime Gateway WebSocket lifecycle', () => {
     expect(
       fixture.metrics.counterValue('runtime_gateway.disconnects', { reason: 'idle_timeout' })
     ).toBe(1)
+  })
+
+  test('dispatches newly queued commands on heartbeat after reconnect sequencing', async () => {
+    const dispatched = []
+    const fixture = setup('gateway-a', undefined, undefined, {}, undefined, {
+      dispatch: async (record, sequence) => {
+        dispatched.push({ record, sequence })
+        return 2
+      },
+    })
+    const socket = new FakeSocket()
+    fixture.gateway.open(connection('gwc-a', channel(1), socket))
+    await fixture.gateway.receive(
+      'gwc-a',
+      JSON.stringify({ ...golden.hello, lastAcknowledgedSequence: 7 })
+    )
+
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.heartbeat))
+    await fixture.gateway.receive('gwc-a', JSON.stringify(golden.heartbeat))
+
+    expect(dispatched).toEqual([
+      { record: expect.objectContaining({ nodeId }), sequence: 8 },
+      { record: expect.objectContaining({ nodeId }), sequence: 10 },
+    ])
   })
 
   test('disconnects an invalidated active channel before handling another frame', async () => {
@@ -234,7 +276,8 @@ function setup(
   coordination = new InMemoryRuntimeNodeCoordination(),
   now,
   limits = {},
-  messages
+  messages,
+  pending
 ) {
   const reachability = new RecordingRuntimeNodeReachabilityPublisher()
   const metrics = new RecordingGatewayMetrics()
@@ -245,6 +288,7 @@ function setup(
     metrics,
     now: now ?? (() => new Date('2026-08-25T12:00:01.000Z')),
     messages,
+    pending,
     limits: {
       maxConnections: 8,
       maxConnectionsPerWorkspace: 8,

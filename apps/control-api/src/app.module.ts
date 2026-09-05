@@ -11,6 +11,7 @@ import {
   ServiceAuthenticationGuard,
   type ServiceAuthenticator,
 } from './auth/service-authentication.js'
+import { AuthenticationController } from './auth/authentication.controller.js'
 import { HealthController } from './health/health.controller.js'
 import { ExecutionAcceptanceController } from './executions/execution-acceptance.controller.js'
 import {
@@ -43,6 +44,35 @@ import {
   type RuntimeDiscoveryRepository,
 } from './runtime-discovery/runtime-discovery.repository.js'
 import { RuntimeDiscoveryService } from './runtime-discovery/runtime-discovery.service.js'
+import { MarketplaceController } from './marketplace/marketplace.controller.js'
+import { UnavailableMarketplaceInstallationService } from './marketplace/installation.js'
+import type { MarketplaceInstallationAuthority } from './marketplace/installation.js'
+import {
+  MarketplaceRegistryService,
+  UnavailableMarketplaceRegistryService,
+} from './marketplace/registry.js'
+import {
+  MARKETPLACE_INSTALLATION_SERVICE,
+  MARKETPLACE_REGISTRY_SERVICE,
+} from './marketplace/tokens.js'
+import { ProfileResolutionController } from './queries/profile-resolution.controller.js'
+import {
+  PROFILE_RESOLUTION_SERVICE,
+  UnavailableProfileResolutionService,
+  type ProfileResolutionService,
+} from './queries/profile-resolution.service.js'
+import { ProjectStateResolutionController } from './queries/project-state-resolution.controller.js'
+import {
+  PROJECT_STATE_RESOLUTION_SERVICE,
+  UnavailableProjectStateResolutionService,
+  type ProjectStateResolutionService,
+} from './queries/project-state-resolution.service.js'
+import { ContextPackageResolutionController } from './queries/context-package-resolution.controller.js'
+import {
+  CONTEXT_PACKAGE_RESOLUTION_SERVICE,
+  UnavailableContextPackageResolutionService,
+  type ContextPackageResolutionService,
+} from './queries/context-package-resolution.service.js'
 
 export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly executionAcceptanceService?: ExecutionAcceptanceService
@@ -50,6 +80,11 @@ export interface AppModuleOptions extends ApiRuntimeBindings {
   readonly serviceAuthenticator?: ServiceAuthenticator
   readonly runtimeDiscoveryRepository?: RuntimeDiscoveryRepository
   readonly componentManifest?: () => Promise<unknown>
+  readonly profileResolutionService?: ProfileResolutionService
+  readonly projectStateResolutionService?: ProjectStateResolutionService
+  readonly contextPackageResolutionService?: ContextPackageResolutionService
+  readonly marketplaceRegistryService?: MarketplaceRegistryService
+  readonly marketplaceInstallationService?: MarketplaceInstallationAuthority
 }
 
 @Module({})
@@ -71,10 +106,15 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
   return {
     module: AppModule,
     controllers: [
+      AuthenticationController,
+      ContextPackageResolutionController,
       ExecutionAcceptanceController,
       ExecutionValidationController,
       HealthController,
+      ProfileResolutionController,
+      ProjectStateResolutionController,
       RuntimeDiscoveryController,
+      MarketplaceController,
       SystemController,
     ],
     providers: [
@@ -88,6 +128,12 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
       { provide: API_READINESS, useValue: options.readiness },
       { provide: API_TELEMETRY, useValue: telemetry },
       {
+        provide: CONTEXT_PACKAGE_RESOLUTION_SERVICE,
+        useValue:
+          options.contextPackageResolutionService ??
+          new UnavailableContextPackageResolutionService(),
+      },
+      {
         provide: EXECUTION_ACCEPTANCE_SERVICE,
         useValue: options.executionAcceptanceService ?? new UnavailableExecutionAcceptanceService(),
       },
@@ -100,8 +146,26 @@ export function createAppModule(options: AppModuleOptions): DynamicModule {
         useValue: options.serviceAuthenticator ?? new DisabledServiceAuthenticator(),
       },
       {
+        provide: PROFILE_RESOLUTION_SERVICE,
+        useValue: options.profileResolutionService ?? new UnavailableProfileResolutionService(),
+      },
+      {
+        provide: PROJECT_STATE_RESOLUTION_SERVICE,
+        useValue:
+          options.projectStateResolutionService ?? new UnavailableProjectStateResolutionService(),
+      },
+      {
         provide: RUNTIME_DISCOVERY_REPOSITORY,
         useValue: options.runtimeDiscoveryRepository ?? new EmptyRuntimeDiscoveryRepository(),
+      },
+      {
+        provide: MARKETPLACE_REGISTRY_SERVICE,
+        useValue: options.marketplaceRegistryService ?? new UnavailableMarketplaceRegistryService(),
+      },
+      {
+        provide: MARKETPLACE_INSTALLATION_SERVICE,
+        useValue:
+          options.marketplaceInstallationService ?? new UnavailableMarketplaceInstallationService(),
       },
       RequestLoggingInterceptor,
       ServiceAuthenticationGuard,

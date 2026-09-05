@@ -3,12 +3,38 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import {
+  DurableRemoteWorkflowRuntime,
+  RuntimeDiscoveryAttemptRouter,
+} from '@control-plane/workflow-worker'
+import {
   HostedServerControlPlaneComposition,
+  resolveHostedCompositionConfiguration,
   resolveHostedApiHost,
   resolveHostedObjectStore,
 } from './index.ts'
 
 describe('Hosted server composition', () => {
+  test('propagates the supported remote runtime activity port through the production launcher', () => {
+    const runtimeActivityPort = {
+      dispatch: async () => ({ outcome: 'cancelled' }),
+      applyInteraction: async () => ({ outcome: 'cancelled' }),
+      cleanup: async () => undefined,
+    }
+    const configuration = resolveHostedCompositionConfiguration(
+      {
+        DATABASE_URL: 'postgresql://app:secret@postgres/control_plane',
+        CONTROL_PLANE_DATA_DIR: '/var/lib/control-plane',
+      },
+      { runtimeActivityPort }
+    )
+
+    expect(configuration.runtimeActivityPort).toBe(runtimeActivityPort)
+    expect(configuration).toMatchObject({
+      dataDirectory: '/var/lib/control-plane',
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+    })
+  })
+
   test('reports PostgreSQL and separate Restate dependencies without changing core contracts', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-'))
     const calls = []
@@ -20,7 +46,7 @@ describe('Hosted server composition', () => {
     const workflow = {
       profile: 'hosted-server',
       start: async () => calls.push('workflow:start'),
-      health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+      health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
       stop: async () => calls.push('workflow:stop'),
     }
     const composition = new HostedServerControlPlaneComposition({
@@ -56,13 +82,15 @@ describe('Hosted server composition', () => {
           externalServices: 2,
           persistence: 'postgresql',
           objectStore: 'filesystem',
-          runtimeTransport: 'unconfigured',
+          runtimeTransport: 'remote-gateway',
           remoteControl: 'outbound',
         },
       })
       expect((await composition.discovery.resolve('postgresql')).url.toString()).toBe(
         'postgresql://postgres/control_plane'
       )
+      expect(composition.runtimeActivityPort).toBeInstanceOf(DurableRemoteWorkflowRuntime)
+      expect(composition.runtimeAttemptRouter).toBeInstanceOf(RuntimeDiscoveryAttemptRouter)
       expect(calls).toEqual([
         'database:check',
         'endpoint:start',
@@ -122,7 +150,7 @@ describe('Hosted server composition', () => {
       workflowRuntime: {
         profile: 'hosted-server',
         start: async () => undefined,
-        health: async () => ({ ready: true, component: 'restate', version: '1.7.7' }),
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
         stop: async () => undefined,
       },
       endpointFactory: {
@@ -141,6 +169,42 @@ describe('Hosted server composition', () => {
       await rm(directory, { recursive: true, force: true })
     }
     expect(calls).toEqual(['object-store:close'])
+  })
+
+  test('composes an explicit remote runtime activity port for server execution', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'control-plane-hosted-runtime-'))
+    const composition = new HostedServerControlPlaneComposition({
+      dataDirectory: directory,
+      databaseUrl: 'postgresql://app:secret@postgres/control_plane',
+      connection: {
+        database: {},
+        check: async () => undefined,
+        close: async () => undefined,
+      },
+      workflowRuntime: {
+        profile: 'hosted-server',
+        start: async () => undefined,
+        health: async () => ({ ready: true, component: 'restate', version: '1.7.8' }),
+        stop: async () => undefined,
+      },
+      runtimeActivityPort: {
+        dispatch: async () => ({ outcome: 'cancelled' }),
+        applyInteraction: async () => ({ outcome: 'cancelled' }),
+        cleanup: async () => undefined,
+      },
+      endpointFactory: {
+        create: async () => ({ run: async () => undefined, shutdown: async () => undefined }),
+      },
+    })
+    try {
+      await composition.start()
+      expect(await composition.manifest()).toMatchObject({
+        topology: { runtimeTransport: 'remote-gateway' },
+      })
+    } finally {
+      await composition.close()
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   test('fails closed when S3-compatible topology is declared without an adapter', async () => {

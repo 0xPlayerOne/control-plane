@@ -1,4 +1,5 @@
 import {
+  GraphCancellationRequestSchema,
   GraphContinueRequestSchema,
   GraphExecutionRequestSchema,
   GraphResumeRequestSchema,
@@ -31,6 +32,7 @@ export interface GraphSegmentActivityPort {
   runGraphSegment(input: RunGraphSegmentActivityInput): Promise<GraphActivityOutcome>
   resumeGraphSegment(input: ResumeGraphSegmentActivityInput): Promise<GraphActivityOutcome>
   continueGraphSegment(input: ContinueGraphSegmentActivityInput): Promise<GraphActivityOutcome>
+  cancelGraphSegment(input: CancelGraphSegmentActivityInput): Promise<void>
 }
 
 export interface RunGraphSegmentActivityInput {
@@ -59,6 +61,17 @@ export interface ContinueGraphSegmentActivityInput extends Omit<
   readonly checkpointId: string
 }
 
+export interface CancelGraphSegmentActivityInput {
+  readonly executionId: string
+  readonly attemptId: string
+  readonly workspaceId: string
+  readonly workflowId: string
+  readonly graph: GraphReference
+  readonly threadId: string
+  readonly reason: 'user_request' | 'deadline'
+  readonly idempotencyKey: string
+}
+
 export class OrchestrationGraphSegmentActivities implements GraphSegmentActivityPort {
   constructor(readonly orchestration: OrchestrationPort) {}
 
@@ -74,6 +87,21 @@ export class OrchestrationGraphSegmentActivities implements GraphSegmentActivity
     input: ContinueGraphSegmentActivityInput
   ): Promise<GraphActivityOutcome> {
     return normalize(await this.orchestration.continue(GraphContinueRequestSchema.parse(input)))
+  }
+
+  async cancelGraphSegment(input: CancelGraphSegmentActivityInput): Promise<void> {
+    await this.orchestration.cancel(
+      GraphCancellationRequestSchema.parse({
+        executionId: input.executionId,
+        attemptId: input.attemptId,
+        workspaceId: input.workspaceId,
+        workflowId: input.workflowId,
+        graph: input.graph,
+        threadId: input.threadId,
+        reason: input.reason,
+        idempotencyKey: input.idempotencyKey,
+      })
+    )
   }
 }
 

@@ -36,59 +36,21 @@ export const start = (options: HostedControlPlaneStartOptions = {}) =>
     ...(options.processAdapter === undefined ? {} : { processAdapter: options.processAdapter }),
     start: async ({ config, health, markReady, readiness, registerResource }) => {
       const environment = options.environment ?? process.env
-      const dataDirectory =
-        options.compositionOptions?.dataDirectory ??
-        environment['CONTROL_PLANE_DATA_DIR'] ??
-        join(homedir(), '.control-plane-hosted')
-      const restateAdminUrl =
-        options.compositionOptions?.restateAdminUrl ?? environment['RESTATE_ADMIN_URL']
-      const restateIngressUrl =
-        options.compositionOptions?.restateIngressUrl ?? environment['RESTATE_INGRESS_URL']
-      const workflowDeploymentUri =
-        options.compositionOptions?.workflowDeploymentUri ?? environment['WORKFLOW_DEPLOYMENT_URI']
-      const objectStoreConfiguration = resolveHostedObjectStore(
-        environment,
-        options.compositionOptions
-      )
       const composition =
         options.composition ??
-        new HostedServerControlPlaneComposition({
-          dataDirectory,
-          databaseUrl:
-            options.compositionOptions?.databaseUrl ??
-            requiredEnvironment(environment, 'DATABASE_URL'),
-          ...(restateAdminUrl === undefined ? {} : { restateAdminUrl }),
-          ...(restateIngressUrl === undefined ? {} : { restateIngressUrl }),
-          ...(workflowDeploymentUri === undefined ? {} : { workflowDeploymentUri }),
-          ...(options.compositionOptions?.workflowEndpointPort === undefined
-            ? {}
-            : { workflowEndpointPort: options.compositionOptions.workflowEndpointPort }),
-          ...objectStoreConfiguration,
-          ...(options.compositionOptions?.endpointFactory === undefined
-            ? {}
-            : { endpointFactory: options.compositionOptions.endpointFactory }),
-          ...(options.compositionOptions?.connection === undefined
-            ? {}
-            : { connection: options.compositionOptions.connection }),
-          ...(options.compositionOptions?.secrets === undefined
-            ? {}
-            : { secrets: options.compositionOptions.secrets }),
-          ...(options.compositionOptions?.workflowRuntime === undefined
-            ? {}
-            : { workflowRuntime: options.compositionOptions.workflowRuntime }),
-          ...(options.compositionOptions?.remoteControl === undefined
-            ? {}
-            : { remoteControl: options.compositionOptions.remoteControl }),
-          ...(options.compositionOptions?.remoteControlFactory === undefined
-            ? {}
-            : { remoteControlFactory: options.compositionOptions.remoteControlFactory }),
-        })
+        new HostedServerControlPlaneComposition(
+          resolveHostedCompositionConfiguration(environment, options.compositionOptions)
+        )
       registerResource('hosted-control-plane-composition', () => composition.close())
       await composition.start()
-      const authentication = await createPrivateApiAuthentication(dataDirectory)
+      const authentication = await createPrivateApiAuthentication(composition.dataDirectory)
       const application = await createControlApiApplication({
         executionAcceptanceService: composition.executionAcceptanceService,
         executionValidationService: composition.executionValidationService,
+        profileResolutionService: composition.profileResolutionService,
+        projectStateResolutionService: composition.projectStateResolutionService,
+        contextPackageResolutionService: composition.contextPackageResolutionService,
+        runtimeDiscoveryRepository: composition.runtimeDiscoveryRepository,
         serviceAuthenticator: authentication.authenticator,
         componentManifest: () => composition.manifest(),
         dependencyReadiness: async () =>
@@ -106,6 +68,37 @@ export const start = (options: HostedControlPlaneStartOptions = {}) =>
       markReady()
     },
   })
+
+export function resolveHostedCompositionConfiguration(
+  environment: RawEnvironment,
+  options: Partial<HostedServerCompositionOptions> = {}
+): HostedServerCompositionOptions {
+  const optional = <Key extends keyof HostedServerCompositionOptions>(key: Key) =>
+    options[key] === undefined ? {} : { [key]: options[key] }
+  const restateAdminUrl = options.restateAdminUrl ?? environment['RESTATE_ADMIN_URL']
+  const restateIngressUrl = options.restateIngressUrl ?? environment['RESTATE_INGRESS_URL']
+  const workflowDeploymentUri =
+    options.workflowDeploymentUri ?? environment['WORKFLOW_DEPLOYMENT_URI']
+  return {
+    dataDirectory:
+      options.dataDirectory ??
+      environment['CONTROL_PLANE_DATA_DIR'] ??
+      join(homedir(), '.control-plane-hosted'),
+    databaseUrl: options.databaseUrl ?? requiredEnvironment(environment, 'DATABASE_URL'),
+    ...(restateAdminUrl === undefined ? {} : { restateAdminUrl }),
+    ...(restateIngressUrl === undefined ? {} : { restateIngressUrl }),
+    ...(workflowDeploymentUri === undefined ? {} : { workflowDeploymentUri }),
+    ...resolveHostedObjectStore(environment, options),
+    ...optional('workflowEndpointPort'),
+    ...optional('endpointFactory'),
+    ...optional('connection'),
+    ...optional('secrets'),
+    ...optional('workflowRuntime'),
+    ...optional('remoteControl'),
+    ...optional('remoteControlFactory'),
+    ...optional('runtimeActivityPort'),
+  }
+}
 
 export function resolveHostedApiHost(explicitHost?: string): string {
   const host = explicitHost ?? process.env['CONTROL_PLANE_BIND_HOST'] ?? '127.0.0.1'

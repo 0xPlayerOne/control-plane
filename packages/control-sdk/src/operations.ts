@@ -21,6 +21,10 @@ import {
   RuntimeConnectionGetResponseSchema,
   RuntimeConnectionListRequestSchema,
   RuntimeConnectionListResponseSchema,
+  MarketplaceCatalogRequestSchema,
+  MarketplaceCatalogResponseSchema,
+  MarketplaceInstallRequestSchema,
+  MarketplaceInstallResponseSchema,
 } from '@control-plane/contracts'
 
 export const ControlApiOperations = Object.freeze({
@@ -100,6 +104,20 @@ export const ControlApiOperations = Object.freeze({
     path: '/v1/executions/accept',
     requestSchema: ExecutionAcceptanceRequestSchema,
     responseSchema: ExecutionAcceptanceResponseSchema,
+  },
+  marketplaceCatalog: {
+    operation: 'marketplace.catalog.read',
+    method: 'POST',
+    path: '/v1/marketplace/catalog',
+    requestSchema: MarketplaceCatalogRequestSchema,
+    responseSchema: MarketplaceCatalogResponseSchema,
+  },
+  marketplaceInstall: {
+    operation: 'marketplace.install.request',
+    method: 'POST',
+    path: '/v1/marketplace/install',
+    requestSchema: MarketplaceInstallRequestSchema,
+    responseSchema: MarketplaceInstallResponseSchema,
   },
 } as const)
 

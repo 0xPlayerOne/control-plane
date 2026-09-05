@@ -5,6 +5,7 @@ import {
   RuntimeCompatibilityMatrixSchema,
 } from '@control-plane/runtime-sdk'
 import { readFile } from 'node:fs/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 import { URL } from 'node:url'
 import { AcpAdapter, AcpDriver } from './index.ts'
 import { AcpGatewayClient, ReferenceAcpDriver, ReferenceAcpGatewayTransport } from './gateway.ts'
@@ -56,7 +57,8 @@ function plan() {
 }
 
 function fixture(options = {}) {
-  const driver = new ReferenceAcpDriver({
+  const GatewayDriver = options.gatewayDriver ?? ReferenceAcpDriver
+  const driver = new GatewayDriver({
     now: () => now,
     scenario: options.scenario ?? 'complete',
     protocolVersion: options.acpProtocolVersion,
@@ -64,7 +66,8 @@ function fixture(options = {}) {
     sessionReplay: true,
   })
   driver.setGrantState('grant:project-0001', options.grantState ?? 'granted')
-  const transport = new ReferenceAcpGatewayTransport({
+  const GatewayTransport = options.gatewayTransport ?? ReferenceAcpGatewayTransport
+  const transport = new GatewayTransport({
     driver,
     now: () => now,
     ...ids,
@@ -87,6 +90,7 @@ function fixture(options = {}) {
       }
       return commandIds.get(identity)
     },
+    requestTimeoutMs: options.requestTimeoutMs,
   })
   const externalIds = new Map([
     ['nses_01JABCDEF0123456789ABCDEFG', 'ses_01JABCDEF0123456789ABCDEFG'],
@@ -103,6 +107,7 @@ function fixture(options = {}) {
           externalSessionId: (sessionRef) => externalIds.get(sessionRef),
           interactionId: () => 'int_01JABCDEF0123456789ABCDEFG',
           now: () => new Date(now),
+          requestTimeoutMs: options.requestTimeoutMs,
         })
       ),
     }),
@@ -110,6 +115,80 @@ function fixture(options = {}) {
 }
 
 describe('non-co-located ACP through Runtime Gateway', () => {
+  test('coalesces an in-flight duplicate create command', async () => {
+    const { client, transport } = fixture()
+
+    const [first, second] = await Promise.all([
+      client.createSession('create-token-1'),
+      client.createSession('create-token-1'),
+    ])
+
+    expect(second).toEqual(first)
+    expect(
+      transport.commands().filter(({ operation }) => operation === 'runtime.session')
+    ).toHaveLength(1)
+  })
+
+  test('accepts a maximum-length public session idempotency key', async () => {
+    const { adapter } = fixture()
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: `session:${'a'.repeat(248)}` })
+    ).resolves.toMatchObject({ operation: 'create', session: { state: 'active' } })
+  })
+
+  test('uses a distinct gateway command to reconcile a lost create response', async () => {
+    const { adapter, transport } = fixture({
+      gatewayTransport: LostCreateResponseTransport,
+      requestTimeoutMs: 10,
+    })
+
+    await expect(
+      adapter.session({ operation: 'create', idempotencyKey: 'session:lost-gateway-response' })
+    ).rejects.toMatchObject({ classification: 'timeout' })
+    await delay(30)
+
+    const actions = transport
+      .commands()
+      .flatMap((command) =>
+        command.operation === 'runtime.session' && 'parameters' in command.payload
+          ? [command.payload.parameters.action]
+          : []
+      )
+    expect(actions.filter((action) => action === 'new')).toHaveLength(2)
+    expect(actions).toContain('close')
+  })
+
+  test('releases server in-flight state when a gateway handler never settles', async () => {
+    const { client, transport } = fixture({
+      gatewayDriver: HangingCreateGatewayDriver,
+      requestTimeoutMs: 10,
+    })
+
+    await expect(client.createSession('create-token-hung-handler')).rejects.toMatchObject({
+      code: 'RUNTIME_GATEWAY_TIMEOUT',
+      classification: 'timeout',
+    })
+    await delay(20)
+    expect(transport.inFlightCount()).toBe(0)
+  })
+
+  test('bounds gateway inventory and dispatch waits with abort propagation', async () => {
+    const inventory = new HangingGatewayTransport('inventory')
+    const inventoryClient = gatewayClient(inventory, { requestTimeoutMs: 10 })
+    await expect(inventoryClient.request('initialize', {})).rejects.toMatchObject({
+      code: 'RUNTIME_GATEWAY_TIMEOUT',
+      classification: 'timeout',
+    })
+
+    const dispatch = new HangingGatewayTransport('dispatch')
+    const dispatchClient = gatewayClient(dispatch, { requestTimeoutMs: 10 })
+    await expect(dispatchClient.request('initialize', {})).rejects.toMatchObject({
+      code: 'RUNTIME_GATEWAY_TIMEOUT',
+      classification: 'timeout',
+    })
+  })
+
   test('matches the exact supported compatibility certification capability claim', async () => {
     const { adapter, transport } = fixture()
     const inspection = await adapter.inspect()
@@ -320,3 +399,107 @@ describe('non-co-located ACP through Runtime Gateway', () => {
     expect(await disappeared.adapter.reconcile(active)).toMatchObject({ state: 'unknown' })
   })
 })
+
+function gatewayClient(transport, options = {}) {
+  return new AcpGatewayClient({
+    transport,
+    ...ids,
+    localProjectGrantRef: 'grant:project-0001',
+    now: () => new Date(now),
+    commandId: () => 'cmd_01JABCDEF0123456789ABCDEFG',
+    ...options,
+  })
+}
+
+class HangingGatewayTransport {
+  constructor(hangingMethod) {
+    this.hangingMethod = hangingMethod
+  }
+
+  connectionState() {
+    return 'online'
+  }
+
+  grantState() {
+    return 'granted'
+  }
+
+  async inventory(signal) {
+    if (this.hangingMethod === 'inventory') return waitForGatewayAbort(signal)
+    return gatewayInventory()
+  }
+
+  async dispatch(_command, signal) {
+    if (this.hangingMethod === 'dispatch') return waitForGatewayAbort(signal)
+    throw new Error('UNEXPECTED_GATEWAY_DISPATCH')
+  }
+}
+
+class LostCreateResponseTransport extends ReferenceAcpGatewayTransport {
+  loseFirstCreate = true
+
+  async dispatch(command, signal) {
+    if (
+      this.loseFirstCreate &&
+      command.operation === 'runtime.session' &&
+      'parameters' in command.payload &&
+      command.payload.parameters.action === 'new'
+    ) {
+      this.loseFirstCreate = false
+      await super.dispatch(command, signal)
+      return waitForGatewayAbort(signal)
+    }
+    return super.dispatch(command, signal)
+  }
+}
+
+class HangingCreateGatewayDriver extends ReferenceAcpDriver {
+  async handle(command) {
+    if (
+      command.operation === 'runtime.session' &&
+      'parameters' in command.payload &&
+      command.payload.parameters.action === 'new'
+    ) {
+      return new Promise(() => {})
+    }
+    return super.handle(command)
+  }
+}
+
+function waitForGatewayAbort(signal) {
+  if (!signal) throw new Error('MISSING_ABORT_SIGNAL')
+  return new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('ABORTED')), { once: true })
+  })
+}
+
+function gatewayInventory() {
+  return {
+    type: 'inventory',
+    schemaVersion: 1,
+    protocolVersion: { major: 1, minor: 5 },
+    sequence: 1,
+    nodeId: ids.nodeId,
+    workspaceId: ids.workspaceId,
+    traceId: ids.traceId,
+    sentAt: now,
+    channelGeneration: 1,
+    mode: 'snapshot',
+    snapshotVersion: 1,
+    observedAt: now,
+    runtimeDrivers: [
+      {
+        opaqueRef: ids.runtimeOpaqueRef,
+        driverFamily: 'acp',
+        adapterVersion: '1.0.0',
+        driverVersion: '1.0.0',
+        harnessVersion: '2.4.0',
+        protocolVersion: { major: 1, minor: 5 },
+        health: 'healthy',
+        capabilities: ['stream.events'],
+        limitations: [],
+      },
+    ],
+    contextProviders: [],
+  }
+}

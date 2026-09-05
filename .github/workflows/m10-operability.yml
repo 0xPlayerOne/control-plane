@@ -88,9 +88,13 @@ jobs:
           docker compose --profile simple down
 
           export POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+          export POSTGRES_MIGRATION_PASSWORD="$(openssl rand -hex 32)"
+          export POSTGRES_APPLICATION_PASSWORD="$(openssl rand -hex 32)"
           export CONTROL_PLANE_SERVER_DATA_PATH="$compose_root/server/control-plane"
           export POSTGRES_DATA_PATH="$compose_root/server/postgres"
           export RESTATE_DATA_PATH="$compose_root/server/restate"
+          docker compose --profile server up -d --wait postgres
+          docker compose exec -T postgres psql -U control_plane -d control_plane -v ON_ERROR_STOP=1 -c 'create table legacy_role_upgrade_probe(id integer primary key);'
           docker compose --profile server up --build -d
           for _ in {1..60}; do
             server_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready || true)"
@@ -102,6 +106,22 @@ jobs:
           expected_migrations="$(find ../../packages/database/drizzle -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
           applied_migrations="$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select count(*) from drizzle.__drizzle_migrations;')"
           test "$applied_migrations" = "$expected_migrations"
+          test "$(docker compose exec -T -e PGPASSWORD="$POSTGRES_MIGRATION_PASSWORD" postgres psql -h 127.0.0.1 -U control_plane_migrator -d control_plane -Atc 'select current_user;')" = control_plane_migrator
+          test "$(docker compose exec -T -e PGPASSWORD="$POSTGRES_APPLICATION_PASSWORD" postgres psql -h 127.0.0.1 -U control_plane_app -d control_plane -Atc 'select current_user;')" = control_plane_app
+          test "$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select rolsuper or rolcreatedb or rolcreaterole or rolbypassrls from pg_roles where rolname = $$control_plane_app$$;')" = f
+          test "$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select pg_get_userbyid(datdba) = $$control_plane_app$$ from pg_database where datname = $$control_plane$$;')" = f
+          test "$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select count(*) from pg_auth_members where member = (select oid from pg_roles where rolname = $$control_plane_app$$);')" = 0
+          test "$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select count(*) from information_schema.role_table_grants where grantee = $$control_plane_app$$ and privilege_type not in ($$SELECT$$, $$INSERT$$, $$UPDATE$$, $$DELETE$$);')" = 0
+          test "$(docker compose exec -T postgres psql -U control_plane -d control_plane -Atc 'select tableowner from pg_tables where schemaname = $$public$$ and tablename = $$legacy_role_upgrade_probe$$;')" = control_plane_migrator
+          test "$(docker compose exec -T -e PGPASSWORD="$POSTGRES_APPLICATION_PASSWORD" postgres psql -h 127.0.0.1 -U control_plane_app -d control_plane -v ON_ERROR_STOP=1 -qAtc 'begin; insert into legacy_role_upgrade_probe values (1); update legacy_role_upgrade_probe set id = 2 where id = 1; delete from legacy_role_upgrade_probe where id = 2; select count(*) from legacy_role_upgrade_probe; commit;')" = 0
+          if docker compose exec -T -e PGPASSWORD="$POSTGRES_APPLICATION_PASSWORD" postgres psql -h 127.0.0.1 -U control_plane_app -d control_plane -v ON_ERROR_STOP=1 -c 'create table runtime_role_must_not_create_objects(id integer);'; then
+            echo 'Application database role unexpectedly has DDL privileges.' >&2
+            exit 1
+          fi
+          if docker compose run --rm --no-deps -e POSTGRES_APPLICATION_PASSWORD="$POSTGRES_MIGRATION_PASSWORD" database-bootstrap; then
+            echo 'Database role bootstrap unexpectedly accepted duplicate passwords.' >&2
+            exit 1
+          fi
 
           docker compose stop restate
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33300/ready)" = 503

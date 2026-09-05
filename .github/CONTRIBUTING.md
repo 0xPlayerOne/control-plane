@@ -155,7 +155,7 @@ Keep pull requests focused and reviewable. Include screenshots or recordings for
 
 | Event                                              | Expected automation                                                                   |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Pull request targeting `staging`                   | Fast validation: CI plus unit tests, ending in `Validation / Gate`                    |
+| Pull request targeting `staging`                   | Audit validation: CI, full tests, Security, and CodeQL, ending in `Validation / Gate` |
 | Ordinary pull request targeting `main`             | Audit validation: CI, full tests, Security, and CodeQL, ending in `Validation / Gate` |
 | Exact Release Please pull request targeting `main` | Release-policy validation only, ending in `Validation / Gate`                         |
 | Scheduled or manual validation                     | Full audit tier                                                                       |
