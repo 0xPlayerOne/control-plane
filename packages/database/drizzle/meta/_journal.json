@@ -190,6 +190,34 @@
       "when": 1788061821877,
       "tag": "0026_past_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788110307800,
+      "tag": "0027_luxuriant_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1788180000000,
+      "tag": "0028_marketplace_installations",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788180001000,
+      "tag": "0029_execution_marketplace_pins",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788277264753,
+      "tag": "0030_right_shen",
+      "breakpoints": true
     }
   ]
 }

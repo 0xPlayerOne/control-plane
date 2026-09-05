@@ -29,6 +29,12 @@ Executor adapters implement the provider-neutral `ToolExecutor` port from `@cont
 Provider credentials and transport configuration remain behind those adapters and are not part of
 canonical definitions, runtime requests, or public results.
 
+Every executor receives a required `AbortSignal`. Adapters must propagate it to their underlying
+transport and stop work promptly when it is aborted. At the pinned deadline the gateway aborts the
+attempt and returns an ambiguous-effect timeout; it does not automatically retry timeout failures,
+even when a tool's retry policy lists `TIMEOUT`. A transport that cannot confirm cancellation must
+leave the effect for durable reconciliation rather than start an overlapping attempt.
+
 ## Durable policy-controlled calls
 
 Privileged execution uses `PolicyControlledToolExecutionService`, which prepares and validates the
@@ -43,8 +49,8 @@ The service follows this order:
 3. Evaluate the provider-neutral policy port; denial or evaluator failure cannot reach an executor.
 4. Create or inspect a durable M3 approval interaction when policy/tool risk requires it.
 5. Enforce the principal/tool/operation rate window immediately before the effect.
-6. Invoke the executor with the pinned timeout and retry only errors explicitly classified by the
-   tool version when its idempotency model supports retry.
+6. Invoke the executor with the pinned timeout and retry only non-timeout errors explicitly
+   classified by the tool version when its idempotency model supports retry.
 7. Validate and bound output, then persist the result and terminal audit transition.
 
 Concurrent and redelivered requests with the same digest converge on one supported effect. Reusing
@@ -60,6 +66,16 @@ remote tool as a workspace-scoped canonical definition. Every imported version r
 server, remote tool name/version, schema digest, and discovery time. A changed schema publishes a
 new immutable version; an execution already pinned to the previous digest fails closed instead of
 silently using the changed remote contract.
+
+Discovery is a bounded provider trust boundary. The adapter rejects catalogs above 256 tools,
+responses above the managed-cloud 1 MiB gateway-frame limit, and either input or output schema above
+the 256 KiB remote-metadata limit or 32 levels of nesting before it hashes or publishes any tool.
+Tool identity and descriptive fields are bounded, and each tool may declare at most 64 unique
+capabilities. Every `McpClientPort` must declare and implement raw-frame enforcement; the adapter
+passes the 1 MiB ceiling into every discovery call and rejects clients without that guarantee. This
+keeps an oversized wire response from being materialized before the parsed catalog is checked.
+The complete catalog's schemas are compiled before registry state changes, and the immutable source
+digest includes capabilities and read-only status so authority-only drift publishes a new version.
 
 MCP calls use the same policy-controlled Tool Gateway path as every other executor. Disconnects,
 removed tools, protocol errors, timeouts, invalid output, and oversized output are exposed as

@@ -222,7 +222,7 @@ describe('Control Plane SDK public client', () => {
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/)
     expect(manifest.version).toBe(releaseManifest['packages/control-sdk'])
     expect(manifest.private).toBeUndefined()
-    expect(PublicContractManifest.current).toEqual({ major: 2, minor: 0 })
+    expect(PublicContractManifest.current).toEqual({ major: 3, minor: 0 })
     for (const prohibited of [
       'database',
       'drizzle',
@@ -240,7 +240,7 @@ describe('Control Plane SDK public client', () => {
 function runtimeDiscoveryRequest() {
   return {
     caller: { servicePrincipalId: 'svc_agent-hq' },
-    contractVersion: { major: 2, minor: 0 },
+    contractVersion: { major: 3, minor: 0 },
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     operation: 'runtime-connection.list',
     parameters: { limit: 50, states: [], requiredCapabilities: [] },
@@ -253,7 +253,7 @@ function runtimeDiscoveryRequest() {
 
 function runtimeDiscoveryResponse() {
   return {
-    contractVersion: { major: 2, minor: 0 },
+    contractVersion: { major: 3, minor: 0 },
     requestId: 'req_01JABCDEF0123456789ABCDEFG',
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     data: {
@@ -304,7 +304,7 @@ function externalSessionDiscoveryRequest() {
 
 function externalSessionDiscoveryResponse() {
   return {
-    contractVersion: { major: 2, minor: 0 },
+    contractVersion: { major: 3, minor: 0 },
     requestId: 'req_01JABCDEF0123456789ABCDEFG',
     correlation: { traceId: 'trc_01JABCDEF0123456789ABCDEFG' },
     data: {

@@ -363,6 +363,7 @@ export function composeProviderContextPackage(
 export interface ContextPackageRepository {
   put(package_: ContextPackage): Promise<ContextPackageReference>
   get(reference: ContextPackageReference): Promise<ContextPackage | undefined>
+  getById(contextPackageId: string): Promise<ContextPackage | undefined>
 }
 
 export class InMemoryContextPackageRepository implements ContextPackageRepository {
@@ -380,6 +381,9 @@ export class InMemoryContextPackageRepository implements ContextPackageRepositor
     const package_ = this.#packages.get(reference.contextPackageId)
     if (!package_ || package_.contentDigest !== reference.contentDigest) return undefined
     return structuredClone(package_)
+  }
+  async getById(contextPackageId: string): Promise<ContextPackage | undefined> {
+    return structuredClone(this.#packages.get(contextPackageId))
   }
 }
 

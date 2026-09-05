@@ -49,6 +49,7 @@ Key documentation:
 - [`docs/project-state.md`](docs/project-state.md), [`docs/context-packages.md`](docs/context-packages.md), and [`docs/execution-plans.md`](docs/execution-plans.md): durable state and immutable execution authority.
 - [`docs/sdk.md`](docs/sdk.md): public contracts/SDK and deterministic integration fixtures.
 - [`docs/credential-vault.md`](docs/credential-vault.md): dynamic connector/provider credential boundary.
+- [`docs/marketplace-consumer.md`](docs/marketplace-consumer.md): server-side registry discovery, immutable release verification, and idempotent installation contract.
 - [`docs/security-hardening.md`](docs/security-hardening.md), [`docs/recovery.md`](docs/recovery.md), [`docs/performance.md`](docs/performance.md), and [`docs/operations.md`](docs/operations.md): production evidence/runbooks.
 - [`docs/testing.md`](docs/testing.md): current executable test commands plus M9–M11 evidence ownership.
 

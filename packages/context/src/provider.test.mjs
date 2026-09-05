@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { createHash } from 'node:crypto'
 import {
   ContextProviderResolver,
   InMemoryContextContributionCache,
@@ -70,6 +71,83 @@ describe('optional context provider resolution', () => {
     await expect(
       resolver([malicious]).resolve(request({ mode: 'required', failureBehavior: 'fail' }))
     ).rejects.toMatchObject({ code: 'PROVIDER_SCOPE_MISMATCH' })
+  })
+
+  test('rejects forged digests, token underclaims, and UTF-8 byte overflow before caching', async () => {
+    const provider = fake('V')
+    const forgedDigest = contribution(provider, {
+      content: 'forged-content',
+      contentDigest: `sha256:${'f'.repeat(64)}`,
+    })
+    await expect(
+      resolver([forgedDigest]).resolve(
+        request({ mode: 'required', failureBehavior: 'fail', maximumTokens: 1_000 })
+      )
+    ).rejects.toMatchObject({ code: 'PROVIDER_OUTPUT_INVALID' })
+
+    const underclaimedContent = 'x'.repeat(401)
+    const underclaimed = contribution(provider, {
+      content: underclaimedContent,
+      contentDigest: contentDigest(underclaimedContent),
+      tokenCount: 0,
+    })
+    await expect(
+      resolver([underclaimed]).resolve(
+        request({ mode: 'required', failureBehavior: 'fail', maximumTokens: 100 })
+      )
+    ).rejects.toMatchObject({ code: 'PROVIDER_BUDGET_EXCEEDED' })
+    await expect(
+      runContextProviderConformance(underclaimed, request({ maximumTokens: 100 }))
+    ).resolves.toMatchObject({ bounded: false })
+
+    const multibyteContent = '💥'.repeat(70_000)
+    const byteOverflow = contribution(provider, {
+      content: multibyteContent,
+      contentDigest: contentDigest(multibyteContent),
+      tokenCount: 70_000,
+    })
+    await expect(
+      resolver([byteOverflow]).resolve(
+        request({ mode: 'required', failureBehavior: 'fail', maximumTokens: 100_000 })
+      )
+    ).rejects.toMatchObject({ code: 'PROVIDER_OUTPUT_INVALID' })
+  })
+
+  test('revalidates cached contributions and preserves safe token overestimates', async () => {
+    const provider = fake('W')
+    const content = 'safe-overestimate'
+    const safe = contribution(provider, {
+      content,
+      contentDigest: contentDigest(content),
+      tokenCount: 50,
+    })
+    await expect(resolver([safe]).resolve(request({ maximumTokens: 50 }))).resolves.toMatchObject({
+      status: 'included',
+    })
+
+    const nativeTokenizerCount = contribution(provider, {
+      content: 'hello',
+      contentDigest: contentDigest('hello'),
+      tokenCount: 1,
+    })
+    await expect(
+      resolver([nativeTokenizerCount]).resolve(request({ maximumTokens: 2 }))
+    ).resolves.toMatchObject({ status: 'included', contributions: [{ tokenCount: 2 }] })
+
+    const cache = {
+      async get() {
+        return contribution(provider, {
+          content: 'cached-forgery',
+          contentDigest: `sha256:${'e'.repeat(64)}`,
+        }).retrieve(request())
+      },
+      async set() {},
+    }
+    await expect(
+      resolver([provider], { cache }).resolve(
+        request({ mode: 'required', failureBehavior: 'fail' })
+      )
+    ).rejects.toMatchObject({ code: 'PROVIDER_OUTPUT_INVALID' })
   })
 
   test('normalizes degraded output without making it ProjectState or canonical memory', async () => {
@@ -167,6 +245,20 @@ function fake(suffix, overrides = {}) {
     tokenCount: 10,
     ...overrides,
   })
+}
+
+function contribution(provider, overrides) {
+  return {
+    ...provider,
+    async retrieve(input) {
+      const entries = await provider.retrieve(input)
+      return entries.map((entry) => ({ ...entry, ...overrides }))
+    },
+  }
+}
+
+function contentDigest(content) {
+  return `sha256:${createHash('sha256').update(content).digest('hex')}`
 }
 
 function request(policy = {}) {

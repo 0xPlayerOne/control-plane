@@ -68,7 +68,8 @@ The package exposes `control-plane-portability` for SQLite-backed Local and Host
 
 ```sh
 control-plane-portability export --database ./state.sqlite --profile local \
-  --output ./control-plane-export.json --export-id release-2026-08-30
+  --output ./control-plane-export.json --export-id release-2026-08-30 \
+  --sensitive-values-file ./portable-export-canaries.json
 
 control-plane-portability verify --manifest ./control-plane-export.json
 
@@ -80,10 +81,13 @@ control-plane-portability import --database ./hosted.sqlite --profile hosted-sim
 ```
 
 `import` without `--apply` is a dry run. Export files are written atomically with owner-only
-permissions. Cloud and Hosted `server` compositions invoke the same library boundary with their
-accepted PostgreSQL and S3-compatible adapters. Their operator composition owns database connection
-and authorization; the SQLite CLI does not accept cloud credentials or alter Railway, Neon, or R2
-configuration.
+permissions. The optional canary file is a JSON array of up to 1,000 non-empty strings, with a 4 MiB
+file limit and a 4,096-byte limit per string. Keep it owner-readable and delete it when the export
+verification is complete. Canary values are read from the file so they do not appear in process
+arguments, and a match aborts before the manifest is written. Cloud and Hosted `server` compositions
+invoke the same library boundary with their accepted PostgreSQL and S3-compatible adapters. Their
+operator composition owns database connection and authorization; the SQLite CLI does not accept
+cloud credentials or alter Railway, Neon, or R2 configuration.
 
 ## Release evidence
 

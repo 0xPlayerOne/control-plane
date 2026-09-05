@@ -6,6 +6,7 @@ import {
   type ExecutionLifecycleService,
 } from '@control-plane/domain'
 import type { ExecutionPlan, ExecutionPlanRepository } from '@control-plane/execution-plan'
+import type { ExecutionWorkflowInput } from '@control-plane/orchestration'
 import type { GraphSegmentActivityPort } from './graph-segment-activity.js'
 import type {
   ExecutionLifecycleActivities,
@@ -18,6 +19,7 @@ export interface WorkflowRuntimeActivityPort {
     readonly executionId: string
     readonly attemptId: string
     readonly executionPlan: ExecutionPlan
+    readonly marketplacePluginReferences?: ExecutionWorkflowInput['marketplacePluginReferences']
     readonly effectKey: string
   }): Promise<WorkflowRuntimeOutcome>
   applyInteraction(
@@ -27,11 +29,24 @@ export interface WorkflowRuntimeActivityPort {
       readonly effectKey: string
     }
   ): Promise<WorkflowRuntimeOutcome>
+  cancel(input: {
+    readonly executionId: string
+    readonly attemptId: string
+    readonly effectKey: string
+    readonly reason: 'user_request' | 'deadline'
+  }): Promise<void>
   cleanup(input: {
     readonly executionId: string
     readonly attemptId?: string
     readonly effectKey: string
   }): Promise<void>
+}
+
+export interface RuntimeAttemptRouter {
+  resolve(input: {
+    readonly execution: Execution
+    readonly executionPlan: ExecutionPlan
+  }): Promise<ExecutionAttempt['runtime']>
 }
 
 export interface DurableExecutionLifecycleActivitiesOptions {
@@ -40,6 +55,7 @@ export interface DurableExecutionLifecycleActivitiesOptions {
   readonly runtime: WorkflowRuntimeActivityPort
   readonly graph: GraphSegmentActivityPort
   readonly commands: ExecutionCommandLifecyclePort
+  readonly runtimeRouter?: RuntimeAttemptRouter
   readonly now?: () => string
 }
 
@@ -59,6 +75,7 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
   readonly #runtime: WorkflowRuntimeActivityPort
   readonly #graph: GraphSegmentActivityPort
   readonly #commands: ExecutionCommandLifecyclePort
+  readonly #runtimeRouter: RuntimeAttemptRouter | undefined
   readonly #now: () => string
 
   constructor(options: DurableExecutionLifecycleActivitiesOptions) {
@@ -67,6 +84,7 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
     this.#runtime = options.runtime
     this.#graph = options.graph
     this.#commands = options.commands
+    this.#runtimeRouter = options.runtimeRouter
     this.#now = options.now ?? (() => new Date().toISOString())
   }
 
@@ -79,6 +97,7 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
     const execution = await this.#lifecycle.getExecution(input.executionId)
     const current = await this.#existingAttempt(execution, attemptId)
     if (current !== undefined) return { attemptId: current.attemptId }
+    const runtime = await this.#resolveRuntime(execution)
     try {
       const attempt = await this.#lifecycle.createAttempt({
         executionId: execution.executionId,
@@ -86,6 +105,7 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
         expectedExecutionVersion: execution.version,
         queuedAt: timestampAfter(this.#now(), execution.updatedAt),
         deadlineAt: execution.deadlineAt,
+        ...(runtime === undefined ? {} : { runtime }),
       })
       return { attemptId: attempt.attemptId }
     } catch (error) {
@@ -99,6 +119,13 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
       }
       throw error
     }
+  }
+
+  async #resolveRuntime(execution: Execution): Promise<ExecutionAttempt['runtime']> {
+    if (this.#runtimeRouter === undefined) return undefined
+    const executionPlan = await this.#plans.get(execution.executionPlan)
+    if (executionPlan === undefined) throw new Error('WORKFLOW_EXECUTION_PLAN_MISSING')
+    return this.#runtimeRouter.resolve({ execution, executionPlan })
   }
 
   async persistStatus(input: {
@@ -159,6 +186,25 @@ export class DurableExecutionLifecycleActivities implements ExecutionLifecycleAc
 
   continueGraphSegment(input: Parameters<GraphSegmentActivityPort['continueGraphSegment']>[0]) {
     return this.#graph.continueGraphSegment(input)
+  }
+
+  async cancelActive(
+    input: Parameters<ExecutionLifecycleActivities['cancelActive']>[0]
+  ): Promise<void> {
+    if (input.graph !== undefined) {
+      await this.#graph.cancelGraphSegment({
+        executionId: input.executionId,
+        attemptId: input.attemptId,
+        workspaceId: input.graph.workspaceId,
+        workflowId: input.workflowId,
+        graph: input.graph.reference,
+        threadId: input.graph.threadId,
+        reason: input.reason,
+        idempotencyKey: input.effectKey,
+      })
+      return
+    }
+    await this.#runtime.cancel(input)
   }
 
   cleanup(input: Parameters<ExecutionLifecycleActivities['cleanup']>[0]): Promise<void> {

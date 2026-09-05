@@ -30,6 +30,7 @@ import {
   type ReferenceAcpScenario,
 } from './index.js'
 
+const MaximumGatewayOperations = 1_024
 const GrantReferenceSchema = z
   .string()
   .min(16)
@@ -69,10 +70,10 @@ export interface AcpGatewayExchange {
 }
 
 export interface AcpGatewayTransport {
-  inventory(): Promise<GatewayInventoryEnvelope>
+  inventory(signal?: AbortSignal): Promise<GatewayInventoryEnvelope>
   connectionState(): AcpGatewayConnectionState
   grantState(grantRef: string): AcpLocalProjectGrantState
-  dispatch(command: GatewayCommandEnvelope): Promise<AcpGatewayExchange>
+  dispatch(command: GatewayCommandEnvelope, signal?: AbortSignal): Promise<AcpGatewayExchange>
 }
 
 export interface AcpGatewayClientOptions {
@@ -88,6 +89,7 @@ export interface AcpGatewayClientOptions {
   readonly commandId: (identity: string) => string
   readonly now?: () => Date
   readonly commandTtlMs?: number
+  readonly requestTimeoutMs?: number
 }
 
 export class AcpGatewayClient implements AcpTransport {
@@ -103,10 +105,17 @@ export class AcpGatewayClient implements AcpTransport {
   readonly #commandId: (identity: string) => string
   readonly #now: () => Date
   readonly #commandTtlMs: number
+  readonly #requestTimeoutMs: number
   readonly #updates = new Map<string, AcpUpdate[]>()
   readonly #requestSessions = new Map<number, string>()
+  readonly #pendingCreates = new Map<
+    string,
+    { readonly promise: Promise<{ readonly sessionId: string }>; readonly signal?: AbortSignal }
+  >()
   #sequence = 1
   #readSequence = 1
+  #createSequence = 0
+  #gatewayOperationCount = 0
 
   constructor(options: AcpGatewayClientOptions) {
     this.#transport = options.transport
@@ -121,6 +130,7 @@ export class AcpGatewayClient implements AcpTransport {
     this.#commandId = options.commandId
     this.#now = options.now ?? (() => new Date())
     this.#commandTtlMs = options.commandTtlMs ?? 60_000
+    this.#requestTimeoutMs = options.requestTimeoutMs ?? this.#commandTtlMs
     if (
       !Number.isSafeInteger(this.#commandTtlMs) ||
       this.#commandTtlMs < 1_000 ||
@@ -128,21 +138,61 @@ export class AcpGatewayClient implements AcpTransport {
     ) {
       throw new Error('INVALID_ACP_COMMAND_TTL')
     }
+    if (
+      !Number.isSafeInteger(this.#requestTimeoutMs) ||
+      this.#requestTimeoutMs < 1 ||
+      this.#requestTimeoutMs > 3_600_000
+    ) {
+      throw new Error('INVALID_ACP_GATEWAY_REQUEST_TIMEOUT')
+    }
   }
 
   connectionState(): 'connected' | 'disconnected' {
     return this.#transport.connectionState() === 'online' ? 'connected' : 'disconnected'
   }
 
-  async request(method: string, params: Record<string, z.util.JSONType>): Promise<unknown> {
+  async createSession(
+    createToken: string,
+    signal?: AbortSignal
+  ): Promise<{ readonly sessionId: string }> {
+    const pending = this.#pendingCreates.get(createToken)
+    if (pending && !pending.signal?.aborted) return pending.promise
+    const created = this.#sessionCommand(
+      'new',
+      'session.create',
+      { createToken },
+      signal,
+      `create:${createToken}:${++this.#createSequence}`
+    ).then((result) => z.object({ sessionId: SessionReferenceSchema }).strict().parse(result))
+    this.#pendingCreates.set(createToken, {
+      promise: created,
+      ...(signal === undefined ? {} : { signal }),
+    })
+    try {
+      return await created
+    } finally {
+      if (this.#pendingCreates.get(createToken)?.promise === created) {
+        this.#pendingCreates.delete(createToken)
+      }
+    }
+  }
+
+  async request(
+    method: string,
+    params: Record<string, z.util.JSONType>,
+    signal?: AbortSignal
+  ): Promise<unknown> {
     if (method === 'initialize') {
-      const driver = await this.#driver()
-      const exchange = await this.#dispatch({
-        operation: 'runtime.status',
-        identity: `initialize:${stable(params)}`,
-        requiredCapabilities: ['stream.events'],
-        parameters: { action: 'initialize', request: params },
-      })
+      const driver = await this.#driver(signal)
+      const exchange = await this.#dispatch(
+        {
+          operation: 'runtime.status',
+          identity: `initialize:${stable(params)}`,
+          requiredCapabilities: ['stream.events'],
+          parameters: { action: 'initialize', request: params },
+        },
+        signal
+      )
       this.#requireGrant()
       const initialize = z
         .record(z.string(), z.json())
@@ -162,15 +212,15 @@ export class AcpGatewayClient implements AcpTransport {
       }
     }
     if (method === 'session/new') {
-      return this.#sessionCommand('new', 'session.create', {})
+      return this.createSession(`legacy:${stable(params)}`, signal)
     }
     if (method === 'session/list') {
-      return this.#sessionCommand('list', 'session.list', {})
+      return this.#sessionCommand('list', 'session.list', {}, signal)
     }
     if (method === 'session/resume' || method === 'session/close') {
       const sessionRef = SessionReferenceSchema.parse(params['sessionId'])
       const action = method === 'session/resume' ? 'resume' : 'close'
-      return this.#sessionCommand(action, `session.${action}`, { sessionRef })
+      return this.#sessionCommand(action, `session.${action}`, { sessionRef }, signal)
     }
     if (method === 'session/prompt') {
       const prompt = z
@@ -183,17 +233,20 @@ export class AcpGatewayClient implements AcpTransport {
       const attemptId =
         JSON.stringify(prompt.prompt).match(/att_[0-9A-HJKMNP-TV-Z]{26}/)?.[0] ??
         this.#defaultAttemptId
-      const exchange = await this.#dispatch({
-        operation: 'runtime.execute',
-        identity: `prompt:${attemptId}:${stable(prompt)}`,
-        attemptId,
-        requiredCapabilities: ['stream.output'],
-        parameters: {
-          sessionRef: prompt.sessionId,
-          prompt: prompt.prompt,
-          grantRef: this.#localProjectGrantRef,
+      const exchange = await this.#dispatch(
+        {
+          operation: 'runtime.execute',
+          identity: `prompt:${attemptId}:${stable(prompt)}`,
+          attemptId,
+          requiredCapabilities: ['stream.output'],
+          parameters: {
+            sessionRef: prompt.sessionId,
+            prompt: prompt.prompt,
+            grantRef: this.#localProjectGrantRef,
+          },
         },
-      })
+        signal
+      )
       this.#successfulData(exchange)
       const updates = exchange.progress.map(normalizeAcpProgress)
       this.#updates.set(prompt.sessionId, updates)
@@ -209,31 +262,41 @@ export class AcpGatewayClient implements AcpTransport {
     }
     if (method === 'session/cancel') {
       const sessionRef = SessionReferenceSchema.parse(params['sessionId'])
-      const exchange = await this.#dispatch({
-        operation: 'runtime.cancel',
-        identity: `cancel:${sessionRef}`,
-        requiredCapabilities: ['execution.cancel'],
-        parameters: { sessionRef, requestedAt: this.#now().toISOString() },
-      })
+      const exchange = await this.#dispatch(
+        {
+          operation: 'runtime.cancel',
+          identity: `cancel:${sessionRef}`,
+          requiredCapabilities: ['execution.cancel'],
+          parameters: { sessionRef, requestedAt: this.#now().toISOString() },
+        },
+        signal
+      )
       this.#successfulData(exchange)
       return {}
     }
     throw runtimeError('ACP_GATEWAY_METHOD_UNSUPPORTED', 'unsupported', false)
   }
 
-  async respond(requestId: number, result: Record<string, z.util.JSONType>): Promise<void> {
+  async respond(
+    requestId: number,
+    result: Record<string, z.util.JSONType>,
+    signal?: AbortSignal
+  ): Promise<void> {
     const sessionRef = this.#requestSessions.get(requestId)
     if (!sessionRef) throw runtimeError('ACP_REQUEST_REFERENCE_MISSING', 'validation', false)
     const outcome = z
       .object({ outcome: z.object({ outcome: z.string() }).passthrough() })
       .parse(result)
     const approval = outcome.outcome.outcome === 'selected'
-    const exchange = await this.#dispatch({
-      operation: approval ? 'runtime.approval' : 'runtime.input',
-      identity: `respond:${requestId}:${stable(result)}`,
-      requiredCapabilities: [approval ? 'interaction.approval' : 'interaction.user-input'],
-      parameters: { sessionRef, requestId, response: result },
-    })
+    const exchange = await this.#dispatch(
+      {
+        operation: approval ? 'runtime.approval' : 'runtime.input',
+        identity: `respond:${requestId}:${stable(result)}`,
+        requiredCapabilities: [approval ? 'interaction.approval' : 'interaction.user-input'],
+        parameters: { sessionRef, requestId, response: result },
+      },
+      signal
+    )
     this.#successfulData(exchange)
   }
 
@@ -245,14 +308,17 @@ export class AcpGatewayClient implements AcpTransport {
     }
   }
 
-  async snapshot(sessionRefInput: string): Promise<AcpSnapshot> {
+  async snapshot(sessionRefInput: string, signal?: AbortSignal): Promise<AcpSnapshot> {
     const sessionRef = SessionReferenceSchema.parse(sessionRefInput)
-    const exchange = await this.#dispatch({
-      operation: 'runtime.status',
-      identity: `snapshot:${sessionRef}:${this.#readSequence++}`,
-      requiredCapabilities: ['stream.events'],
-      parameters: { action: 'snapshot', sessionRef },
-    })
+    const exchange = await this.#dispatch(
+      {
+        operation: 'runtime.status',
+        identity: `snapshot:${sessionRef}:${this.#readSequence++}`,
+        requiredCapabilities: ['stream.events'],
+        parameters: { action: 'snapshot', sessionRef },
+      },
+      signal
+    )
     return AcpSnapshotSchema.parse(this.#successfulData(exchange)['snapshot'])
   }
 
@@ -266,13 +332,18 @@ export class AcpGatewayClient implements AcpTransport {
 
   async replay(
     sessionRefInput: string,
-    options: { readonly afterSequence?: number } = {}
+    options: { readonly afterSequence?: number; readonly signal?: AbortSignal } = {}
   ): Promise<AcpSessionReplay> {
     const sessionRef = SessionReferenceSchema.parse(sessionRefInput)
-    const result = await this.#sessionCommand('replay', 'session.history', {
-      sessionRef,
-      ...(options.afterSequence === undefined ? {} : { afterSequence: options.afterSequence }),
-    })
+    const result = await this.#sessionCommand(
+      'replay',
+      'session.history',
+      {
+        sessionRef,
+        ...(options.afterSequence === undefined ? {} : { afterSequence: options.afterSequence }),
+      },
+      options.signal
+    )
     return z
       .object({
         updates: z.array(AcpUpdateSchema),
@@ -284,19 +355,26 @@ export class AcpGatewayClient implements AcpTransport {
   async #sessionCommand(
     action: 'new' | 'list' | 'resume' | 'close' | 'replay',
     requiredCapability: string,
-    parameters: Record<string, z.util.JSONType>
+    parameters: Record<string, z.util.JSONType>,
+    signal?: AbortSignal,
+    identity = `session:${action}:${stable(parameters)}`
   ): Promise<Record<string, z.util.JSONType>> {
-    const exchange = await this.#dispatch({
-      operation: 'runtime.session',
-      identity: `session:${action}:${stable(parameters)}`,
-      requiredCapabilities: [requiredCapability],
-      parameters: { action, ...parameters },
-    })
+    const exchange = await this.#dispatch(
+      {
+        operation: 'runtime.session',
+        identity,
+        requiredCapabilities: [requiredCapability],
+        parameters: { action, ...parameters },
+      },
+      signal
+    )
     return this.#successfulData(exchange)
   }
 
-  async #driver() {
-    const inventory = GatewayInventoryEnvelopeSchema.parse(await this.#transport.inventory())
+  async #driver(signal?: AbortSignal) {
+    const inventory = GatewayInventoryEnvelopeSchema.parse(
+      await this.#gatewayCall((boundedSignal) => this.#transport.inventory(boundedSignal), signal)
+    )
     if (
       !negotiateGatewayProtocolVersion(GatewayProtocolManifest.supported, [
         inventory.protocolVersion,
@@ -326,17 +404,20 @@ export class AcpGatewayClient implements AcpTransport {
     }
   }
 
-  async #dispatch(input: {
-    readonly operation: GatewayCommandEnvelope['operation']
-    readonly identity: string
-    readonly attemptId?: string
-    readonly requiredCapabilities: readonly string[]
-    readonly parameters: Record<string, z.util.JSONType>
-  }): Promise<AcpGatewayExchange> {
+  async #dispatch(
+    input: {
+      readonly operation: GatewayCommandEnvelope['operation']
+      readonly identity: string
+      readonly attemptId?: string
+      readonly requiredCapabilities: readonly string[]
+      readonly parameters: Record<string, z.util.JSONType>
+    },
+    signal?: AbortSignal
+  ): Promise<AcpGatewayExchange> {
     if (this.#transport.connectionState() !== 'online') {
       throw runtimeError('RUNTIME_GATEWAY_UNAVAILABLE', 'unavailable', true)
     }
-    await this.#driver()
+    await this.#driver(signal)
     const issuedAt = this.#now()
     const payload = { version: 1, parameters: input.parameters }
     const identity = `${input.operation}:${input.identity}`
@@ -365,13 +446,39 @@ export class AcpGatewayClient implements AcpTransport {
       payload,
     })
     try {
-      const exchange = await this.#transport.dispatch(command)
+      const exchange = await this.#gatewayCall(
+        (boundedSignal) => this.#transport.dispatch(command, boundedSignal),
+        signal
+      )
       assertExchange(command, exchange)
       return exchange
     } catch (error) {
       if (error instanceof RuntimeAdapterError) throw error
       throw runtimeError('RUNTIME_GATEWAY_UNAVAILABLE', 'unavailable', true)
     }
+  }
+
+  #gatewayCall<Value>(
+    operation: (signal: AbortSignal) => Promise<Value>,
+    upstreamSignal?: AbortSignal
+  ): Promise<Value> {
+    return withGatewayTimeout(
+      this.#requestTimeoutMs,
+      (signal) => this.#gatewayOperation(() => operation(signal)),
+      upstreamSignal
+    )
+  }
+
+  #gatewayOperation<Value>(operation: () => Promise<Value>): Promise<Value> {
+    if (this.#gatewayOperationCount >= MaximumGatewayOperations) {
+      throw runtimeError('RUNTIME_GATEWAY_BACKPRESSURE', 'unavailable', true)
+    }
+    this.#gatewayOperationCount += 1
+    return Promise.resolve()
+      .then(operation)
+      .finally(() => {
+        this.#gatewayOperationCount -= 1
+      })
   }
 
   #successfulData(exchange: AcpGatewayExchange): Record<string, z.util.JSONType> {
@@ -552,13 +659,14 @@ export class ReferenceAcpDriver {
         action: z.enum(['new', 'list', 'resume', 'close', 'replay']),
         sessionRef: SessionReferenceSchema.optional(),
         afterSequence: z.number().int().nonnegative().optional(),
+        createToken: z.string().min(1).max(256).optional(),
       })
       .strict()
       .parse(inlineParameters(command))
     if (parameters.action === 'new') {
-      const result = z
-        .object({ sessionId: NativeSessionIdSchema })
-        .parse(await this.#harness.request('session/new', {}))
+      const result = await this.#harness.createSession(
+        parameters.createToken ?? `gateway-command:${command.commandId}`
+      )
       return {
         progress: [],
         result: successResult(
@@ -683,6 +791,8 @@ export class ReferenceAcpGatewayTransport implements AcpGatewayTransport {
   readonly #commands = new Map<string, GatewayCommandEnvelope>()
   readonly #commandOrder: string[] = []
   readonly #exchanges = new Map<string, AcpGatewayExchange>()
+  readonly #inFlight = new Map<string, Promise<AcpGatewayExchange>>()
+  #handlerOperationCount = 0
   #includeDriver: boolean
   #driverRemoved = false
   #state: AcpGatewayConnectionState = 'online'
@@ -754,7 +864,10 @@ export class ReferenceAcpGatewayTransport implements AcpGatewayTransport {
     return this.#driver.grantState(grantRef)
   }
 
-  async dispatch(commandInput: GatewayCommandEnvelope): Promise<AcpGatewayExchange> {
+  async dispatch(
+    commandInput: GatewayCommandEnvelope,
+    signal?: AbortSignal
+  ): Promise<AcpGatewayExchange> {
     if (this.connectionState() !== 'online') throw new Error('REFERENCE_RUNTIME_NODE_UNAVAILABLE')
     const command = GatewayCommandEnvelopeSchema.parse(commandInput)
     if (
@@ -767,19 +880,42 @@ export class ReferenceAcpGatewayTransport implements AcpGatewayTransport {
     const received = this.#node.receive(command)
     if (received.ack.disposition === 'replayed') {
       const replay = this.#exchanges.get(command.commandId)
-      if (!replay) throw new Error('REFERENCE_RUNTIME_NODE_REPLAY_MISSING')
+      if (!replay) {
+        const inFlight = this.#inFlight.get(command.commandId)
+        if (!inFlight) throw new Error('REFERENCE_RUNTIME_NODE_REPLAY_MISSING')
+        const completed = await inFlight
+        return { ...structuredClone(completed), ack: received.ack }
+      }
       return { ...structuredClone(replay), ack: received.ack }
     }
-    const handled = await this.#driver.handle(command)
-    const exchange: AcpGatewayExchange = {
-      ack: received.ack,
-      progress: handled.progress,
-      result: handled.result,
+    const handling = (async () => {
+      const handlerTimeoutMs = Math.max(
+        1,
+        Date.parse(command.expiresAt) - Date.parse(command.issuedAt)
+      )
+      const handled = await withGatewayTimeout(
+        handlerTimeoutMs,
+        () => this.#handlerOperation(() => this.#driver.handle(command)),
+        signal
+      )
+      const exchange: AcpGatewayExchange = {
+        ack: received.ack,
+        progress: handled.progress,
+        result: handled.result,
+      }
+      this.#commands.set(command.commandId, structuredClone(command))
+      this.#commandOrder.push(command.commandId)
+      this.#exchanges.set(command.commandId, structuredClone(exchange))
+      return exchange
+    })()
+    this.#inFlight.set(command.commandId, handling)
+    try {
+      return await handling
+    } finally {
+      if (this.#inFlight.get(command.commandId) === handling) {
+        this.#inFlight.delete(command.commandId)
+      }
     }
-    this.#commands.set(command.commandId, structuredClone(command))
-    this.#commandOrder.push(command.commandId)
-    this.#exchanges.set(command.commandId, structuredClone(exchange))
-    return exchange
   }
 
   disconnect(): void {
@@ -805,6 +941,22 @@ export class ReferenceAcpGatewayTransport implements AcpGatewayTransport {
       if (!command) throw new Error('REFERENCE_RUNTIME_NODE_COMMAND_MISSING')
       return structuredClone(command)
     })
+  }
+
+  inFlightCount(): number {
+    return this.#inFlight.size
+  }
+
+  #handlerOperation<Value>(operation: () => Promise<Value>): Promise<Value> {
+    if (this.#handlerOperationCount >= MaximumGatewayOperations) {
+      throw runtimeError('RUNTIME_GATEWAY_BACKPRESSURE', 'unavailable', true)
+    }
+    this.#handlerOperationCount += 1
+    return Promise.resolve()
+      .then(operation)
+      .finally(() => {
+        this.#handlerOperationCount -= 1
+      })
   }
 
   async redeliver(commandId: string): Promise<AcpGatewayExchange> {
@@ -898,6 +1050,42 @@ function runtimeError(
   retryable: boolean
 ): RuntimeAdapterError {
   return new RuntimeAdapterError({ code, classification, message: code, retryable })
+}
+
+function withGatewayTimeout<Value>(
+  timeoutMs: number,
+  operation: (signal: AbortSignal) => Promise<Value>,
+  upstreamSignal?: AbortSignal
+): Promise<Value> {
+  const controller = new AbortController()
+  return new Promise<Value>((resolve, reject) => {
+    let settled = false
+    const finish = (complete: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      upstreamSignal?.removeEventListener('abort', abort)
+      complete()
+    }
+    const timeout = () => runtimeError('RUNTIME_GATEWAY_TIMEOUT', 'timeout', true)
+    const abort = () => {
+      finish(() => reject(timeout()))
+      controller.abort()
+    }
+    const timer = setTimeout(abort, timeoutMs)
+    timer.unref?.()
+    if (upstreamSignal?.aborted) {
+      abort()
+      return
+    }
+    upstreamSignal?.addEventListener('abort', abort, { once: true })
+    Promise.resolve()
+      .then(() => operation(controller.signal))
+      .then(
+        (value) => finish(() => resolve(value)),
+        (error: unknown) => finish(() => reject(error))
+      )
+  })
 }
 
 function errorData(

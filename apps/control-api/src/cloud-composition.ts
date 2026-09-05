@@ -7,6 +7,7 @@ import {
   PostgresContextPackageRepository,
   PostgresExecutionPlanRepository,
   PostgresProjectStateRepository,
+  PostgresRuntimeDiscoveryRepository,
   type PostgresConnection,
 } from '@control-plane/database'
 import { CommandInboxService } from '@control-plane/domain'
@@ -22,6 +23,16 @@ import {
   RestateExecutionWorkflowDispatcher,
   createExecutionId,
 } from './executions/execution-acceptance.service.js'
+import { RepositoryProfileResolutionService } from './queries/profile-resolution.service.js'
+import { RepositoryProjectStateResolutionService } from './queries/project-state-resolution.service.js'
+import { RepositoryContextPackageResolutionService } from './queries/context-package-resolution.service.js'
+import { GithubReleaseVerifier } from './marketplace/github-release-verifier.js'
+import {
+  MarketplaceInstallationService,
+  type MarketplaceInstallationAuthority,
+} from './marketplace/installation.js'
+import { PostgresMarketplaceInstallationRepository } from './marketplace/postgres-installation-repository.js'
+import { MarketplaceRegistryService } from './marketplace/registry.js'
 
 const executionPlanCompilerVersion = '1.0.0'
 
@@ -32,6 +43,12 @@ export interface ManagedCloudControlApiComposition {
   readonly executionAcceptanceService: DurableExecutionAcceptanceService
   readonly executionValidationService: DurableExecutionValidationService
   readonly serviceAuthenticator: PolicyServiceAuthenticator
+  readonly profileResolutionService: RepositoryProfileResolutionService
+  readonly projectStateResolutionService: RepositoryProjectStateResolutionService
+  readonly contextPackageResolutionService: RepositoryContextPackageResolutionService
+  readonly runtimeDiscoveryRepository: PostgresRuntimeDiscoveryRepository
+  readonly marketplaceRegistryService: MarketplaceRegistryService
+  readonly marketplaceInstallationService: MarketplaceInstallationAuthority
 }
 
 export class ControlApiCloudCompositionError extends Error {
@@ -68,6 +85,21 @@ export function createManagedCloudControlApiComposition(
   const connection = connectionFactory(configuration.database)
   const catalog = new PostgresCatalogRepository(connection.database)
   const plans = new PostgresExecutionPlanRepository(connection.database)
+  const projectStates = new PostgresProjectStateRepository(connection.database)
+  const contextPackages = new PostgresContextPackageRepository(connection.database)
+  const registryToken = process.env['MARKETPLACE_REGISTRY_TOKEN']
+  const marketplaceRegistryService = new MarketplaceRegistryService({
+    ...(process.env['MARKETPLACE_REGISTRY_IMMUTABLE_BASE_URL'] === undefined
+      ? {}
+      : { immutableReleaseBaseUrl: process.env['MARKETPLACE_REGISTRY_IMMUTABLE_BASE_URL'] }),
+    ...(process.env['MARKETPLACE_REGISTRY_LATEST_URL'] === undefined
+      ? {}
+      : { latestUrl: process.env['MARKETPLACE_REGISTRY_LATEST_URL'] }),
+    releaseVerifier: new GithubReleaseVerifier(
+      registryToken === undefined ? {} : { token: registryToken }
+    ),
+    ...(registryToken === undefined ? {} : { token: registryToken }),
+  })
 
   return {
     connection,
@@ -83,12 +115,25 @@ export function createManagedCloudControlApiComposition(
     }),
     executionValidationService: new DurableExecutionValidationService({
       compilerVersion: executionPlanCompilerVersion,
-      contextPackages: new PostgresContextPackageRepository(connection.database),
+      contextPackages,
       plans,
       profiles: catalog,
-      projectStates: new PostgresProjectStateRepository(connection.database),
+      projectStates,
       skills: catalog,
     }),
+    profileResolutionService: new RepositoryProfileResolutionService(catalog),
+    projectStateResolutionService: new RepositoryProjectStateResolutionService(projectStates),
+    contextPackageResolutionService: new RepositoryContextPackageResolutionService(contextPackages),
+    runtimeDiscoveryRepository: new PostgresRuntimeDiscoveryRepository(connection.database),
     serviceAuthenticator,
+    marketplaceRegistryService,
+    marketplaceInstallationService: new MarketplaceInstallationService({
+      registry: marketplaceRegistryService,
+      repository: new PostgresMarketplaceInstallationRepository(connection.database),
+      policy: {
+        authorizeSecurityClassification: async ({ classification }) =>
+          classification['level'] === 'low',
+      },
+    }),
   }
 }

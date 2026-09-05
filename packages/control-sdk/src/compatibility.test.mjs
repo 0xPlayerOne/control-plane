@@ -11,7 +11,7 @@ describe('Control API generated contract', () => {
   test('matches the committed OpenAPI artifact deterministically', async () => {
     const generated = createControlApiOpenApiDocument()
     const committed = JSON.parse(
-      await readFile(new URL('../openapi/control-plane.v2.json', import.meta.url), 'utf8')
+      await readFile(new URL('../openapi/control-plane.v3.json', import.meta.url), 'utf8')
     )
 
     expect(generated).toEqual(committed)
@@ -22,6 +22,8 @@ describe('Control API generated contract', () => {
       '/v1/executions/validate',
       '/v1/external-sessions/get',
       '/v1/external-sessions/list',
+      '/v1/marketplace/catalog',
+      '/v1/marketplace/install',
       '/v1/profiles/resolve',
       '/v1/project-states/resolve',
       '/v1/runtime-connections/get',

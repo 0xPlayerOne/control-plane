@@ -132,6 +132,8 @@ describe('reproducible ContextPackage compilation', () => {
     const reference = await repository.put(package_)
 
     expect(await repository.get(reference)).toEqual(package_)
+    expect(await repository.getById(package_.contextPackageId)).toEqual(package_)
+    expect(await repository.getById('ctx_01JABCDEF0123456789ABCDEFG')).toBeUndefined()
     expect(await repository.put(package_)).toEqual(reference)
     await expect(repository.put({ ...package_, objective: 'tampered' })).rejects.toThrow(
       'CONTEXT_PACKAGE_INTEGRITY_ERROR'
