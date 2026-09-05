@@ -49,8 +49,11 @@ describe('M11.2 architecture audit', () => {
 
     expect(result.errors).toEqual([])
     expect(audit.packages).toHaveLength(41)
+    // Snapshot versions are informational: Release Please owns version bumps,
+    // so the live invariant is workspace-to-manifest consistency, not
+    // snapshot-to-manifest equality (which is false on every release PR).
     expect(
-      audit.packages.every(({ path, version }) => discovered.releaseManifest[path] === version)
+      discovered.packages.every(({ path, version }) => discovered.releaseManifest[path] === version)
     ).toBe(true)
     expect(audit.operations.map(({ operation }) => operation).sort()).toEqual(publicOperations)
     expect(audit.profiles.map(({ id }) => id).sort()).toEqual(profileIds)
@@ -94,6 +97,22 @@ describe('M11.2 architecture audit', () => {
     expect(releaseResult.errors).toContain(
       'workspace package versions drifted from release-please manifest'
     )
+  })
+
+  test('ignores release-please version bumps in the package inventory', async () => {
+    const discovered = await discoverArchitecture(repositoryRoot)
+    const bumped = clone(discovered)
+    for (const entry of bumped.packages) {
+      entry.version = '9.9.9-bump'
+      entry.lockVersion = '9.9.9-bump'
+      bumped.releaseManifest[entry.path] = '9.9.9-bump'
+    }
+    const { errors } = await validateArchitectureAudit(audit, {
+      repositoryRoot,
+      discovered: bumped,
+    })
+    expect(errors).not.toContain('package inventory drifted from workspace manifests')
+    expect(errors).toEqual([])
   })
 
   test('classifies every unsupported or partial path with an owned M11 disposition', () => {
