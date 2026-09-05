@@ -86,7 +86,7 @@ const expectedEnvironments = {
     railwayEnvironment: 'production',
     applicationEnvironment: 'production',
     sourceBranch: 'main',
-    neonBranch: 'main',
+    neonBranch: 'production',
   },
 }
 for (const [name, expectedEnvironment] of Object.entries(expectedEnvironments)) {

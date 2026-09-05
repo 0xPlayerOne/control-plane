@@ -107,7 +107,7 @@ test('maps Railway staging and production to isolated Neon branches', async () =
       railwayEnvironment: 'production',
       applicationEnvironment: 'production',
       sourceBranch: 'main',
-      neon: { provider: 'neon', project: 'control-plane', branch: 'main' },
+      neon: { provider: 'neon', project: 'control-plane', branch: 'production' },
     },
   })
   assert.match(source, /const sourceBranch = production \? 'main' : 'staging'/)
