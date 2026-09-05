@@ -100,7 +100,7 @@
     "railway": "3.11.0",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.68.0"
+    "typescript-eslint": "8.69.0"
   },
   "overrides": {
     "esbuild": "0.28.2"
