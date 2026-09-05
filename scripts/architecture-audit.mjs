@@ -269,7 +269,20 @@ export async function validateArchitectureAudit(audit, options = {}) {
     ...entry,
     layer: packageLayer(entry),
   }))
-  if (JSON.stringify(audit.packages) !== JSON.stringify(discoveredPackages)) {
+  // Package versions are owned by Release Please: every version-bump PR would
+  // otherwise read as architecture drift and no release could ever pass these
+  // gates. Structural drift is still detected exactly; version consistency
+  // between workspaces and the release manifest is covered by the check below.
+  const structural = (entries) =>
+    entries.map((entry) => {
+      const copy = { ...entry }
+      delete copy.version
+      delete copy.lockVersion
+      return copy
+    })
+  if (
+    JSON.stringify(structural(audit.packages)) !== JSON.stringify(structural(discoveredPackages))
+  ) {
     errors.push('package inventory drifted from workspace manifests')
   }
   if (
