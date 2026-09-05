@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/adea-ai/control-plane/compare/database-v1.7.1...database-v1.7.2) (2026-09-05)
+
+
+### Maintenance
+
+* **infra:** align Neon branch names with Railway environment names ([#368](https://github.com/adea-ai/control-plane/issues/368)) ([fb698a2](https://github.com/adea-ai/control-plane/commit/fb698a2f86d2cf6a3e5b9ceaf0938c55d573c204))
+
 ## [1.7.1](https://github.com/adea-ai/control-plane/compare/database-v1.7.0...database-v1.7.1) (2026-09-05)
 
 
