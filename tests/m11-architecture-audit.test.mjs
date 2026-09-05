@@ -49,8 +49,11 @@ describe('M11.2 architecture audit', () => {
 
     expect(result.errors).toEqual([])
     expect(audit.packages).toHaveLength(41)
+    // Snapshot versions are informational: Release Please owns version bumps,
+    // so the live invariant is workspace-to-manifest consistency, not
+    // snapshot-to-manifest equality (which is false on every release PR).
     expect(
-      audit.packages.every(({ path, version }) => discovered.releaseManifest[path] === version)
+      discovered.packages.every(({ path, version }) => discovered.releaseManifest[path] === version)
     ).toBe(true)
     expect(audit.operations.map(({ operation }) => operation).sort()).toEqual(publicOperations)
     expect(audit.profiles.map(({ id }) => id).sort()).toEqual(profileIds)
