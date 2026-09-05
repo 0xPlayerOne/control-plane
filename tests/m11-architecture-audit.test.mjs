@@ -96,6 +96,22 @@ describe('M11.2 architecture audit', () => {
     )
   })
 
+  test('ignores release-please version bumps in the package inventory', async () => {
+    const discovered = await discoverArchitecture(repositoryRoot)
+    const bumped = clone(discovered)
+    for (const entry of bumped.packages) {
+      entry.version = '9.9.9-bump'
+      entry.lockVersion = '9.9.9-bump'
+      bumped.releaseManifest[entry.path] = '9.9.9-bump'
+    }
+    const { errors } = await validateArchitectureAudit(audit, {
+      repositoryRoot,
+      discovered: bumped,
+    })
+    expect(errors).not.toContain('package inventory drifted from workspace manifests')
+    expect(errors).toEqual([])
+  })
+
   test('classifies every unsupported or partial path with an owned M11 disposition', () => {
     for (const row of [
       ...audit.operations,
